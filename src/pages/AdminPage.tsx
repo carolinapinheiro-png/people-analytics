@@ -1,13 +1,20 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { useServerFn } from '@tanstack/react-start';
 import { Trash2, UserPlus, Shield, ScrollText, ShieldAlert, ShieldCheck } from 'lucide-react';
+import {
+  getAllowedEmails,
+  getAccessLogs,
+  addAllowedEmail,
+  removeAllowedEmail,
+  updateAllowedEmailRole,
+} from '@/lib/access.functions';
 
 interface AllowedEmail {
   id: string;
@@ -33,35 +40,30 @@ export default function AdminPage() {
   const [newRole, setNewRole] = useState<'admin' | 'viewer'>('viewer');
   const [isLoading, setIsLoading] = useState(false);
 
-  const fetchEmails = async () => {
-    const { data, error } = await supabase
-      .from('allowed_emails')
-      .select('*')
-      .order('created_at', { ascending: false });
+  const getAllowedEmailsFn = useServerFn(getAllowedEmails);
+  const getAccessLogsFn = useServerFn(getAccessLogs);
+  const addAllowedEmailFn = useServerFn(addAllowedEmail);
+  const removeAllowedEmailFn = useServerFn(removeAllowedEmail);
+  const updateAllowedEmailRoleFn = useServerFn(updateAllowedEmailRole);
 
-    if (error) {
+  const fetchEmails = async () => {
+    try {
+      const data = await getAllowedEmailsFn();
+      setEmails(data as AllowedEmail[]);
+    } catch (error) {
       toast.error('Erro ao carregar emails autorizados');
       console.error(error);
-      return;
     }
-
-    setEmails(data || []);
   };
 
   const fetchLogs = async () => {
-    const { data, error } = await supabase
-      .from('access_logs')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    if (error) {
+    try {
+      const data = await getAccessLogsFn();
+      setLogs(data as AccessLog[]);
+    } catch (error) {
       toast.error('Erro ao carregar logs');
       console.error(error);
-      return;
     }
-
-    setLogs(data || []);
   };
 
   useEffect(() => {
@@ -76,41 +78,39 @@ export default function AdminPage() {
     if (!newEmail.trim()) return;
 
     setIsLoading(true);
-    const { error } = await supabase
-      .from('allowed_emails')
-      .insert({ email: newEmail.trim().toLowerCase(), role: newRole });
-
-    if (error) {
-      toast.error('Erro ao adicionar email');
-      console.error(error);
-    } else {
+    try {
+      await addAllowedEmailFn({ data: { email: newEmail.trim(), role: newRole } });
       toast.success('Email autorizado com sucesso');
       setNewEmail('');
       setNewRole('viewer');
       fetchEmails();
+    } catch (error) {
+      toast.error('Erro ao adicionar email');
+      console.error(error);
+    } finally {
+      setIsLoading(false);
     }
-    setIsLoading(false);
   };
 
   const handleRemove = async (id: string) => {
-    const { error } = await supabase.from('allowed_emails').delete().eq('id', id);
-    if (error) {
-      toast.error('Erro ao remover email');
-      console.error(error);
-    } else {
+    try {
+      await removeAllowedEmailFn({ data: { id } });
       toast.success('Email removido');
       fetchEmails();
+    } catch (error) {
+      toast.error('Erro ao remover email');
+      console.error(error);
     }
   };
 
   const handleRoleChange = async (id: string, role: 'admin' | 'viewer') => {
-    const { error } = await supabase.from('allowed_emails').update({ role }).eq('id', id);
-    if (error) {
-      toast.error('Erro ao alterar papel');
-      console.error(error);
-    } else {
+    try {
+      await updateAllowedEmailRoleFn({ data: { id, role } });
       toast.success('Papel atualizado');
       fetchEmails();
+    } catch (error) {
+      toast.error('Erro ao alterar papel');
+      console.error(error);
     }
   };
 
