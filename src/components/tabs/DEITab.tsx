@@ -1,0 +1,317 @@
+import { useDashboard } from '@/data/DashboardContext';
+import { mLabel } from '@/data/helpers';
+import KpiCard from '@/components/dashboard/KpiCard';
+import ChartCard from '@/components/dashboard/ChartCard';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { COLORS } from '@/lib/colors';
+
+const BRAND_COLORS: Record<string, string> = {
+  combined: COLORS.flutter,
+  NSX: COLORS.nsx,
+  'Betfair BR': COLORS.betfair,
+  'Flutter International': COLORS.flutter,
+  Porto: COLORS.flutter,
+};
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Legend, PieChart, Pie, Cell
+} from 'recharts';
+import {
+  Users,
+  Target,
+  TrendingUp,
+  TrendingDown,
+  AlertTriangle,
+  CheckCircle2,
+  Award,
+  BarChart3
+} from 'lucide-react';
+
+export default function DEITab() {
+  const { currentData, prevData, allMonthsData, currentMonth, brand } = useDashboard();
+  const curr = currentData;
+  const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
+
+  const fpDelta = prevData
+    ? (curr.gender_female_pct || 0) - (prevData.gender_female_pct || 0)
+    : 0;
+  const lpDelta = prevData
+    ? (curr.leader_female_pct || 0) - (prevData.leader_female_pct || 0)
+    : 0;
+  const gapTo40 = ((curr.gender_female_pct || 0) - 40).toFixed(1);
+
+  const firstMonth = allMonthsData[0];
+  const startFemalePct = firstMonth?.gender_female_pct || 0;
+  const progressGrowth = (curr.gender_female_pct || 0) - startFemalePct;
+
+  const kpis = [
+    {
+      label: 'Female % Overall',
+      value: (curr.gender_female_pct || 0) + '%',
+      color: COLORS.female,
+      sub: fpDelta >= 0
+        ? `<span style="color:#66bb6a">+${fpDelta.toFixed(1)}pp</span> vs mês ant.`
+        : `<span style="color:#ef5350">${fpDelta.toFixed(1)}pp</span> vs mês ant.`
+    },
+    {
+      label: 'Female % Liderança',
+      value: (curr.leader_female_pct || 0) + '%',
+      color: COLORS.purple,
+      sub: lpDelta >= 0
+        ? `<span style="color:#66bb6a">+${lpDelta.toFixed(1)}pp</span> vs mês ant.`
+        : `<span style="color:#ef5350">${lpDelta.toFixed(1)}pp</span> vs mês ant.`
+    },
+    {
+      label: 'Gap p/ Meta 40%',
+      value: gapTo40 + 'pp',
+      color: parseFloat(gapTo40) >= 0 ? '#66bb6a' : COLORS.amber
+    },
+    {
+      label: 'Líderes Female',
+      value: `${curr.leader_female || 0} de ${curr.leaders || 0}`,
+      color: COLORS.purple
+    },
+  ];
+
+  const genderTrend = allMonthsData.map(d => ({
+    month: mLabel(d.month),
+    overall: d.gender_female_pct,
+    lideranca: d.leader_female_pct,
+    meta40: 40,
+    meta30: 30,
+  }));
+
+  const leaderStack = allMonthsData.map(d => ({
+    month: mLabel(d.month),
+    female: d.leader_female || 0,
+    male: (d.leaders || 0) - (d.leader_female || 0),
+  }));
+
+  const genderDonut = [
+    { name: 'Female', value: curr.gender_female || 0 },
+    { name: 'Male', value: curr.gender_male || 0 },
+  ];
+
+  const leaderDonut = [
+    { name: 'Female', value: curr.leader_female || 0 },
+    { name: 'Male', value: (curr.leaders || 0) - (curr.leader_female || 0) },
+  ];
+
+  const genderBalance = (curr.gender_female_pct || 0) >= 40 && (curr.gender_female_pct || 0) <= 60
+    ? 'balanced'
+    : (curr.gender_female_pct || 0) < 40
+      ? 'low-female'
+      : 'high-female';
+
+  const leaderFemaleHealthy = (curr.leader_female_pct || 0) >= 30;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex gap-5 flex-wrap text-xs text-muted-foreground">
+        <span>Ref: <strong className="text-foreground">{mLabel(currentMonth)}</strong></span>
+        <span>Meta Female Overall: <strong className="text-foreground">40%</strong></span>
+        <span>Meta Female Liderança: <strong className="text-foreground">30%</strong></span>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {kpis.map(k => <KpiCard key={k.label} label={k.label} value={k.value} color={k.color} sub={k.sub} icon={k.label.includes('Líder') ? Award : Users} />)}
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ChartCard title="Evolução Female %" subtitle="Overall vs Liderança">
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={genderTrend}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
+              <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
+              <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} domain={[0, 60]} />
+              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Line type="monotone" dataKey="overall" name="Geral" stroke={COLORS.female} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="lideranca" name="Liderança" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="meta40" name="Meta 40%" stroke="#66bb6a" strokeDasharray="4 4" strokeWidth={1} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="Composição de Liderança" subtitle="Líderes por gênero ao longo do tempo">
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={leaderStack}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
+              <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
+              <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
+              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Bar dataKey="female" name="Female" stackId="a" fill={COLORS.female} />
+              <Bar dataKey="male" name="Male" stackId="a" fill="#42a5f5" />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <ChartCard title="Gender Mix — Overall" subtitle={`${curr.gender_female || 0} / ${curr.headcount || 0}`}>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={genderDonut} innerRadius={50} outerRadius={70} dataKey="value" strokeWidth={0}>
+                <Cell fill={COLORS.female} />
+                <Cell fill="#42a5f5" />
+              </Pie>
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="text-center -mt-4">
+            <span className="text-2xl font-bold" style={{ color: COLORS.female }}>{curr.gender_female_pct}%</span>
+            <span className="text-xs text-slate-400 ml-1">feminino</span>
+          </div>
+        </ChartCard>
+
+        <ChartCard title="Gender Mix — Liderança" subtitle={`${curr.leader_female || 0} / ${curr.leaders || 0}`}>
+          <ResponsiveContainer width="100%" height={200}>
+            <PieChart>
+              <Pie data={leaderDonut} innerRadius={50} outerRadius={70} dataKey="value" strokeWidth={0}>
+                <Cell fill={COLORS.female} />
+                <Cell fill="#42a5f5" />
+              </Pie>
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+            </PieChart>
+          </ResponsiveContainer>
+          <div className="text-center -mt-4">
+            <span className="text-2xl font-bold" style={{ color: COLORS.purple }}>{curr.leader_female_pct}%</span>
+            <span className="text-xs text-slate-400 ml-1">líderes mulheres</span>
+          </div>
+        </ChartCard>
+      </div>
+
+      {/* Detailed Analysis */}
+      <Card className="border-l-4 bg-slate-900/50" style={{ borderLeftColor: brandColor }}>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2 text-slate-100">
+            <BarChart3 className="h-5 w-5" style={{ color: brandColor }} />
+            Análise DEI — {mLabel(currentMonth)}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-slate-800/50 rounded-lg p-4">
+              <h3 className="font-semibold text-slate-100 mb-3 flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                Visão Geral
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Female %</span>
+                  <span className="font-bold text-pink-400">{curr.gender_female_pct}%</span>
+                </div>
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Male %</span>
+                  <span className="font-bold text-blue-400">{(100 - (curr.gender_female_pct || 0)).toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Total Female</span>
+                  <span className="font-bold">{curr.gender_female || 0}</span>
+                </div>
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Total Male</span>
+                  <span className="font-bold">{curr.gender_male || 0}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 rounded-lg p-4">
+              <h3 className="font-semibold text-slate-100 mb-3 flex items-center gap-2">
+                <Award className="h-4 w-4" />
+                Liderança
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Female % Liderança</span>
+                  <span className="font-bold text-purple-400">{curr.leader_female_pct}%</span>
+                </div>
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Líderes Female</span>
+                  <span className="font-bold">{curr.leader_female || 0}</span>
+                </div>
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Líderes Male</span>
+                  <span className="font-bold">{(curr.leaders || 0) - (curr.leader_female || 0)}</span>
+                </div>
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Total Líderes</span>
+                  <span className="font-bold">{curr.leaders || 0}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-slate-800/50 rounded-lg p-4">
+              <h3 className="font-semibold text-slate-100 mb-3 flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Progresso vs Meta
+              </h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Gap p/ 40%</span>
+                  <span className={`font-bold ${parseFloat(gapTo40) >= 0 ? 'text-green-400' : 'text-yellow-400'}`}>
+                    {parseFloat(gapTo40) >= 0 ? '+' : ''}{gapTo40}pp
+                  </span>
+                </div>
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Início do período</span>
+                  <span className="font-bold">{startFemalePct.toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Crescimento</span>
+                  <span className={`font-bold ${progressGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {progressGrowth >= 0 ? '+' : ''}{progressGrowth.toFixed(1)}pp
+                  </span>
+                </div>
+                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
+                  <span className="text-slate-400">Tendência</span>
+                  <span className="font-bold">{fpDelta >= 0 ? 'Subindo' : 'Descendo'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className={`p-4 rounded-lg border text-sm ${genderBalance === 'balanced' ? 'bg-green-950/40 border-green-500/30 text-green-300' : 'bg-amber-950/40 border-amber-500/30 text-amber-300'}`}>
+            <div className="flex items-start gap-3">
+              {genderBalance === 'balanced' ? <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" /> : <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />}
+              <div>
+                <strong>Insight:</strong>{' '}
+                {genderBalance === 'balanced'
+                  ? `A representação feminina de ${curr.gender_female_pct}% está dentro da faixa equilibrada (40-60%).`
+                  : `A representação feminina de ${curr.gender_female_pct}% está abaixo da meta de 40%. Recomenda-se ações para atrair e reter mais talentos mulheres.`}
+                {' '}Na liderança, {curr.leader_female_pct}% são mulheres
+                {leaderFemaleHealthy ? ', atingindo a meta mínima de 30%.' : ', com oportunidade de aumentar representatividade feminina em posições de comando.'}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-amber-950/30 border border-amber-500/20 rounded-lg p-4">
+            <h3 className="font-semibold text-amber-200 mb-3 flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Recomendações Estratégicas DEI
+            </h3>
+            <ul className="space-y-2 text-sm text-amber-200">
+              <li className="flex items-start gap-2">
+                <span className="font-bold">1.</span>
+                <span><strong>Meta 40%:</strong> Acompanhar evolução mensal e acelerar ações de recrutamento quando o ritmo de crescimento desacelerar.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">2.</span>
+                <span><strong>Liderança Feminina:</strong> Desenvolver pipeline interno e revisir processos de promoção para equilibrar representatividade.</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold">3.</span>
+                <span><strong>Retenção:</strong> Monitorar taxa de atrito por gênero para garantir que mulheres não saiam em proporção maior.</span>
+              </li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

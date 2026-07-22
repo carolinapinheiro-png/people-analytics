@@ -1,22 +1,23 @@
 import { createFileRoute, Navigate } from '@tanstack/react-router';
 import { useAuth } from '@/contexts/AuthContext';
+import AdminPage from '@/pages/AdminPage';
 
-export const Route = createFileRoute('/')({
-  component: Index,
+export const Route = createFileRoute('/_authenticated/admin')({
+  component: AdminRoute,
   head: () => ({
     meta: [
-      { title: 'People Analytics · Flutter Brazil' },
-      { name: 'description', content: 'People Analytics dashboard for Flutter Brazil' },
-      { property: 'og:title', content: 'People Analytics · Flutter Brazil' },
-      { property: 'og:description', content: 'People Analytics dashboard for Flutter Brazil' },
+      { title: 'Admin · People Analytics' },
+      { name: 'description', content: 'Manage access for People Analytics' },
+      { property: 'og:title', content: 'Admin · People Analytics' },
+      { property: 'og:description', content: 'Manage access for People Analytics' },
       { property: 'og:type', content: 'website' },
       { name: 'twitter:card', content: 'summary' },
     ],
   }),
 });
 
-function Index() {
-  const { user, loading, isAllowed } = useAuth();
+function AdminRoute() {
+  const { isAdmin, loading } = useAuth();
 
   if (loading) {
     return (
@@ -26,9 +27,9 @@ function Index() {
     );
   }
 
-  if (user && isAllowed) {
+  if (!isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  return <Navigate to="/login" replace />;
+  return <AdminPage />;
 }
