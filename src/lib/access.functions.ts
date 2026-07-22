@@ -1,11 +1,15 @@
 import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/integrations/supabase/types';
 
 const RoleSchema = z.enum(['admin', 'viewer']);
 
+type AppSupabaseClient = SupabaseClient<Database>;
+
 async function getAdminRole(
-  supabase: Awaited<ReturnType<typeof requireSupabaseAuth.handler>> extends { context: infer C } ? C['supabase'] : never,
+  supabase: AppSupabaseClient,
   userEmail: string
 ): Promise<'admin' | 'viewer' | null> {
   const { data, error } = await supabase
@@ -35,7 +39,6 @@ export const checkAccess = createServerFn({ method: 'GET' })
     const allowed = !!data && !error;
     const role = allowed && (data.role === 'admin' || data.role === 'viewer') ? data.role : null;
 
-    // Log access attempt via admin client (avoids exposing insert policy)
     try {
       const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
       await supabaseAdmin.from('access_logs').insert({

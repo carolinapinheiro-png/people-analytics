@@ -1,6 +1,9 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
+import { lovable } from '@/integrations/lovable/index';
+import { checkAccess } from '@/lib/access.functions';
+import { useServerFn } from '@tanstack/react-start';
 
 interface AuthContextType {
   user: User | null;
@@ -11,7 +14,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  checkAccess: () => Promise<boolean>;
+  googleSignIn: () => Promise<void>;
   isAdmin: boolean;
 }
 
@@ -23,106 +26,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [isAllowed, setIsAllowed] = useState<boolean | null>(null);
   const [role, setRole] = useState<'admin' | 'viewer' | null>(null);
+  const checkAccessFn = useServerFn(checkAccess);
 
-  const checkAccess = async (): Promise<boolean> => {
-    const currentSession = await supabase.auth.getSession();
-    const accessToken = currentSession.data.session?.access_token;
-    if (!accessToken) {
-      setIsAllowed(false);
-      setRole(null);
-      return false;
-    }
-
+  const verifyAccess = useCallback(async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/check-access`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-      const allowed = response.ok && result.allowed === true;
-      setIsAllowed(allowed);
-      setRole(allowed && result.role === 'admin' ? 'admin' : allowed ? 'viewer' : null);
-      return allowed;
+      const result = await checkAccessFn();
+      setIsAllowed(result.allowed);
+      setRole(result.role);
+      return result.allowed;
     } catch (error) {
-      console.error('Error checking access:', error);
+      console.error('Access check failed:', error);
       setIsAllowed(false);
       setRole(null);
       return false;
     }
-  };
+  }, [checkAccessFn]);
 
   useEffect(() => {
-    // 1. ALWAYS register the auth state listener FIRST
+    let isMounted = true;
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        if (!isMounted) return;
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          await checkAccess();
+          await verifyAccess();
         } else {
           setIsAllowed(null);
+          setRole(null);
         }
         setLoading(false);
       }
     );
 
-    // 2. Listen for OAuth tokens from popup via postMessage
-    const handleMessage = (event: MessageEvent) => {
-      if (event.origin !== window.location.origin) return;
-      if (event.data?.type !== 'supabase-auth') return;
-
-      const { access_token, refresh_token } = event.data;
-      if (access_token && refresh_token) {
-        supabase.auth.setSession({ access_token, refresh_token });
-      }
-    };
-    window.addEventListener('message', handleMessage);
-
-    // 3. Check for OAuth tokens stored in localStorage (fallback when popup
-    //    was opened as a new tab due to popup blockers)
-    const storedTokens = localStorage.getItem('supabase-oauth-tokens');
-    if (storedTokens) {
-      localStorage.removeItem('supabase-oauth-tokens');
-      try {
-        const { access_token, refresh_token } = JSON.parse(storedTokens);
-        if (access_token && refresh_token) {
-          supabase.auth.setSession({ access_token, refresh_token });
-        }
-      } catch {}
-    }
-
-    // 4. Normal flow — check existing session
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await checkAccess();
-      }
-      setLoading(false);
-    });
-
-    // 5. Periodic access re-check (every 60s) to revoke access in real-time
-    const interval = setInterval(() => {
-      if (user) {
-        checkAccess();
-      }
-    }, 60000);
-
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
-      window.removeEventListener('message', handleMessage);
-      clearInterval(interval);
     };
-  }, []);
+  }, [verifyAccess]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    const allowed = await checkAccess();
+    const allowed = await verifyAccess();
     if (!allowed) {
       await supabase.auth.signOut();
       throw new Error('Acesso negado: seu email não está na lista de usuários autorizados.');
@@ -132,16 +79,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signUp = async (email: string, password: string) => {
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
+    const allowed = await verifyAccess();
+    if (!allowed) {
+      await supabase.auth.signOut();
+      throw new Error('Acesso negado: seu email não está na lista de usuários autorizados.');
+    }
+  };
+
+  const googleSignIn = async () => {
+    const result = await lovable.auth.signInWithOAuth('google', {
+      redirect_uri: window.location.origin,
+    });
+    if (result.error) throw result.error;
+    if (!result.redirected) {
+      await verifyAccess();
+    }
   };
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
     setIsAllowed(null);
+    setRole(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, isAllowed, signIn, signUp, signOut, checkAccess }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        loading,
+        isAllowed,
+        role,
+        signIn,
+        signUp,
+        signOut,
+        googleSignIn,
+        isAdmin: role === 'admin',
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -1,25 +1,25 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Lock, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isVerifying, setIsVerifying] = useState(true);
-  const [searchParams] = useSearchParams();
+  const search = useSearch({ from: '/update-password' });
   const navigate = useNavigate();
 
   useEffect(() => {
     const verifyRecovery = async () => {
-      const tokenHash = searchParams.get('token');
-      const code = searchParams.get('code');
+      const tokenHash = search.token as string | undefined;
+      const code = search.code as string | undefined;
 
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -49,7 +49,7 @@ export default function UpdatePasswordPage() {
     };
 
     verifyRecovery();
-  }, [searchParams]);
+  }, [search]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +72,7 @@ export default function UpdatePasswordPage() {
       console.error(error);
     } else {
       toast.success('Senha atualizada com sucesso!');
-      navigate('/dashboard', { replace: true });
+      navigate({ to: '/dashboard', replace: true });
     }
     setIsLoading(false);
   };
