@@ -30,11 +30,16 @@ export const checkAccess = createServerFn({ method: 'GET' })
       return { allowed: false, role: null };
     }
 
-    const { data, error } = await context.supabase
+    // The RLS policy on allowed_emails compares against auth.users.email, but the
+    // authenticated role has no SELECT on auth.users, so the subquery returns null
+    // and every read is denied. The JWT-verified claims.email is trustworthy here,
+    // so look up authorization via the admin client.
+    const { supabaseAdmin: lookupClient } = await import('@/integrations/supabase/client.server');
+    const { data, error } = await lookupClient
       .from('allowed_emails')
       .select('role')
-      .eq('email', userEmail)
-      .single();
+      .ilike('email', userEmail)
+      .maybeSingle();
 
     const allowed = !!data && !error;
     const role = allowed && (data.role === 'admin' || data.role === 'viewer') ? data.role : null;
