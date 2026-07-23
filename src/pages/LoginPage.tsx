@@ -101,6 +101,16 @@ export default function LoginPage() {
     }
   }, [user, loading, navigate]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const denied = window.sessionStorage.getItem(ACCESS_DENIED_STORAGE_KEY);
+    if (denied) {
+      setAccessError(denied);
+      toast.error(denied);
+      window.sessionStorage.removeItem(ACCESS_DENIED_STORAGE_KEY);
+    }
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
