@@ -5,68 +5,107 @@ import { lovable } from '@/integrations/lovable/index';
 import { checkAccess } from '@/lib/access.functions';
 import { useServerFn } from '@tanstack/react-start';
 
+/**
+ * 'unknown' — not checked yet (no session, or check in flight)
+ * 'allowed' — server confirmed the email is authorized
+ * 'denied'  — server confirmed the email is NOT authorized (session destroyed)
+ * 'error'   — the check itself failed (network/5xx). Access is blocked, but the
+ *             session is intentionally preserved so a retry can recover.
+ */
+export type AccessStatus = 'unknown' | 'allowed' | 'denied' | 'error';
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  /** Kept for backwards compatibility. Derived from accessStatus. */
   isAllowed: boolean | null;
+  accessStatus: AccessStatus;
   role: 'admin' | 'viewer' | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   googleSignIn: () => Promise<void>;
+  retryAccessCheck: () => Promise<AccessStatus>;
   isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const ACCESS_DENIED_MESSAGE =
+export const ACCESS_DENIED_MESSAGE =
   'Acesso negado: seu email não está na lista de usuários autorizados.';
+export const ACCESS_CHECK_FAILED_MESSAGE =
+  'Não foi possível verificar seu acesso no momento. Verifique sua conexão e tente novamente.';
 export const ACCESS_DENIED_STORAGE_KEY = 'auth:access-denied';
+
+const VERIFY_ATTEMPTS = 2;
+const VERIFY_RETRY_DELAY_MS = 800;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAllowed, setIsAllowed] = useState<boolean | null>(null);
+  const [accessStatus, setAccessStatus] = useState<AccessStatus>('unknown');
   const [role, setRole] = useState<'admin' | 'viewer' | null>(null);
   const checkAccessFn = useServerFn(checkAccess);
 
-  // Enforces authorization: if the check returns allowed=false, immediately
-  // terminate the Supabase session so no valid JWT lingers in memory/storage
-  // regardless of whether the login came from the password form or OAuth.
-  const verifyAccess = useCallback(async () => {
-    let allowed = false;
-    try {
-      const result = await checkAccessFn();
-      allowed = !!result.allowed;
-      if (allowed) {
-        setIsAllowed(true);
-        setRole(result.role);
-        return true;
+  /**
+   * Authorization gate. Distinguishes three outcomes:
+   *
+   *   allowed → proceed.
+   *   denied  → authoritative "no". Destroy the Supabase session immediately so
+   *             no valid JWT lingers, regardless of password vs OAuth login.
+   *   error   → we could not reach a verdict. Block access, but DO NOT sign out:
+   *             a network blip must not evict an authorized user.
+   */
+  const verifyAccess = useCallback(async (): Promise<AccessStatus> => {
+    let lastError: unknown = null;
+
+    for (let attempt = 0; attempt < VERIFY_ATTEMPTS; attempt++) {
+      if (attempt > 0) await sleep(VERIFY_RETRY_DELAY_MS);
+
+      try {
+        const result = await checkAccessFn();
+
+        if (result.allowed) {
+          setAccessStatus('allowed');
+          setRole(result.role);
+          return 'allowed';
+        }
+
+        // Authoritative denial — tear the session down.
+        setAccessStatus('denied');
+        setRole(null);
+        setUser(null);
+        setSession(null);
+
+        try {
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.setItem(ACCESS_DENIED_STORAGE_KEY, ACCESS_DENIED_MESSAGE);
+          }
+        } catch {
+          // sessionStorage may be unavailable; the message is best-effort.
+        }
+
+        try {
+          await supabase.auth.signOut();
+        } catch (error) {
+          console.error('Sign-out after denied access failed:', error);
+        }
+
+        return 'denied';
+      } catch (error) {
+        lastError = error;
       }
-    } catch (error) {
-      console.error('Access check failed:', error);
     }
-    // Denied path: clear local state first, then sign out. The SIGNED_OUT
-    // event that follows sees session=null and skips verifyAccess (no loop).
-    setIsAllowed(false);
+
+    // Verification failed, not denied. Session stays alive on purpose.
+    console.error('Access check failed:', lastError);
+    setAccessStatus('error');
     setRole(null);
-    setUser(null);
-    setSession(null);
-    try {
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(ACCESS_DENIED_STORAGE_KEY, ACCESS_DENIED_MESSAGE);
-      }
-    } catch {
-      // sessionStorage may be unavailable; message is best-effort.
-    }
-    try {
-      await supabase.auth.signOut();
-    } catch (error) {
-      console.error('Sign-out after denied access failed:', error);
-    }
-    return false;
+    return 'error';
   }, [checkAccessFn]);
 
   useEffect(() => {
@@ -75,16 +114,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!isMounted) return;
+
         if (!session?.user) {
           // Covers SIGNED_OUT and initial no-session — never re-verify here,
           // which prevents a loop after verifyAccess triggers a signOut.
           setSession(null);
           setUser(null);
-          setIsAllowed(null);
+          setAccessStatus('unknown');
           setRole(null);
           setLoading(false);
           return;
         }
+
         if (
           event !== 'SIGNED_IN' &&
           event !== 'USER_UPDATED' &&
@@ -96,6 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setLoading(false);
           return;
         }
+
         setSession(session);
         setUser(session.user);
         await verifyAccess();
@@ -112,19 +154,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
-    const allowed = await verifyAccess();
-    if (!allowed) {
-      throw new Error(ACCESS_DENIED_MESSAGE);
-    }
+    const status = await verifyAccess();
+    if (status === 'denied') throw new Error(ACCESS_DENIED_MESSAGE);
+    if (status === 'error') throw new Error(ACCESS_CHECK_FAILED_MESSAGE);
   };
 
   const signUp = async (email: string, password: string) => {
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
-    const allowed = await verifyAccess();
-    if (!allowed) {
-      throw new Error(ACCESS_DENIED_MESSAGE);
-    }
+    const status = await verifyAccess();
+    if (status === 'denied') throw new Error(ACCESS_DENIED_MESSAGE);
+    if (status === 'error') throw new Error(ACCESS_CHECK_FAILED_MESSAGE);
   };
 
   const googleSignIn = async () => {
@@ -133,19 +173,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
     if (result.error) throw result.error;
     if (!result.redirected) {
-      const allowed = await verifyAccess();
-      if (!allowed) {
-        throw new Error(ACCESS_DENIED_MESSAGE);
-      }
+      const status = await verifyAccess();
+      if (status === 'denied') throw new Error(ACCESS_DENIED_MESSAGE);
+      if (status === 'error') throw new Error(ACCESS_CHECK_FAILED_MESSAGE);
     }
   };
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
-    setIsAllowed(null);
+    setAccessStatus('unknown');
     setRole(null);
   };
+
+  const retryAccessCheck = useCallback(() => verifyAccess(), [verifyAccess]);
+
+  const isAllowed =
+    accessStatus === 'allowed' ? true : accessStatus === 'denied' ? false : null;
 
   return (
     <AuthContext.Provider
@@ -154,11 +198,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         session,
         loading,
         isAllowed,
+        accessStatus,
         role,
         signIn,
         signUp,
         signOut,
         googleSignIn,
+        retryAccessCheck,
         isAdmin: role === 'admin',
       }}
     >

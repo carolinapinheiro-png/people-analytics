@@ -44,8 +44,18 @@ export const checkAccess = createServerFn({ method: 'GET' })
       .ilike('email', userEmail)
       .maybeSingle();
 
-    const allowed = !!data && !error;
-    const role = allowed && (data.role === 'admin' || data.role === 'viewer') ? data.role : null;
+    // A failed lookup is NOT a denial. Collapsing the two lets a transient
+    // database error masquerade as "you are not authorized" and destroy a valid
+    // session on the client. Throw instead: the client treats a thrown error as
+    // 'error' (access blocked, session preserved) and a clean `data === null`
+    // as an authoritative denial.
+    if (error) {
+      throw new Error(`Access check failed: ${error.message}`);
+    }
+
+    const allowed = !!data;
+    const role =
+      data && (data.role === 'admin' || data.role === 'viewer') ? data.role : null;
 
     try {
       const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
