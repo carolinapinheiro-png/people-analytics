@@ -9,14 +9,17 @@ const RoleSchema = z.enum(['admin', 'viewer']);
 type AppSupabaseClient = SupabaseClient<Database>;
 
 async function getAdminRole(
-  supabase: AppSupabaseClient,
+  _supabase: AppSupabaseClient,
   userEmail: string
 ): Promise<'admin' | 'viewer' | null> {
-  const { data, error } = await supabase
+  // RLS on allowed_emails joins to auth.users, which authenticated users cannot
+  // read, so we authorize via the admin client using the JWT-verified email.
+  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+  const { data, error } = await supabaseAdmin
     .from('allowed_emails')
     .select('role')
-    .eq('email', userEmail)
-    .single();
+    .ilike('email', userEmail)
+    .maybeSingle();
 
   if (error || !data) return null;
   return data.role === 'admin' ? 'admin' : data.role === 'viewer' ? 'viewer' : null;
