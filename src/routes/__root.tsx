@@ -87,6 +87,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@FlutterBrazil" },
+      { name: "twitter:title", content: "People Analytics · Flutter Brazil" },
+      { name: "twitter:description", content: "People Analytics dashboard for Flutter Brazil" },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/97038a6f-d43d-4295-996c-3c08441fbc71/id-preview-f111abc6--8c41d2ad-3119-4835-8dbc-e08e4df6008c.lovable.app-1784760415650.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/97038a6f-d43d-4295-996c-3c08441fbc71/id-preview-f111abc6--8c41d2ad-3119-4835-8dbc-e08e4df6008c.lovable.app-1784760415650.png" },
     ],
     links: [
       {
