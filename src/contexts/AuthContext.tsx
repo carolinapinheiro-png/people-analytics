@@ -20,6 +20,10 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+const ACCESS_DENIED_MESSAGE =
+  'Acesso negado: seu email não está na lista de usuários autorizados.';
+export const ACCESS_DENIED_STORAGE_KEY = 'auth:access-denied';
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
@@ -28,34 +32,73 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [role, setRole] = useState<'admin' | 'viewer' | null>(null);
   const checkAccessFn = useServerFn(checkAccess);
 
+  // Enforces authorization: if the check returns allowed=false, immediately
+  // terminate the Supabase session so no valid JWT lingers in memory/storage
+  // regardless of whether the login came from the password form or OAuth.
   const verifyAccess = useCallback(async () => {
+    let allowed = false;
     try {
       const result = await checkAccessFn();
-      setIsAllowed(result.allowed);
-      setRole(result.role);
-      return result.allowed;
+      allowed = !!result.allowed;
+      if (allowed) {
+        setIsAllowed(true);
+        setRole(result.role);
+        return true;
+      }
     } catch (error) {
       console.error('Access check failed:', error);
-      setIsAllowed(false);
-      setRole(null);
-      return false;
     }
+    // Denied path: clear local state first, then sign out. The SIGNED_OUT
+    // event that follows sees session=null and skips verifyAccess (no loop).
+    setIsAllowed(false);
+    setRole(null);
+    setUser(null);
+    setSession(null);
+    try {
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem(ACCESS_DENIED_STORAGE_KEY, ACCESS_DENIED_MESSAGE);
+      }
+    } catch {
+      // sessionStorage may be unavailable; message is best-effort.
+    }
+    try {
+      await supabase.auth.signOut();
+    } catch (error) {
+      console.error('Sign-out after denied access failed:', error);
+    }
+    return false;
   }, [checkAccessFn]);
 
   useEffect(() => {
     let isMounted = true;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
         if (!isMounted) return;
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await verifyAccess();
-        } else {
+        if (!session?.user) {
+          // Covers SIGNED_OUT and initial no-session — never re-verify here,
+          // which prevents a loop after verifyAccess triggers a signOut.
+          setSession(null);
+          setUser(null);
           setIsAllowed(null);
           setRole(null);
+          setLoading(false);
+          return;
         }
+        if (
+          event !== 'SIGNED_IN' &&
+          event !== 'USER_UPDATED' &&
+          event !== 'INITIAL_SESSION'
+        ) {
+          // Ignore TOKEN_REFRESHED and similar — no identity change.
+          setSession(session);
+          setUser(session.user);
+          setLoading(false);
+          return;
+        }
+        setSession(session);
+        setUser(session.user);
+        await verifyAccess();
         setLoading(false);
       }
     );
@@ -71,8 +114,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (error) throw error;
     const allowed = await verifyAccess();
     if (!allowed) {
-      await supabase.auth.signOut();
-      throw new Error('Acesso negado: seu email não está na lista de usuários autorizados.');
+      throw new Error(ACCESS_DENIED_MESSAGE);
     }
   };
 
@@ -81,8 +123,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (error) throw error;
     const allowed = await verifyAccess();
     if (!allowed) {
-      await supabase.auth.signOut();
-      throw new Error('Acesso negado: seu email não está na lista de usuários autorizados.');
+      throw new Error(ACCESS_DENIED_MESSAGE);
     }
   };
 
@@ -92,7 +133,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
     if (result.error) throw result.error;
     if (!result.redirected) {
-      await verifyAccess();
+      const allowed = await verifyAccess();
+      if (!allowed) {
+        throw new Error(ACCESS_DENIED_MESSAGE);
+      }
     }
   };
 

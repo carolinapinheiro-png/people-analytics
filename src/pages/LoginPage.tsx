@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, ACCESS_DENIED_STORAGE_KEY } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -100,6 +100,16 @@ export default function LoginPage() {
       navigate({ to: '/dashboard', replace: true });
     }
   }, [user, loading, navigate]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const denied = window.sessionStorage.getItem(ACCESS_DENIED_STORAGE_KEY);
+    if (denied) {
+      setAccessError(denied);
+      toast.error(denied);
+      window.sessionStorage.removeItem(ACCESS_DENIED_STORAGE_KEY);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
