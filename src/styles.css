@@ -98,6 +98,10 @@
 }
 
 .dark {
+  /* Faz o navegador desenhar barras de rolagem, campos de formulario e menus
+     nativos na variante escura. Sem isso, um select ou uma scrollbar aparece
+     branca no meio do fundo escuro. */
+  color-scheme: dark;
   --background: oklch(0.129 0.042 264.695);
   --foreground: oklch(0.984 0.003 247.858);
   --card: oklch(0.208 0.042 265.755);
