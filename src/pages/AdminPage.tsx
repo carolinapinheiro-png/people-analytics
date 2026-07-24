@@ -7,7 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
-import { Trash2, UserPlus, Shield, ScrollText, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Trash2, UserPlus, Shield, ScrollText, ShieldAlert, ShieldCheck, DatabaseBackup } from 'lucide-react';
+import { seedLeavers } from '@/lib/leavers.functions';
+// Import temporario: existe so para a carga unica abaixo. Depois que os 152
+// registros estiverem no banco, este import e o arquivo saem do repositorio.
+import { LEAVERS_DATA } from '@/data/leavers-data';
 import {
   getAllowedEmails,
   getAccessLogs,
@@ -30,6 +34,52 @@ interface AccessLog {
   allowed: boolean;
   ip_address: string | null;
   created_at: string;
+}
+
+function SeedLeaversCard() {
+  const [running, setRunning] = useState(false);
+  const [done, setDone] = useState<number | null>(null);
+  const runSeed = useServerFn(seedLeavers);
+
+  const handleSeed = async () => {
+    setRunning(true);
+    try {
+      const result = await runSeed({ data: { records: LEAVERS_DATA } });
+      setDone(result.imported);
+      toast.success(`${result.imported} registros movidos para o banco`);
+    } catch (e) {
+      console.error('Falha na carga de desligados:', e);
+      toast.error(e instanceof Error ? e.message : 'Falha na carga');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-lg flex items-center gap-2">
+          <DatabaseBackup className="h-5 w-5" />
+          Migrar desligados para o banco
+        </CardTitle>
+        <CardDescription>
+          Carga única. Move os {LEAVERS_DATA.length} registros de desligados que hoje ficam
+          no código para a tabela protegida, onde a leitura passa a ser registrada.
+          Rodar mais de uma vez não duplica: a gravação é por id.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Button onClick={handleSeed} disabled={running}>
+          {running ? 'Migrando...' : 'Executar carga'}
+        </Button>
+        {done !== null && (
+          <p className="text-sm text-muted-foreground">
+            {done} registros no banco. O arquivo do código já pode ser removido.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function AdminPage() {
@@ -260,6 +310,8 @@ export default function AdminPage() {
             </div>
           </CardContent>
         </Card>
+
+        <SeedLeaversCard />
       </div>
     </div>
   );

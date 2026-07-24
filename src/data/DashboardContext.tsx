@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useCallback } from 'react';
+import { useServerFn } from '@tanstack/react-start';
 import { RAW_DATA, MonthRecord } from './raw-data';
-import { LEAVERS_DATA, LeaverRecord } from './leavers-data';
+import type { LeaverRecord } from './leavers-data';
+import { listLeavers } from '@/lib/leavers.functions';
 import { getMonthsOrder, getMonthData, getAllMonthsForBrand, aggregateMonthlyToQuarterly } from './helpers';
 
 export type BrandType = 'combined' | 'NSX' | 'Betfair BR' | 'Flutter International';
@@ -37,6 +39,10 @@ interface DashboardState {
   prevData: MonthRecord | undefined;
   allMonthsData: MonthRecord[];
   filteredDeptKey: string | null;
+  /** Dado individual de desligados vem do servidor, entao tem estado de carga. */
+  leaversLoading: boolean;
+  leaversError: string | null;
+  reloadLeavers: () => void;
 }
 
 const DashboardContext = createContext<DashboardState | null>(null);
@@ -77,7 +83,48 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [data] = useState<MonthRecord[]>(RAW_DATA);
-  const [leavers] = useState<LeaverRecord[]>(LEAVERS_DATA);
+
+  // Desligados nao vem mais de um import: o arquivo carregava 152 pessoas com
+  // nome, raca e salario para dentro do bundle, ou seja, para o navegador de
+  // qualquer pessoa autenticada. Agora a leitura passa por listLeavers, que
+  // roda no servidor e registra quem consultou.
+  const [leavers, setLeavers] = useState<LeaverRecord[]>([]);
+  const [leaversLoading, setLeaversLoading] = useState(true);
+  const [leaversError, setLeaversError] = useState<string | null>(null);
+  const fetchLeavers = useServerFn(listLeavers);
+
+  const reloadLeavers = useCallback(() => {
+    let cancelled = false;
+    setLeaversLoading(true);
+    setLeaversError(null);
+
+    fetchLeavers({ data: { context: 'dashboard' } })
+      .then((rows) => {
+        if (cancelled) return;
+        // numeric do Postgres pode chegar como string dependendo do driver.
+        setLeavers(
+          (rows ?? []).map((r) => ({
+            ...r,
+            salario: Number(r.salario ?? 0),
+            tempo_casa_dias: Number(r.tempo_casa_dias ?? 0),
+          })) as LeaverRecord[],
+        );
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        console.error('Falha ao carregar desligados:', e);
+        setLeaversError(e instanceof Error ? e.message : 'Falha ao carregar desligados');
+      })
+      .finally(() => {
+        if (!cancelled) setLeaversLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchLeavers]);
+
+  useEffect(() => reloadLeavers(), [reloadLeavers]);
   const [brand, setBrand] = useState<BrandType>('combined');
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [view, setView] = useState<ViewType>('monthly');
@@ -152,7 +199,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       data, leavers, brand, setBrand, currentMonthIdx, setCurrentMonthIdx,
       activeTab, setActiveTab, view, setView, filters, setFilters,
       monthsOrder, currentMonth, currentData, prevData, allMonthsData,
-      filteredDeptKey,
+      filteredDeptKey, leaversLoading, leaversError, reloadLeavers,
     }}>
       {children}
     </DashboardContext.Provider>
