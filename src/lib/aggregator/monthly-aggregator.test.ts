@@ -1,0 +1,228 @@
+/**
+ * Testes sinteticos do agregador mensal (decisoes da revisao fria de 24/07/2026).
+ *
+ * Roda com o runner nativo do Node (>=18), sem dependencia nova:
+ *   npx tsc src/lib/aggregator/monthly-aggregator.ts src/lib/aggregator/monthly-aggregator.test.ts \
+ *     --outDir /tmp/aggtest --module commonjs --target es2020 --strict --esModuleInterop --skipLibCheck
+ *   node --test /tmp/aggtest/monthly-aggregator.test.js
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  aggregateMonth,
+  aggregateRange,
+  departmentAt,
+  isActiveAt,
+  monthEnd,
+  parseBrDate,
+  parseBrNumber,
+  type HistoryRow,
+  type PersonRow,
+} from './monthly-aggregator';
+
+// ---------- construtores ----------
+
+const d = (iso: string): Date => {
+  const p = parseBrDate(iso);
+  if (!p) throw new Error(`data invalida no teste: ${iso}`);
+  return p;
+};
+
+const person = (over: Partial<PersonRow>): PersonRow => ({
+  company: 'NSX BRASIL RECIFE',
+  cpf: '111',
+  admission: d('2024-01-10'),
+  termination: null,
+  gender: 'Mulher',
+  state: 'PE',
+  leadership: 'Não',
+  ...over,
+});
+
+const hist = (over: Partial<HistoryRow>): HistoryRow => ({
+  cpf: '111',
+  from: d('2024-01-10'),
+  to: null,
+  department: 'TECH',
+  salary: 10000,
+  ...over,
+});
+
+const histMap = (rows: HistoryRow[]): Map<string, HistoryRow[]> => {
+  const m = new Map<string, HistoryRow[]>();
+  for (const r of rows) {
+    const arr = m.get(r.cpf);
+    if (arr) arr.push(r);
+    else m.set(r.cpf, [r]);
+  }
+  return m;
+};
+
+// ---------- parses ----------
+
+test('parseBrDate: dd/mm/aaaa, ISO, vazios e sentinelas', () => {
+  assert.equal(parseBrDate('05/03/2024')?.toISOString().slice(0, 10), '2024-03-05');
+  assert.equal(parseBrDate('2024-03-05')?.toISOString().slice(0, 10), '2024-03-05');
+  assert.equal(parseBrDate('2024-03-05T12:00:00')?.toISOString().slice(0, 10), '2024-03-05');
+  assert.equal(parseBrDate('Não informado'), null);
+  assert.equal(parseBrDate('nan'), null);
+  assert.equal(parseBrDate(''), null);
+  assert.equal(parseBrDate(null), null);
+});
+
+test('parseBrNumber: formatos brasileiro e americano', () => {
+  assert.equal(parseBrNumber('1.234,56'), 1234.56);
+  assert.equal(parseBrNumber('1234.56'), 1234.56);
+  assert.equal(parseBrNumber('1,5'), 1.5);
+  assert.equal(parseBrNumber(1234.56), 1234.56);
+  assert.equal(parseBrNumber('nan'), null);
+  assert.equal(parseBrNumber(''), null);
+});
+
+test('parseBrNumber: ARMADILHA CONHECIDA — milhar sem centavos', () => {
+  // "1.234" (mil duzentos e trinta e quatro, sem centavos) e interpretado como
+  // 1.234 — mil vezes menor. Achado da revisao fria de 24/07. Se este teste
+  // quebrar porque o comportamento mudou, otimo: atualize o RASCUNHO.md.
+  // Enquanto ele passar, o ADAPTADOR e responsavel por garantir que salario
+  // sempre chegue com centavos (",00") ou ja numerico.
+  assert.equal(parseBrNumber('1.234'), 1.234);
+});
+
+// ---------- fronteiras de data (decisao 3: mantidas e medidas) ----------
+
+test('isActiveAt: admissao no dia do corte CONTA como ativo', () => {
+  const p = person({ admission: d('2024-06-30') });
+  assert.equal(isActiveAt(p, monthEnd(2024, 6)), true);
+});
+
+test('isActiveAt: desligamento no dia do corte JA EXCLUI', () => {
+  const p = person({ termination: d('2024-06-30') });
+  assert.equal(isActiveAt(p, monthEnd(2024, 6)), false);
+});
+
+test('isActiveAt: admissao futura nao e ativo (caso das admissoes 2026-08/09)', () => {
+  const p = person({ admission: d('2026-08-01') });
+  assert.equal(isActiveAt(p, monthEnd(2026, 7)), false);
+});
+
+test('isActiveAt: sem admissao nunca e ativo', () => {
+  const p = person({ admission: null });
+  assert.equal(isActiveAt(p, monthEnd(2024, 6)), false);
+});
+
+test('quem sai no ultimo dia do mes: fora do headcount, dentro de leavers', () => {
+  const p = person({ termination: d('2024-06-30') });
+  const agg = aggregateMonth([p], histMap([hist({})]), 2024, 6, 'nsx_br');
+  assert.equal(agg.headcount, 0);
+  assert.equal(agg.leavers, 1);
+});
+
+// ---------- dedup hibrido (decisao 1) ----------
+
+test('foto por pessoa: 2 vinculos ativos do mesmo CPF = headcount 1', () => {
+  const v1 = person({ cpf: '222', admission: d('2023-06-01'), leadership: 'Não' });
+  const v2 = person({ cpf: '222', admission: d('2025-07-01'), leadership: 'Sim' });
+  const agg = aggregateMonth([v1, v2], histMap([hist({ cpf: '222' })]), 2025, 10, 'nsx_br');
+  assert.equal(agg.headcount, 1);
+  // vinculo de admissao mais recente representa a pessoa: lideranca do v2
+  assert.equal(agg.leaders, 1);
+  // dept_data conta a pessoa uma unica vez
+  assert.equal(agg.dept_data['TECH'].hc, 1);
+});
+
+test('fluxo por evento: duas admissoes do mesmo CPF no mes = 2 joiners', () => {
+  const v1 = person({ cpf: '333', admission: d('2024-06-03'), termination: d('2024-06-10') });
+  const v2 = person({ cpf: '333', admission: d('2024-06-20') });
+  const agg = aggregateMonth([v1, v2], histMap([hist({ cpf: '333' })]), 2024, 6, 'nsx_br');
+  assert.equal(agg.joiners, 2);
+  assert.equal(agg.leavers, 1);
+  assert.equal(agg.headcount, 1); // so o v2 segue ativo no fim do mes
+});
+
+// ---------- SEM DEPTO (decisao 4) ----------
+
+test('ativo sem registro vigente entra como SEM DEPTO; soma dos deptos = headcount', () => {
+  const comDepto = person({ cpf: '444' });
+  const semDepto = person({ cpf: '555' });
+  const agg = aggregateMonth(
+    [comDepto, semDepto],
+    histMap([hist({ cpf: '444' })]), // 555 nao tem historico
+    2024, 6, 'nsx_br',
+  );
+  assert.equal(agg.dept_data['SEM DEPTO']?.hc, 1);
+  const soma = Object.values(agg.dept_data).reduce((a, g) => a + g.hc, 0);
+  assert.equal(soma, agg.headcount);
+});
+
+// ---------- promotions (decisao 5) ----------
+
+test('promotions e null, nunca 0', () => {
+  const agg = aggregateMonth([person({})], histMap([hist({})]), 2024, 6, 'nsx_br');
+  assert.equal(agg.promotions, null);
+});
+
+// ---------- empresa nao mapeada (achado da revisao fria) ----------
+
+test('COMPORTAMENTO ATUAL: empresa fora do COMPANY_TO_BU some em silencio', () => {
+  // Documenta o descarte silencioso. O adaptador DEVE validar empresas antes
+  // de chamar o agregador — este teste existe para lembrar disso.
+  const p = person({ company: 'EMPRESA NOVA LTDA' });
+  const agg = aggregateMonth([p], histMap([]), 2024, 6, 'nsx_br');
+  assert.equal(agg.headcount, 0);
+  assert.equal(agg.joiners, 0);
+});
+
+// ---------- genero (espelha serie congelada) ----------
+
+test('genero: trans conta no grupo correspondente; demais ficam no denominador', () => {
+  const a = person({ cpf: '1', gender: 'Mulher Trans' });
+  const b = person({ cpf: '2', gender: 'Homem Trans' });
+  const c = person({ cpf: '3', gender: 'Não-binário' });
+  const agg = aggregateMonth([a, b, c], histMap([]), 2024, 6, 'nsx_br');
+  assert.equal(agg.gender_female, 1);
+  assert.equal(agg.gender_male, 1);
+  assert.equal(agg.headcount, 3);
+  assert.equal(agg.gender_female_pct, 33.3);
+});
+
+// ---------- attrition (decisao 2: fim de mes) ----------
+
+test('attrition_rate = leavers / headcount de fim de mes', () => {
+  const fica1 = person({ cpf: '1' });
+  const fica2 = person({ cpf: '2' });
+  const sai = person({ cpf: '3', termination: d('2024-06-15') });
+  const agg = aggregateMonth([fica1, fica2, sai], histMap([]), 2024, 6, 'nsx_br');
+  assert.equal(agg.headcount, 2);
+  assert.equal(agg.leavers, 1);
+  assert.equal(agg.attrition_rate, 50);
+});
+
+// ---------- departmentAt ----------
+
+test('departmentAt: em sobreposicao vence o inicio mais recente', () => {
+  const rows = [
+    hist({ from: d('2023-01-01'), to: null, department: 'OPERATION' }),
+    hist({ from: d('2024-01-01'), to: null, department: 'TECH' }),
+  ];
+  assert.equal(departmentAt(rows, monthEnd(2024, 6))?.department, 'TECH');
+});
+
+test('departmentAt: registro encerrado antes da referencia nao vale', () => {
+  const rows = [hist({ from: d('2023-01-01'), to: d('2024-05-31'), department: 'TECH' })];
+  assert.equal(departmentAt(rows, monthEnd(2024, 6)), null);
+});
+
+// ---------- range ----------
+
+test('aggregateRange atravessa a virada de ano', () => {
+  const out = aggregateRange([person({})], [hist({})], '2025-11', '2026-02', 'nsx_br');
+  assert.deepEqual(
+    out.map((m) => m.month),
+    ['2025-11-01', '2025-12-01', '2026-01-01', '2026-02-01'],
+  );
+});
+
+test('monthEnd respeita ano bissexto', () => {
+  assert.equal(monthEnd(2024, 2).toISOString().slice(0, 10), '2024-02-29');
+  assert.equal(monthEnd(2025, 2).toISOString().slice(0, 10), '2025-02-28');
+});
