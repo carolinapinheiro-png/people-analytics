@@ -123,7 +123,7 @@ export default function TopBar() {
 }
 
 function UserMenu() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
 
   const handleSignOut = async () => {
     try {
@@ -146,6 +146,18 @@ function UserMenu() {
         <div className="px-2 py-1.5 text-sm text-muted-foreground truncate">
           {user?.email || 'Usuário'}
         </div>
+        {isAdmin && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <Link to="/admin">
+                <Shield className="mr-2 h-4 w-4" />
+                Admin
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
+        <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
           Sair
