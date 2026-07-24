@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useCallback } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { RAW_DATA, MonthRecord } from './raw-data';
-import type { LeaverRecord } from './leavers-data';
+import type { LeaverRecord } from './leaver-types';
 import { listLeavers } from '@/lib/leavers.functions';
 import { getMonthsOrder, getMonthData, getAllMonthsForBrand, aggregateMonthlyToQuarterly } from './helpers';
 
