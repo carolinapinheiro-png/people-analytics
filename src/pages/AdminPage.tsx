@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
-import { Trash2, UserPlus, Shield, ScrollText, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { Trash2, UserPlus, Shield, ScrollText, ShieldAlert, ShieldCheck, ArrowLeft } from 'lucide-react';
 import {
   getAllowedEmails,
   getAccessLogs,
@@ -135,6 +136,10 @@ export default function AdminPage() {
           <p className="text-sm text-muted-foreground">
             Adicione, remova ou altere permissões de usuários autorizados.
           </p>
+          <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mt-2">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar ao dashboard
+          </Link>
         </div>
 
         <Card>
