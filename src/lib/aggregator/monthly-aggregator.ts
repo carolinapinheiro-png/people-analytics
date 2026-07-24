@@ -1,11 +1,11 @@
 /**
  * Agregador mensal: Talent_Mobility -> monthly_metrics (source='reconstruido').
  *
- * ========================= RASCUNHO NAO REVISADO =========================
- * Ver RASCUNHO.md nesta pasta: status da verificacao (equivalencia com o
- * prototipo Python; 25 divergencias, todas causadas por 1 CPF com 6
- * vinculos), pendencias da revisao e limitacoes estruturais.
- * NAO mesclar na main antes de revisao linha a linha.
+ * ================== REVISADO EM LEITURA FRIA (24/07/2026) ==================
+ * Revisao linha a linha em sessao independente, decisoes da area aplicadas
+ * (ver RASCUNHO.md): dedup hibrido por CPF, SEM DEPTO, attrition por headcount
+ * de fim de mes, promotions null. NAO mesclar na main antes dos testes
+ * sinteticos (monthly-aggregator.test.ts).
  * =========================================================================
  *
  * Nucleo puro: sem IO, sem dependencias. Adaptadores (XLSX no navegador,
@@ -83,6 +83,10 @@ export interface MonthAggregate {
   joiners: number;
   leavers: number;
   attrition_rate: number;
+  /** Nao reconstruivel de Talent_Mobility (a base nao distingue promocao de
+   *  reajuste por merito). null de proposito: 0 seria uma afirmacao. Fonte
+   *  original da serie congelada a descobrir com a area. */
+  promotions: number | null;
   gender_female: number;
   gender_male: number;
   gender_female_pct: number;
@@ -121,9 +125,11 @@ export const monthStart = (y: number, m: number): Date => new Date(Date.UTC(y, m
 export const monthEnd = (y: number, m: number): Date => new Date(Date.UTC(y, m, 0));
 
 export function isActiveAt(p: PersonRow, ref: Date): boolean {
-  // REVIEW: admissao no proprio dia de corte conta como ativo (<=). A
-  // diferenca de +-1 contra a serie congelada sugere que a origem usava
-  // outro corte; decidir qual e o oficial.
+  // Decisao 24/07 (revisao fria): manter ambos os cortes como estao ate a
+  // comparacao lado a lado -- admissao no dia do corte CONTA como ativo;
+  // desligamento no dia do corte JA EXCLUI. Os +-1 contra a serie congelada
+  // sao a evidencia que vai revelar a convencao da origem; decisao oficial
+  // vem dai, nao de palpite.
   if (!p.admission || p.admission.getTime() > ref.getTime()) return false;
   if (p.termination && p.termination.getTime() <= ref.getTime()) return false;
   return true;
@@ -156,11 +162,22 @@ export function aggregateMonth(
   const start = monthStart(year, month);
   const end = monthEnd(year, month);
   const pool = people.filter((p) => COMPANY_TO_BU[p.company.trim()] === bu);
-  // REVIEW: CPFs com multiplos vinculos NAO sao deduplicados (regra pendente
-  // da area). Caso real na base: 1 CPF com 6 vinculos, 3 ativos simultaneos
-  // em out/2025, 2 admissoes futuras. Infla headcount e dept_data. Ver
-  // RASCUNHO.md.
-  const active = pool.filter((p) => isActiveAt(p, end));
+  // Decisao 24/07 (revisao fria): regra HIBRIDA para multiplos vinculos.
+  // FOTO por pessoa: headcount, genero, lideranca, estados e deptos deduplicam
+  // por CPF -- o vinculo ativo de admissao mais recente representa a pessoa
+  // (empate de admissao: vence o primeiro na ordem de entrada).
+  // FLUXO por evento: joiners/leavers contam cada admissao/desligamento;
+  // recontratacao e entrada real. Caso motivador: 1 CPF com 6 vinculos, 3
+  // ativos simultaneos em out/2025 (ver RASCUNHO.md; correcao reportada ao DP).
+  const activeLinks = pool.filter((p) => isActiveAt(p, end));
+  const byCpf = new Map<string, PersonRow>();
+  for (const p of activeLinks) {
+    const cur = byCpf.get(p.cpf);
+    if (!cur || (p.admission?.getTime() ?? 0) > (cur.admission?.getTime() ?? 0)) {
+      byCpf.set(p.cpf, p);
+    }
+  }
+  const active = [...byCpf.values()];
 
   const inWindow = (d: Date | null) =>
     !!d && d.getTime() >= start.getTime() && d.getTime() <= end.getTime();
@@ -178,19 +195,17 @@ export function aggregateMonth(
     stateMix[uf] = (stateMix[uf] ?? 0) + 1;
   }
 
-  const leadByCpf = new Map(active.map((p) => [p.cpf, isLeader(p.leadership)]));
   const deptRows: Array<{ dept: string; lead: boolean; salary: number | null }> = [];
   for (const p of active) {
     const vig = departmentAt(historyByCpf.get(p.cpf) ?? [], end);
-    // REVIEW: ativos sem registro vigente ficam FORA de dept_data (replica o
-    // prototipo para a verificacao de equivalencia). Consequencia: a soma dos
-    // departamentos pode ficar abaixo do headcount -- o mesmo defeito
-    // criticado na serie congelada. Recomendacao pos-revisao: SEM DEPTO.
-    if (!vig) continue;
+    // Decisao 24/07 (revisao fria): ativo sem registro vigente entra como
+    // SEM DEPTO -- a soma dos departamentos passa a bater com o headcount.
+    // (Deixa-los fora replicava o prototipo Python apenas para a verificacao
+    // de equivalencia, ja concluida.)
     deptRows.push({
-      dept: normalizeDept(vig.department),
-      lead: leadByCpf.get(p.cpf) ?? false,
-      salary: vig.salary,
+      dept: vig ? normalizeDept(vig.department) : 'SEM DEPTO',
+      lead: isLeader(p.leadership),
+      salary: vig ? vig.salary : null,
     });
   }
 
@@ -214,9 +229,11 @@ export function aggregateMonth(
     headcount: hc,
     joiners,
     leavers,
-    // REVIEW: denominador = headcount de fim de mes (replica prototipo e,
-    // aparentemente, a serie congelada). Alternativa comum: headcount medio.
+    // Decisao 24/07 (revisao fria): denominador = headcount de fim de mes,
+    // mantido ate a comparacao com a serie congelada. Reabrir (headcount
+    // medio?) quando a serie oficial for escolhida.
     attrition_rate: hc ? round2((leavers / hc) * 100) : 0,
+    promotions: null,
     gender_female: fem,
     gender_male: mas,
     gender_female_pct: hc ? round1((fem / hc) * 100) : 0,
