@@ -15,6 +15,8 @@ import {
   removeAllowedEmail,
   updateAllowedEmailRole,
 } from '@/lib/access.functions';
+import ImportReconstruidoCard from '@/components/admin/ImportReconstruidoCard';
+import SeriesComparisonCard from '@/components/admin/SeriesComparisonCard';
 
 interface AllowedEmail {
   id: string;
@@ -260,6 +262,13 @@ export default function AdminPage() {
             </div>
           </CardContent>
         </Card>
+
+        {isAdmin && (
+          <>
+            <ImportReconstruidoCard />
+            <SeriesComparisonCard />
+          </>
+        )}
 
       </div>
     </div>
