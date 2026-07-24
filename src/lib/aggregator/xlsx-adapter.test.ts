@@ -131,6 +131,64 @@ test('admissao futura e contada (caso das admissoes ago/set 2026)', () => {
   assert.equal(report.futureAdmissions, 1);
 });
 
+test('historico com colunas "De"/"Até" do formato real e reconhecido', () => {
+  const { report, history } = parseTalentMobility(
+    buildWorkbook({
+      historyHeaders: ['CPF do colaborador', 'De', 'Até', 'Departamento', 'Salário'],
+      historyRows: [
+        ['111.222.333-44', '16/03/2026', 'Não informado', 'TECH', '10.500,00'],
+        ['111.222.333-44', '10/01/2024', '15/03/2026', 'OPERATION', '9.000,00'],
+      ],
+    }),
+  );
+  assert.deepEqual(report.errors, []);
+  const vigente = history.find((h) => h.to === null);
+  assert.equal(vigente?.department, 'TECH'); // "Não informado" = registro vigente
+});
+
+test('pessoa sem CPF entra pela chave reserva (ID) — caso Flutter International', () => {
+  const { people, report } = parseTalentMobility(
+    buildWorkbook({
+      peopleHeaders: [
+        'Empresa',
+        'CPF',
+        'ID (identificador do colaborador)',
+        'Data de admissão',
+        'Data de desligamento',
+        'Gênero',
+        'Estado',
+        'Liderança',
+      ],
+      peopleRows: [
+        ['FLUTTER INTERNATIONAL', '', 'uuid-estrangeiro-1', '01/02/2025', null, 'Mulher', '', 'Não'],
+      ],
+    }),
+  );
+  assert.equal(report.skippedPeople, 0);
+  assert.equal(people[0].cpf, 'id:uuid-estrangeiro-1');
+});
+
+test('lideranca em blocos por unidade: coalesce entre as colunas duplicadas', () => {
+  const { people } = parseTalentMobility(
+    buildWorkbook({
+      peopleHeaders: [
+        'Empresa',
+        'CPF',
+        'Data de admissão',
+        'Data de desligamento',
+        'Gênero',
+        'Estado',
+        'Liderança ?',
+        'Liderança ?',
+      ],
+      peopleRows: [
+        ['NSX BRASIL RECIFE', '111', '10/01/2024', null, 'Mulher', 'PE', 'Não informado', 'Sim'],
+      ],
+    }),
+  );
+  assert.equal(people[0].leadership, 'Sim');
+});
+
 test('multiplos vinculos do mesmo CPF sao contados no relatorio', () => {
   const { report } = parseTalentMobility(
     buildWorkbook({

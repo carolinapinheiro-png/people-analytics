@@ -45,6 +45,9 @@ interface FieldSpec {
 const PEOPLE_FIELDS: FieldSpec[] = [
   { field: 'company', required: true, match: (h) => h.includes('empresa') },
   { field: 'cpf', required: true, match: (h) => h.includes('cpf') },
+  // Chave reserva: estrangeiros (Flutter International) nao tem CPF. Sem a
+  // reserva, 21 das 23 pessoas da unidade sumiam da serie em silencio.
+  { field: 'rowId', required: false, match: (h) => h.includes('identificador') },
   { field: 'admission', required: true, match: (h) => h.includes('admiss') },
   {
     field: 'termination',
@@ -64,8 +67,14 @@ const PEOPLE_FIELDS: FieldSpec[] = [
 
 const HISTORY_FIELDS: FieldSpec[] = [
   { field: 'cpf', required: true, match: (h) => h.includes('cpf') },
-  { field: 'from', required: true, match: (h) => h.includes('inicio') },
-  { field: 'to', required: false, match: (h) => h.includes('fim') || h.includes('termino') },
+  // Formato real do Talent_Mobility (21/07/2026): colunas "De" e "Até".
+  // "Até" = "Não informado" significa registro vigente (parseBrDate -> null).
+  { field: 'from', required: true, match: (h) => h.includes('inicio') || h === 'de' },
+  {
+    field: 'to',
+    required: false,
+    match: (h) => h.includes('fim') || h.includes('termino') || h === 'ate',
+  },
   {
     field: 'department',
     required: true,
@@ -231,6 +240,7 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
   const pc = {
     company: col(peopleMapping, 'company')!,
     cpf: col(peopleMapping, 'cpf')!,
+    rowId: col(peopleMapping, 'rowId'),
     admission: col(peopleMapping, 'admission')!,
     termination: col(peopleMapping, 'termination')!,
     gender: col(peopleMapping, 'gender')!,
@@ -238,8 +248,22 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
     leadership: col(peopleMapping, 'leadership')!,
   };
 
+  // "Lideranca ?" existe em CINCO colunas, uma por bloco de unidade (Recife,
+  // Betfair, SP, Flutter, Marechal); cada pessoa tem no maximo uma preenchida.
+  // Ler so a primeira subcontava lideres (~108 de ~140). Coalesce: vale o
+  // primeiro valor real (nem vazio, nem "Nao informado") entre os blocos.
+  const leadMatch = peopleMapping.find((m) => m.field === 'leadership');
+  const leadHeaders = leadMatch?.header ? [leadMatch.header, ...leadMatch.alternatives] : [];
+  const coalesceLeadership = (row: Record<string, unknown>): string =>
+    leadHeaders.map((h) => toStr(row[h])).find((v) => v && v !== 'Não informado') ?? '';
+
   for (const row of pRows) {
-    const cpf = toStr(row[pc.cpf]).replace(/\D/g, '');
+    const cpfDigits = toStr(row[pc.cpf]).replace(/\D/g, '');
+    const rowId = pc.rowId ? toStr(row[pc.rowId]) : '';
+    // Sem CPF, a pessoa entra com a chave reserva ("id:..."): conta no
+    // headcount, mas nao casa com o historico (que so tem CPF) -- cai em
+    // SEM DEPTO, o que e o retrato honesto do dado.
+    const cpf = cpfDigits || (rowId ? `id:${rowId}` : '');
     const company = toStr(row[pc.company]);
     if (!cpf || !company) {
       report.skippedPeople++;
@@ -258,7 +282,7 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
       termination: toDate(row[pc.termination]),
       gender: toStr(row[pc.gender]),
       state: toStr(row[pc.state]),
-      leadership: toStr(row[pc.leadership]),
+      leadership: coalesceLeadership(row),
     });
   }
 
