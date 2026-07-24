@@ -8,7 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
 import { Link } from '@tanstack/react-router';
-import { Trash2, UserPlus, Shield, ScrollText, ShieldAlert, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Trash2, UserPlus, Shield, ScrollText, ShieldAlert, ShieldCheck, ArrowLeft, Users, Database } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   getAllowedEmails,
   getAccessLogs,
