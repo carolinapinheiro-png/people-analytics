@@ -1,5 +1,5 @@
 import { useDashboard } from '@/data/DashboardContext';
-import { LeaverRecord } from '@/data/leavers-data';
+import { LeaverRecord } from '@/data/leaver-types';
 import { fmt, fmtC, mLabel } from '@/data/helpers';
 import KpiCard from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
