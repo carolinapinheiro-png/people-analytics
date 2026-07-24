@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
-import { Trash2, UserPlus, Shield, ScrollText, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { Trash2, UserPlus, Shield, ScrollText, ShieldAlert, ShieldCheck, ArrowLeft } from 'lucide-react';
 import {
   getAllowedEmails,
   getAccessLogs,
