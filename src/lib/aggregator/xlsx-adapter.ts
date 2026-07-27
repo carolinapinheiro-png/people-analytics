@@ -118,6 +118,10 @@ export interface ParsedWorkbook {
   people: PersonRow[];
   history: HistoryRow[];
   report: AdapterReport;
+  /** Nomes normalizados das pessoas do TM, SO para dedup em memoria contra o
+   *  Workday (os 18 duplicados). Nao vai para PersonRow nem para o servidor:
+   *  usado e descartado no navegador. */
+  nameKeys: Set<string>;
 }
 
 // ---------------------------------------------------------------- helpers
@@ -222,7 +226,7 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
     errors,
   };
 
-  if (errors.length) return { people: [], history: [], report };
+  if (errors.length) return { people: [], history: [], report, nameKeys: new Set<string>() };
 
   const col = (mapping: ColumnMatch[], field: string): string | null =>
     mapping.find((m) => m.field === field)?.header ?? null;
@@ -257,6 +261,14 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
   const coalesceLeadership = (row: Record<string, unknown>): string =>
     leadHeaders.map((h) => toStr(row[h])).find((v) => v && v !== 'Não informado') ?? '';
 
+  // Coluna de nome (para dedup contra o Workday). "Nome do colaborador", nunca
+  // "Nome social". So as chaves normalizadas sao guardadas.
+  const peopleHeaders0 = headersBySheet.get(peopleSheet!) ?? [];
+  const nameHeader =
+    peopleHeaders0.find((h) => norm(h).includes('nome') && norm(h).includes('colaborador')) ??
+    peopleHeaders0.find((h) => norm(h) === 'nome');
+  const nameKeys = new Set<string>();
+
   for (const row of pRows) {
     const cpfDigits = toStr(row[pc.cpf]).replace(/\D/g, '');
     const rowId = pc.rowId ? toStr(row[pc.rowId]) : '';
@@ -275,6 +287,10 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
     const admission = toDate(row[pc.admission]);
     if (admission && admission.getTime() > todayUtc.getTime()) report.futureAdmissions++;
     cpfLinks.set(cpf, (cpfLinks.get(cpf) ?? 0) + 1);
+    if (nameHeader) {
+      const nk = norm(toStr(row[nameHeader]));
+      if (nk) nameKeys.add(nk);
+    }
     people.push({
       company,
       cpf,
@@ -323,5 +339,5 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
     .sort((a, b) => b.rows - a.rows);
   report.multiLinkCpfs = [...cpfLinks.values()].filter((n) => n > 1).length;
 
-  return { people, history, report };
+  return { people, history, report, nameKeys };
 }

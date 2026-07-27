@@ -38,16 +38,22 @@ Revisão feita aba a aba com a área. Nada abaixo é sugestão: são decisões.
    Flutter, conserta dez/2025 e faz a soma dos deptos bater com o headcount.
    Relatório: `comparacao-series-24-07-2026.md`. Falta só bater o martelo formal
    da série oficial no app.
-9. **Betfair BR = Talent Mobility, sem merge com o Workday.** Regra da área: nos
-   18 duplicados, vence o Talent Mobility. Os 18 são todos "Brazil Remote" e já
-   estão nos 34 do Talent Mobility — sem dupla contagem. Dos 52 que só existem no
-   Workday, 38 estão no exterior (Romênia 34, UK 3, Malta 1) e 14 são "Brazil
-   Remote" ausentes do Talent Mobility. Nenhum é Betfair BR para o dashboard
-   brasileiro: o Workday (Brazil_FBe) é população à parte (Betfair International).
-   Consequência: **a extensão Betfair não precisa de código** — o agregador já
-   produz Betfair de 34 do Talent Mobility, como NSX e Flutter.
-   Ponta solta (não bloqueia o dashboard): confirmar com o dono do FBe se os 14
-   "Brazil Remote" do Workday deveriam estar no Talent Mobility.
+9. **Betfair BR = Talent Mobility + Workday (86 distintas).** Regra da área: nos
+   18 duplicados vence o Talent Mobility. O Workday inteiro (Brazil_FBe) é
+   Betfair BR. Betfair distinta = 34 (TM) + 52 (só-Workday) = 86, confirmado em
+   jun/2026. Implementado: adaptador `workday-adapter.ts`, upload opcional do
+   FBe na tela de importação, dedup por nome no navegador. Testado (40 casos).
+   Limitações estruturais declaradas (o Workday não conserta):
+   - **Gênero**: o Workday não tem a coluna. Os 52 entram no headcount mas fora
+     de fem/mas. Por isso `gender_female_pct` passou a ser sobre a **base com
+     gênero conhecido** (`gender_base`), não sobre o headcount — senão diluiria
+     ~3×. Isso também corrige (levemente) NSX e Flutter: o % de mulheres agora
+     ignora "Não informado" no denominador. A comparação vai mostrar esse ajuste.
+   - **Departamento**: o Workday só tem o cargo atual, em unidades nomeadas por
+     gestor. Os 52 caem em SEM DEPTO (não poluem os deptos brasileiros).
+   - **Viés de sobrevivência**: o FBe é retrato de maio/2026; quem saiu antes não
+     aparece. Headcount de 2025 dessa parcela é subcontado; recente é sólido.
+   - **Salário**: ausente no Workday → os 52 não entram em avg_salary.
 10. **"6 vínculos" era ruído de histórico.** No export oficial não há CPF
     duplicado na Worksheet; o caso é 1 pessoa com 5 registros `Motivo: Admissão`
     para um contrato contínuo (3 no mesmo dia, salários diferentes). O agregador
@@ -63,7 +69,9 @@ Revisão feita aba a aba com a área. Nada abaixo é sugestão: são decisões.
 ## Ordem de execução
 
 1. ~~Agregador TypeScript + tela de importação no admin~~ ✅ (mesclado 24/07)
-2. ~~Comparação lado a lado~~ ✅ — falta o martelo formal da série oficial no app
+1b. ~~Betfair BR = TM + Workday (adaptador + upload do FBe)~~ ✅ (branch feat/betfair-workday)
+2. ~~Comparação lado a lado~~ ✅ — falta o martelo formal da série oficial no app.
+   Para Betfair, subir também o Brazil_FBe.csv na tela de importação.
 3. Aba Experiência (clima + entrada)
 4. Span real + CompRatio individual (com revisão de allowed_emails antes)
 

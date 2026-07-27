@@ -38,7 +38,12 @@ interface Preview {
 
 export default function ImportReconstruidoCard() {
   const fileRef = useRef<HTMLInputElement>(null);
+  const wdRef = useRef<HTMLInputElement>(null);
+  const tmBufRef = useRef<ArrayBuffer | null>(null);
+  const wdTextRef = useRef<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [wdFileName, setWdFileName] = useState<string | null>(null);
+  const [wdAdded, setWdAdded] = useState<number | null>(null);
   const [fromYm, setFromYm] = useState('2025-01');
   const [toYm, setToYm] = useState('2026-07');
   const [busy, setBusy] = useState<'parse' | 'save' | null>(null);
@@ -46,36 +51,70 @@ export default function ImportReconstruidoCard() {
 
   const importFn = useServerFn(importReconstruido);
 
-  const handleFile = async (file: File) => {
+  // Recalcula a partir do que estiver carregado: TM (obrigatorio) e, se houver,
+  // Workday (compoe Betfair BR: 34 do TM + 52 so-Workday, TM vence os 18 dups).
+  const recompute = async () => {
+    if (!tmBufRef.current) return;
     if (!YM.test(fromYm) || !YM.test(toYm)) {
       toast.error('Periodo invalido: use AAAA-MM.');
       return;
     }
     setBusy('parse');
     setPreview(null);
-    setFileName(file.name);
+    setWdAdded(null);
     try {
-      const [{ parseTalentMobility }, { aggregateRange }] = await Promise.all([
-        import('@/lib/aggregator/xlsx-adapter'),
-        import('@/lib/aggregator/monthly-aggregator'),
-      ]);
-      const parsed = parseTalentMobility(await file.arrayBuffer());
+      const [{ parseTalentMobility }, { parseWorkdayBetfair }, { aggregateRange }] =
+        await Promise.all([
+          import('@/lib/aggregator/xlsx-adapter'),
+          import('@/lib/aggregator/workday-adapter'),
+          import('@/lib/aggregator/monthly-aggregator'),
+        ]);
+      const parsed = parseTalentMobility(tmBufRef.current);
       if (parsed.report.errors.length) {
         setPreview({ parsed, aggregates: [] });
         toast.error('A planilha nao pode ser agregada; veja o relatorio.');
         return;
       }
+      let betfairPeople = parsed.people;
+      if (wdTextRef.current) {
+        const wd = parseWorkdayBetfair(wdTextRef.current, parsed.nameKeys);
+        if (wd.report.errors.length) {
+          toast.error(`Workday: ${wd.report.errors[0]}`);
+        } else {
+          betfairPeople = [...parsed.people, ...wd.people];
+          setWdAdded(wd.report.added);
+        }
+      }
       const aggregates = (Object.keys(BU_TO_BRAND) as BusinessUnit[]).flatMap((bu) =>
-        aggregateRange(parsed.people, parsed.history, fromYm, toYm, bu),
+        aggregateRange(
+          bu === 'betfair' ? betfairPeople : parsed.people,
+          parsed.history,
+          fromYm,
+          toYm,
+          bu,
+        ),
       );
       setPreview({ parsed, aggregates });
     } catch (err) {
-      toast.error('Falha ao ler o arquivo.');
+      toast.error('Falha ao ler os arquivos.');
       console.error(err);
     } finally {
       setBusy(null);
       if (fileRef.current) fileRef.current.value = '';
+      if (wdRef.current) wdRef.current.value = '';
     }
+  };
+
+  const handleFile = async (file: File) => {
+    tmBufRef.current = await file.arrayBuffer();
+    setFileName(file.name);
+    await recompute();
+  };
+
+  const handleWdFile = async (file: File) => {
+    wdTextRef.current = await file.text();
+    setWdFileName(file.name);
+    await recompute();
   };
 
   const handleSave = async () => {
@@ -162,13 +201,32 @@ export default function ImportReconstruidoCard() {
             disabled={busy !== null}
           >
             <Upload className="h-4 w-4 mr-2" />
-            {busy === 'parse' ? 'Lendo...' : 'Escolher planilha'}
+            {busy === 'parse' ? 'Lendo...' : 'Talent Mobility (.xlsx)'}
+          </Button>
+          <input
+            ref={wdRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleWdFile(e.target.files[0])}
+          />
+          <Button
+            variant="ghost"
+            onClick={() => wdRef.current?.click()}
+            disabled={busy !== null || !fileName}
+            title="Opcional: Brazil_FBe (Workday) para compor Betfair BR"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Betfair/Workday (.csv)
           </Button>
         </div>
 
         {fileName && (
           <p className="text-xs text-muted-foreground">
-            Arquivo: {fileName} — lido localmente, linhas individuais nao saem desta maquina.
+            Talent Mobility: {fileName}
+            {wdFileName && ` · Workday: ${wdFileName}`}
+            {wdAdded != null && ` (+${wdAdded} pessoas em Betfair BR)`}
+            {' — lidos localmente, linhas individuais nao saem desta maquina.'}
           </p>
         )}
 
@@ -265,7 +323,9 @@ export default function ImportReconstruidoCard() {
                         {r.brand}
                         {r.bu === 'betfair' && (
                           <Badge variant="secondary" className="text-[10px]">
-                            base parcial: so Talent Mobility
+                            {wdAdded != null
+                              ? `TM + Workday (+${wdAdded}); genero base parcial`
+                              : 'so Talent Mobility (sem Workday)'}
                           </Badge>
                         )}
                       </span>

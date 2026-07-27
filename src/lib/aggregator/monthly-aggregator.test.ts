@@ -174,15 +174,24 @@ test('COMPORTAMENTO ATUAL: empresa fora do COMPANY_TO_BU some em silencio', () =
 
 // ---------- genero (espelha serie congelada) ----------
 
-test('genero: trans conta no grupo correspondente; demais ficam no denominador', () => {
+test('genero: trans conta no grupo; % sobre base conhecida (fem+mas), nao headcount', () => {
   const a = person({ cpf: '1', gender: 'Mulher Trans' });
   const b = person({ cpf: '2', gender: 'Homem Trans' });
-  const c = person({ cpf: '3', gender: 'Não-binário' });
+  const c = person({ cpf: '3', gender: 'Não-binário' }); // fora de fem/mas
   const agg = aggregateMonth([a, b, c], histMap([]), 2024, 6, 'nsx_br');
   assert.equal(agg.gender_female, 1);
   assert.equal(agg.gender_male, 1);
   assert.equal(agg.headcount, 3);
-  assert.equal(agg.gender_female_pct, 33.3);
+  assert.equal(agg.gender_base, 2); // so os dois com genero binario conhecido
+  assert.equal(agg.gender_female_pct, 50); // 1 de 2, nao 1 de 3
+});
+
+test('genero sem conhecidos (base 0) nao divide por zero', () => {
+  const a = person({ cpf: '1', gender: '' });
+  const b = person({ cpf: '2', gender: 'Não informado' });
+  const agg = aggregateMonth([a, b], histMap([]), 2024, 6, 'nsx_br');
+  assert.equal(agg.gender_base, 0);
+  assert.equal(agg.gender_female_pct, 0);
 });
 
 // ---------- attrition (decisao 2: fim de mes) ----------
