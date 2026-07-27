@@ -43,6 +43,16 @@ Revisão feita aba a aba com a área. Nada abaixo é sugestão: são decisões.
    Betfair BR. Betfair distinta = 34 (TM) + 52 (só-Workday) = 86, confirmado em
    jun/2026. Implementado: adaptador `workday-adapter.ts`, upload opcional do
    FBe na tela de importação, dedup por nome no navegador. Testado (40 casos).
+   **Refinamento (27/07): headcount = empregados diretos; contingent à parte.**
+   Regra da área: conta quem está em centro de custo Betfair Brasil (qualquer
+   variação de nome). Os contingent workers (contratados terceiros, Employee ID
+   com prefixo "C") estão nesses centros de custo, mas ficam FORA do headcount —
+   o número deles varia por export (9 no snapshot de maio, 43 em dez, 83 no de
+   127 linhas: ruído de escopo, não crescimento). Betfair jun/2026 = 77 (era 86;
+   saem os 9 contingent de maio). Contingent viram linha separada quando houver
+   fonte consistente. Os snapshots históricos confirmam que os diretos são
+   estáveis (~43 núcleo, overlap real por Employee ID) — o viés de sobrevivência
+   deles é pequeno, então não exigem reconstrução por snapshot.
    Limitações estruturais declaradas (o Workday não conserta):
    - **Gênero**: o Workday não tem a coluna. Os 52 entram no headcount mas fora
      de fem/mas. Por isso `gender_female_pct` passou a ser sobre a **base com
