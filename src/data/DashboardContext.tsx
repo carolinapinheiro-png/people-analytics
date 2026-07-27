@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useMemo, useEffect, useCallback } from 'react';
 import { useServerFn } from '@tanstack/react-start';
-import { RAW_DATA, MonthRecord } from './raw-data';
+import type { MonthRecord } from './raw-data';
 import type { LeaverRecord } from './leaver-types';
 import { listLeavers } from '@/lib/leavers.functions';
+import { getMonthlyMetrics } from '@/lib/metrics.functions';
+import { composeMonthlyMetrics } from './compose-metrics';
 import { getMonthsOrder, getMonthData, getAllMonthsForBrand, aggregateMonthlyToQuarterly } from './helpers';
 
 export type BrandType = 'combined' | 'NSX' | 'Betfair BR' | 'Flutter International';
@@ -39,6 +41,9 @@ interface DashboardState {
   prevData: MonthRecord | undefined;
   allMonthsData: MonthRecord[];
   filteredDeptKey: string | null;
+  /** A serie mensal agora vem do banco (nao mais do mock), entao tem carga. */
+  dataLoading: boolean;
+  dataError: string | null;
   /** Dado individual de desligados vem do servidor, entao tem estado de carga. */
   leaversLoading: boolean;
   leaversError: string | null;
@@ -82,7 +87,35 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
 }
 
 export function DashboardProvider({ children }: { children: React.ReactNode }) {
-  const [data] = useState<MonthRecord[]>(RAW_DATA);
+  // Serie mensal: agora vem do banco (monthly_metrics), nao mais do mock
+  // raw-data.ts. Reconstruida oficial + congelada nos 3 campos que ela nao
+  // gera; so linhas confiaveis (quality_flag IS NULL). Ver compose-metrics.ts.
+  const [data, setData] = useState<MonthRecord[]>([]);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const fetchMetrics = useServerFn(getMonthlyMetrics);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDataLoading(true);
+    setDataError(null);
+    fetchMetrics({ data: { sources: ['reconstruido', 'raw-data.ts'] } })
+      .then((rows) => {
+        if (cancelled) return;
+        setData(composeMonthlyMetrics(rows));
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        console.error('Falha ao carregar a serie mensal:', e);
+        setDataError(e instanceof Error ? e.message : 'Falha ao carregar a serie mensal');
+      })
+      .finally(() => {
+        if (!cancelled) setDataLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchMetrics]);
 
   // Desligados nao vem mais de um import: o arquivo carregava 152 pessoas com
   // nome, raca e salario para dentro do bundle, ou seja, para o navegador de
@@ -140,7 +173,13 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   });
 
   const monthsOrder = useMemo(() => getMonthsOrder(data), [data]);
-  const [currentMonthIdx, setCurrentMonthIdx] = useState(monthsOrder.length - 1);
+  const [currentMonthIdx, setCurrentMonthIdx] = useState(0);
+
+  // Os dados chegam de forma assincrona (banco). Quando a lista de meses muda
+  // (carga inicial), aponta para o mes mais recente.
+  useEffect(() => {
+    if (monthsOrder.length > 0) setCurrentMonthIdx(monthsOrder.length - 1);
+  }, [monthsOrder.length]);
 
   const currentMonth = monthsOrder[currentMonthIdx] || '';
   const filteredDeptKey = filters.departamento !== 'Todos' ? filters.departamento : null;
@@ -199,7 +238,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       data, leavers, brand, setBrand, currentMonthIdx, setCurrentMonthIdx,
       activeTab, setActiveTab, view, setView, filters, setFilters,
       monthsOrder, currentMonth, currentData, prevData, allMonthsData,
-      filteredDeptKey, leaversLoading, leaversError, reloadLeavers,
+      filteredDeptKey, dataLoading, dataError,
+      leaversLoading, leaversError, reloadLeavers,
     }}>
       {children}
     </DashboardContext.Provider>
