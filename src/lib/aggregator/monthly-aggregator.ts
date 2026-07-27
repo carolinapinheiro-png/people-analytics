@@ -89,6 +89,10 @@ export interface MonthAggregate {
   promotions: number | null;
   gender_female: number;
   gender_male: number;
+  /** Base com genero conhecido (fem+mas). Menor que headcount quando a fonte
+   *  nao traz genero (Workday/Betfair) ou ha "Nao informado". Denominador de
+   *  gender_female_pct e a declaracao da base parcial. */
+  gender_base: number;
   gender_female_pct: number;
   leaders: number;
   leader_female: number;
@@ -236,7 +240,13 @@ export function aggregateMonth(
     promotions: null,
     gender_female: fem,
     gender_male: mas,
-    gender_female_pct: hc ? round1((fem / hc) * 100) : 0,
+    // % de mulheres sobre a base com genero CONHECIDO (fem+mas), nao sobre o
+    // headcount. Motivo: a fonte Workday (Betfair) nao traz genero, entao
+    // dividir por headcount deflacionaria o indicador em ate 3x conforme a
+    // participacao do Workday. Sobre a base conhecida, o numero segue honesto
+    // e gender_base declara o tamanho dessa base (ver decisao 11).
+    gender_base: fem + mas,
+    gender_female_pct: fem + mas ? round1((fem / (fem + mas)) * 100) : 0,
     leaders,
     leader_female: leaderF,
     leader_female_pct: leaders ? round1((leaderF / leaders) * 100) : 0,
