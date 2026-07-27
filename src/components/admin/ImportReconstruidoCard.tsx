@@ -175,6 +175,7 @@ export default function ImportReconstruidoCard() {
               id="import-from"
               value={fromYm}
               onChange={(e) => setFromYm(e.target.value)}
+              onBlur={() => recompute()}
               className="w-32"
             />
           </div>
@@ -184,6 +185,7 @@ export default function ImportReconstruidoCard() {
               id="import-to"
               value={toYm}
               onChange={(e) => setToYm(e.target.value)}
+              onBlur={() => recompute()}
               className="w-32"
             />
           </div>
@@ -214,12 +216,23 @@ export default function ImportReconstruidoCard() {
             variant="ghost"
             onClick={() => wdRef.current?.click()}
             disabled={busy !== null || !fileName}
-            title="Opcional: Brazil_FBe (Workday) para compor Betfair BR"
+            title={
+              fileName
+                ? 'Opcional: Brazil_FBe (Workday) para compor Betfair BR'
+                : 'Carregue o Talent Mobility primeiro (o dedup dos duplicados precisa dele)'
+            }
           >
             <Upload className="h-4 w-4 mr-2" />
             Betfair/Workday (.csv)
           </Button>
         </div>
+
+        {!fileName && (
+          <p className="text-xs text-muted-foreground">
+            Comece pelo Talent Mobility. O Workday (Betfair) só habilita depois — o cruzamento dos
+            duplicados precisa dos nomes do TM.
+          </p>
+        )}
 
         {fileName && (
           <p className="text-xs text-muted-foreground">

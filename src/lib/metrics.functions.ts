@@ -78,30 +78,19 @@ export const importReconstruido = createServerFn({ method: 'POST' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
 
-    const rows = data.rows.map((r) => ({ ...r, source: 'reconstruido' }));
-
-    // Upsert por (month, brand, source): reimportar o mesmo mes corrige em
-    // vez de duplicar, e a serie congelada (source='raw-data.ts') nunca e
-    // tocada -- as duas convivem para a comparacao lado a lado.
-    const { error, count } = await db
-      .from('monthly_metrics')
-      .upsert(rows, { onConflict: 'month,brand,source', count: 'exact' });
-
-    if (error) throw new Error(`Falha na importacao: ${error.message}`);
-
-    const { error: logError } = await db.from('monthly_metrics_import_log').insert({
-      user_email: email,
-      source: 'reconstruido',
-      rows_upserted: count ?? rows.length,
-      months: new Set(rows.map((r) => r.month)).size,
-      brands: [...new Set(rows.map((r) => r.brand))],
+    // Upsert das metricas + log de importacao numa TRANSACAO unica (funcao
+    // Postgres import_reconstruido). Antes eram duas chamadas soltas: se o log
+    // falhava, as metricas ja tinham entrado e a tela mentia "nada registrado".
+    // Agora ou os dois entram ou nenhum. A funcao ja aplica source='reconstruido'
+    // e faz upsert por (month, brand, source) -- a serie congelada nunca e tocada.
+    const { data: imported, error } = await db.rpc('import_reconstruido', {
+      p_rows: data.rows,
+      p_user_email: email,
     });
 
-    if (logError) {
-      throw new Error(`Falha ao registrar importacao; operacao abortada: ${logError.message}`);
-    }
+    if (error) throw new Error(`Falha na importacao (nada gravado): ${error.message}`);
 
-    return { imported: count ?? rows.length };
+    return { imported: (imported as number | null) ?? data.rows.length };
   });
 
 const ListInput = z
