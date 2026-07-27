@@ -143,3 +143,48 @@ export const listMetricsBySource = createServerFn({ method: 'GET' })
 
     return (rows ?? []) as MetricSeriesRow[];
   });
+
+/** Linha completa de monthly_metrics para alimentar o dashboard (inclui jsonb). */
+export interface MonthlyMetricRow extends MetricSeriesRow {
+  leader_female: number | null;
+  state_mix: Record<string, number> | null;
+  dept_data: Record<string, { hc: number; avg_salary_leaders: number; avg_salary_non_leaders: number }> | null;
+  salary_band_attrition:
+    | Array<{ band: string; leavers: number; pct_of_leavers: number; avg_tenure_months: number }>
+    | null;
+  exit_survey:
+    | Array<{ reason: string; count: number; pct: number; trend: string; comments?: string[] }>
+    | null;
+}
+
+/**
+ * Leitura completa para o dashboard: todas as colunas (inclusive state_mix,
+ * dept_data, salary_band_attrition, exit_survey), so linhas confiaveis
+ * (quality_flag IS NULL). Traz as duas fontes -- a composicao (reconstruida nos
+ * escalares, congelada nos 3 campos que ela nao gera) e feita no cliente.
+ * Acessivel a qualquer usuario autorizado (viewer inclusive).
+ */
+export const getMonthlyMetrics = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => ListInput.parse(input))
+  .handler(async ({ context, data }) => {
+    await authorize(context.claims.email as string | undefined);
+
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const db = supabaseAdmin as unknown as UntypedClient;
+
+    let q = db
+      .from('monthly_metrics')
+      .select(
+        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey',
+      )
+      .is('quality_flag', null)
+      .order('month', { ascending: true });
+
+    if (data?.sources?.length) q = q.in('source', data.sources);
+
+    const { data: rows, error } = await q;
+    if (error) throw new Error(`Falha ao carregar metricas: ${error.message}`);
+
+    return (rows ?? []) as MonthlyMetricRow[];
+  });

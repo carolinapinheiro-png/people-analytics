@@ -50,7 +50,34 @@ function LeaversGate({ children }: { children: React.ReactNode }) {
 }
 
 function DashboardContent() {
-  const { activeTab } = useDashboard();
+  const { activeTab, dataLoading, dataError } = useDashboard();
+
+  // A serie mensal agora vem do banco. Ate carregar, nao renderiza as abas --
+  // elas assumem que ha dados e quebrariam com lista vazia.
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <TopBar />
+        <div className="flex items-center justify-center py-32">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        </div>
+      </div>
+    );
+  }
+
+  if (dataError) {
+    return (
+      <div className="min-h-screen bg-background">
+        <TopBar />
+        <div className="max-w-md mx-auto text-center py-32 space-y-3">
+          <h2 className="text-lg font-semibold text-foreground">
+            Não foi possível carregar os indicadores
+          </h2>
+          <p className="text-sm text-muted-foreground">{dataError}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
