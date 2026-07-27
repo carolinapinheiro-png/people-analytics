@@ -30,15 +30,45 @@ Revisão feita aba a aba com a área. Nada abaixo é sugestão: são decisões.
 7. **Dezembro/2025 (NSX)** e **Porto (2026-05)**: quality_flag, fora de qualquer
    gráfico até a série reconstruída substituir.
 
-## Pendências que só a comparação resolve (próxima sessão)
+## Decisões de 24/07 (tarde) — comparação executada e fontes resolvidas
 
-- Qual série vira oficial: congelada × reconstruída, lado a lado por mês.
-- 18 duplicados Betfair (Talent Mobility × Workday): qual fonte prevalece.
-- Satisfação jun/25 ambígua no deck de engajamento (8,9 ou 8,6): confirmar com a área.
+8. **Série reconstruída validada** contra o Talent Mobility real (21/07): headcount
+   converge (máx ±5 no início de 2025, **zero em jun/2026** nas três marcas: NSX
+   581, Betfair 34, Flutter 22). A reconstruída ganha 2025 inteiro de Betfair e
+   Flutter, conserta dez/2025 e faz a soma dos deptos bater com o headcount.
+   Relatório: `comparacao-series-24-07-2026.md`. Falta só bater o martelo formal
+   da série oficial no app.
+9. **Betfair BR = Talent Mobility, sem merge com o Workday.** Regra da área: nos
+   18 duplicados, vence o Talent Mobility. Os 18 são todos "Brazil Remote" e já
+   estão nos 34 do Talent Mobility — sem dupla contagem. Dos 52 que só existem no
+   Workday, 38 estão no exterior (Romênia 34, UK 3, Malta 1) e 14 são "Brazil
+   Remote" ausentes do Talent Mobility. Nenhum é Betfair BR para o dashboard
+   brasileiro: o Workday (Brazil_FBe) é população à parte (Betfair International).
+   Consequência: **a extensão Betfair não precisa de código** — o agregador já
+   produz Betfair de 34 do Talent Mobility, como NSX e Flutter.
+   Ponta solta (não bloqueia o dashboard): confirmar com o dono do FBe se os 14
+   "Brazil Remote" do Workday deveriam estar no Talent Mobility.
+10. **"6 vínculos" era ruído de histórico.** No export oficial não há CPF
+    duplicado na Worksheet; o caso é 1 pessoa com 5 registros `Motivo: Admissão`
+    para um contrato contínuo (3 no mesmo dia, salários diferentes). O agregador
+    (pessoa = linha da Worksheet) é imune. Para o DP: corrigir os Motivos e as 5
+    admissões futuras.
+
+## Pendências que dependem da área (e-mails enviados/rascunhados)
+
+- Satisfação jun/25 ambígua no deck (slide 4: 8,9 geral × 8,6 do recorte 6–12
+  meses de casa): confirmar valor company-wide com quem montou o deck.
+- Fonte original de `promotions` da série congelada (a reconstruída grava null).
 
 ## Ordem de execução
 
-1. Agregador TypeScript (Talent_Mobility → monthly_metrics 'reconstruido') + tela de importação no admin
-2. Comparação lado a lado e decisão da série oficial
+1. ~~Agregador TypeScript + tela de importação no admin~~ ✅ (mesclado 24/07)
+2. ~~Comparação lado a lado~~ ✅ — falta o martelo formal da série oficial no app
 3. Aba Experiência (clima + entrada)
 4. Span real + CompRatio individual (com revisão de allowed_emails antes)
+
+Span real: a cadeia de gestão está no próprio Talent Mobility (647 dos 649
+ativos têm gestor, 120 gestores distintos). `Span de Controle.csv` é só guia de
+definições (career bands), não organograma. CompRatio: `COMP RATIO base.csv` =
+587 salários individuais; `COMP RATIO v2.csv` = bandas (já viraram colunas
+geradas no banco).
