@@ -7,7 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
-import { Trash2, UserPlus, Shield, ScrollText, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
+import { Trash2, UserPlus, Shield, ScrollText, ShieldAlert, ShieldCheck, ArrowLeft, Users, Database } from 'lucide-react';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   getAllowedEmails,
   getAccessLogs,
@@ -133,143 +135,169 @@ export default function AdminPage() {
             Gerenciar Acesso
           </h1>
           <p className="text-sm text-muted-foreground">
-            Adicione, remova ou altere permissões de usuários autorizados.
+            Administração de usuários, auditoria e dados da plataforma.
           </p>
+          <Link to="/dashboard" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mt-2">
+            <ArrowLeft className="h-4 w-4" />
+            Voltar ao dashboard
+          </Link>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <UserPlus className="h-5 w-5" />
-              Adicionar usuário
-            </CardTitle>
-            <CardDescription>
-              O usuário precisará fazer login com esse email (senha ou Google).
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2">
-              <Input
-                type="email"
-                placeholder="email@flutter.com"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                required
-                className="flex-1"
-              />
-              <select
-                value={newRole}
-                onChange={(e) => setNewRole(e.target.value as 'admin' | 'viewer')}
-                className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="viewer">Visualizador</option>
-                <option value="admin">Administrador</option>
-              </select>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Adicionando...' : 'Adicionar'}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+        <Tabs defaultValue="access" className="space-y-6">
+          <TabsList className="h-auto flex-wrap">
+            <TabsTrigger value="access" className="gap-2">
+              <Users className="h-4 w-4" />
+              Usuários
+            </TabsTrigger>
+            <TabsTrigger value="audit" className="gap-2">
+              <ScrollText className="h-4 w-4" />
+              Auditoria
+            </TabsTrigger>
+            {isAdmin && (
+              <TabsTrigger value="data" className="gap-2">
+                <Database className="h-4 w-4" />
+                Dados
+              </TabsTrigger>
+            )}
+          </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Usuários autorizados</CardTitle>
-            <CardDescription>
-              {emails.length} usuário{emails.length !== 1 ? 's' : ''} com acesso
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {emails.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between p-3 rounded-lg border border-border bg-card gap-4"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-sm truncate">{item.email}</span>
-                    <Badge variant={item.role === 'admin' ? 'default' : 'secondary'} className="shrink-0">
-                      {item.role === 'admin' ? (
-                        <ShieldCheck className="h-3 w-3 mr-1" />
-                      ) : (
-                        <ShieldAlert className="h-3 w-3 mr-1" />
-                      )}
-                      {item.role === 'admin' ? 'Admin' : 'Viewer'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <select
-                      value={item.role}
-                      onChange={(e) => handleRoleChange(item.id, e.target.value as 'admin' | 'viewer')}
-                      className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
+          <TabsContent value="access" className="space-y-6 mt-0">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <UserPlus className="h-5 w-5" />
+                  Adicionar usuário
+                </CardTitle>
+                <CardDescription>
+                  O usuário precisará fazer login com esse email (senha ou Google).
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    type="email"
+                    placeholder="email@flutter.com"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    required
+                    className="flex-1"
+                  />
+                  <select
+                    value={newRole}
+                    onChange={(e) => setNewRole(e.target.value as 'admin' | 'viewer')}
+                    className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="viewer">Visualizador</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? 'Adicionando...' : 'Adicionar'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Usuários autorizados</CardTitle>
+                <CardDescription>
+                  {emails.length} usuário{emails.length !== 1 ? 's' : ''} com acesso
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {emails.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between p-3 rounded-lg border border-border bg-card gap-4"
                     >
-                      <option value="viewer">Viewer</option>
-                      <option value="admin">Admin</option>
-                    </select>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemove(item.id)}
-                      className="text-destructive hover:text-destructive"
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="text-sm truncate">{item.email}</span>
+                        <Badge variant={item.role === 'admin' ? 'default' : 'secondary'} className="shrink-0">
+                          {item.role === 'admin' ? (
+                            <ShieldCheck className="h-3 w-3 mr-1" />
+                          ) : (
+                            <ShieldAlert className="h-3 w-3 mr-1" />
+                          )}
+                          {item.role === 'admin' ? 'Admin' : 'Viewer'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <select
+                          value={item.role}
+                          onChange={(e) => handleRoleChange(item.id, e.target.value as 'admin' | 'viewer')}
+                          className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
+                        >
+                          <option value="viewer">Viewer</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleRemove(item.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                  {emails.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Nenhum email autorizado ainda.
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="audit" className="space-y-6 mt-0">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <ScrollText className="h-5 w-5" />
+                  Logs de acesso
+                </CardTitle>
+                <CardDescription>
+                  Últimas tentativas de acesso ao dashboard.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {logs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between p-3 rounded-lg border border-border bg-card text-sm"
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Badge variant={log.allowed ? 'outline' : 'destructive'} className="shrink-0">
+                          {log.allowed ? 'Permitido' : 'Negado'}
+                        </Badge>
+                        <span className="truncate">{log.email}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        {new Date(log.created_at).toLocaleString('pt-BR')}
+                      </span>
+                    </div>
+                  ))}
+                  {logs.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Nenhum log registrado ainda.
+                    </p>
+                  )}
                 </div>
-              ))}
-              {emails.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum email autorizado ainda.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <ScrollText className="h-5 w-5" />
-              Logs de acesso
-            </CardTitle>
-            <CardDescription>
-              Últimas tentativas de acesso ao dashboard.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {logs.map((log) => (
-                <div
-                  key={log.id}
-                  className="flex items-center justify-between p-3 rounded-lg border border-border bg-card text-sm"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Badge variant={log.allowed ? 'outline' : 'destructive'} className="shrink-0">
-                      {log.allowed ? 'Permitido' : 'Negado'}
-                    </Badge>
-                    <span className="truncate">{log.email}</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {new Date(log.created_at).toLocaleString('pt-BR')}
-                  </span>
-                </div>
-              ))}
-              {logs.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">
-                  Nenhum log registrado ainda.
-                </p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {isAdmin && (
-          <>
-            <ImportReconstruidoCard />
-            <SeriesComparisonCard />
-          </>
-        )}
-
+          {isAdmin && (
+            <TabsContent value="data" className="space-y-6 mt-0">
+              <ImportReconstruidoCard />
+              <SeriesComparisonCard />
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
     </div>
   );
