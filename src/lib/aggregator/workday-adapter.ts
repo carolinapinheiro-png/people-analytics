@@ -56,6 +56,11 @@ export interface WorkdayReport {
   locations: Record<string, number>;
   /** Pessoas sem genero (todas, no Workday): tamanho da lacuna declarada. */
   withoutGender: number;
+  /** Contingent workers (Employee ID com prefixo "C"): contratados terceiros.
+   *  Decisao da area (27/07): NAO entram no headcount -- ficam a parte, porque
+   *  o numero deles varia por export (9 a 83) e nao formaria serie confiavel.
+   *  Este contador declara quantos foram excluidos deste arquivo. */
+  contingentExcluded: number;
   errors: string[];
 }
 
@@ -107,6 +112,7 @@ export function parseWorkdayBetfair(text: string, tmNames: Set<string>): ParsedW
         managers: 0,
         locations: {},
         withoutGender: 0,
+        contingentExcluded: 0,
         errors: ['Cabecalho do Workday nao encontrado (esperado "Employee ID"/"Worker").'],
       },
     };
@@ -114,6 +120,7 @@ export function parseWorkdayBetfair(text: string, tmNames: Set<string>): ParsedW
 
   const headers = splitCsvLine(lines[headerIdx]);
   const idx = (name: string) => headers.findIndex((h) => norm(h) === norm(name));
+  const iId = idx('Employee ID');
   const iWorker = idx('Worker');
   const iHire = idx('Hire Date');
   const iFtc = idx('FTC end date');
@@ -138,6 +145,7 @@ export function parseWorkdayBetfair(text: string, tmNames: Set<string>): ParsedW
     managers: 0,
     locations: {},
     withoutGender: 0,
+    contingentExcluded: 0,
     errors,
   };
   if (errors.length) return { people: [], report };
@@ -149,6 +157,14 @@ export function parseWorkdayBetfair(text: string, tmNames: Set<string>): ParsedW
     const worker = (row[iWorker] ?? '').trim();
     if (!worker) continue;
     report.totalRows++;
+
+    // Contingent worker: Employee ID com prefixo "C". Fora do headcount por
+    // decisao da area; contado a parte.
+    const empId = iId >= 0 ? (row[iId] ?? '').trim() : '';
+    if (/^C/i.test(empId)) {
+      report.contingentExcluded++;
+      continue;
+    }
 
     if (tmNames.has(norm(worker))) {
       report.overlapWithTm++;

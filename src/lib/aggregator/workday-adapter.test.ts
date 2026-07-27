@@ -11,6 +11,8 @@ import { aggregateMonth, monthEnd, type PersonRow } from './monthly-aggregator';
 
 const HEADER =
   'Employee ID;Employee Type;Worker;Hire Date;FTC end date;Future leave date;Location;Is Manager?';
+
+// Colunas: EmpID;Type;Worker;Hire;FTCend;FutLeave;Location;IsManager
 const TITLE = '1001 Daily Employee Report For Finance Partner;;;;;;;';
 
 const csv = (rows: string[]): string => [TITLE, HEADER, ...rows].join('\n');
@@ -72,6 +74,20 @@ test('admissao respeitada no headcount do mes (nao ativo antes de admitir)', () 
   const depois = aggregateMonth(people, new Map(), 2024, 6, 'betfair');
   assert.equal(antes.headcount, 0);
   assert.equal(depois.headcount, 1);
+});
+
+test('contingent worker (Employee ID prefixo C) fica fora do headcount, contado a parte', () => {
+  const { people, report } = parseWorkdayBetfair(
+    csv([
+      'C10009285;Contingent;Contratado Um;01/03/22;;;Brazil Remote;',
+      '10012207;Permanent;Empregado Um;01/03/22;;;Brazil Remote;Yes',
+    ]),
+    new Set(),
+  );
+  assert.equal(report.contingentExcluded, 1);
+  assert.equal(report.added, 1);
+  assert.equal(people.length, 1);
+  assert.equal(people[0].cpf, 'wd:Empregado Um');
 });
 
 test('cabecalho ausente vira erro, nao silencio', () => {
