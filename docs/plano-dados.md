@@ -80,9 +80,11 @@ Revisão feita aba a aba com a área. Nada abaixo é sugestão: são decisões.
 
 1. ~~Agregador TypeScript + tela de importação no admin~~ ✅ (mesclado 24/07)
 1b. ~~Betfair BR = TM + Workday (adaptador + upload do FBe)~~ ✅ (branch feat/betfair-workday)
-2. ~~Comparação lado a lado~~ ✅ — falta o martelo formal da série oficial no app.
-   Para Betfair, subir também o Brazil_FBe.csv na tela de importação.
-3. Aba Experiência (clima + entrada)
+2. ~~Comparação lado a lado + decisão da série oficial~~ ✅ (reconstruída venceu)
+2b. ~~Dashboard lê do banco~~ ✅ — reconstruída oficial + congelada nos 3 buracos
+    (exit_survey, salary_band_attrition, promotions); filtra quality_flag.
+    O mock raw-data.ts saiu do fluxo (array pode ser podado depois).
+3. Aba Experiência (clima + entrada) — começa criando as tabelas engagement_*
 4. Span real + CompRatio individual (com revisão de allowed_emails antes)
 
 Span real: a cadeia de gestão está no próprio Talent Mobility (647 dos 649
