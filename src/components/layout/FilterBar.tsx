@@ -9,6 +9,8 @@ const BRAND_COLORS: Record<string, string> = {
   Porto: COLORS.flutter,
 };
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
 
 const filterOptions = {
   departamento: ['Todos', 'TECHNOLOGY', 'PRODUCT', 'MARKETING', 'COMMERCIAL', 'FINANCE', 'OPERATIONS', 'HR'],
@@ -22,6 +24,12 @@ const filterOptions = {
 
 export default function FilterBar() {
   const { filters, setFilters, filteredDeptKey, brand } = useDashboard();
+  const { profile, departments } = useAuth();
+  // Perfis com escopo so escolhem entre os departamentos que atendem.
+  const scoped = !!profile && !isGlobalProfile(profile);
+  const deptOptions = scoped
+    ? departments.map(normalizeDept).filter(Boolean)
+    : filterOptions.departamento;
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
 
   const handleChange = (key: keyof Filters, value: string) => {
@@ -55,7 +63,7 @@ export default function FilterBar() {
       <FilterSelect
         label="DEPARTAMENTO"
         value={filters.departamento}
-        options={filterOptions.departamento}
+        options={deptOptions}
         onChange={(v) => handleChange('departamento', v)}
         active={!!filteredDeptKey}
         brandColor={brandColor}
