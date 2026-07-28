@@ -123,7 +123,6 @@ export default function ImportReconstruidoCard() {
     try {
       const rows = preview.aggregates.map((a) => ({
         ...a,
-        promotions: null,
         brand: BU_TO_BRAND[a.business_unit],
       }));
       const result = (await importFn({ data: { rows } })) as { imported: number };

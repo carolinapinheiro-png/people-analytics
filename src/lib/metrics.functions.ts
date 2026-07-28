@@ -49,8 +49,9 @@ const MetricRowSchema = z.object({
   joiners: z.number().int().nonnegative(),
   leavers: z.number().int().nonnegative(),
   attrition_rate: z.number(),
-  /** Decisao da revisao fria de 24/07: nao reconstruivel de Talent_Mobility. */
-  promotions: z.null(),
+  /** Reconstruidas da aba de historico (Motivo="Promoção"). Nullable por
+   *  compatibilidade com series antigas que gravaram null. */
+  promotions: z.number().nullable(),
   gender_female: z.number().int().nonnegative(),
   gender_male: z.number().int().nonnegative(),
   gender_female_pct: z.number(),
