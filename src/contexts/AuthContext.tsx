@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { lovable } from '@/integrations/lovable/index';
 import { checkAccess } from '@/lib/access.functions';
 import { useServerFn } from '@tanstack/react-start';
+import type { AccessProfile } from '@/lib/permissions';
 
 /**
  * 'unknown' — not checked yet (no session, or check in flight)
@@ -22,6 +23,10 @@ interface AuthContextType {
   isAllowed: boolean | null;
   accessStatus: AccessStatus;
   role: 'admin' | 'viewer' | null;
+  /** Perfil de acesso segmentado (abas, escopo e campos sensiveis). */
+  profile: AccessProfile | null;
+  /** Departamentos atendidos; vazio para perfis globais. */
+  departments: string[];
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -49,6 +54,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [accessStatus, setAccessStatus] = useState<AccessStatus>('unknown');
   const [role, setRole] = useState<'admin' | 'viewer' | null>(null);
+  const [profile, setProfile] = useState<AccessProfile | null>(null);
+  const [departments, setDepartments] = useState<string[]>([]);
   const checkAccessFn = useServerFn(checkAccess);
 
   /**
@@ -72,12 +79,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (result.allowed) {
           setAccessStatus('allowed');
           setRole(result.role);
+          setProfile((result.profile as AccessProfile | null) ?? null);
+          setDepartments(result.departments ?? []);
           return 'allowed';
         }
 
         // Authoritative denial — tear the session down.
         setAccessStatus('denied');
         setRole(null);
+        setProfile(null);
+        setDepartments([]);
         setUser(null);
         setSession(null);
 
@@ -105,6 +116,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     console.error('Access check failed:', lastError);
     setAccessStatus('error');
     setRole(null);
+    setProfile(null);
+    setDepartments([]);
     return 'error';
   }, [checkAccessFn]);
 
@@ -122,6 +135,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(null);
           setAccessStatus('unknown');
           setRole(null);
+          setProfile(null);
+          setDepartments([]);
           setLoading(false);
           return;
         }
@@ -184,6 +199,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (error) throw error;
     setAccessStatus('unknown');
     setRole(null);
+    setProfile(null);
+    setDepartments([]);
   };
 
   const retryAccessCheck = useCallback(() => verifyAccess(), [verifyAccess]);
@@ -200,12 +217,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAllowed,
         accessStatus,
         role,
+        profile,
+        departments,
         signIn,
         signUp,
         signOut,
         googleSignIn,
         retryAccessCheck,
-        isAdmin: role === 'admin',
+        isAdmin: profile === 'admin',
       }}
     >
       {children}
