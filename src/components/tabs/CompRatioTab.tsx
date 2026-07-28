@@ -1,313 +1,179 @@
-import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
+import { useEffect, useMemo, useState } from 'react';
+import { useServerFn } from '@tanstack/react-start';
+import { listCompRatio, type CompRatioRow } from '@/lib/comp.functions';
+import KpiCard from '@/components/dashboard/KpiCard';
+import ChartCard from '@/components/dashboard/ChartCard';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  LineChart,
-  Line,
-  Legend,
-  ReferenceLine
-} from 'recharts';
-import {
-  TrendingUp,
-  TrendingDown,
-  AlertTriangle,
-  CheckCircle2,
-  DollarSign,
-  Users,
-  Target,
-  Scale,
-  BarChart3
-} from 'lucide-react';
-import { useDashboard } from '@/data/DashboardContext';
+import { DollarSign, TrendingUp, TrendingDown, Scale, ShieldAlert } from 'lucide-react';
 import { COLORS } from '@/lib/colors';
 
-const BRAND_COLORS: Record<string, string> = {
-  combined: COLORS.flutter,
-  NSX: COLORS.nsx,
-  'Betfair BR': COLORS.betfair,
-  'Flutter International': COLORS.flutter,
-  Porto: COLORS.flutter,
-};
-import { mLabel, fmtC, shortDept } from '@/data/helpers';
-import {
-  StorySection,
-  StoryInsight,
-  StoryMetric,
-  StoryAlert,
-  ExecutiveSummary
-} from '@/components/dashboard/StorySection';
+/**
+ * CompRatio individual (587 ativos). Dado sensivel: vem da server function
+ * listCompRatio, que registra cada consulta. Nenhuma linha no bundle.
+ */
 
-// Benchmark de mercado referencial (fixo, usado apenas como proxy)
-const MARKET_BENCHMARK = 18500;
+const fmt1 = (n: number | null | undefined) =>
+  n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const fmtBRL = (n: number | null | undefined) =>
+  n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
-function calcTotalCost(d: { headcount: number; leaders: number; avg_salary_leaders: number; avg_salary_non_leaders: number }) {
-  const l = d.leaders || 0;
-  const nl = Math.max(0, (d.headcount || 0) - l);
-  return (l * (d.avg_salary_leaders || 0)) + (nl * (d.avg_salary_non_leaders || 0));
-}
-
-function calcAvgSalary(d: { headcount: number; leaders: number; avg_salary_leaders: number; avg_salary_non_leaders: number }) {
-  return d.headcount > 0 ? calcTotalCost(d) / d.headcount : 0;
-}
+const QUARTILE_ORDER = ['Below Range', 'Q1', 'Q2', 'Q3', 'Q4', 'Above range'];
+const quartileColor = (q: string) =>
+  q === 'Below Range' ? COLORS.danger : q === 'Above range' ? COLORS.warning : COLORS.success;
 
 export default function CompRatioTab() {
-  const { brand, currentData, prevData, allMonthsData, currentMonth } = useDashboard();
-  const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
-  const curr = currentData;
+  const [rows, setRows] = useState<CompRatioRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const fetchData = useServerFn(listCompRatio);
 
-  const avgSalary = calcAvgSalary(curr);
-  const compRatioProxy = avgSalary > 0 ? (avgSalary / MARKET_BENCHMARK) * 100 : 0;
-  const prevAvgSalary = prevData ? calcAvgSalary(prevData) : 0;
-  const salaryDelta = prevAvgSalary > 0 ? ((avgSalary - prevAvgSalary) / prevAvgSalary) * 100 : 0;
+  useEffect(() => {
+    let cancelled = false;
+    fetchData({ data: { context: 'aba compratio' } })
+      .then((d) => { if (!cancelled) setRows(d as CompRatioRow[]); })
+      .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Falha ao carregar'); });
+    return () => { cancelled = true; };
+  }, [fetchData]);
 
-  const leaders = curr.leaders || 0;
-  const nonLeaders = Math.max(0, (curr.headcount || 0) - leaders);
+  const stats = useMemo(() => {
+    if (!rows || rows.length === 0) return null;
+    const crs = rows.map((r) => r.comp_ratio ?? 0).filter((c) => c > 0);
+    const sorted = [...crs].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const above = rows.filter((r) => r.quartile === 'Above range').length;
+    const below = rows.filter((r) => r.quartile === 'Below Range').length;
+    const byQuartile = QUARTILE_ORDER.map((q) => ({ q, n: rows.filter((r) => r.quartile === q).length }));
+    const byArea: Record<string, { sum: number; n: number }> = {};
+    for (const r of rows) {
+      const a = r.area ?? '—';
+      (byArea[a] = byArea[a] ?? { sum: 0, n: 0 });
+      byArea[a].sum += r.comp_ratio ?? 0;
+      byArea[a].n++;
+    }
+    const areas = Object.entries(byArea)
+      .map(([area, v]) => ({ area, avg: v.sum / v.n, n: v.n }))
+      .sort((a, b) => b.avg - a.avg);
+    return { total: rows.length, median, above, below, byQuartile, areas };
+  }, [rows]);
 
-  const brandLabel = brand === 'combined' ? 'Combined' : brand;
+  const filtered = useMemo(() => {
+    if (!rows) return [];
+    const q = query.trim().toLowerCase();
+    const base = q
+      ? rows.filter((r) =>
+          [r.name, r.area, r.level, r.job_title].some((f) => (f ?? '').toLowerCase().includes(q)),
+        )
+      : rows;
+    return base.slice(0, 100);
+  }, [rows, query]);
 
-  const quartileDistribution = [
-    { name: 'Abaixo de P25', value: Math.max(0, Math.round(curr.headcount * 0.18)), color: COLORS.danger },
-    { name: 'P25-P50', value: Math.max(0, Math.round(curr.headcount * 0.28)), color: COLORS.orange },
-    { name: 'P50-P75', value: Math.max(0, Math.round(curr.headcount * 0.32)), color: COLORS.warning },
-    { name: 'Acima de P75', value: Math.max(0, Math.round(curr.headcount * 0.22)), color: COLORS.success },
-  ];
+  if (error) return <p className="text-sm text-muted-foreground text-center py-24">Não foi possível carregar o CompRatio: {error}</p>;
+  if (!rows || !stats) return <div className="flex items-center justify-center py-24"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
-  const byArea = Object.entries(curr.dept_data || {})
-    .filter(([k, v]) => !['DIRETORIA', 'GERAL'].includes(k) && (v.avg_salary_non_leaders > 0 || v.avg_salary_leaders > 0))
-    .map(([k, v]) => {
-      const avg = v.avg_salary_non_leaders > 0 ? v.avg_salary_non_leaders : v.avg_salary_leaders;
-      return {
-        area: shortDept(k),
-        count: v.hc,
-        avg_comp_ratio: avg > 0 ? parseFloat(((avg / MARKET_BENCHMARK) * 100).toFixed(1)) : 0,
-      };
-    })
-    .sort((a, b) => b.avg_comp_ratio - a.avg_comp_ratio);
-
-  const trend = allMonthsData.map(d => ({
-    month: mLabel(d.month),
-    comp_ratio: parseFloat(((calcAvgSalary(d) / MARKET_BENCHMARK) * 100).toFixed(1)),
-    avg_salary: Math.round(calcAvgSalary(d)),
-  }));
-
-  const formatCurrency = (value: number) => fmtC(value);
-
-  const summaryText = `Em ${mLabel(currentMonth)}, o ${brandLabel} apresenta salário médio de ${formatCurrency(avgSalary)} e um posicionamento estimado de ${compRatioProxy.toFixed(1)}% em relação ao benchmark de mercado (R$ ${MARKET_BENCHMARK.toLocaleString('pt-BR')}).`;
+  const qMax = Math.max(...stats.byQuartile.map((b) => b.n), 1);
 
   return (
-    <div className="space-y-6">
-      <ExecutiveSummary
-        title={`Resumo Executivo — Comp. Ratio (${brandLabel})`}
-        summary={summaryText}
-        highlights={[
-          { label: 'Salário Médio', value: formatCurrency(avgSalary), trend: salaryDelta >= 0 ? 'up' : 'down' },
-          { label: 'CompRatio Est.', value: `${compRatioProxy.toFixed(1)}%`, trend: 'neutral' },
-          { label: 'Headcount', value: String(curr.headcount || 0), trend: 'neutral' },
-          { label: 'Líderes', value: String(leaders), trend: 'neutral' },
-        ]}
-        alerts={compRatioProxy > 120 ? [{
-          title: 'Posicionamento Acima do Mercado',
-          description: `CompRatio estimado de ${compRatioProxy.toFixed(1)}% indica salários acima do benchmark. Recomenda-se revisar política salarial.`,
-          severity: 'medium'
-        }] : compRatioProxy < 90 ? [{
-          title: 'Posicionamento Abaixo do Mercado',
-          description: `CompRatio estimado de ${compRatioProxy.toFixed(1)}% pode indicar risco de retenção.`,
-          severity: 'high'
-        }] : []}
-      />
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StoryMetric
-          label="CompRatio Médio Est."
-          value={`${compRatioProxy.toFixed(1)}%`}
-          subtext="vs benchmark mercado"
-          trend={compRatioProxy >= 100 ? 'Acima do mercado' : 'Abaixo do mercado'}
-          trendDirection={compRatioProxy >= 100 ? 'up' : 'down'}
-          color={compRatioProxy >= 100 ? COLORS.success : COLORS.danger}
-          icon={Target}
-        />
-        <StoryMetric
-          label="Salário Médio Est."
-          value={formatCurrency(avgSalary)}
-          subtext="média ponderada"
-          icon={DollarSign}
-        />
-        <StoryMetric
-          label="Var. vs Mês Ant."
-          value={`${salaryDelta >= 0 ? '+' : ''}${salaryDelta.toFixed(1)}%`}
-          subtext="salário médio"
-          trendDirection={salaryDelta >= 0 ? 'up' : 'down'}
-          color={salaryDelta >= 0 ? COLORS.success : COLORS.danger}
-          icon={salaryDelta >= 0 ? TrendingUp : TrendingDown}
-        />
-        <StoryMetric
-          label="FTEs"
-          value={String(curr.headcount || 0)}
-          subtext="base de cálculo"
-          icon={Users}
-        />
+    <div className="space-y-4">
+      <div>
+        <h2 className="text-lg font-bold flex items-center gap-2">
+          <Scale className="h-5 w-5 text-[hsl(var(--flutter))]" />
+          Comp Ratio
+        </h2>
+        <p className="text-sm text-muted-foreground flex items-center gap-1.5">
+          <ShieldAlert className="h-3.5 w-3.5" />
+          Salário individual — cada consulta é registrada. {stats.total} ativos com banda salarial.
+        </p>
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <StorySection title="Distribuição Salarial Estimada" icon={Scale}>
-          <ResponsiveContainer width="100%" height={250}>
-            <PieChart>
-              <Pie
-                data={quartileDistribution}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={90}
-                paddingAngle={2}
-                dataKey="value"
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                labelLine={false}
-              >
-                {quartileDistribution.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
-            </PieChart>
-          </ResponsiveContainer>
-          <StoryInsight type="neutral">
-            Distribuição estimada baseada no headcount atual. Para uma distribuição real por percentil, são necessários dados individuais de salários.
-          </StoryInsight>
-        </StorySection>
-
-        <StorySection title="Evolução do CompRatio Estimado" icon={TrendingUp}>
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={trend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-              <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} domain={['dataMin - 10', 'dataMax + 10']} />
-              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
-              <Line type="monotone" dataKey="comp_ratio" name="CompRatio Est." stroke={brandColor} strokeWidth={2} dot={{ r: 3 }} />
-              <ReferenceLine y={100} name="Benchmark" stroke={COLORS.success} strokeDasharray="4 4" strokeWidth={1} />
-            </LineChart>
-          </ResponsiveContainer>
-        </StorySection>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KpiCard label="Ativos com banda" value={stats.total} color={COLORS.flutter} icon={DollarSign} />
+        <KpiCard label="Comp ratio mediano" value={`${fmt1(stats.median)}%`} color={COLORS.nsx} icon={Scale} />
+        <KpiCard label="Acima da faixa" value={`${stats.above} (${fmt1((stats.above / stats.total) * 100)}%)`} color={COLORS.warning} icon={TrendingUp} />
+        <KpiCard label="Abaixo da faixa" value={`${stats.below} (${fmt1((stats.below / stats.total) * 100)}%)`} color={COLORS.danger} icon={TrendingDown} />
       </div>
 
-      <StorySection title="CompRatio por Área" icon={BarChart3}>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={byArea} layout="vertical" margin={{ left: 20 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-            <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} domain={[0, 'dataMax + 20']} />
-            <YAxis type="category" dataKey="area" tick={{ fill: '#4a5568', fontSize: 10 }} width={100} />
-            <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
-            <Bar dataKey="avg_comp_ratio" name="CompRatio Est." fill={brandColor} radius={[0, 4, 4, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-        <StoryInsight type={compRatioProxy >= 100 ? 'positive' : 'warning'}>
-          {compRatioProxy >= 100
-            ? `Posicionamento salarial estimado de ${compRatioProxy.toFixed(1)}% indica política competitiva.`
-            : `Posicionamento salarial estimado de ${compRatioProxy.toFixed(1)}% pode indicar oportunidade de revisão salarial.`}
-        </StoryInsight>
-      </StorySection>
-
-      {/* Detailed Analysis */}
-      <Card className="border-l-4 bg-slate-900/50" style={{ borderLeftColor: brandColor }}>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2 text-slate-100">
-            <Scale className="h-5 w-5" style={{ color: brandColor }} />
-            Análise de Posicionamento Salarial — {mLabel(currentMonth)}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-slate-800/50 rounded-lg p-4">
-              <h3 className="font-semibold text-slate-100 mb-3">Métricas Gerais</h3>
-              <div className="space-y-3 text-sm">
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Salário Médio</span>
-                  <span className="font-bold text-green-400">{formatCurrency(avgSalary)}</span>
+      <div className="grid md:grid-cols-2 gap-4">
+        <ChartCard title="Distribuição por quartil da banda" icon={Scale}>
+          <div className="space-y-2 pt-1">
+            {stats.byQuartile.map((b) => (
+              <div key={b.q} className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">{b.q}</span>
+                  <span className="font-semibold tabular-nums">{b.n}</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Benchmark Mercado</span>
-                  <span className="font-bold">{formatCurrency(MARKET_BENCHMARK)}</span>
-                </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">CompRatio Est.</span>
-                  <span className={`font-bold ${compRatioProxy >= 100 ? 'text-green-400' : 'text-red-400'}`}>{compRatioProxy.toFixed(1)}%</span>
-                </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Var. vs Mês Ant.</span>
-                  <span className={`font-bold ${salaryDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {salaryDelta >= 0 ? '+' : ''}{salaryDelta.toFixed(1)}%
-                  </span>
+                <div className="h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full" style={{ width: `${(b.n / qMax) * 100}%`, background: quartileColor(b.q) }} />
                 </div>
               </div>
-            </div>
+            ))}
+          </div>
+        </ChartCard>
 
-            <div className="bg-slate-800/50 rounded-lg p-4">
-              <h3 className="font-semibold text-slate-100 mb-3">Análise por Área</h3>
-              <div className="space-y-2 text-sm max-h-[220px] overflow-auto">
-                {byArea.map((area, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 bg-slate-800/50 rounded border">
-                    <span className="text-slate-300">{area.area}</span>
-                    <div className="text-right">
-                      <span className={`font-bold ${area.avg_comp_ratio >= 100 ? 'text-green-400' : 'text-yellow-400'}`}>
-                        {area.avg_comp_ratio}%
-                      </span>
-                      <span className="text-xs text-slate-500 ml-2">({area.count})</span>
-                    </div>
-                  </div>
+        <ChartCard title="Comp ratio médio por área" icon={TrendingUp}>
+          <div className="overflow-x-auto max-h-64 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-card">
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="p-2">Área</th>
+                  <th className="p-2 text-right">Pessoas</th>
+                  <th className="p-2 text-right">Comp ratio médio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stats.areas.map((a) => (
+                  <tr key={a.area} className="border-b border-border/50">
+                    <td className="p-2 font-medium">{a.area}</td>
+                    <td className="p-2 text-right tabular-nums">{a.n}</td>
+                    <td className="p-2 text-right tabular-nums font-semibold">{fmt1(a.avg)}%</td>
+                  </tr>
                 ))}
-              </div>
-            </div>
+              </tbody>
+            </table>
           </div>
+        </ChartCard>
+      </div>
 
-          <div className={`p-4 rounded-lg border text-sm ${compRatioProxy >= 90 && compRatioProxy <= 120 ? 'bg-green-950/40 border-green-500/30 text-green-300' : 'bg-amber-950/40 border-amber-500/30 text-amber-300'}`}>
-            <div className="flex items-start gap-3">
-              {compRatioProxy >= 90 && compRatioProxy <= 120 ? <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" /> : <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />}
-              <div>
-                <strong>Insight:</strong>{' '}
-                O {brandLabel} apresenta salário médio de {formatCurrency(avgSalary)} e CompRatio estimado de {compRatioProxy.toFixed(1)}%.
-                {compRatioProxy >= 90 && compRatioProxy <= 120
-                  ? ' Posicionamento dentro da faixa saudável.'
-                  : compRatioProxy > 120
-                    ? ' Posicionamento acima do mercado pode indicar política premium ou necessidade de revisão de benchmark.'
-                    : ' Posicionamento abaixo do mercado pode representar risco de retenção.'}
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-amber-950/30 border border-amber-500/20 rounded-lg p-4">
-            <h3 className="font-semibold text-amber-200 mb-3 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Recomendações
-            </h3>
-            <ul className="space-y-2 text-sm text-amber-200">
-              <li className="flex items-start gap-2">
-                <span className="font-bold">1.</span>
-                <span><strong>Revisar benchmark:</strong> Atualizar referências de mercado por área e nível regularmente.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold">2.</span>
-                <span><strong>Monitorar evolução:</strong> Acompanhar variação do salário médio e CompRatio mês a mês.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold">3.</span>
-                <span><strong>Análise por área:</strong> Identificar departamentos com maior desvio do benchmark para ação corretiva.</span>
-              </li>
-            </ul>
-          </div>
-        </CardContent>
-      </Card>
+      <ChartCard title="Indivíduos" subtitle={`${rows.length} ativos · mostrando ${filtered.length}`} icon={DollarSign}>
+        <Input
+          placeholder="Buscar por nome, área, nível ou cargo..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="mb-3 max-w-sm"
+        />
+        <div className="overflow-x-auto max-h-[28rem] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-card">
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                <th className="p-2">Nome</th>
+                <th className="p-2">Nível</th>
+                <th className="p-2">Área</th>
+                <th className="p-2">Cargo</th>
+                <th className="p-2 text-right">Salário</th>
+                <th className="p-2 text-right">Comp ratio</th>
+                <th className="p-2">Quartil</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id} className="border-b border-border/50">
+                  <td className="p-2 font-medium whitespace-nowrap">{r.name}</td>
+                  <td className="p-2">{r.level}</td>
+                  <td className="p-2 text-xs">{r.area}</td>
+                  <td className="p-2 text-xs text-muted-foreground max-w-[220px] truncate">{r.job_title}</td>
+                  <td className="p-2 text-right tabular-nums whitespace-nowrap">{fmtBRL(r.salary)}</td>
+                  <td className="p-2 text-right tabular-nums font-semibold">{fmt1(r.comp_ratio)}%</td>
+                  <td className="p-2">
+                    <Badge variant="outline" className="text-[10px]" style={{ borderColor: quartileColor(r.quartile ?? ''), color: quartileColor(r.quartile ?? '') }}>
+                      {r.quartile}
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </ChartCard>
     </div>
   );
 }
