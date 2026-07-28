@@ -87,7 +87,11 @@ Revisão feita aba a aba com a área. Nada abaixo é sugestão: são decisões.
 3. ~~Aba Experiência~~ ✅ — sub-abas Engajamento (deck CEO) / Onboarding (banco) /
    Inclusão & Pertencimento (Polly 2026 + Flutter Near You). Tabelas
    engagement_scores e experience_distributions (aplicadas no banco à mão).
-4. Span real + CompRatio individual (com revisão de allowed_emails antes)
+4. ~~Span real + CompRatio individual~~ ✅
+   - Span: cadeia real do Talent Mobility (span_snapshot). No ar.
+   - CompRatio: 582 salários individuais em comp_ratio (sem policy de leitura,
+     listCompRatio com log obrigatório). allowed_emails revisado: 3 autorizados
+     (Carolina admin, Caio e Leticia viewers), todo acesso logado. No ar.
 
 Span real: a cadeia de gestão está no próprio Talent Mobility (647 dos 649
 ativos têm gestor, 120 gestores distintos). `Span de Controle.csv` é só guia de
