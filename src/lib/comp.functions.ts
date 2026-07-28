@@ -2,6 +2,12 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  canSeeIndividualData,
+  isInScope,
+  type AccessProfile,
+  type AccessScope,
+} from '@/lib/permissions';
 
 /**
  * Acesso ao salario individual + comp ratio dos ativos (587).
@@ -37,12 +43,17 @@ async function authorize(userEmail: string | undefined) {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data, error } = await supabaseAdmin
     .from('allowed_emails')
-    .select('role')
+    .select('role, profile, departments')
     .ilike('email', userEmail)
     .maybeSingle();
   if (error) throw new Error(`Access check failed: ${error.message}`);
   if (!data) throw new Error('Forbidden');
-  return { email: userEmail, role: data.role as 'admin' | 'viewer' };
+  const row = data as { role?: string; profile?: string; departments?: string[] };
+  const scope: AccessScope = {
+    profile: (row.profile as AccessProfile) ?? 'dept_leader',
+    departments: row.departments ?? [],
+  };
+  return { email: userEmail, role: (row.role as 'admin' | 'viewer') ?? 'viewer', scope };
 }
 
 const ListInput = z
@@ -53,7 +64,7 @@ export const listCompRatio = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ListInput.parse(input))
   .handler(async ({ context, data }): Promise<CompRatioRow[]> => {
-    const { email } = await authorize(context.claims.email as string | undefined);
+    const { email, scope } = await authorize(context.claims.email as string | undefined);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -64,17 +75,22 @@ export const listCompRatio = createServerFn({ method: 'GET' })
       .order('salary', { ascending: false });
     if (error) throw new Error(`Falha ao carregar comp ratio: ${error.message}`);
 
+    const scoped = (rows ?? []).filter((r) => isInScope(scope, r.area));
+    const visible = canSeeIndividualData(scope.profile)
+      ? scoped
+      : scoped.map((r) => ({ ...r, name: 'Confidencial', salary: null }));
+
     // Log obrigatorio: sem registrar quem viu, nao devolve. Igual aos desligados.
     const { error: logError } = await db.from('comp_ratio_access_log').insert({
       user_email: email,
-      rows_returned: rows?.length ?? 0,
+      rows_returned: visible.length,
       context: data?.context ?? null,
     });
     if (logError) {
       throw new Error(`Falha ao registrar acesso; consulta abortada: ${logError.message}`);
     }
 
-    return (rows ?? []).map((r) => ({
+    return visible.map((r) => ({
       ...r,
       salary: r.salary == null ? null : Number(r.salary),
       comp_ratio: r.comp_ratio == null ? null : Number(r.comp_ratio),
