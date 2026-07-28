@@ -45,6 +45,7 @@ const hist = (over: Partial<HistoryRow>): HistoryRow => ({
   to: null,
   department: 'TECH',
   salary: 10000,
+  reason: null,
   ...over,
 });
 
@@ -154,11 +155,35 @@ test('ativo sem registro vigente entra como SEM DEPTO; soma dos deptos = headcou
   assert.equal(soma, agg.headcount);
 });
 
-// ---------- promotions (decisao 5) ----------
+// ---------- promotions (reconstruidas da aba de historico) ----------
 
-test('promotions e null, nunca 0', () => {
+test('promotions conta Motivo="Promoção" com data no mes, para CPFs da BU', () => {
+  const p = person({ cpf: '77' });
+  const rows = [
+    hist({ cpf: '77', from: d('2024-06-05'), reason: 'Promoção' }), // conta
+    hist({ cpf: '77', from: d('2024-06-20'), reason: 'Mérito/Reajuste' }), // reajuste, nao conta
+    hist({ cpf: '77', from: d('2024-05-30'), reason: 'Promoção' }), // fora do mes
+  ];
+  const agg = aggregateMonth([p], histMap(rows), 2024, 6, 'nsx_br');
+  assert.equal(agg.promotions, 1);
+});
+
+test('promotions sem eventos = 0 (0 e afirmacao valida agora)', () => {
   const agg = aggregateMonth([person({})], histMap([hist({})]), 2024, 6, 'nsx_br');
-  assert.equal(agg.promotions, null);
+  assert.equal(agg.promotions, 0);
+});
+
+test('promotions so conta CPFs da propria BU', () => {
+  const nsx = person({ cpf: '1', company: 'NSX BRASIL RECIFE' });
+  const bet = person({ cpf: '2', company: 'NSX BETFAIR BRASIL S.A.' });
+  const rows = [
+    hist({ cpf: '1', from: d('2024-06-05'), reason: 'Promoção' }),
+    hist({ cpf: '2', from: d('2024-06-05'), reason: 'Promoção' }),
+  ];
+  const nsxAgg = aggregateMonth([nsx, bet], histMap(rows), 2024, 6, 'nsx_br');
+  const betAgg = aggregateMonth([nsx, bet], histMap(rows), 2024, 6, 'betfair');
+  assert.equal(nsxAgg.promotions, 1);
+  assert.equal(betAgg.promotions, 1);
 });
 
 // ---------- empresa nao mapeada (achado da revisao fria) ----------

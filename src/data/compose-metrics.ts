@@ -5,10 +5,10 @@ import type { MonthlyMetricRow } from '@/lib/metrics.functions';
  * Compoe a serie do dashboard a partir das linhas de monthly_metrics.
  *
  * Decisao da area (27/07): a serie RECONSTRUIDA e a oficial. Ela cobre os
- * escalares + state_mix + dept_data. Os tres campos que ela nao gera --
- * exit_survey, salary_band_attrition e promotions -- vem da serie CONGELADA
- * (raw-data.ts) do mesmo mes/marca, como camada complementar. Onde a congelada
- * nao alcanca (ex.: 2026-07), esses campos ficam vazios -- declarado, nao zero.
+ * escalares + state_mix + dept_data + promotions (reconstruidas da aba de
+ * historico, Motivo="Promoção"). Os DOIS campos que ela ainda nao gera --
+ * exit_survey e salary_band_attrition -- vem da serie CONGELADA (raw-data.ts)
+ * do mesmo mes/marca. Onde a congelada nao alcanca, ficam vazios (nao zero).
  *
  * O resto do app (helpers, abas) continua consumindo MonthRecord[] sem mudanca.
  */
@@ -42,6 +42,9 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
   };
 };
 
+// nota: promotions da reconstruida ja vem preenchido; o mapa acima trata null
+// (fontes antigas) como 0.
+
 const OFFICIAL = 'reconstruido';
 const FALLBACK = 'raw-data.ts';
 
@@ -70,9 +73,8 @@ export function composeMonthlyMetrics(rows: MonthlyMetricRow[]): MonthRecord[] {
       if (rec.salary_band_attrition == null && frozen.salary_band_attrition != null) {
         rec.salary_band_attrition = frozen.salary_band_attrition;
       }
-      if (rec.promotions === 0 && frozen.promotions != null) {
-        rec.promotions = Number(frozen.promotions);
-      }
+      // promotions NAO cai mais para a congelada: a reconstruida agora produz
+      // o numero real (aba de historico). 0 num mes e afirmacao valida.
     }
     out.push(rec);
   }

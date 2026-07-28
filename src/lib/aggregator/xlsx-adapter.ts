@@ -81,6 +81,7 @@ const HISTORY_FIELDS: FieldSpec[] = [
     match: (h) => h.includes('departamento') || h.includes('depto') || h.includes('setor'),
   },
   { field: 'salary', required: false, match: (h) => h.includes('salario') },
+  { field: 'reason', required: false, match: (h) => h === 'motivo' || h.includes('motivo') },
 ];
 
 export interface ColumnMatch {
@@ -313,6 +314,7 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
     to: col(historyMapping, 'to'),
     department: col(historyMapping, 'department')!,
     salary: col(historyMapping, 'salary'),
+    reason: col(historyMapping, 'reason'),
   };
 
   for (const row of hRows) {
@@ -329,6 +331,7 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
       to: hcCol.to ? toDate(row[hcCol.to]) : null,
       department: toStr(row[hcCol.department]),
       salary: parseBrNumber(rawSalary as string | number | null),
+      reason: hcCol.reason ? toStr(row[hcCol.reason]) : null,
     });
   }
 

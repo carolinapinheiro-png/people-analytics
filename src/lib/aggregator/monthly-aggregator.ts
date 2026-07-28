@@ -68,6 +68,9 @@ export interface HistoryRow {
   to: Date | null;
   department: string;
   salary: number | null;
+  /** Motivo do registro (coluna "Motivo" do historico): "Admissão",
+   *  "Promoção", "Mérito/Reajuste", "Dissídio", etc. Fonte das promocoes. */
+  reason?: string | null;
 }
 
 export interface DeptAggregate {
@@ -83,10 +86,11 @@ export interface MonthAggregate {
   joiners: number;
   leavers: number;
   attrition_rate: number;
-  /** Nao reconstruivel de Talent_Mobility (a base nao distingue promocao de
-   *  reajuste por merito). null de proposito: 0 seria uma afirmacao. Fonte
-   *  original da serie congelada a descobrir com a area. */
-  promotions: number | null;
+  /** Promocoes do mes: registros do historico com Motivo="Promoção" cuja data
+   *  de inicio (De) cai no mes, para CPFs da BU. A area confirmou (27/07) que
+   *  movimentacoes e promocoes vem desta aba; "Mérito/Reajuste" e "Dissídio"
+   *  sao reajustes, NAO promocoes. */
+  promotions: number;
   gender_female: number;
   gender_male: number;
   /** Base com genero conhecido (fem+mas). Menor que headcount quando a fonte
@@ -188,6 +192,18 @@ export function aggregateMonth(
   const joiners = pool.filter((p) => inWindow(p.admission)).length;
   const leavers = pool.filter((p) => inWindow(p.termination)).length;
 
+  // Promocoes: registros de historico com Motivo="Promoção" cuja data de inicio
+  // cai no mes, para CPFs desta BU. Fonte confirmada pela area (aba de historico
+  // do Talent Mobility). Reajuste/dissidio nao contam.
+  const isPromotion = (reason: string | null | undefined): boolean =>
+    (reason ?? '').trim().toLowerCase().startsWith('promo');
+  const poolCpfs = new Set(pool.map((p) => p.cpf));
+  let promotions = 0;
+  for (const [cpf, rows] of historyByCpf) {
+    if (!poolCpfs.has(cpf)) continue;
+    for (const r of rows) if (isPromotion(r.reason) && inWindow(r.from)) promotions++;
+  }
+
   const fem = active.filter((p) => FEM.has(p.gender)).length;
   const mas = active.filter((p) => MASC.has(p.gender)).length;
   const leaders = active.filter((p) => isLeader(p.leadership)).length;
@@ -237,7 +253,7 @@ export function aggregateMonth(
     // mantido ate a comparacao com a serie congelada. Reabrir (headcount
     // medio?) quando a serie oficial for escolhida.
     attrition_rate: hc ? round2((leavers / hc) * 100) : 0,
-    promotions: null,
+    promotions,
     gender_female: fem,
     gender_male: mas,
     // % de mulheres sobre a base com genero CONHECIDO (fem+mas), nao sobre o
