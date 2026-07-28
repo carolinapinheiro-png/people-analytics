@@ -47,20 +47,26 @@ export type Database = {
       allowed_emails: {
         Row: {
           created_at: string | null
+          departments: string[]
           email: string
           id: string
+          profile: Database["public"]["Enums"]["access_profile"]
           role: string
         }
         Insert: {
           created_at?: string | null
+          departments?: string[]
           email: string
           id?: string
+          profile?: Database["public"]["Enums"]["access_profile"]
           role?: string
         }
         Update: {
           created_at?: string | null
+          departments?: string[]
           email?: string
           id?: string
+          profile?: Database["public"]["Enums"]["access_profile"]
           role?: string
         }
         Relationships: []
@@ -776,6 +782,7 @@ export type Database = {
       }
     }
     Enums: {
+      access_profile: "admin" | "hr_leader" | "hrbp" | "dept_leader"
       business_unit: "nsx_br" | "betfair" | "flutter_intl"
     }
     CompositeTypes: {
@@ -904,6 +911,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      access_profile: ["admin", "hr_leader", "hrbp", "dept_leader"],
       business_unit: ["nsx_br", "betfair", "flutter_intl"],
     },
   },
