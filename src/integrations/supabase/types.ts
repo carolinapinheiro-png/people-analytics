@@ -65,6 +65,78 @@ export type Database = {
         }
         Relationships: []
       }
+      comp_ratio: {
+        Row: {
+          area: string | null
+          comp_ratio: number | null
+          company: string | null
+          contract: string | null
+          created_at: string | null
+          hire: string | null
+          id: string
+          job_title: string | null
+          level: string | null
+          name: string
+          quartile: string | null
+          salary: number | null
+          team: string | null
+        }
+        Insert: {
+          area?: string | null
+          comp_ratio?: number | null
+          company?: string | null
+          contract?: string | null
+          created_at?: string | null
+          hire?: string | null
+          id?: string
+          job_title?: string | null
+          level?: string | null
+          name: string
+          quartile?: string | null
+          salary?: number | null
+          team?: string | null
+        }
+        Update: {
+          area?: string | null
+          comp_ratio?: number | null
+          company?: string | null
+          contract?: string | null
+          created_at?: string | null
+          hire?: string | null
+          id?: string
+          job_title?: string | null
+          level?: string | null
+          name?: string
+          quartile?: string | null
+          salary?: number | null
+          team?: string | null
+        }
+        Relationships: []
+      }
+      comp_ratio_access_log: {
+        Row: {
+          context: string | null
+          created_at: string | null
+          id: string
+          rows_returned: number
+          user_email: string
+        }
+        Insert: {
+          context?: string | null
+          created_at?: string | null
+          id?: string
+          rows_returned: number
+          user_email: string
+        }
+        Update: {
+          context?: string | null
+          created_at?: string | null
+          id?: string
+          rows_returned?: number
+          user_email?: string
+        }
+        Relationships: []
+      }
       company_bu_map: {
         Row: {
           business_unit: Database["public"]["Enums"]["business_unit"]
@@ -148,6 +220,48 @@ export type Database = {
           },
         ]
       }
+      engagement_drivers: {
+        Row: {
+          driver: string
+          driver_desc: string | null
+          driver_pos: number | null
+          evaluation: string | null
+          id: string
+          loaded_at: string | null
+          q_pos: number | null
+          question: string
+          score_current: number | null
+          score_prev: number | null
+          wave: string
+        }
+        Insert: {
+          driver: string
+          driver_desc?: string | null
+          driver_pos?: number | null
+          evaluation?: string | null
+          id?: string
+          loaded_at?: string | null
+          q_pos?: number | null
+          question: string
+          score_current?: number | null
+          score_prev?: number | null
+          wave: string
+        }
+        Update: {
+          driver?: string
+          driver_desc?: string | null
+          driver_pos?: number | null
+          evaluation?: string | null
+          id?: string
+          loaded_at?: string | null
+          q_pos?: number | null
+          question?: string
+          score_current?: number | null
+          score_prev?: number | null
+          wave?: string
+        }
+        Relationships: []
+      }
       engagement_questions: {
         Row: {
           driver: string
@@ -186,6 +300,54 @@ export type Database = {
           },
         ]
       }
+      engagement_scores: {
+        Row: {
+          enps: number | null
+          enps_delta: number | null
+          id: string
+          loaded_at: string | null
+          participation: number | null
+          position: number | null
+          retention_risk: number | null
+          rr_delta: number | null
+          sat_delta: number | null
+          satisfaction: number | null
+          scope: string
+          status: string | null
+          wave: string
+        }
+        Insert: {
+          enps?: number | null
+          enps_delta?: number | null
+          id?: string
+          loaded_at?: string | null
+          participation?: number | null
+          position?: number | null
+          retention_risk?: number | null
+          rr_delta?: number | null
+          sat_delta?: number | null
+          satisfaction?: number | null
+          scope: string
+          status?: string | null
+          wave: string
+        }
+        Update: {
+          enps?: number | null
+          enps_delta?: number | null
+          id?: string
+          loaded_at?: string | null
+          participation?: number | null
+          position?: number | null
+          retention_risk?: number | null
+          rr_delta?: number | null
+          sat_delta?: number | null
+          satisfaction?: number | null
+          scope?: string
+          status?: string | null
+          wave?: string
+        }
+        Relationships: []
+      }
       engagement_waves: {
         Row: {
           created_at: string | null
@@ -219,6 +381,42 @@ export type Database = {
           retention_risk?: number | null
           satisfaction?: number | null
           wave?: string
+        }
+        Relationships: []
+      }
+      experience_distributions: {
+        Row: {
+          category: string
+          id: string
+          loaded_at: string | null
+          n: number | null
+          pct: number | null
+          position: number | null
+          question: string
+          section: string
+          survey: string
+        }
+        Insert: {
+          category: string
+          id?: string
+          loaded_at?: string | null
+          n?: number | null
+          pct?: number | null
+          position?: number | null
+          question: string
+          section: string
+          survey: string
+        }
+        Update: {
+          category?: string
+          id?: string
+          loaded_at?: string | null
+          n?: number | null
+          pct?: number | null
+          position?: number | null
+          question?: string
+          section?: string
+          survey?: string
         }
         Relationships: []
       }
@@ -417,6 +615,36 @@ export type Database = {
         }
         Relationships: []
       }
+      monthly_metrics_import_log: {
+        Row: {
+          brands: string[]
+          created_at: string | null
+          id: string
+          months: number
+          rows_upserted: number
+          source: string
+          user_email: string
+        }
+        Insert: {
+          brands: string[]
+          created_at?: string | null
+          id?: string
+          months: number
+          rows_upserted: number
+          source: string
+          user_email: string
+        }
+        Update: {
+          brands?: string[]
+          created_at?: string | null
+          id?: string
+          months?: number
+          rows_upserted?: number
+          source?: string
+          user_email?: string
+        }
+        Relationships: []
+      }
       onboarding_survey_aggregates: {
         Row: {
           id: string
@@ -495,12 +723,57 @@ export type Database = {
         }
         Relationships: []
       }
+      span_snapshot: {
+        Row: {
+          actives: number | null
+          avg_span: number | null
+          ics: number | null
+          id: string
+          loaded_at: string | null
+          managers: number | null
+          position: number | null
+          reports: number | null
+          scope: string
+          scope_type: string
+          snapshot_month: string
+        }
+        Insert: {
+          actives?: number | null
+          avg_span?: number | null
+          ics?: number | null
+          id?: string
+          loaded_at?: string | null
+          managers?: number | null
+          position?: number | null
+          reports?: number | null
+          scope: string
+          scope_type: string
+          snapshot_month: string
+        }
+        Update: {
+          actives?: number | null
+          avg_span?: number | null
+          ics?: number | null
+          id?: string
+          loaded_at?: string | null
+          managers?: number | null
+          position?: number | null
+          reports?: number | null
+          scope?: string
+          scope_type?: string
+          snapshot_month?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      import_reconstruido: {
+        Args: { p_rows: Json; p_user_email: string }
+        Returns: number
+      }
     }
     Enums: {
       business_unit: "nsx_br" | "betfair" | "flutter_intl"
