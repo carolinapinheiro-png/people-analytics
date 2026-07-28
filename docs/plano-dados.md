@@ -84,7 +84,9 @@ Revisão feita aba a aba com a área. Nada abaixo é sugestão: são decisões.
 2b. ~~Dashboard lê do banco~~ ✅ — reconstruída oficial + congelada nos 3 buracos
     (exit_survey, salary_band_attrition, promotions); filtra quality_flag.
     O mock raw-data.ts saiu do fluxo (array pode ser podado depois).
-3. Aba Experiência (clima + entrada) — começa criando as tabelas engagement_*
+3. ~~Aba Experiência~~ ✅ — sub-abas Engajamento (deck CEO) / Onboarding (banco) /
+   Inclusão & Pertencimento (Polly 2026 + Flutter Near You). Tabelas
+   engagement_scores e experience_distributions (aplicadas no banco à mão).
 4. Span real + CompRatio individual (com revisão de allowed_emails antes)
 
 Span real: a cadeia de gestão está no próprio Talent Mobility (647 dos 649
