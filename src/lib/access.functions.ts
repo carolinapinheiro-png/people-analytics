@@ -4,7 +4,6 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
 
-const RoleSchema = z.enum(['admin', 'viewer']);
 const ProfileSchema = z.enum(['admin', 'hr_leader', 'hrbp', 'dept_leader']);
 const DepartmentsSchema = z.array(z.string().trim().min(1).max(80)).max(50).default([]);
 
@@ -19,17 +18,18 @@ async function getAdminRole(
   _supabase: AppSupabaseClient,
   userEmail: string
 ): Promise<'admin' | 'viewer' | null> {
+  // Mantido: authorize por profile, mas devolvendo o role derivado.
   // RLS on allowed_emails joins to auth.users, which authenticated users cannot
   // read, so we authorize via the admin client using the JWT-verified email.
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data, error } = await supabaseAdmin
     .from('allowed_emails')
-    .select('role')
+    .select('profile')
     .ilike('email', userEmail)
     .maybeSingle();
 
   if (error || !data) return null;
-  return data.role === 'admin' ? 'admin' : data.role === 'viewer' ? 'viewer' : null;
+  return (data as { profile?: string }).profile === 'admin' ? 'admin' : 'viewer';
 }
 
 export const checkAccess = createServerFn({ method: 'GET' })
