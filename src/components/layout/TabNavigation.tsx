@@ -18,7 +18,7 @@ const tabs: { id: TabType; label: string }[] = [
   { id: 'compratio', label: 'Comp. Ratio' },
   { id: 'location', label: 'Localização' },
   { id: 'movement', label: 'Movimentação' },
-  { id: 'engagement', label: 'Engajamento' },
+  { id: 'engagement', label: 'Experiência' },
   { id: 'span', label: 'Span de Controle' },
   { id: 'unwanted', label: 'Atriç. Não Desejada' },
   { id: 'leavers', label: 'Desligamentos' },
