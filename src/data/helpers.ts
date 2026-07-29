@@ -107,9 +107,27 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       state_mix: n.state_mix || {},
       dept_data: mergeDepts(mergeDepts(n.dept_data || {}, b.dept_data || {}), f.dept_data || {}),
       promotions: (n.promotions || 0) + (b.promotions || 0) + (f.promotions || 0),
+      level_base: mergeLevels(n.level_base, b.level_base, f.level_base),
     };
   }
   return data.find(d => d.month === month && d.brand === brand) || { month } as MonthRecord;
+}
+
+/** Soma distribuicoes de nivel (level_base) das marcas para a visao combinada.
+ *  Retorna undefined se nenhuma marca trouxer nivel (a secao some, correto). */
+function mergeLevels(
+  ...bases: Array<Record<string, number> | undefined>
+): Record<string, number> | undefined {
+  const out: Record<string, number> = {};
+  let any = false;
+  for (const base of bases) {
+    if (!base) continue;
+    for (const [k, v] of Object.entries(base)) {
+      out[k] = (out[k] || 0) + (v || 0);
+      any = true;
+    }
+  }
+  return any ? out : undefined;
 }
 
 function mergeDepts(a: Record<string, DeptData>, b: Record<string, DeptData>): Record<string, DeptData> {
