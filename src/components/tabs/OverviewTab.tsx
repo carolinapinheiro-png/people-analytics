@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react';
+import { useServerFn } from '@tanstack/react-start';
 import { useDashboard } from '@/data/DashboardContext';
+import { getExperienceData } from '@/lib/experience.functions';
 import { calcTurnover, promoRate, mLabel, fmt } from '@/data/helpers';
 import KpiCard from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
@@ -42,6 +45,23 @@ export default function OverviewTab() {
   const tv = calcTurnover(curr, prev);
   const pr = promoRate(curr);
 
+  // eNPS company-wide (clima, ultima onda). Fica no board executivo mesmo sendo
+  // um numero unico da empresa (nao quebra por marca).
+  const [enps, setEnps] = useState<{ v: number | null; d: number | null } | null>(null);
+  const fetchExp = useServerFn(getExperienceData);
+  useEffect(() => {
+    let cancelled = false;
+    fetchExp()
+      .then((d: unknown) => {
+        if (cancelled) return;
+        const eng = (d as { engagement?: Array<{ scope: string; enps: number | null; enps_delta: number | null }> }).engagement ?? [];
+        const c = eng.find((e) => e.scope === 'company');
+        if (c) setEnps({ v: c.enps, d: c.enps_delta });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [fetchExp]);
+
   // Calculate narrative metrics
   const netGrowth = (curr.joiners || 0) - (curr.leavers || 0);
   const growthTrend = netGrowth > 0 ? 'positive' : netGrowth < 0 ? 'negative' : 'neutral';
@@ -74,15 +94,22 @@ export default function OverviewTab() {
       sub: attritionTrend === 'high' ? 'Acima do ideal' : 'Dentro do esperado',
       icon: Activity
     },
-    { 
-      label: 'Turnover', 
-      val: tv + '%', 
-      color: tv > TURNOVER_ALERT_THRESHOLD ? COLORS.orange : COLORS.success, 
+    {
+      label: 'Turnover',
+      val: tv + '%',
+      color: tv > TURNOVER_ALERT_THRESHOLD ? COLORS.orange : COLORS.success,
       sub: 'Movimentação total',
       icon: ArrowRightLeft
     },
-    { 
-      label: 'Mulheres', 
+    {
+      label: 'eNPS',
+      val: enps?.v != null ? String(enps.v) : '—',
+      color: COLORS.info,
+      sub: enps?.d != null ? `${enps.d >= 0 ? '+' : ''}${enps.d} vs onda ant.` : 'clima (empresa)',
+      icon: Activity
+    },
+    {
+      label: 'Mulheres',
       val: (curr.gender_female_pct || 0) + '%', 
       color: COLORS.female, 
       sub: `${curr.gender_female || 0} colaboradoras`,

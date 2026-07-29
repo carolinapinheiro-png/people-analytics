@@ -135,6 +135,14 @@ export default function UnwantedTab() {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-xs text-amber-200/90 leading-relaxed">
+        <strong>Como ler esta aba:</strong> a divisão <em>desejada × não desejada</em> é uma{' '}
+        <strong>estimativa</strong> — {(UNWANTED_ATTRITION_PCT * 100).toFixed(0)}% das saídas são
+        tratadas como não desejadas (premissa configurável), não uma classificação individual de cada
+        desligamento. O <strong>custo estimado</strong> = nº de saídas não desejadas ×{' '}
+        R$ {REPLACEMENT_COST.toLocaleString('pt-BR')} (custo médio de substituição, premissa). Para
+        números reais, seria preciso marcar cada saída como desejada/não na origem.
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map((k, i) => (
           <KpiCard key={i} label={k.label} value={k.value} sub={k.sub} color={k.color} />

@@ -63,12 +63,23 @@ function avgTenureMonths(records: LeaverRecord[]): number {
 }
 
 export default function LeaversTab() {
-  const { leavers, filters, brand, currentMonth } = useDashboard();
+  const { leavers, filters, brand, currentMonth, currentData } = useDashboard();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Anos disponiveis nos dados; padrao = ano corrente (concentra no ano, decisao
+  // da diretora). "Todos" mostra a serie inteira.
+  const years = useMemo(() => {
+    const s = new Set<string>();
+    leavers.forEach(r => { const y = (r.mes_desligamento || '').slice(0, 4); if (y) s.add(y); });
+    return [...s].sort();
+  }, [leavers]);
+  const [yearFilter, setYearFilter] = useState<string>('atual');
+  const activeYear = yearFilter === 'atual' ? (years[years.length - 1] ?? '') : yearFilter === 'Todos' ? '' : yearFilter;
+
   const filteredLeavers = useMemo(() => {
     return leavers.filter(r => {
+      if (activeYear && !(r.mes_desligamento || '').startsWith(activeYear)) return false;
       if (filters.departamento !== 'Todos' && r.departamento !== filters.departamento) return false;
       if (filters.jobFamily !== 'Todos' && r.job_family !== filters.jobFamily) return false;
       if (filters.tempoCasa !== 'Todos' && r.tempo_casa_faixa !== filters.tempoCasa) return false;
@@ -86,36 +97,57 @@ export default function LeaversTab() {
       }
       return true;
     });
-  }, [leavers, filters, searchTerm]);
+  }, [leavers, filters, searchTerm, activeYear]);
 
   const totalLeavers = filteredLeavers.length;
-  const avgSal = avgSalary(filteredLeavers);
   const avgTenure = avgTenureMonths(filteredLeavers);
   const involuntary = filteredLeavers.filter(r => r.tipo_desligamento_agrupado === 'Involuntário').length;
   const voluntary = filteredLeavers.filter(r => r.tipo_desligamento_agrupado === 'Voluntário').length;
+  const pctTot = (v: number) => (totalLeavers > 0 ? (v / totalLeavers) * 100 : 0);
 
-  const salaryBandData = countBy(filteredLeavers, 'faixa_salarial', SALARY_BAND_ORDER);
-  const tenureData = countBy(filteredLeavers, 'tempo_casa_faixa', TENURE_ORDER);
-  const levelData = countBy(filteredLeavers, 'level', LEVEL_ORDER);
-  const deptData = countBy(filteredLeavers, 'departamento');
+  // Denominadores de ATIVOS para o "% sobre o HC" (significancia relativa: uma
+  // area pequena com poucas saidas pode pesar mais que uma grande). HC atual do
+  // depto (dept_data) e do nivel (level_base) da serie reconstruida.
+  const deptHC: Record<string, number> = {};
+  for (const [k, v] of Object.entries(currentData?.dept_data || {})) deptHC[k.toUpperCase().trim()] = v.hc;
+  const levelHC = (currentData?.level_base || {}) as Record<string, number>;
+
+  const addShare = (rows: { name: string; value: number }[]) =>
+    rows.map(d => ({ ...d, pctTot: pctTot(d.value) }));
+
+  const salaryBandData = addShare(countBy(filteredLeavers, 'faixa_salarial', SALARY_BAND_ORDER));
+  const tenureData = addShare(countBy(filteredLeavers, 'tempo_casa_faixa', TENURE_ORDER));
+  const levelData = countBy(filteredLeavers, 'level', LEVEL_ORDER).map(d => {
+    const hc = levelHC[d.name] ?? 0;
+    return { ...d, pctTot: pctTot(d.value), hc, pctHC: hc > 0 ? (d.value / hc) * 100 : null };
+  });
+  const deptData = countBy(filteredLeavers, 'departamento').map(d => {
+    const hc = deptHC[d.name.toUpperCase().trim()] ?? 0;
+    return { ...d, pctTot: pctTot(d.value), hc, pctHC: hc > 0 ? (d.value / hc) * 100 : null };
+  });
   const typeData = countBy(filteredLeavers, 'tipo_desligamento_agrupado');
-  const jobFamilyData = countBy(filteredLeavers, 'job_family');
 
+  // Evolucao mensal empilhada por tipo (voluntario x involuntario x outros) --
+  // a "visao mes a mes classificando" pedida pela diretora.
   const monthlyData = useMemo(() => {
-    const counts = new Map<string, number>();
+    const m = new Map<string, { voluntario: number; involuntario: number; outros: number }>();
     filteredLeavers.forEach(r => {
-      counts.set(r.mes_desligamento, (counts.get(r.mes_desligamento) || 0) + 1);
+      const cur = m.get(r.mes_desligamento) || { voluntario: 0, involuntario: 0, outros: 0 };
+      if (r.tipo_desligamento_agrupado === 'Voluntário') cur.voluntario++;
+      else if (r.tipo_desligamento_agrupado === 'Involuntário') cur.involuntario++;
+      else cur.outros++;
+      m.set(r.mes_desligamento, cur);
     });
-    return Array.from(counts.entries())
-      .map(([month, value]) => ({ month, value }))
+    return Array.from(m.entries())
+      .map(([month, v]) => ({ month, ...v }))
       .sort((a, b) => a.month.localeCompare(b.month));
   }, [filteredLeavers]);
 
   const kpis = [
-    { label: 'Total Desligados', value: fmt(totalLeavers), color: COLORS.danger, icon: UserX },
-    { label: 'Salário Médio', value: fmtC(Math.round(avgSal)), color: COLORS.flutter, icon: DollarSign },
+    { label: 'Total Desligados', value: fmt(totalLeavers), color: COLORS.danger, icon: UserX, sub: activeYear ? `acumulado ${activeYear}` : 'todos os anos' },
+    { label: 'Voluntários', value: `${fmt(voluntary)} (${pctTot(voluntary).toFixed(0)}%)`, color: COLORS.info, icon: LogOut },
+    { label: 'Involuntários', value: `${fmt(involuntary)} (${pctTot(involuntary).toFixed(0)}%)`, color: COLORS.orange, icon: AlertTriangle },
     { label: 'Tempo Médio de Casa', value: `${avgTenure.toFixed(1)}m`, color: COLORS.nsx, icon: Clock },
-    { label: 'Involuntários', value: fmt(involuntary), color: COLORS.orange, icon: AlertTriangle, sub: voluntary > 0 ? `${voluntary} voluntários` : undefined },
   ];
 
   return (
@@ -128,8 +160,26 @@ export default function LeaversTab() {
             Análise de Desligamentos
           </h2>
           <p className="text-sm text-slate-400 mt-1">
-            Dados reais de {totalLeavers} desligamentos · Mês atual: {mLabel(currentMonth)}
+            {totalLeavers} desligamentos{activeYear ? ` em ${activeYear}` : ' (todos os anos)'} · dados reais
           </p>
+          <div className="flex items-center gap-1.5 mt-2">
+            {[{ k: 'atual', label: `Ano atual (${years[years.length - 1] ?? '—'})` }, ...years.map(y => ({ k: y, label: y })), { k: 'Todos', label: 'Todos' }]
+              .filter((o, i, arr) => arr.findIndex(x => x.k === o.k) === i)
+              .map(o => (
+                <button
+                  key={o.k}
+                  onClick={() => setYearFilter(o.k)}
+                  className={`text-xs px-2.5 py-1 rounded border transition-colors ${
+                    yearFilter === o.k
+                      ? 'text-slate-100 border-transparent'
+                      : 'text-slate-400 border-border hover:text-slate-200'
+                  }`}
+                  style={yearFilter === o.k ? { background: brandColor } : undefined}
+                >
+                  {o.label}
+                </button>
+              ))}
+          </div>
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -161,7 +211,7 @@ export default function LeaversTab() {
               <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
               <Tooltip
                 contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number) => [`${value} desligados`, 'Total']}
+                formatter={(value: number, _n: string, item: any) => [`${value} · ${item.payload.pctTot.toFixed(0)}% do total`, 'Desligados']}
               />
               <Bar dataKey="value" name="Desligados" fill={brandColor} radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -176,7 +226,7 @@ export default function LeaversTab() {
               <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
               <Tooltip
                 contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number) => [`${value} desligados`, 'Total']}
+                formatter={(value: number, _n: string, item: any) => [`${value} · ${item.payload.pctTot.toFixed(0)}% do total`, 'Desligados']}
               />
               <Bar dataKey="value" name="Desligados" fill={COLORS.nsx} radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -186,7 +236,7 @@ export default function LeaversTab() {
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <ChartCard title="Por Tipo de Desligamento" subtitle="Voluntário, involuntário, acordo etc.">
+        <ChartCard title="Por Tipo de Desligamento" subtitle="'Outros' = tipos fora de voluntário/involuntário/acordo">
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie
@@ -211,7 +261,7 @@ export default function LeaversTab() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Por Departamento" subtitle="Top departamentos com desligamentos">
+        <ChartCard title="Por Departamento" subtitle="Absoluto · no tooltip, % sobre o HC do depto">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={deptData.slice(0, 8)} layout="vertical" margin={{ left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
@@ -219,14 +269,17 @@ export default function LeaversTab() {
               <YAxis type="category" dataKey="name" tick={{ fill: '#94a3b8', fontSize: 10 }} width={90} />
               <Tooltip
                 contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number) => [`${value} desligados`, 'Total']}
+                formatter={(value: number, _n: string, item: any) => {
+                  const p = item.payload;
+                  return [p.pctHC != null ? `${value} · ${p.pctHC.toFixed(1)}% do HC (${p.hc} ativos)` : `${value} · ${p.pctTot.toFixed(0)}% do total`, 'Desligados'];
+                }}
               />
               <Bar dataKey="value" name="Desligados" fill={COLORS.purple} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Por Level" subtitle="Distribuição hierárquica">
+        <ChartCard title="Por Level" subtitle="Absoluto · no tooltip, % sobre o HC do nível">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={levelData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
@@ -234,7 +287,10 @@ export default function LeaversTab() {
               <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
               <Tooltip
                 contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number) => [`${value} desligados`, 'Total']}
+                formatter={(value: number, _n: string, item: any) => {
+                  const p = item.payload;
+                  return [p.pctHC != null ? `${value} · ${p.pctHC.toFixed(1)}% do HC (${p.hc} ativos)` : `${value} · ${p.pctTot.toFixed(0)}% do total`, 'Desligados'];
+                }}
               />
               <Bar dataKey="value" name="Desligados" fill={COLORS.betfair} radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -242,43 +298,28 @@ export default function LeaversTab() {
         </ChartCard>
       </div>
 
-      {/* Trend and Job Family */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Evolução Mensal de Desligamentos" subtitle="Série temporal de saídas">
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={monthlyData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis
-                dataKey="month"
-                tick={{ fill: '#94a3b8', fontSize: 10 }}
-                tickFormatter={(v) => mLabel(v)}
-              />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number) => [`${value} desligados`, 'Total']}
-                labelFormatter={(label) => mLabel(String(label))}
-              />
-              <Bar dataKey="value" name="Desligados" fill={COLORS.danger} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="Por Job Family" subtitle="Família de cargos">
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={jobFamilyData.filter(d => d.name !== 'Não informado').slice(0, 8)} layout="vertical" margin={{ left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-              <YAxis type="category" dataKey="name" tick={{ fill: '#94a3b8', fontSize: 9 }} width={110} />
-              <Tooltip
-                contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number) => [`${value} desligados`, 'Total']}
-              />
-              <Bar dataKey="value" name="Desligados" fill={COLORS.success} radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
+      {/* Evolução mensal empilhada por tipo */}
+      <ChartCard title="Evolução Mensal de Desligamentos" subtitle="Mês a mês, classificado por tipo">
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={monthlyData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
+            <XAxis
+              dataKey="month"
+              tick={{ fill: '#94a3b8', fontSize: 10 }}
+              tickFormatter={(v) => mLabel(v)}
+            />
+            <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
+            <Tooltip
+              contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
+              labelFormatter={(label) => mLabel(String(label))}
+            />
+            <Legend wrapperStyle={{ fontSize: 10 }} />
+            <Bar dataKey="voluntario" name="Voluntário" stackId="t" fill={COLORS.info} />
+            <Bar dataKey="involuntario" name="Involuntário" stackId="t" fill={COLORS.orange} />
+            <Bar dataKey="outros" name="Outros" stackId="t" fill={COLORS.gray800} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartCard>
 
       {/* Detailed Table */}
       <Card className="border-l-4 bg-slate-900/50" style={{ borderLeftColor: brandColor }}>
@@ -297,7 +338,6 @@ export default function LeaversTab() {
                   <th className="text-left p-2">Cargo</th>
                   <th className="text-left p-2">Depto</th>
                   <th className="text-left p-2">Level</th>
-                  <th className="text-right p-2">Salário</th>
                   <th className="text-left p-2">Vínculo</th>
                   <th className="text-left p-2">Tempo de Casa</th>
                   <th className="text-left p-2">Data Deslig.</th>
@@ -311,7 +351,6 @@ export default function LeaversTab() {
                     <td className="p-2 text-slate-300">{leaver.cargo}</td>
                     <td className="p-2 text-slate-300">{leaver.departamento}</td>
                     <td className="p-2 text-slate-300">{leaver.level}</td>
-                    <td className="p-2 text-right text-slate-300">{leaver.salario > 0 ? fmtC(leaver.salario) : '—'}</td>
                     <td className="p-2 text-slate-300">{leaver.vinculo}</td>
                     <td className="p-2 text-slate-300">{leaver.tempo_casa_faixa}</td>
                     <td className="p-2 text-slate-300 whitespace-nowrap">{leaver.data_desligamento_str}</td>
