@@ -1,4 +1,7 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useServerFn } from '@tanstack/react-start';
 import { useDashboard } from '@/data/DashboardContext';
+import { getCompAggregates, type CompAggregates } from '@/lib/comp.functions';
 import { mLabel, shortDept, fmtC } from '@/data/helpers';
 import KpiCard from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
@@ -12,6 +15,16 @@ const BRAND_COLORS: Record<string, string> = {
   'Betfair BR': COLORS.betfair,
   'Flutter International': COLORS.flutter,
   Porto: COLORS.flutter,
+};
+
+// De-para marca -> empresas do comp_ratio (mesmo do agregador). Flutter nao tem
+// dado de comp. "combined" soma NSX + Betfair.
+const NSX_COS = ['NSX BRASIL RECIFE', 'NSX BRASIL SÃO PAULO', 'NSX MARECHAL'];
+const BRAND_COMPANIES: Record<string, string[]> = {
+  NSX: NSX_COS,
+  'Betfair BR': ['NSX BETFAIR BRASIL S.A.'],
+  'Flutter International': [],
+  combined: [...NSX_COS, 'NSX BETFAIR BRASIL S.A.'],
 };
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -41,6 +54,46 @@ export default function SalaryTab() {
   const { currentData, prevData, allMonthsData, currentMonth, brand } = useDashboard();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const curr = currentData;
+
+  // Agregados de comp (CLT/PJ e comp-ratio por area) -- snapshot atual, so
+  // medias/contagens (nenhuma linha individual).
+  const [comp, setComp] = useState<CompAggregates | null>(null);
+  const fetchComp = useServerFn(getCompAggregates);
+  useEffect(() => {
+    let cancelled = false;
+    fetchComp().then((d) => { if (!cancelled) setComp(d as CompAggregates); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [fetchComp]);
+
+  const contractMix = useMemo(() => {
+    if (!comp) return null;
+    const set = new Set(BRAND_COMPANIES[brand] ?? BRAND_COMPANIES.combined);
+    const acc: Record<string, { n: number; salSum: number; salN: number }> = {};
+    comp.contracts.forEach((c) => {
+      if (!set.has(c.company)) return;
+      const a = (acc[c.contract] = acc[c.contract] ?? { n: 0, salSum: 0, salN: 0 });
+      a.n += c.n; a.salSum += c.sal_sum; a.salN += c.sal_n;
+    });
+    const rows = Object.entries(acc)
+      .map(([contract, v]) => ({ contract, n: v.n, avg: v.salN ? Math.round(v.salSum / v.salN) : null }))
+      .sort((a, b) => b.n - a.n);
+    return { rows, total: rows.reduce((s, r) => s + r.n, 0) };
+  }, [comp, brand]);
+
+  const areaComp = useMemo(() => {
+    if (!comp) return null;
+    const set = new Set(BRAND_COMPANIES[brand] ?? BRAND_COMPANIES.combined);
+    const acc: Record<string, { n: number; crSum: number; crN: number }> = {};
+    comp.areas.forEach((a) => {
+      if (!set.has(a.company)) return;
+      const x = (acc[a.area] = acc[a.area] ?? { n: 0, crSum: 0, crN: 0 });
+      x.n += a.n; x.crSum += a.cr_sum; x.crN += a.cr_n;
+    });
+    return Object.entries(acc)
+      .map(([area, v]) => ({ area, n: v.n, cr: v.n >= 3 && v.crN ? Math.round((v.crSum / v.crN) * 10) / 10 : null }))
+      .filter((r) => r.cr != null)
+      .sort((a, b) => (b.cr ?? 0) - (a.cr ?? 0));
+  }, [comp, brand]);
 
   const leaders = curr.leaders || 0;
   const nonLeaders = Math.max(0, (curr.headcount || 0) - leaders);
@@ -140,39 +193,55 @@ export default function SalaryTab() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Salário Médio por Depto" subtitle="Ordenado do maior para o menor">
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={depts} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-              <YAxis type="category" dataKey="name" tick={{ fill: '#4a5568', fontSize: 9 }} width={80} />
-              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => fmtC(v)} />
-              <Bar dataKey="avg" fill={COLORS.flutter + '77'} stroke={COLORS.flutter} strokeWidth={1} radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        <ChartCard title="Comp-ratio médio por área" subtitle="Quadro atual · marca selecionada (n≥3)">
+          {areaComp && areaComp.length > 0 ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={areaComp} layout="vertical" margin={{ left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
+                <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} domain={[0, 'dataMax']} tickFormatter={(v) => `${v}%`} />
+                <YAxis type="category" dataKey="area" tick={{ fill: '#4a5568', fontSize: 10 }} width={130} />
+                <Tooltip
+                  contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }}
+                  formatter={(v: number, _n: string, item: any) => [`${v}% · ${item.payload.n} pessoas`, 'Comp-ratio médio']}
+                />
+                <Bar dataKey="cr" fill={COLORS.nsx + '99'} stroke={COLORS.nsx} strokeWidth={1} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-muted-foreground py-16 text-center">
+              {comp ? 'Sem dados de comp para esta marca (ex.: Flutter International).' : 'Carregando…'}
+            </p>
+          )}
         </ChartCard>
 
-        <ChartCard title="Detalhe por Departamento" subtitle="Headcount e salário médio">
-          <div className="overflow-auto max-h-[240px]">
-            <table className="w-full text-xs">
-              <thead className="text-muted-foreground uppercase">
-                <tr>
-                  <th className="text-left py-2">Depto</th>
-                  <th className="text-right py-2">HC</th>
-                  <th className="text-right py-2">Sal. Médio</th>
-                </tr>
-              </thead>
-              <tbody>
-                {depts.map(d => (
-                  <tr key={d.name} className="border-t border-border">
-                    <td className="py-2 font-medium">{d.name}</td>
-                    <td className="py-2 text-right">{d.hc}</td>
-                    <td className="py-2 text-right">{fmtC(d.avg)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <ChartCard title="Composição CLT / PJ" subtitle="Quadro atual · contagem e salário médio">
+          {contractMix && contractMix.total > 0 ? (
+            <div className="space-y-3 pt-1">
+              {contractMix.rows.map((r) => {
+                const pct = contractMix.total > 0 ? (r.n / contractMix.total) * 100 : 0;
+                return (
+                  <div key={r.contract} className="space-y-1">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-medium">{r.contract}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {r.n} ({pct.toFixed(0)}%){r.avg != null ? ` · ${fmtC(r.avg)} méd.` : ''}
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: brandColor }} />
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="text-[11px] text-muted-foreground pt-1">
+                Total com contrato informado: {contractMix.total}. Salário médio é do snapshot atual.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground py-16 text-center">
+              {comp ? 'Sem dados de contrato para esta marca.' : 'Carregando…'}
+            </p>
+          )}
         </ChartCard>
       </div>
 

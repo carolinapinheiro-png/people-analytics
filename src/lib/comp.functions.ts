@@ -96,3 +96,68 @@ export const listCompRatio = createServerFn({ method: 'GET' })
       comp_ratio: r.comp_ratio == null ? null : Number(r.comp_ratio),
     })) as CompRatioRow[];
   });
+
+/**
+ * Agregados de compensacao (CLT/PJ e comp-ratio por area) para a aba
+ * Compensacao. Devolve SO somas/contagens por empresa -- nenhuma linha
+ * individual, nenhum nome, nenhum salario de pessoa. Por isso nao passa pelo
+ * log de acesso individual (o dado devolvido tem a mesma natureza agregada do
+ * dept_data que ja alimenta a serie). A empresa vem junto para o cliente
+ * filtrar por marca (mesmo de-para do agregador).
+ */
+export interface CompContractAgg {
+  company: string;
+  contract: string;
+  n: number;
+  sal_sum: number;
+  sal_n: number;
+}
+export interface CompAreaAgg {
+  company: string;
+  area: string;
+  n: number;
+  cr_sum: number;
+  cr_n: number;
+}
+export interface CompAggregates {
+  contracts: CompContractAgg[];
+  areas: CompAreaAgg[];
+}
+
+export const getCompAggregates = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<CompAggregates> => {
+    await authorize(context.claims.email as string | undefined);
+
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const db = supabaseAdmin as unknown as UntypedClient;
+
+    const { data: rows, error } = await db
+      .from('comp_ratio')
+      .select('company, area, contract, salary, comp_ratio');
+    if (error) throw new Error(`Falha ao carregar agregados de comp: ${error.message}`);
+
+    const cMap = new Map<string, CompContractAgg>();
+    const aMap = new Map<string, CompAreaAgg>();
+    for (const r of rows ?? []) {
+      const company = (r.company ?? '—') as string;
+      const contract = (r.contract ?? '—') as string;
+      const area = (r.area ?? '—') as string;
+      const sal = r.salary == null ? null : Number(r.salary);
+      const cr = r.comp_ratio == null ? null : Number(r.comp_ratio);
+
+      const ck = `${company}||${contract}`;
+      const c = cMap.get(ck) ?? { company, contract, n: 0, sal_sum: 0, sal_n: 0 };
+      c.n++;
+      if (sal != null) { c.sal_sum += sal; c.sal_n++; }
+      cMap.set(ck, c);
+
+      const ak = `${company}||${area}`;
+      const a = aMap.get(ak) ?? { company, area, n: 0, cr_sum: 0, cr_n: 0 };
+      a.n++;
+      if (cr != null) { a.cr_sum += cr; a.cr_n++; }
+      aMap.set(ak, a);
+    }
+
+    return { contracts: [...cMap.values()], areas: [...aMap.values()] };
+  });
