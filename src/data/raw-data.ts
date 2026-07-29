@@ -31,6 +31,10 @@ export interface MonthRecord {
   level_base?: Record<string, number>;
   /** Movimentacoes salariais por tipo ({ promocao:{n,delta}, merito, dissidio }). */
   raise_events?: Record<string, { n: number; delta: number }>;
+  /** Cotas legais (PCD, aprendiz) e lideranca por depto ({ DEPT:{leaders,female} }). */
+  pcd?: number;
+  apprentice?: number;
+  leader_dept?: Record<string, { leaders: number; female: number }>;
 }
 
 export const RAW_DATA: MonthRecord[] = [

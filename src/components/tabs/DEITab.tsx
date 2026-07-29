@@ -57,6 +57,18 @@ export default function DEITab() {
         ? `<span style="color:#66bb6a">+${lpDelta.toFixed(1)}pp</span> vs mês ant.`
         : `<span style="color:#ef5350">${lpDelta.toFixed(1)}pp</span> vs mês ant.`
     },
+    {
+      label: '% PCD',
+      value: `${(((curr.pcd || 0) / (curr.headcount || 1)) * 100).toFixed(1)}%`,
+      color: COLORS.info,
+      sub: `${curr.pcd || 0} pessoas · campo pouco preenchido (subconta)`,
+    },
+    {
+      label: '% Aprendiz',
+      value: `${(((curr.apprentice || 0) / (curr.headcount || 1)) * 100).toFixed(1)}%`,
+      color: COLORS.nsx,
+      sub: `${curr.apprentice || 0} aprendizes (vínculo)`,
+    },
   ];
 
   const genderTrend = allMonthsData.map(d => ({
@@ -101,6 +113,18 @@ export default function DEITab() {
     return row;
   });
 
+  // Lideranca feminina por area (quebra pedida pela diretora). So areas com >=2
+  // lideres para o % nao ficar ruidoso.
+  const leaderByArea = Object.entries(curr.leader_dept || {})
+    .map(([area, v]) => ({
+      area,
+      leaders: v.leaders,
+      female: v.female,
+      pct: v.leaders > 0 ? (v.female / v.leaders) * 100 : 0,
+    }))
+    .filter((r) => r.leaders >= 2 && r.area !== 'SEM DEPTO')
+    .sort((a, b) => b.pct - a.pct);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -109,7 +133,7 @@ export default function DEITab() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {kpis.map(k => <KpiCard key={k.label} label={k.label} value={k.value} color={k.color} sub={k.sub} icon={k.label.includes('Líder') ? Award : Users} />)}
       </div>
 
@@ -177,6 +201,24 @@ export default function DEITab() {
           </div>
         </ChartCard>
       </div>
+
+      {/* Liderança feminina por área */}
+      {leaderByArea.length > 0 && (
+        <ChartCard title="Liderança feminina por área" subtitle={`${mLabel(currentMonth)} · áreas com ≥2 líderes`}>
+          <ResponsiveContainer width="100%" height={Math.max(200, leaderByArea.length * 34)}>
+            <BarChart data={leaderByArea} layout="vertical" margin={{ left: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
+              <XAxis type="number" domain={[0, 100]} tick={{ fill: '#4a5568', fontSize: 9 }} tickFormatter={(v) => `${v}%`} />
+              <YAxis type="category" dataKey="area" tick={{ fill: '#4a5568', fontSize: 10 }} width={130} />
+              <Tooltip
+                contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }}
+                formatter={(v: number, _n: string, item: any) => [`${v.toFixed(0)}% · ${item.payload.female} de ${item.payload.leaders} líderes`, 'Mulheres na liderança']}
+              />
+              <Bar dataKey="pct" fill={COLORS.female + '99'} stroke={COLORS.female} strokeWidth={1} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      )}
 
       {/* Senioridade (nivel) reconstruida */}
       {hasLevel && (

@@ -109,6 +109,9 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       promotions: (n.promotions || 0) + (b.promotions || 0) + (f.promotions || 0),
       level_base: mergeLevels(n.level_base, b.level_base, f.level_base),
       raise_events: mergeRaises(n.raise_events, b.raise_events, f.raise_events),
+      pcd: (n.pcd || 0) + (b.pcd || 0) + (f.pcd || 0),
+      apprentice: (n.apprentice || 0) + (b.apprentice || 0) + (f.apprentice || 0),
+      leader_dept: mergeLeaderDept(n.leader_dept, b.leader_dept, f.leader_dept),
     };
   }
   return data.find(d => d.month === month && d.brand === brand) || { month } as MonthRecord;
@@ -143,6 +146,24 @@ function mergeRaises(
       const cur = (out[k] = out[k] || { n: 0, delta: 0 });
       cur.n += v.n || 0;
       cur.delta += v.delta || 0;
+      any = true;
+    }
+  }
+  return any ? out : undefined;
+}
+
+/** Soma a lideranca por depto (leaders/female) das marcas para a visao combinada. */
+function mergeLeaderDept(
+  ...bases: Array<Record<string, { leaders: number; female: number }> | undefined>
+): Record<string, { leaders: number; female: number }> | undefined {
+  const out: Record<string, { leaders: number; female: number }> = {};
+  let any = false;
+  for (const base of bases) {
+    if (!base) continue;
+    for (const [k, v] of Object.entries(base)) {
+      const cur = (out[k] = out[k] || { leaders: 0, female: 0 });
+      cur.leaders += v.leaders || 0;
+      cur.female += v.female || 0;
       any = true;
     }
   }

@@ -145,6 +145,11 @@ export interface PersonRow {
   /** Nivel ATUAL (L0..L9) do snapshot; ancora da reconstrucao historica de
    *  nivel. null quando a fonte nao traz nivel (ex.: Workday/Betfair). */
   level?: number | null;
+  /** Cota legal: pessoa com deficiencia (campo "Considera PCD"). Atributo atual;
+   *  o campo e pouco preenchido, entao subconta. */
+  pcd?: boolean;
+  /** Cota legal: aprendiz (Vinculo = "Aprendiz"). Atributo atual. */
+  apprentice?: boolean;
 }
 
 export interface HistoryRow {
@@ -200,6 +205,11 @@ export interface MonthAggregate {
   /** Movimentacoes salariais do mes por tipo: { promocao:{n,delta}, merito:{...},
    *  dissidio:{...} }. n = nº de eventos; delta = soma dos reajustes (R$). */
   raise_events: Record<RaiseType, { n: number; delta: number }>;
+  /** Cotas legais (atributo atual aplicado aos ativos): PCD e aprendizes. */
+  pcd: number;
+  apprentice: number;
+  /** Lideranca DA EPOCA por departamento: { DEPT: { leaders, female } }. */
+  leader_dept: Record<string, { leaders: number; female: number }>;
 }
 
 /** dd/mm/aaaa ou ISO aaaa-mm-dd -> Date em UTC (evita armadilha de fuso). */
@@ -345,18 +355,25 @@ export function aggregateMonth(
   }
 
   const deptRows: Array<{ dept: string; lead: boolean; salary: number | null }> = [];
+  const leaderDept: Record<string, { leaders: number; female: number }> = {};
   for (const r of recon) {
     const vig = departmentAt(historyByCpf.get(r.p.cpf) ?? [], end);
     // Decisao 24/07 (revisao fria): ativo sem registro vigente entra como
     // SEM DEPTO -- a soma dos departamentos passa a bater com o headcount.
     // (Deixa-los fora replicava o prototipo Python apenas para a verificacao
     // de equivalencia, ja concluida.)
-    deptRows.push({
-      dept: vig ? normalizeDept(vig.department) : 'SEM DEPTO',
-      lead: r.lead, // lideranca da epoca
-      salary: vig ? vig.salary : null,
-    });
+    const dept = vig ? normalizeDept(vig.department) : 'SEM DEPTO';
+    deptRows.push({ dept, lead: r.lead, salary: vig ? vig.salary : null });
+    // Lideranca da epoca por depto (para a quebra de lideranca feminina por area).
+    if (r.lead) {
+      const ld = (leaderDept[dept] = leaderDept[dept] ?? { leaders: 0, female: 0 });
+      ld.leaders++;
+      if (FEM.has(r.p.gender)) ld.female++;
+    }
   }
+
+  const pcd = active.filter((p) => p.pcd).length;
+  const apprentice = active.filter((p) => p.apprentice).length;
 
   const deptData: Record<string, DeptAggregate> = {};
   for (const dept of [...new Set(deptRows.map((r) => r.dept))].sort()) {
@@ -402,6 +419,9 @@ export function aggregateMonth(
     dept_data: deptData,
     level_base: levelBase,
     raise_events: raiseAgg,
+    pcd,
+    apprentice,
+    leader_dept: leaderDept,
   };
 }
 

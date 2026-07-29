@@ -67,6 +67,10 @@ const PEOPLE_FIELDS: FieldSpec[] = [
   // Nivel (L0..L9): colunas "Level", "Level_1".."Level_4" (uma preenchida por
   // pessoa, coalesce). NAO "WorkDay Level" nem "Nivel de senioridade" (texto).
   { field: 'level', required: false, match: (h) => h === 'level' || /^level_\d+$/.test(h) },
+  // Cota PCD: "Considera PCD - Folha de Pagamento?" (4 colunas, coalesce).
+  { field: 'pcd', required: false, match: (h) => h.includes('considera pcd') },
+  // Vinculo (CLT/PJ/Aprendiz/etc.). Usado aqui so para detectar aprendiz.
+  { field: 'vinculo', required: false, match: (h) => h.includes('vinculo') },
 ];
 
 const HISTORY_FIELDS: FieldSpec[] = [
@@ -279,6 +283,17 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
     return null;
   };
 
+  // PCD: coalesce das colunas "Considera PCD"; verdadeiro se algum bloco = "Sim".
+  const pcdMatch = peopleMapping.find((m) => m.field === 'pcd');
+  const pcdHeaders = pcdMatch?.header ? [pcdMatch.header, ...pcdMatch.alternatives] : [];
+  const isPcd = (row: Record<string, unknown>): boolean =>
+    pcdHeaders.some((h) => /^sim/i.test(toStr(row[h])));
+
+  // Aprendiz: Vinculo === "Aprendiz" (a coluna "cota aprendiz" e sobre o cargo).
+  const vinculoHeader = col(peopleMapping, 'vinculo');
+  const isApprentice = (row: Record<string, unknown>): boolean =>
+    vinculoHeader ? /aprendiz/i.test(toStr(row[vinculoHeader])) : false;
+
   // Coluna de nome (para dedup contra o Workday). "Nome do colaborador", nunca
   // "Nome social". So as chaves normalizadas sao guardadas.
   const peopleHeaders0 = headersBySheet.get(peopleSheet!) ?? [];
@@ -318,6 +333,8 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
       state: toStr(row[pc.state]),
       leadership: coalesceLeadership(row),
       level: coalesceLevel(row),
+      pcd: isPcd(row),
+      apprentice: isApprentice(row),
     });
   }
 

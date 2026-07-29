@@ -387,3 +387,32 @@ test('raise_events agrega por tipo no mes correto', () => {
   const abr = aggregateMonth([p], rows, 2025, 4, 'nsx_br');
   assert.equal(abr.raise_events.merito.n, 0);
 });
+
+// ---------- cotas (PCD/aprendiz) e lideranca por depto ----------
+
+test('pcd/apprentice contam atributos atuais dos ativos', () => {
+  const ppl = [
+    person({ cpf: '960', pcd: true }),
+    person({ cpf: '961', apprentice: true }),
+    person({ cpf: '962' }),
+  ];
+  const m = aggregateMonth(ppl, histMap([]), 2026, 1, 'nsx_br');
+  assert.equal(m.pcd, 1);
+  assert.equal(m.apprentice, 1);
+});
+
+test('leader_dept quebra lideranca por depto e genero (da epoca)', () => {
+  const ppl = [
+    person({ cpf: '970', leadership: 'Sim', gender: 'Mulher' }),
+    person({ cpf: '971', leadership: 'Sim', gender: 'Homem' }),
+    person({ cpf: '972', leadership: 'Não', gender: 'Mulher' }),
+  ];
+  const rows = histMap([
+    hist({ cpf: '970', from: d('2024-01-10'), department: 'TECH' }),
+    hist({ cpf: '971', from: d('2024-01-10'), department: 'TECH' }),
+    hist({ cpf: '972', from: d('2024-01-10'), department: 'TECH' }),
+  ]);
+  const m = aggregateMonth(ppl, rows, 2026, 1, 'nsx_br');
+  assert.equal(m.leader_dept['TECH'].leaders, 2);
+  assert.equal(m.leader_dept['TECH'].female, 1);
+});

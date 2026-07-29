@@ -43,6 +43,10 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
       r.level_base && Object.keys(r.level_base).length > 0 ? r.level_base : undefined,
     raise_events:
       r.raise_events && Object.keys(r.raise_events).length > 0 ? r.raise_events : undefined,
+    pcd: r.pcd == null ? undefined : Number(r.pcd),
+    apprentice: r.apprentice == null ? undefined : Number(r.apprentice),
+    leader_dept:
+      r.leader_dept && Object.keys(r.leader_dept).length > 0 ? r.leader_dept : undefined,
   };
 };
 
