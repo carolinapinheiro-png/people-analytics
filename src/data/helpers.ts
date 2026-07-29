@@ -108,6 +108,7 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       dept_data: mergeDepts(mergeDepts(n.dept_data || {}, b.dept_data || {}), f.dept_data || {}),
       promotions: (n.promotions || 0) + (b.promotions || 0) + (f.promotions || 0),
       level_base: mergeLevels(n.level_base, b.level_base, f.level_base),
+      raise_events: mergeRaises(n.raise_events, b.raise_events, f.raise_events),
     };
   }
   return data.find(d => d.month === month && d.brand === brand) || { month } as MonthRecord;
@@ -124,6 +125,24 @@ function mergeLevels(
     if (!base) continue;
     for (const [k, v] of Object.entries(base)) {
       out[k] = (out[k] || 0) + (v || 0);
+      any = true;
+    }
+  }
+  return any ? out : undefined;
+}
+
+/** Soma movimentacoes salariais (raise_events) das marcas para a visao combinada. */
+function mergeRaises(
+  ...bases: Array<Record<string, { n: number; delta: number }> | undefined>
+): Record<string, { n: number; delta: number }> | undefined {
+  const out: Record<string, { n: number; delta: number }> = {};
+  let any = false;
+  for (const base of bases) {
+    if (!base) continue;
+    for (const [k, v] of Object.entries(base)) {
+      const cur = (out[k] = out[k] || { n: 0, delta: 0 });
+      cur.n += v.n || 0;
+      cur.delta += v.delta || 0;
       any = true;
     }
   }

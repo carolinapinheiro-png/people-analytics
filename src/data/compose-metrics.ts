@@ -41,6 +41,8 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
     promotions: r.promotions == null ? 0 : Number(r.promotions),
     level_base:
       r.level_base && Object.keys(r.level_base).length > 0 ? r.level_base : undefined,
+    raise_events:
+      r.raise_events && Object.keys(r.raise_events).length > 0 ? r.raise_events : undefined,
   };
 };
 

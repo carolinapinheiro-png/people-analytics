@@ -1,42 +1,58 @@
 import { useDashboard } from '@/data/DashboardContext';
-import { promoRate, mLabel } from '@/data/helpers';
+import { mLabel, fmtC } from '@/data/helpers';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { COLORS } from '@/lib/colors';
 import {
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
-import { Award, Activity, BarChart3, TrendingUp } from 'lucide-react';
+import { Award, BarChart3, TrendingUp } from 'lucide-react';
 
 /**
- * Aba Movimentacao enxugada (decisao da area): entradas/saidas e
- * atricao/turnover sairam (ja vivem no Overview). Fica so PROMOCOES. Vira
- * "movimentacoes salariais" (merito x promocao) na onda de reajuste.
+ * Movimentacoes salariais reconstruidas do historico (Motivo): promocao x
+ * merito/reajuste x dissidio (reajuste coletivo), com nº de eventos e valor do
+ * reajuste. Substitui a antiga aba Movimentacao (entradas/saidas/atricao foram
+ * para o Overview).
  */
+
+type RaiseKey = 'promocao' | 'merito' | 'dissidio';
+const TYPES: Array<{ key: RaiseKey; label: string; color: string }> = [
+  { key: 'promocao', label: 'Promoção', color: COLORS.purple },
+  { key: 'merito', label: 'Mérito/Reajuste', color: COLORS.nsx },
+  { key: 'dissidio', label: 'Dissídio (coletivo)', color: COLORS.info },
+];
+
 export default function MovementTab() {
   const { allMonthsData, currentMonth } = useDashboard();
 
-  const monthsCount = allMonthsData.length || 1;
-  const totalPromotions = allMonthsData.reduce((sum, d) => sum + (d.promotions || 0), 0);
-  const avgHc = allMonthsData.reduce((sum, d) => sum + d.headcount, 0) / monthsCount;
-  const promotionRate = avgHc > 0 ? (totalPromotions / avgHc * 100) : 0;
-  const peakPromotions = allMonthsData.reduce(
-    (max, d) => ((d.promotions || 0) > (max.promotions || 0) ? d : max),
-    allMonthsData[0] ?? { promotions: 0, month: '' },
-  );
+  const re = (d: { raise_events?: Record<string, { n: number; delta: number }> }, k: RaiseKey) =>
+    d.raise_events?.[k] ?? { n: 0, delta: 0 };
 
-  const promoData = allMonthsData.map((d) => ({
+  const totals: Record<RaiseKey, { n: number; delta: number }> = {
+    promocao: { n: 0, delta: 0 },
+    merito: { n: 0, delta: 0 },
+    dissidio: { n: 0, delta: 0 },
+  };
+  allMonthsData.forEach((d) => {
+    TYPES.forEach(({ key }) => {
+      const x = re(d, key);
+      totals[key].n += x.n;
+      totals[key].delta += x.delta;
+    });
+  });
+  const grandDelta = totals.promocao.delta + totals.merito.delta + totals.dissidio.delta;
+
+  const monthlyN = allMonthsData.map((d) => ({
     month: mLabel(d.month),
-    num: d.promotions || 0,
-    pct: promoRate(d),
+    Promoção: re(d, 'promocao').n,
+    'Mérito/Reajuste': re(d, 'merito').n,
+    'Dissídio (coletivo)': re(d, 'dissidio').n,
   }));
-
-  const years = [...new Set(allMonthsData.map((d) => d.year))].sort();
-  const yearlyPromotions = years.map((year) => ({
-    year,
-    promotions: allMonthsData.filter((d) => d.year === year).reduce((s, d) => s + (d.promotions || 0), 0),
-    months: allMonthsData.filter((d) => d.year === year).length,
+  const monthlyValue = allMonthsData.map((d) => ({
+    month: mLabel(d.month),
+    Promoção: re(d, 'promocao').delta,
+    'Mérito/Reajuste': re(d, 'merito').delta,
+    'Dissídio (coletivo)': re(d, 'dissidio').delta,
   }));
 
   return (
@@ -44,95 +60,89 @@ export default function MovementTab() {
       <div>
         <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
           <Award className="h-5 w-5 text-[hsl(var(--purple))]" />
-          Promoções
+          Movimentações Salariais
         </h2>
         <p className="text-sm text-slate-400 mt-1">
-          Reconstruídas do histórico (Motivo = &quot;Promoção&quot;). Ref: {mLabel(currentMonth)}. Esta
-          aba passará a reunir movimentações salariais (mérito × promoção) quando o reajuste entrar.
+          Reconstruídas do histórico (Motivo). Valor = salário do evento menos o último salário
+          conhecido da pessoa. Ref: {mLabel(currentMonth)}.
         </p>
       </div>
 
-      {/* KPIs */}
+      {/* KPIs por tipo */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {TYPES.map(({ key, label, color }) => (
+          <Card key={key}>
+            <CardContent className="p-4">
+              <p className="text-xs text-slate-400">{label}</p>
+              <p className="text-xl font-bold" style={{ color }}>{totals[key].n}</p>
+              <p className="text-xs text-slate-400 mt-1">
+                {totals[key].n > 0 ? `${fmtC(Math.round(totals[key].delta / totals[key].n))} médio` : 'sem eventos'}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-slate-400">Total no período</p>
-            <p className="text-xl font-bold text-purple-400">{totalPromotions}</p>
-            <p className="text-xs text-slate-400 mt-1">{monthsCount} meses</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-slate-400">Média mensal</p>
-            <p className="text-xl font-bold text-purple-400">{(totalPromotions / monthsCount).toFixed(1)}</p>
-            <p className="text-xs text-slate-400 mt-1">promoções/mês</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-slate-400">Taxa sobre HC médio</p>
-            <p className="text-xl font-bold text-purple-400">{promotionRate.toFixed(1)}%</p>
-            <p className="text-xs text-slate-400 mt-1">no período</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-xs text-slate-400">Pico mensal</p>
-            <p className="text-xl font-bold text-purple-400">{peakPromotions?.promotions || 0}</p>
-            <p className="text-xs text-slate-400 mt-1">{peakPromotions?.month ? mLabel(peakPromotions.month) : '—'}</p>
+            <p className="text-xs text-slate-400">Reajuste total (período)</p>
+            <p className="text-xl font-bold text-green-400">{fmtC(grandDelta)}</p>
+            <p className="text-xs text-slate-400 mt-1">soma dos três tipos</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Chart */}
-      <ChartCard title="Promoções — Nº e % do HC" icon={Award}>
-        <ResponsiveContainer width="100%" height={260}>
-          <ComposedChart data={promoData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-            <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-            <YAxis yAxisId="left" tick={{ fill: '#4a5568', fontSize: 9 }} />
-            <YAxis yAxisId="right" orientation="right" tick={{ fill: '#4a5568', fontSize: 9 }} tickFormatter={(v) => `${v}%`} />
-            <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
-            <Bar yAxisId="left" dataKey="num" name="Nº" fill={COLORS.purple + '77'} stroke={COLORS.purple} strokeWidth={1} radius={[4, 4, 0, 0]} />
-            <Line yAxisId="right" type="monotone" dataKey="pct" name="% HC" stroke={COLORS.nsx} strokeWidth={2} dot={{ r: 3 }} />
-            <Legend wrapperStyle={{ fontSize: 10 }} />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ChartCard title="Eventos por mês e tipo" subtitle="Nº de movimentações" icon={Award}>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={monthlyN}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
+              <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
+              <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
+              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              {TYPES.map(({ label, color }) => (
+                <Bar key={label} dataKey={label} stackId="n" fill={color} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+
+        <ChartCard title="Valor do reajuste por mês e tipo" subtitle="Soma dos reajustes (R$)" icon={TrendingUp}>
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={monthlyValue}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
+              <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
+              <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
+              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => fmtC(v)} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              {TYPES.map(({ label, color }) => (
+                <Bar key={label} dataKey={label} stackId="v" fill={color} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
+      </div>
 
       {/* Análise */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Análise de Promoções
+            Como ler
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-slate-300">
-            <strong>Resumo:</strong> {totalPromotions} promoções no período ({(totalPromotions / monthsCount).toFixed(1)}/mês),
-            {' '}taxa de {promotionRate.toFixed(1)}% sobre o headcount médio.
-            {peakPromotions && (peakPromotions.promotions || 0) > 0 && ` Pico de ${peakPromotions.promotions} em ${mLabel(peakPromotions.month)}.`}
+        <CardContent className="space-y-2 text-sm text-slate-300">
+          <p>
+            <strong>Promoção</strong>: mudança de cargo com aumento (maior reajuste médio).{' '}
+            <strong>Mérito/Reajuste</strong>: ajuste individual por desempenho.{' '}
+            <strong>Dissídio</strong>: reajuste coletivo da categoria (inclui antecipação e acordo
+            coletivo) — muitos eventos, valor pequeno por pessoa.
           </p>
-
-          {yearlyPromotions.length > 1 && (
-            <div className="bg-slate-800/50 rounded-lg p-4">
-              <h3 className="font-semibold text-slate-100 mb-3 flex items-center gap-2">
-                <Activity className="h-4 w-4" />
-                Comparativo por ano
-              </h3>
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                {yearlyPromotions.map((s) => (
-                  <div key={s.year} className="bg-slate-700/50 p-3 rounded flex justify-between items-center">
-                    <span className="text-slate-300 text-xs font-medium">{s.year} ({s.months} meses)</span>
-                    <span className="font-bold text-purple-400 flex items-center gap-1">
-                      <TrendingUp className="h-3.5 w-3.5" /> {s.promotions}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+          <p className="text-xs text-muted-foreground">
+            No período: {totals.promocao.n} promoções, {totals.merito.n} méritos e {totals.dissidio.n}{' '}
+            dissídios; reajuste total reconstruído de {fmtC(grandDelta)}. Betfair só tem histórico
+            das pessoas vindas do Talent Mobility; Flutter International não tem histórico salarial.
+          </p>
         </CardContent>
       </Card>
     </div>

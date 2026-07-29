@@ -29,6 +29,8 @@ export interface MonthRecord {
   /** Distribuicao por nivel DA EPOCA ({ "L0": n, ..., "NA": n }). So a serie
    *  reconstruida preenche; a congelada (raw-data.ts) nao tem e fica vazio. */
   level_base?: Record<string, number>;
+  /** Movimentacoes salariais por tipo ({ promocao:{n,delta}, merito, dissidio }). */
+  raise_events?: Record<string, { n: number; delta: number }>;
 }
 
 export const RAW_DATA: MonthRecord[] = [

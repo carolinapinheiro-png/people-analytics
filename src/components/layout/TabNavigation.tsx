@@ -20,7 +20,7 @@ const tabs: { id: TabType; label: string }[] = [
   { id: 'salary', label: 'Compensação' },
   { id: 'compratio', label: 'Comp. Ratio' },
   { id: 'location', label: 'Localização' },
-  { id: 'movement', label: 'Promoções' },
+  { id: 'movement', label: 'Movim. Salariais' },
   { id: 'engagement', label: 'Experiência' },
   { id: 'span', label: 'Span de Controle' },
   { id: 'unwanted', label: 'Atriç. Não Desejada' },

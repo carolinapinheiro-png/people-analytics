@@ -89,6 +89,45 @@ export function promotionDates(rows: HistoryRow[]): Date[] {
     .map((r) => r.from as Date);
 }
 
+/**
+ * Movimentacoes salariais (decisao 28/07): reconstroi do historico os eventos de
+ * reajuste separando promocao x merito x dissidio, com o VALOR do reajuste
+ * (salario do evento menos o ultimo salario conhecido da pessoa). Dissidio
+ * inclui "Antecipação de dissídio" e "Acordo coletivo" (reajuste coletivo).
+ */
+export type RaiseType = 'promocao' | 'merito' | 'dissidio';
+
+export function classifyRaise(reason: string | null | undefined): RaiseType | null {
+  const r = (reason ?? '').trim().toLowerCase();
+  if (r.startsWith('promo')) return 'promocao';
+  if (r.startsWith('mérito') || r.startsWith('merito') || r.startsWith('reajuste')) return 'merito';
+  if (r.includes('diss') || r.startsWith('acordo coletivo')) return 'dissidio';
+  return null;
+}
+
+export interface RaiseEvent {
+  from: Date;
+  type: RaiseType;
+  delta: number;
+}
+
+/** Eventos de reajuste de uma pessoa, com o delta vs o ultimo salario conhecido. */
+export function salaryMovements(rows: HistoryRow[]): RaiseEvent[] {
+  const rs = rows
+    .filter((r) => r.from)
+    .sort((a, b) => (a.from as Date).getTime() - (b.from as Date).getTime());
+  const out: RaiseEvent[] = [];
+  let lastSal: number | null = null;
+  for (const r of rs) {
+    const type = classifyRaise(r.reason);
+    if (type && lastSal != null && r.salary != null) {
+      out.push({ from: r.from as Date, type, delta: r.salary - lastSal });
+    }
+    if (r.salary != null) lastSal = r.salary;
+  }
+  return out;
+}
+
 /** Regra de genero espelha a serie congelada (validado: 2026-03 bate exato).
  *  Mulher Trans conta como mulher, Homem Trans como homem; demais respostas
  *  ficam fora dos dois grupos mas DENTRO do headcount (denominador). */
@@ -158,6 +197,9 @@ export interface MonthAggregate {
   /** Distribuicao por nivel DA EPOCA (âncora no atual, recuo por promocao):
    *  { "L0": n, ..., "NA": n }. Base = pessoas com nivel conhecido + "NA". */
   level_base: Record<string, number>;
+  /** Movimentacoes salariais do mes por tipo: { promocao:{n,delta}, merito:{...},
+   *  dissidio:{...} }. n = nº de eventos; delta = soma dos reajustes (R$). */
+  raise_events: Record<RaiseType, { n: number; delta: number }>;
 }
 
 /** dd/mm/aaaa ou ISO aaaa-mm-dd -> Date em UTC (evita armadilha de fuso). */
@@ -251,10 +293,22 @@ export function aggregateMonth(
     (reason ?? '').trim().toLowerCase().startsWith('promo');
   const poolCpfs = new Set(pool.map((p) => p.cpf));
   let promotions = 0;
+  const raiseAgg: Record<RaiseType, { n: number; delta: number }> = {
+    promocao: { n: 0, delta: 0 },
+    merito: { n: 0, delta: 0 },
+    dissidio: { n: 0, delta: 0 },
+  };
   for (const [cpf, rows] of historyByCpf) {
     if (!poolCpfs.has(cpf)) continue;
     for (const r of rows) if (isPromotion(r.reason) && inWindow(r.from)) promotions++;
+    for (const e of salaryMovements(rows)) {
+      if (inWindow(e.from)) {
+        raiseAgg[e.type].n++;
+        raiseAgg[e.type].delta += e.delta;
+      }
+    }
   }
+  for (const t of ['promocao', 'merito', 'dissidio'] as RaiseType[]) raiseAgg[t].delta = Math.round(raiseAgg[t].delta);
 
   // Reconstrucao historica por pessoa (valores DA EPOCA, decisao 28/07):
   // lideranca e nivel ancorados no snapshot e recuados so por eventos datados.
@@ -347,6 +401,7 @@ export function aggregateMonth(
     state_mix: stateMix,
     dept_data: deptData,
     level_base: levelBase,
+    raise_events: raiseAgg,
   };
 }
 

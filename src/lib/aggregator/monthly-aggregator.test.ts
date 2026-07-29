@@ -18,6 +18,8 @@ import {
   monthEnd,
   parseBrDate,
   parseBrNumber,
+  classifyRaise,
+  salaryMovements,
   promotionDates,
   type HistoryRow,
   type PersonRow,
@@ -336,4 +338,52 @@ test('nivel ausente cai em "NA" no level_base', () => {
   const p = person({ cpf: '903', level: null, admission: d('2024-01-10') });
   const m = aggregateMonth([p], histMap([]), 2026, 1, 'nsx_br');
   assert.equal(m.level_base['NA'], 1);
+});
+
+// ---------- movimentacoes salariais (merito x promocao x dissidio) ----------
+
+test('classifyRaise: promocao, merito, dissidio e nulos', () => {
+  assert.equal(classifyRaise('Promoção'), 'promocao');
+  assert.equal(classifyRaise('Mérito/Reajuste'), 'merito');
+  assert.equal(classifyRaise('Reajuste'), 'merito');
+  assert.equal(classifyRaise('Dissídio'), 'dissidio');
+  assert.equal(classifyRaise('Antecipação de dissidio'), 'dissidio');
+  assert.equal(classifyRaise('Acordo coletivo'), 'dissidio');
+  assert.equal(classifyRaise('Admissão'), null);
+  assert.equal(classifyRaise(''), null);
+});
+
+test('salaryMovements: delta vs ultimo salario conhecido', () => {
+  const rows = [
+    hist({ from: d('2024-01-10'), salary: 10000, reason: 'Admissão' }),
+    hist({ from: d('2025-03-01'), salary: 11000, reason: 'Mérito/Reajuste' }),
+    hist({ from: d('2025-09-01'), salary: 15000, reason: 'Promoção' }),
+  ];
+  const ev = salaryMovements(rows);
+  assert.equal(ev.length, 2);
+  assert.deepEqual(ev.map((e) => [e.type, e.delta]), [['merito', 1000], ['promocao', 4000]]);
+});
+
+test('salaryMovements: registro sem salario nao vira baseline nem evento', () => {
+  const rows = [
+    hist({ from: d('2024-01-10'), salary: 8000, reason: 'Admissão' }),
+    hist({ from: d('2024-06-01'), salary: null, reason: 'Alteração de função' }),
+    hist({ from: d('2025-02-01'), salary: 9000, reason: 'Dissídio' }),
+  ];
+  const ev = salaryMovements(rows);
+  assert.equal(ev.length, 1);
+  assert.deepEqual([ev[0].type, ev[0].delta], ['dissidio', 1000]);
+});
+
+test('raise_events agrega por tipo no mes correto', () => {
+  const p = person({ cpf: '950', admission: d('2024-01-10') });
+  const rows = histMap([
+    hist({ cpf: '950', from: d('2024-01-10'), salary: 10000, reason: 'Admissão' }),
+    hist({ cpf: '950', from: d('2025-03-15'), salary: 12000, reason: 'Mérito/Reajuste' }),
+  ]);
+  const mar = aggregateMonth([p], rows, 2025, 3, 'nsx_br');
+  assert.equal(mar.raise_events.merito.n, 1);
+  assert.equal(mar.raise_events.merito.delta, 2000);
+  const abr = aggregateMonth([p], rows, 2025, 4, 'nsx_br');
+  assert.equal(abr.raise_events.merito.n, 0);
 });
