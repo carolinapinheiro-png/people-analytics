@@ -11,8 +11,7 @@ import CompensationTab from '@/components/tabs/CompensationTab';
 import LocationTab from '@/components/tabs/LocationTab';
 import EngagementTab from '@/components/tabs/EngagementTab';
 import SpanTab from '@/components/tabs/SpanTab';
-import UnwantedTab from '@/components/tabs/UnwantedTab';
-import LeaversTab from '@/components/tabs/LeaversTab';
+import AttritionTab from '@/components/tabs/AttritionTab';
 import DataTab from '@/components/tabs/DataTab';
 
 /**
@@ -90,8 +89,7 @@ function DashboardContent() {
         {activeTab === 'location' && <LocationTab />}
         {activeTab === 'engagement' && <EngagementTab />}
         {activeTab === 'span' && <SpanTab />}
-        {activeTab === 'unwanted' && <LeaversGate><UnwantedTab /></LeaversGate>}
-        {activeTab === 'leavers' && <LeaversGate><LeaversTab /></LeaversGate>}
+        {activeTab === 'attrition' && <LeaversGate><AttritionTab /></LeaversGate>}
         {activeTab === 'data' && <DataTab />}
       </main>
     </div>
