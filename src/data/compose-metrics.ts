@@ -39,6 +39,8 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
     salary_band_attrition: r.salary_band_attrition ?? undefined,
     exit_survey: (r.exit_survey as MonthRecord['exit_survey']) ?? undefined,
     promotions: r.promotions == null ? 0 : Number(r.promotions),
+    level_base:
+      r.level_base && Object.keys(r.level_base).length > 0 ? r.level_base : undefined,
   };
 };
 

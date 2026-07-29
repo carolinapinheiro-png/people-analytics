@@ -46,6 +46,49 @@ export const normalizeDept = (raw: string | null | undefined): string => {
 export const isLeader = (v: string | null | undefined): boolean =>
   (v ?? '').trim() === 'Sim';
 
+/** Titulos que caracterizam cargo de lideranca. Usado so para DATAR a
+ *  transicao para lideranca no historico (nao para (re)classificar quem e
+ *  lider hoje -- isso vem da flag "Lideranca?" do snapshot). */
+const LEAD_TITLE =
+  /manager|head|director|diretor|chief|c[tfmoe]o|cpo|clo|vp|supervisor|coordenad|coordinator|l[ií]der|gerente/i;
+
+/** "L0".."L9" a partir de textos como "L3", "Level 3", "3". null se ausente. */
+export function levelBucket(v: string | number | null | undefined): number | null {
+  const m = String(v ?? '').toUpperCase().match(/L?\s*(\d+)/);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Reconstrucao historica (decisao 28/07): a serie deixa de aplicar o valor
+ * ATUAL para tras em lideranca e nivel; passa a usar o valor DA EPOCA, ancorado
+ * no snapshot atual (exato) e recuado so por eventos reais e datados.
+ *  - Lideranca: quem e lider hoje deixa de ser lider ANTES da sua transicao
+ *    real para um cargo de lideranca (primeiro cargo de lideranca no historico
+ *    tendo havido cargo nao-lideranca antes). Sem transicao detectada, mantem
+ *    lider (nao fabrica recuo). Exato no mes atual (Δ=0).
+ *  - Nivel: nivel atual menos 1 por promocao (Motivo="Promoção") posterior ao
+ *    mes. Premissa unica e documentada: 1 nivel por promocao. Exato no mes atual.
+ */
+
+/** Data da transicao para lideranca (undefined se a pessoa ja entrou lider ou
+ *  nao ha cargo de lideranca no historico). */
+export function leadershipStart(rows: HistoryRow[]): Date | null {
+  const rs = rows
+    .filter((r) => r.from && (r.cargo ?? '').trim())
+    .sort((a, b) => (a.from as Date).getTime() - (b.from as Date).getTime());
+  const idx = rs.findIndex((r) => LEAD_TITLE.test(r.cargo as string));
+  if (idx <= 0) return null; // nao achou, ou ja era lider no 1o registro
+  const teveNaoLid = rs.slice(0, idx).some((r) => !LEAD_TITLE.test(r.cargo as string));
+  return teveNaoLid ? (rs[idx].from as Date) : null;
+}
+
+/** Datas de promocao (Motivo="Promoção") de uma pessoa. */
+export function promotionDates(rows: HistoryRow[]): Date[] {
+  return rows
+    .filter((r) => (r.reason ?? '').trim().toLowerCase().startsWith('promo') && r.from)
+    .map((r) => r.from as Date);
+}
+
 /** Regra de genero espelha a serie congelada (validado: 2026-03 bate exato).
  *  Mulher Trans conta como mulher, Homem Trans como homem; demais respostas
  *  ficam fora dos dois grupos mas DENTRO do headcount (denominador). */
@@ -60,6 +103,9 @@ export interface PersonRow {
   gender: string;
   state: string;
   leadership: string;
+  /** Nivel ATUAL (L0..L9) do snapshot; ancora da reconstrucao historica de
+   *  nivel. null quando a fonte nao traz nivel (ex.: Workday/Betfair). */
+  level?: number | null;
 }
 
 export interface HistoryRow {
@@ -71,6 +117,9 @@ export interface HistoryRow {
   /** Motivo do registro (coluna "Motivo" do historico): "Admissão",
    *  "Promoção", "Mérito/Reajuste", "Dissídio", etc. Fonte das promocoes. */
   reason?: string | null;
+  /** Cargo vigente no registro (coluna "Cargo"). Fonte para DATAR a transicao
+   *  para lideranca na reconstrucao historica. */
+  cargo?: string | null;
 }
 
 export interface DeptAggregate {
@@ -106,6 +155,9 @@ export interface MonthAggregate {
   avg_salary_non_leaders: number;
   state_mix: Record<string, number>;
   dept_data: Record<string, DeptAggregate>;
+  /** Distribuicao por nivel DA EPOCA (âncora no atual, recuo por promocao):
+   *  { "L0": n, ..., "NA": n }. Base = pessoas com nivel conhecido + "NA". */
+  level_base: Record<string, number>;
 }
 
 /** dd/mm/aaaa ou ISO aaaa-mm-dd -> Date em UTC (evita armadilha de fuso). */
@@ -204,10 +256,33 @@ export function aggregateMonth(
     for (const r of rows) if (isPromotion(r.reason) && inWindow(r.from)) promotions++;
   }
 
-  const fem = active.filter((p) => FEM.has(p.gender)).length;
-  const mas = active.filter((p) => MASC.has(p.gender)).length;
-  const leaders = active.filter((p) => isLeader(p.leadership)).length;
-  const leaderF = active.filter((p) => isLeader(p.leadership) && FEM.has(p.gender)).length;
+  // Reconstrucao historica por pessoa (valores DA EPOCA, decisao 28/07):
+  // lideranca e nivel ancorados no snapshot e recuados so por eventos datados.
+  const leadAtOf = (p: PersonRow): boolean => {
+    if (!isLeader(p.leadership)) return false;
+    const ls = leadershipStart(historyByCpf.get(p.cpf) ?? []);
+    return !(ls && ls.getTime() > end.getTime());
+  };
+  const levelAtOf = (p: PersonRow): number | null => {
+    if (p.level == null) return null;
+    const promosAfter = promotionDates(historyByCpf.get(p.cpf) ?? []).filter(
+      (d) => d.getTime() > end.getTime(),
+    ).length;
+    return Math.max(0, p.level - promosAfter);
+  };
+  const recon = active.map((p) => ({ p, lead: leadAtOf(p), level: levelAtOf(p) }));
+
+  const fem = recon.filter((r) => FEM.has(r.p.gender)).length;
+  const mas = recon.filter((r) => MASC.has(r.p.gender)).length;
+  const leaders = recon.filter((r) => r.lead).length;
+  const leaderF = recon.filter((r) => r.lead && FEM.has(r.p.gender)).length;
+
+  // Distribuicao por nivel da epoca (pirâmide de senioridade no tempo).
+  const levelBase: Record<string, number> = {};
+  for (const r of recon) {
+    const key = r.level == null ? 'NA' : `L${r.level}`;
+    levelBase[key] = (levelBase[key] ?? 0) + 1;
+  }
 
   const stateMix: Record<string, number> = {};
   for (const p of active) {
@@ -216,15 +291,15 @@ export function aggregateMonth(
   }
 
   const deptRows: Array<{ dept: string; lead: boolean; salary: number | null }> = [];
-  for (const p of active) {
-    const vig = departmentAt(historyByCpf.get(p.cpf) ?? [], end);
+  for (const r of recon) {
+    const vig = departmentAt(historyByCpf.get(r.p.cpf) ?? [], end);
     // Decisao 24/07 (revisao fria): ativo sem registro vigente entra como
     // SEM DEPTO -- a soma dos departamentos passa a bater com o headcount.
     // (Deixa-los fora replicava o prototipo Python apenas para a verificacao
     // de equivalencia, ja concluida.)
     deptRows.push({
       dept: vig ? normalizeDept(vig.department) : 'SEM DEPTO',
-      lead: isLeader(p.leadership),
+      lead: r.lead, // lideranca da epoca
       salary: vig ? vig.salary : null,
     });
   }
@@ -271,6 +346,7 @@ export function aggregateMonth(
     avg_salary_non_leaders: mean1(salNon),
     state_mix: stateMix,
     dept_data: deptData,
+    level_base: levelBase,
   };
 }
 

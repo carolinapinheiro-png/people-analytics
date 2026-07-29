@@ -13,9 +13,12 @@ import {
   aggregateRange,
   departmentAt,
   isActiveAt,
+  leadershipStart,
+  levelBucket,
   monthEnd,
   parseBrDate,
   parseBrNumber,
+  promotionDates,
   type HistoryRow,
   type PersonRow,
 } from './monthly-aggregator';
@@ -259,4 +262,78 @@ test('aggregateRange atravessa a virada de ano', () => {
 test('monthEnd respeita ano bissexto', () => {
   assert.equal(monthEnd(2024, 2).toISOString().slice(0, 10), '2024-02-29');
   assert.equal(monthEnd(2025, 2).toISOString().slice(0, 10), '2025-02-28');
+});
+
+// ---------- reconstrucao historica (lideranca + nivel), decisao 28/07 ----------
+
+test('levelBucket: L3, "Level 3", "3" e ausencias', () => {
+  assert.equal(levelBucket('L3'), 3);
+  assert.equal(levelBucket('Level 3'), 3);
+  assert.equal(levelBucket('3'), 3);
+  assert.equal(levelBucket('Não informado'), null);
+  assert.equal(levelBucket(''), null);
+  assert.equal(levelBucket(null), null);
+});
+
+test('leadershipStart: data a transicao (nao-lider -> lider)', () => {
+  const rows = [
+    hist({ from: d('2024-01-10'), cargo: 'Software Engineer' }),
+    hist({ from: d('2025-06-01'), cargo: 'Engineering Manager' }),
+  ];
+  assert.equal(leadershipStart(rows)?.toISOString().slice(0, 10), '2025-06-01');
+});
+
+test('leadershipStart: quem ja entrou lider nao tem transicao (null)', () => {
+  const rows = [hist({ from: d('2024-01-10'), cargo: 'Head of Design' })];
+  assert.equal(leadershipStart(rows), null);
+});
+
+test('leadershipStart: sem cargo de lideranca no historico -> null', () => {
+  const rows = [hist({ from: d('2024-01-10'), cargo: 'Data Analyst' })];
+  assert.equal(leadershipStart(rows), null);
+});
+
+test('promotionDates: filtra Motivo="Promoção"', () => {
+  const rows = [
+    hist({ from: d('2025-06-01'), reason: 'Promoção' }),
+    hist({ from: d('2025-09-01'), reason: 'Mérito/Reajuste' }),
+    hist({ from: d('2026-01-01'), reason: 'promocao' }),
+  ];
+  assert.equal(promotionDates(rows).length, 2);
+});
+
+test('lideranca da epoca: lider hoje deixa de ser lider antes da transicao', () => {
+  const p = person({ cpf: '900', leadership: 'Sim', admission: d('2024-01-10') });
+  const rows = histMap([
+    hist({ cpf: '900', from: d('2024-01-10'), cargo: 'Software Engineer' }),
+    hist({ cpf: '900', from: d('2025-06-01'), cargo: 'Engineering Manager' }),
+  ]);
+  // antes da transicao: nao e lider
+  assert.equal(aggregateMonth([p], rows, 2025, 1, 'nsx_br').leaders, 0);
+  // no mes atual (ancora): e lider
+  assert.equal(aggregateMonth([p], rows, 2026, 1, 'nsx_br').leaders, 1);
+});
+
+test('lideranca sem transicao detectada mantem lider (nao fabrica recuo)', () => {
+  const p = person({ cpf: '901', leadership: 'Sim', admission: d('2024-01-10') });
+  const rows = histMap([hist({ cpf: '901', from: d('2024-01-10'), cargo: 'VP Finance' })]);
+  assert.equal(aggregateMonth([p], rows, 2025, 1, 'nsx_br').leaders, 1);
+});
+
+test('nivel da epoca: recua 1 por promocao posterior; ancora exata', () => {
+  const p = person({ cpf: '902', level: 4, admission: d('2024-01-10') });
+  const rows = histMap([
+    hist({ cpf: '902', from: d('2024-01-10'), cargo: 'Analyst' }),
+    hist({ cpf: '902', from: d('2025-06-01'), reason: 'Promoção' }),
+  ]);
+  // antes da promocao: L3
+  assert.equal(aggregateMonth([p], rows, 2025, 1, 'nsx_br').level_base['L3'], 1);
+  // depois (ancora): L4
+  assert.equal(aggregateMonth([p], rows, 2026, 1, 'nsx_br').level_base['L4'], 1);
+});
+
+test('nivel ausente cai em "NA" no level_base', () => {
+  const p = person({ cpf: '903', level: null, admission: d('2024-01-10') });
+  const m = aggregateMonth([p], histMap([]), 2026, 1, 'nsx_br');
+  assert.equal(m.level_base['NA'], 1);
 });

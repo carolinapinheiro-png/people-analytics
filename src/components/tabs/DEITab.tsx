@@ -98,6 +98,26 @@ export default function DEITab() {
     { name: 'Male', value: (curr.leaders || 0) - (curr.leader_female || 0) },
   ];
 
+  // Senioridade (nivel L0..L9) DA EPOCA: distribuicao reconstruida (âncora no
+  // snapshot atual, recuo de 1 nivel por promocao datada). So a serie
+  // reconstruida traz level_base; se estiver vazio, a secao nao aparece.
+  const LEVELS = ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9'];
+  const LEVEL_COLORS = [
+    '#1e3a5f', '#24507a', '#2b6cb0', '#3182ce', '#4299e1',
+    '#63b3ed', '#7f9cf5', '#9f7aea', '#b794f4', '#d6bcfa',
+  ];
+  const levelBase = curr.level_base || {};
+  const hasLevel = LEVELS.some((l) => (levelBase[l] || 0) > 0);
+  const levelNA = levelBase['NA'] || 0;
+  const levelKnown = LEVELS.reduce((s, l) => s + (levelBase[l] || 0), 0);
+  const levelPyramid = LEVELS.map((l) => ({ level: l, n: levelBase[l] || 0 })).filter((r) => r.n > 0);
+  const levelStack = allMonthsData.map((d) => {
+    const lb = d.level_base || {};
+    const row: Record<string, number | string> = { month: mLabel(d.month) };
+    for (const l of LEVELS) row[l] = lb[l] || 0;
+    return row;
+  });
+
   const genderBalance = (curr.gender_female_pct || 0) >= 40 && (curr.gender_female_pct || 0) <= 60
     ? 'balanced'
     : (curr.gender_female_pct || 0) < 40
@@ -185,6 +205,54 @@ export default function DEITab() {
           </div>
         </ChartCard>
       </div>
+
+      {/* Senioridade (nivel) reconstruida */}
+      {hasLevel && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartCard
+            title="Pirâmide de senioridade"
+            subtitle={`${mLabel(currentMonth)} · ${levelKnown} com nível${levelNA ? ` · ${levelNA} sem nível` : ''}`}
+          >
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={levelPyramid} layout="vertical" margin={{ left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
+                <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} />
+                <YAxis type="category" dataKey="level" tick={{ fill: '#4a5568', fontSize: 10 }} width={32} />
+                <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                <Bar dataKey="n" name="Pessoas" radius={[0, 4, 4, 0]}>
+                  {levelPyramid.map((r) => (
+                    <Cell key={r.level} fill={LEVEL_COLORS[LEVELS.indexOf(r.level)] || COLORS.flutter} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard title="Senioridade no tempo" subtitle="Distribuição por nível a cada mês (valor da época)">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={levelStack}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
+                <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
+                <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
+                <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                <Legend wrapperStyle={{ fontSize: 9 }} />
+                {LEVELS.map((l, i) => (
+                  <Bar key={l} dataKey={l} name={l} stackId="lv" fill={LEVEL_COLORS[i]} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        </div>
+      )}
+
+      {hasLevel && (
+        <p className="text-xs text-muted-foreground -mt-2">
+          Nível e liderança são reconstruídos com o valor <strong>da época</strong>: ancorados no
+          quadro atual e recuados apenas por eventos datados (promoções e transições para
+          liderança no histórico). Premissa documentada: 1 nível por promoção. Exato no mês mais
+          recente.
+        </p>
+      )}
 
       {/* Detailed Analysis */}
       <Card className="border-l-4 bg-slate-900/50" style={{ borderLeftColor: brandColor }}>

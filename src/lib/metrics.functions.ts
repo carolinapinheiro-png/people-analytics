@@ -63,6 +63,9 @@ const MetricRowSchema = z.object({
   avg_salary_non_leaders: z.number(),
   state_mix: z.record(z.number().int().nonnegative()),
   dept_data: z.record(DeptAggregateSchema),
+  /** Distribuicao por nivel da epoca ({ "L0": n, ..., "NA": n }). Default {}
+   *  aceita series antigas sem o campo. */
+  level_base: z.record(z.number().int().nonnegative()).default({}),
 });
 
 const ImportInput = z.object({
@@ -156,6 +159,8 @@ export interface MonthlyMetricRow extends MetricSeriesRow {
   exit_survey:
     | Array<{ reason: string; count: number; pct: number; trend: string; comments?: string[] }>
     | null;
+  /** Distribuicao por nivel da epoca ({ "L0": n, ..., "NA": n }). */
+  level_base: Record<string, number> | null;
 }
 
 /**
@@ -177,7 +182,7 @@ export const getMonthlyMetrics = createServerFn({ method: 'GET' })
     let q = db
       .from('monthly_metrics')
       .select(
-        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey',
+        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base',
       )
       .is('quality_flag', null)
       .order('month', { ascending: true });

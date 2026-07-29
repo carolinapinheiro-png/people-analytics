@@ -26,6 +26,9 @@ export interface MonthRecord {
   salary_band_attrition?: Array<{ band: string; leavers: number; pct_of_leavers: number; avg_tenure_months: number }>;
   exit_survey?: Array<{ reason: string; count: number; pct: number; trend: string; comments: string[] }>;
   promotions: number;
+  /** Distribuicao por nivel DA EPOCA ({ "L0": n, ..., "NA": n }). So a serie
+   *  reconstruida preenche; a congelada (raw-data.ts) nao tem e fica vazio. */
+  level_base?: Record<string, number>;
 }
 
 export const RAW_DATA: MonthRecord[] = [

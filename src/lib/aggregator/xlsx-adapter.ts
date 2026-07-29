@@ -20,6 +20,7 @@
 import * as XLSX from 'xlsx';
 import {
   COMPANY_TO_BU,
+  levelBucket,
   parseBrDate,
   parseBrNumber,
   type HistoryRow,
@@ -63,6 +64,9 @@ const PEOPLE_FIELDS: FieldSpec[] = [
     match: (h) => (h.includes('estado') && !h.includes('civil')) || h === 'uf',
   },
   { field: 'leadership', required: true, match: (h) => h.includes('lider') },
+  // Nivel (L0..L9): colunas "Level", "Level_1".."Level_4" (uma preenchida por
+  // pessoa, coalesce). NAO "WorkDay Level" nem "Nivel de senioridade" (texto).
+  { field: 'level', required: false, match: (h) => h === 'level' || /^level_\d+$/.test(h) },
 ];
 
 const HISTORY_FIELDS: FieldSpec[] = [
@@ -82,6 +86,8 @@ const HISTORY_FIELDS: FieldSpec[] = [
   },
   { field: 'salary', required: false, match: (h) => h.includes('salario') },
   { field: 'reason', required: false, match: (h) => h === 'motivo' || h.includes('motivo') },
+  // Cargo vigente no registro: data a transicao para lideranca (reconstrucao).
+  { field: 'cargo', required: false, match: (h) => h === 'cargo' || h.includes('cargo') },
 ];
 
 export interface ColumnMatch {
@@ -262,6 +268,17 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
   const coalesceLeadership = (row: Record<string, unknown>): string =>
     leadHeaders.map((h) => toStr(row[h])).find((v) => v && v !== 'Não informado') ?? '';
 
+  // Nivel: mesma logica de coalesce das colunas Level/Level_1..Level_4.
+  const levelMatch = peopleMapping.find((m) => m.field === 'level');
+  const levelHeaders = levelMatch?.header ? [levelMatch.header, ...levelMatch.alternatives] : [];
+  const coalesceLevel = (row: Record<string, unknown>): number | null => {
+    for (const h of levelHeaders) {
+      const b = levelBucket(toStr(row[h]));
+      if (b != null) return b;
+    }
+    return null;
+  };
+
   // Coluna de nome (para dedup contra o Workday). "Nome do colaborador", nunca
   // "Nome social". So as chaves normalizadas sao guardadas.
   const peopleHeaders0 = headersBySheet.get(peopleSheet!) ?? [];
@@ -300,6 +317,7 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
       gender: toStr(row[pc.gender]),
       state: toStr(row[pc.state]),
       leadership: coalesceLeadership(row),
+      level: coalesceLevel(row),
     });
   }
 
@@ -315,6 +333,7 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
     department: col(historyMapping, 'department')!,
     salary: col(historyMapping, 'salary'),
     reason: col(historyMapping, 'reason'),
+    cargo: col(historyMapping, 'cargo'),
   };
 
   for (const row of hRows) {
@@ -332,6 +351,7 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
       department: toStr(row[hcCol.department]),
       salary: parseBrNumber(rawSalary as string | number | null),
       reason: hcCol.reason ? toStr(row[hcCol.reason]) : null,
+      cargo: hcCol.cargo ? toStr(row[hcCol.cargo]) : null,
     });
   }
 
