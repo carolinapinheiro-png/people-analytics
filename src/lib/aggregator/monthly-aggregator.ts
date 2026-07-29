@@ -58,6 +58,19 @@ export function levelBucket(v: string | number | null | undefined): number | nul
   return m ? Number(m[1]) : null;
 }
 
+/** Faixa de tempo de casa na data de referencia (historico exato: fim do mes
+ *  menos a admissao). Sem admissao -> "Não informado". */
+export function tenureBucket(admission: Date | null, ref: Date): string {
+  if (!admission) return 'Não informado';
+  const months = (ref.getTime() - admission.getTime()) / (1000 * 60 * 60 * 24 * 30.44);
+  if (months < 3) return '0-3m';
+  if (months < 6) return '3-6m';
+  if (months < 12) return '6-12m';
+  if (months < 24) return '1-2a';
+  if (months < 60) return '2-5a';
+  return '5a+';
+}
+
 /**
  * Reconstrucao historica (decisao 28/07): a serie deixa de aplicar o valor
  * ATUAL para tras em lideranca e nivel; passa a usar o valor DA EPOCA, ancorado
@@ -210,6 +223,9 @@ export interface MonthAggregate {
   apprentice: number;
   /** Lideranca DA EPOCA por departamento: { DEPT: { leaders, female } }. */
   leader_dept: Record<string, { leaders: number; female: number }>;
+  /** Distribuicao por tempo de casa dos ativos ({ "0-3m": n, ..., "5a+": n }).
+   *  Historico exato (fim do mes menos admissao). */
+  tenure_base: Record<string, number>;
 }
 
 /** dd/mm/aaaa ou ISO aaaa-mm-dd -> Date em UTC (evita armadilha de fuso). */
@@ -375,6 +391,12 @@ export function aggregateMonth(
   const pcd = active.filter((p) => p.pcd).length;
   const apprentice = active.filter((p) => p.apprentice).length;
 
+  const tenureBase: Record<string, number> = {};
+  for (const p of active) {
+    const b = tenureBucket(p.admission, end);
+    tenureBase[b] = (tenureBase[b] ?? 0) + 1;
+  }
+
   const deptData: Record<string, DeptAggregate> = {};
   for (const dept of [...new Set(deptRows.map((r) => r.dept))].sort()) {
     const g = deptRows.filter((r) => r.dept === dept);
@@ -422,6 +444,7 @@ export function aggregateMonth(
     pcd,
     apprentice,
     leader_dept: leaderDept,
+    tenure_base: tenureBase,
   };
 }
 

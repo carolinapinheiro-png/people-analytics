@@ -112,6 +112,7 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       pcd: (n.pcd || 0) + (b.pcd || 0) + (f.pcd || 0),
       apprentice: (n.apprentice || 0) + (b.apprentice || 0) + (f.apprentice || 0),
       leader_dept: mergeLeaderDept(n.leader_dept, b.leader_dept, f.leader_dept),
+      tenure_base: mergeLevels(n.tenure_base, b.tenure_base, f.tenure_base),
     };
   }
   return data.find(d => d.month === month && d.brand === brand) || { month } as MonthRecord;

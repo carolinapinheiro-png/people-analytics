@@ -35,6 +35,8 @@ export interface MonthRecord {
   pcd?: number;
   apprentice?: number;
   leader_dept?: Record<string, { leaders: number; female: number }>;
+  /** Distribuicao por tempo de casa ({ "0-3m": n, ..., "5a+": n }). */
+  tenure_base?: Record<string, number>;
 }
 
 export const RAW_DATA: MonthRecord[] = [

@@ -76,6 +76,8 @@ const MetricRowSchema = z.object({
   leader_dept: z
     .record(z.object({ leaders: z.number().int().nonnegative(), female: z.number().int().nonnegative() }))
     .default({}),
+  /** Distribuicao por tempo de casa ({ "0-3m": n, ..., "5a+": n }). Default {}. */
+  tenure_base: z.record(z.number().int().nonnegative()).default({}),
 });
 
 const ImportInput = z.object({
@@ -177,6 +179,8 @@ export interface MonthlyMetricRow extends MetricSeriesRow {
   pcd: number | null;
   apprentice: number | null;
   leader_dept: Record<string, { leaders: number; female: number }> | null;
+  /** Distribuicao por tempo de casa ({ "0-3m": n, ..., "5a+": n }). */
+  tenure_base: Record<string, number> | null;
 }
 
 /**
@@ -198,7 +202,7 @@ export const getMonthlyMetrics = createServerFn({ method: 'GET' })
     let q = db
       .from('monthly_metrics')
       .select(
-        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, raise_events, pcd, apprentice, leader_dept',
+        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, raise_events, pcd, apprentice, leader_dept, tenure_base',
       )
       .is('quality_flag', null)
       .order('month', { ascending: true });

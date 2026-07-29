@@ -20,6 +20,7 @@ import {
   parseBrNumber,
   classifyRaise,
   salaryMovements,
+  tenureBucket,
   promotionDates,
   type HistoryRow,
   type PersonRow,
@@ -415,4 +416,27 @@ test('leader_dept quebra lideranca por depto e genero (da epoca)', () => {
   const m = aggregateMonth(ppl, rows, 2026, 1, 'nsx_br');
   assert.equal(m.leader_dept['TECH'].leaders, 2);
   assert.equal(m.leader_dept['TECH'].female, 1);
+});
+
+// ---------- tempo de casa ----------
+
+test('tenureBucket: faixas por data de admissao', () => {
+  const ref = monthEnd(2026, 1);
+  assert.equal(tenureBucket(d('2025-12-01'), ref), '0-3m');
+  assert.equal(tenureBucket(d('2025-09-01'), ref), '3-6m');
+  assert.equal(tenureBucket(d('2025-04-01'), ref), '6-12m');
+  assert.equal(tenureBucket(d('2024-06-01'), ref), '1-2a');
+  assert.equal(tenureBucket(d('2022-06-01'), ref), '2-5a');
+  assert.equal(tenureBucket(d('2018-01-01'), ref), '5a+');
+  assert.equal(tenureBucket(null, ref), 'Não informado');
+});
+
+test('tenure_base distribui ativos por faixa', () => {
+  const ppl = [
+    person({ cpf: '980', admission: d('2025-12-01') }),
+    person({ cpf: '981', admission: d('2022-06-01') }),
+  ];
+  const m = aggregateMonth(ppl, histMap([]), 2026, 1, 'nsx_br');
+  assert.equal(m.tenure_base['0-3m'], 1);
+  assert.equal(m.tenure_base['2-5a'], 1);
 });

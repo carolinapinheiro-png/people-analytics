@@ -2,7 +2,17 @@ import { useEffect, useState } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { useDashboard } from '@/data/DashboardContext';
 import { getExperienceData } from '@/lib/experience.functions';
+import { getCompAggregates, type CompAggregates } from '@/lib/comp.functions';
 import { calcTurnover, promoRate, mLabel, fmt } from '@/data/helpers';
+
+const NSX_COS = ['NSX BRASIL RECIFE', 'NSX BRASIL SÃO PAULO', 'NSX MARECHAL'];
+const BRAND_COMPANIES: Record<string, string[]> = {
+  NSX: NSX_COS,
+  'Betfair BR': ['NSX BETFAIR BRASIL S.A.'],
+  'Flutter International': [],
+  combined: [...NSX_COS, 'NSX BETFAIR BRASIL S.A.'],
+};
+const TENURE_ORDER = ['0-3m', '3-6m', '6-12m', '1-2a', '2-5a', '5a+'];
 import KpiCard from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { StorySection, StoryInsight, StoryMetric, StoryAlert } from '@/components/dashboard/StorySection';
@@ -61,6 +71,45 @@ export default function OverviewTab() {
       .catch(() => {});
     return () => { cancelled = true; };
   }, [fetchExp]);
+
+  // Composicao CLT/PJ (snapshot atual, agregado leve) para o quadro do HC.
+  const [comp, setComp] = useState<CompAggregates | null>(null);
+  const fetchComp = useServerFn(getCompAggregates);
+  useEffect(() => {
+    let cancelled = false;
+    fetchComp().then((d) => { if (!cancelled) setComp(d as CompAggregates); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [fetchComp]);
+  const contractMix = (() => {
+    if (!comp) return null;
+    const set = new Set(BRAND_COMPANIES[brand] ?? BRAND_COMPANIES.combined);
+    const acc: Record<string, number> = {};
+    comp.contracts.forEach((c) => { if (set.has(c.company)) acc[c.contract] = (acc[c.contract] ?? 0) + c.n; });
+    const total = Object.values(acc).reduce((s, n) => s + n, 0);
+    return { clt: acc['CLT'] ?? 0, pj: acc['PJ'] ?? 0, total };
+  })();
+
+  // Time que mais cresceu no mes (variacao de HC por depto vs mes anterior).
+  const topGrowthDept = (() => {
+    const prevMonth = allMonthsData[allMonthsData.length - 2];
+    if (!prevMonth) return null;
+    let best: { dept: string; delta: number } | null = null;
+    for (const [dept, v] of Object.entries(curr.dept_data || {})) {
+      if (dept === 'SEM DEPTO') continue;
+      const delta = (v.hc || 0) - (prevMonth.dept_data?.[dept]?.hc || 0);
+      if (!best || delta > best.delta) best = { dept, delta };
+    }
+    return best && best.delta > 0 ? best : null;
+  })();
+
+  // Tempo de casa: faixa mais comum do mes atual.
+  const tenureTop = (() => {
+    const tb = curr.tenure_base || {};
+    const entries = TENURE_ORDER.map((k) => ({ k, n: tb[k] || 0 })).filter((e) => e.n > 0);
+    const total = entries.reduce((s, e) => s + e.n, 0);
+    const top = entries.sort((a, b) => b.n - a.n)[0];
+    return top && total > 0 ? { faixa: top.k, pct: (top.n / total) * 100 } : null;
+  })();
 
   // Calculate narrative metrics
   const netGrowth = (curr.joiners || 0) - (curr.leavers || 0);
@@ -286,16 +335,44 @@ export default function OverviewTab() {
               trend={netGrowth > 0 ? `+${netGrowth}` : `${netGrowth}`}
               trendDirection={netGrowth > 0 ? 'up' : netGrowth < 0 ? 'down' : 'neutral'}
             />
-            <StoryMetric
-              label="Média Mensal"
-              value={fmt(Math.round(allMonthsData.reduce((acc, d) => acc + d.headcount, 0) / allMonthsData.length))}
-              subtext="últimos 12 meses"
-            />
-            <StoryMetric
-              label="Maior HC"
-              value={fmt(Math.max(...allMonthsData.map(d => d.headcount)))}
-              subtext="pico registrado"
-            />
+            <div className="rounded-lg border border-border bg-slate-900/40 p-3 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-400">Este mês</span>
+                <span className="font-semibold">
+                  <span className="text-green-400">+{curr.joiners || 0}</span>
+                  {' / '}
+                  <span className="text-red-400">−{curr.leavers || 0}</span>
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">% Mulheres / Homens</span>
+                <span className="font-semibold">
+                  <span className="text-pink-400">{curr.gender_female_pct || 0}%</span>
+                  {' / '}
+                  <span className="text-blue-400">{(100 - (curr.gender_female_pct || 0)).toFixed(0)}%</span>
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Tempo de casa (moda)</span>
+                <span className="font-semibold">{tenureTop ? `${tenureTop.faixa} (${tenureTop.pct.toFixed(0)}%)` : '—'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">CLT / PJ</span>
+                <span className="font-semibold">
+                  {contractMix && contractMix.total > 0
+                    ? `${contractMix.clt} / ${contractMix.pj}`
+                    : comp ? '—' : '…'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Time que + cresceu</span>
+                <span className="font-semibold text-right">
+                  {topGrowthDept
+                    ? <>{topGrowthDept.dept.replace(/_/g, ' ')} <span className="text-green-400">+{topGrowthDept.delta}</span></>
+                    : '—'}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
         <StoryInsight type={netGrowth >= 0 ? 'positive' : 'negative'}>
