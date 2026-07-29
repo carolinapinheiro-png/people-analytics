@@ -8,7 +8,10 @@ const BRAND_COLORS: Record<string, string> = {
   'Flutter International': COLORS.flutter,
   Porto: COLORS.flutter,
 };
+import { useEffect } from 'react';
 import { useDashboard, TabType } from '@/data/DashboardContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { visibleTabs } from '@/lib/permissions';
 
 const tabs: { id: TabType; label: string }[] = [
   { id: 'overview', label: 'Overview' },
@@ -27,11 +30,22 @@ const tabs: { id: TabType; label: string }[] = [
 
 export default function TabNavigation() {
   const { activeTab, setActiveTab, brand } = useDashboard();
+  const { profile } = useAuth();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
+
+  // O perfil define quais abas existem para esta pessoa.
+  const allowed = visibleTabs(profile ?? 'dept_leader');
+  const shownTabs = tabs.filter((t) => allowed.includes(t.id));
+
+  useEffect(() => {
+    if (shownTabs.length > 0 && !allowed.includes(activeTab)) {
+      setActiveTab(shownTabs[0].id);
+    }
+  }, [activeTab, allowed, shownTabs, setActiveTab]);
 
   return (
     <div className="flex border-b border-border px-4 md:px-7 bg-card overflow-x-auto">
-      {tabs.map(tab => (
+      {shownTabs.map(tab => (
         <button
           key={tab.id}
           onClick={() => setActiveTab(tab.id)}

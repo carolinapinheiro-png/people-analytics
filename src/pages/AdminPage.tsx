@@ -15,8 +15,16 @@ import {
   getAccessLogs,
   addAllowedEmail,
   removeAllowedEmail,
-  updateAllowedEmailRole,
+  updateAllowedEmailProfile,
 } from '@/lib/access.functions';
+import {
+  ACCESS_PROFILES,
+  PROFILE_LABELS,
+  PROFILE_DESCRIPTIONS,
+  isGlobalProfile,
+  normalizeDept,
+  type AccessProfile,
+} from '@/lib/permissions';
 import ImportReconstruidoCard from '@/components/admin/ImportReconstruidoCard';
 import SeriesComparisonCard from '@/components/admin/SeriesComparisonCard';
 
@@ -24,8 +32,20 @@ interface AllowedEmail {
   id: string;
   email: string;
   role: 'admin' | 'viewer';
+  profile: AccessProfile;
+  departments: string[];
   created_at: string;
 }
+
+const DEPARTMENTS = [
+  'TECHNOLOGY',
+  'PRODUCT',
+  'MARKETING',
+  'COMMERCIAL',
+  'FINANCE',
+  'OPERATIONS',
+  'HR',
+];
 
 interface AccessLog {
   id: string;
@@ -41,14 +61,15 @@ export default function AdminPage() {
   const [emails, setEmails] = useState<AllowedEmail[]>([]);
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [newEmail, setNewEmail] = useState('');
-  const [newRole, setNewRole] = useState<'admin' | 'viewer'>('viewer');
+  const [newProfile, setNewProfile] = useState<AccessProfile>('dept_leader');
+  const [newDepartments, setNewDepartments] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const getAllowedEmailsFn = useServerFn(getAllowedEmails);
   const getAccessLogsFn = useServerFn(getAccessLogs);
   const addAllowedEmailFn = useServerFn(addAllowedEmail);
   const removeAllowedEmailFn = useServerFn(removeAllowedEmail);
-  const updateAllowedEmailRoleFn = useServerFn(updateAllowedEmailRole);
+  const updateAllowedEmailProfileFn = useServerFn(updateAllowedEmailProfile);
 
   const fetchEmails = async () => {
     try {
@@ -83,10 +104,13 @@ export default function AdminPage() {
 
     setIsLoading(true);
     try {
-      await addAllowedEmailFn({ data: { email: newEmail.trim(), role: newRole } });
+      await addAllowedEmailFn({
+        data: { email: newEmail.trim(), profile: newProfile, departments: newDepartments },
+      });
       toast.success('Email autorizado com sucesso');
       setNewEmail('');
-      setNewRole('viewer');
+      setNewProfile('dept_leader');
+      setNewDepartments([]);
       fetchEmails();
     } catch (error) {
       toast.error('Erro ao adicionar email');
@@ -107,13 +131,17 @@ export default function AdminPage() {
     }
   };
 
-  const handleRoleChange = async (id: string, role: 'admin' | 'viewer') => {
+  const handleProfileChange = async (
+    id: string,
+    profile: AccessProfile,
+    departments: string[],
+  ) => {
     try {
-      await updateAllowedEmailRoleFn({ data: { id, role } });
-      toast.success('Papel atualizado');
+      await updateAllowedEmailProfileFn({ data: { id, profile, departments } });
+      toast.success('Perfil atualizado');
       fetchEmails();
     } catch (error) {
-      toast.error('Erro ao alterar papel');
+      toast.error('Erro ao alterar perfil');
       console.error(error);
     }
   };
@@ -173,26 +201,37 @@ export default function AdminPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleAdd} className="flex flex-col sm:flex-row gap-2">
-                  <Input
-                    type="email"
-                    placeholder="email@flutter.com"
-                    value={newEmail}
-                    onChange={(e) => setNewEmail(e.target.value)}
-                    required
-                    className="flex-1"
-                  />
-                  <select
-                    value={newRole}
-                    onChange={(e) => setNewRole(e.target.value as 'admin' | 'viewer')}
-                    className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value="viewer">Visualizador</option>
-                    <option value="admin">Administrador</option>
-                  </select>
-                  <Button type="submit" disabled={isLoading}>
-                    {isLoading ? 'Adicionando...' : 'Adicionar'}
-                  </Button>
+                <form onSubmit={handleAdd} className="space-y-3">
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Input
+                      type="email"
+                      placeholder="email@flutter.com"
+                      value={newEmail}
+                      onChange={(e) => setNewEmail(e.target.value)}
+                      required
+                      className="flex-1"
+                    />
+                    <select
+                      value={newProfile}
+                      onChange={(e) => setNewProfile(e.target.value as AccessProfile)}
+                      className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      {ACCESS_PROFILES.map((p) => (
+                        <option key={p} value={p}>
+                          {PROFILE_LABELS[p]}
+                        </option>
+                      ))}
+                    </select>
+                    <Button type="submit" disabled={isLoading}>
+                      {isLoading ? 'Adicionando...' : 'Adicionar'}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {PROFILE_DESCRIPTIONS[newProfile]}
+                  </p>
+                  {!isGlobalProfile(newProfile) && (
+                    <DepartmentPicker value={newDepartments} onChange={setNewDepartments} />
+                  )}
                 </form>
               </CardContent>
             </Card>
@@ -211,26 +250,70 @@ export default function AdminPage() {
                       key={item.id}
                       className="flex items-center justify-between p-3 rounded-lg border border-border bg-card gap-4"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="text-sm truncate">{item.email}</span>
-                        <Badge variant={item.role === 'admin' ? 'default' : 'secondary'} className="shrink-0">
-                          {item.role === 'admin' ? (
-                            <ShieldCheck className="h-3 w-3 mr-1" />
-                          ) : (
-                            <ShieldAlert className="h-3 w-3 mr-1" />
-                          )}
-                          {item.role === 'admin' ? 'Admin' : 'Viewer'}
-                        </Badge>
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-sm truncate">{item.email}</span>
+                          <Badge
+                            variant={item.profile === 'admin' ? 'default' : 'secondary'}
+                            className="shrink-0"
+                          >
+                            {isGlobalProfile(item.profile) ? (
+                              <ShieldCheck className="h-3 w-3 mr-1" />
+                            ) : (
+                              <ShieldAlert className="h-3 w-3 mr-1" />
+                            )}
+                            {PROFILE_LABELS[item.profile] ?? item.profile}
+                          </Badge>
+                        </div>
+                        {!isGlobalProfile(item.profile) && (
+                          <span className="text-xs text-muted-foreground truncate">
+                            {item.departments?.length
+                              ? item.departments.join(', ')
+                              : 'Sem departamento atribuido — sem acesso a dados'}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <select
-                          value={item.role}
-                          onChange={(e) => handleRoleChange(item.id, e.target.value as 'admin' | 'viewer')}
+                          value={item.profile}
+                          onChange={(e) =>
+                            handleProfileChange(
+                              item.id,
+                              e.target.value as AccessProfile,
+                              item.departments ?? [],
+                            )
+                          }
                           className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
                         >
-                          <option value="viewer">Viewer</option>
-                          <option value="admin">Admin</option>
+                          {ACCESS_PROFILES.map((p) => (
+                            <option key={p} value={p}>
+                              {PROFILE_LABELS[p]}
+                            </option>
+                          ))}
                         </select>
+                        {!isGlobalProfile(item.profile) && (
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const dept = normalizeDept(e.target.value);
+                              if (!dept) return;
+                              const current = item.departments ?? [];
+                              const next = current.includes(dept)
+                                ? current.filter((d) => d !== dept)
+                                : [...current, dept];
+                              handleProfileChange(item.id, item.profile, next);
+                            }}
+                            className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
+                          >
+                            <option value="">Departamentos…</option>
+                            {DEPARTMENTS.map((d) => (
+                              <option key={d} value={d}>
+                                {(item.departments ?? []).includes(d) ? '✓ ' : ''}
+                                {d}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -298,6 +381,41 @@ export default function AdminPage() {
             </TabsContent>
           )}
         </Tabs>
+      </div>
+    </div>
+  );
+}
+
+function DepartmentPicker({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const toggle = (dept: string) => {
+    onChange(value.includes(dept) ? value.filter((d) => d !== dept) : [...value, dept]);
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs text-muted-foreground">Departamentos atendidos</Label>
+      <div className="flex flex-wrap gap-2">
+        {DEPARTMENTS.map((dept) => (
+          <button
+            key={dept}
+            type="button"
+            onClick={() => toggle(dept)}
+            className={
+              'rounded-full border px-3 py-1 text-xs transition-colors ' +
+              (value.includes(dept)
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-input text-muted-foreground hover:text-foreground')
+            }
+          >
+            {dept}
+          </button>
+        ))}
       </div>
     </div>
   );

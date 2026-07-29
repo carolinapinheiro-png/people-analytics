@@ -4,7 +4,13 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
 
-const RoleSchema = z.enum(['admin', 'viewer']);
+const ProfileSchema = z.enum(['admin', 'hr_leader', 'hrbp', 'dept_leader']);
+const DepartmentsSchema = z.array(z.string().trim().min(1).max(80)).max(50).default([]);
+
+/** Perfil admin e o unico que administra usuarios; role fica derivado dele. */
+function roleForProfile(profile: z.infer<typeof ProfileSchema>): 'admin' | 'viewer' {
+  return profile === 'admin' ? 'admin' : 'viewer';
+}
 
 type AppSupabaseClient = SupabaseClient<Database>;
 
@@ -12,17 +18,18 @@ async function getAdminRole(
   _supabase: AppSupabaseClient,
   userEmail: string
 ): Promise<'admin' | 'viewer' | null> {
+  // Mantido: authorize por profile, mas devolvendo o role derivado.
   // RLS on allowed_emails joins to auth.users, which authenticated users cannot
   // read, so we authorize via the admin client using the JWT-verified email.
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data, error } = await supabaseAdmin
     .from('allowed_emails')
-    .select('role')
+    .select('profile')
     .ilike('email', userEmail)
     .maybeSingle();
 
   if (error || !data) return null;
-  return data.role === 'admin' ? 'admin' : data.role === 'viewer' ? 'viewer' : null;
+  return (data as { profile?: string }).profile === 'admin' ? 'admin' : 'viewer';
 }
 
 export const checkAccess = createServerFn({ method: 'GET' })
@@ -30,7 +37,7 @@ export const checkAccess = createServerFn({ method: 'GET' })
   .handler(async ({ context }) => {
     const userEmail = context.claims.email as string | undefined;
     if (!userEmail) {
-      return { allowed: false, role: null };
+      return { allowed: false, role: null, profile: null, departments: [] as string[] };
     }
 
     // The RLS policy on allowed_emails compares against auth.users.email, but the
@@ -40,7 +47,7 @@ export const checkAccess = createServerFn({ method: 'GET' })
     const { supabaseAdmin: lookupClient } = await import('@/integrations/supabase/client.server');
     const { data, error } = await lookupClient
       .from('allowed_emails')
-      .select('role')
+      .select('role, profile, departments')
       .ilike('email', userEmail)
       .maybeSingle();
 
@@ -54,8 +61,11 @@ export const checkAccess = createServerFn({ method: 'GET' })
     }
 
     const allowed = !!data;
-    const role =
-      data && (data.role === 'admin' || data.role === 'viewer') ? data.role : null;
+    const row = data as { role?: string; profile?: string; departments?: string[] } | null;
+    const profile =
+      (row?.profile as 'admin' | 'hr_leader' | 'hrbp' | 'dept_leader' | undefined) ?? null;
+    const role = profile === 'admin' ? 'admin' : row ? 'viewer' : null;
+    const departments = row?.departments ?? [];
 
     try {
       const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
@@ -69,7 +79,7 @@ export const checkAccess = createServerFn({ method: 'GET' })
       console.error('Failed to log access attempt:', logError);
     }
 
-    return { allowed, role };
+    return { allowed, role, profile, departments };
   });
 
 export const getAllowedEmails = createServerFn({ method: 'GET' })
@@ -115,7 +125,11 @@ export const addAllowedEmail = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) =>
     z
-      .object({ email: z.string().email(), role: RoleSchema })
+      .object({
+        email: z.string().email(),
+        profile: ProfileSchema,
+        departments: DepartmentsSchema,
+      })
       .parse(data)
   )
   .handler(async ({ context, data }) => {
@@ -128,7 +142,12 @@ export const addAllowedEmail = createServerFn({ method: 'POST' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const { error } = await supabaseAdmin
       .from('allowed_emails')
-      .insert({ email: data.email.trim().toLowerCase(), role: data.role });
+      .insert({
+        email: data.email.trim().toLowerCase(),
+        role: roleForProfile(data.profile),
+        profile: data.profile,
+        departments: data.profile === 'hrbp' || data.profile === 'dept_leader' ? data.departments : [],
+      } as never);
 
     if (error) throw new Error(error.message);
     return { success: true };
@@ -155,11 +174,15 @@ export const removeAllowedEmail = createServerFn({ method: 'POST' })
     return { success: true };
   });
 
-export const updateAllowedEmailRole = createServerFn({ method: 'POST' })
+export const updateAllowedEmailProfile = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((data) =>
     z
-      .object({ id: z.string().uuid(), role: RoleSchema })
+      .object({
+        id: z.string().uuid(),
+        profile: ProfileSchema,
+        departments: DepartmentsSchema,
+      })
       .parse(data)
   )
   .handler(async ({ context, data }) => {
@@ -172,7 +195,11 @@ export const updateAllowedEmailRole = createServerFn({ method: 'POST' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const { error } = await supabaseAdmin
       .from('allowed_emails')
-      .update({ role: data.role })
+      .update({
+        role: roleForProfile(data.profile),
+        profile: data.profile,
+        departments: data.profile === 'hrbp' || data.profile === 'dept_leader' ? data.departments : [],
+      } as never)
       .eq('id', data.id);
 
     if (error) throw new Error(error.message);

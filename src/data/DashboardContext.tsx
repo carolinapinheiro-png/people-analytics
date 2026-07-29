@@ -5,6 +5,8 @@ import type { LeaverRecord } from './leaver-types';
 import { listLeavers } from '@/lib/leavers.functions';
 import { getMonthlyMetrics } from '@/lib/metrics.functions';
 import { composeMonthlyMetrics } from './compose-metrics';
+import { useAuth } from '@/contexts/AuthContext';
+import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
 import { getMonthsOrder, getMonthData, getAllMonthsForBrand, aggregateMonthlyToQuarterly } from './helpers';
 
 export type BrandType = 'combined' | 'NSX' | 'Betfair BR' | 'Flutter International';
@@ -171,6 +173,26 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     tipoDesligamento: 'Todos',
     level: 'Todos',
   });
+
+  // Perfil com escopo (HRBP / Department Leader) nunca ve o consolidado:
+  // o filtro de departamento nasce travado no primeiro departamento atendido.
+  const { profile, departments } = useAuth();
+  const scopedDepartments = useMemo(
+    () =>
+      profile && !isGlobalProfile(profile)
+        ? departments.map(normalizeDept).filter(Boolean)
+        : null,
+    [profile, departments],
+  );
+
+  useEffect(() => {
+    if (!scopedDepartments) return;
+    setFilters((f) =>
+      scopedDepartments.includes(normalizeDept(f.departamento))
+        ? f
+        : { ...f, departamento: scopedDepartments[0] ?? 'SEM ACESSO' },
+    );
+  }, [scopedDepartments]);
 
   const monthsOrder = useMemo(() => getMonthsOrder(data), [data]);
   const [currentMonthIdx, setCurrentMonthIdx] = useState(0);

@@ -2,6 +2,12 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  canSeeIndividualData,
+  isInScope,
+  type AccessProfile,
+  type AccessScope,
+} from '@/lib/permissions';
 
 /**
  * O types.ts do Supabase e gerado automaticamente e ainda nao conhece as
@@ -64,7 +70,7 @@ async function authorize(userEmail: string | undefined) {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data, error } = await supabaseAdmin
     .from('allowed_emails')
-    .select('role')
+    .select('role, profile, departments')
     .ilike('email', userEmail)
     .maybeSingle();
 
@@ -72,7 +78,12 @@ async function authorize(userEmail: string | undefined) {
   if (error) throw new Error(`Access check failed: ${error.message}`);
   if (!data) throw new Error('Forbidden');
 
-  return { email: userEmail, role: data.role as 'admin' | 'viewer' };
+  const row = data as { role?: string; profile?: string; departments?: string[] };
+  const scope: AccessScope = {
+    profile: (row.profile as AccessProfile) ?? 'dept_leader',
+    departments: row.departments ?? [],
+  };
+  return { email: userEmail, role: (row.role as 'admin' | 'viewer') ?? 'viewer', scope };
 }
 
 const ListLeaversInput = z
@@ -86,7 +97,7 @@ export const listLeavers = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ListLeaversInput.parse(input))
   .handler(async ({ context, data }) => {
-    const { email } = await authorize(context.claims.email as string | undefined);
+    const { email, scope } = await authorize(context.claims.email as string | undefined);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -97,12 +108,19 @@ export const listLeavers = createServerFn({ method: 'GET' })
 
     if (error) throw new Error(`Falha ao carregar desligados: ${error.message}`);
 
+    // Escopo e mascaramento aplicados no servidor: o perfil nunca recebe linha
+    // fora dos seus departamentos, nem nome/salario quando nao tem direito.
+    const scoped = (rows ?? []).filter((r) => isInScope(scope, r.departamento));
+    const visible = canSeeIndividualData(scope.profile)
+      ? scoped
+      : scoped.map((r) => ({ ...r, nome: 'Confidencial', salario: null, faixa_salarial: null }));
+
     // O log e requisito, nao efeito colateral opcional: se ele falhar, a
     // consulta falha junto. Devolver o dado sem registrar quem o viu
     // derrotaria o proposito de ter tirado o arquivo do bundle.
     const { error: logError } = await db.from('leavers_access_log').insert({
       user_email: email,
-      rows_returned: rows?.length ?? 0,
+      rows_returned: visible.length,
       context: data?.context ?? null,
     });
 
@@ -110,7 +128,7 @@ export const listLeavers = createServerFn({ method: 'GET' })
       throw new Error(`Falha ao registrar acesso; consulta abortada: ${logError.message}`);
     }
 
-    return (rows ?? []) as LeaverRow[];
+    return visible as LeaverRow[];
   });
 
 const SeedInput = z.object({
