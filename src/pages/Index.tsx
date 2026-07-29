@@ -7,15 +7,13 @@ import TabNavigation from '@/components/layout/TabNavigation';
 import OverviewTab from '@/components/tabs/OverviewTab';
 import TrendTab from '@/components/tabs/TrendTab';
 import DEITab from '@/components/tabs/DEITab';
-import SalaryTab from '@/components/tabs/SalaryTab';
+import CompensationTab from '@/components/tabs/CompensationTab';
 import LocationTab from '@/components/tabs/LocationTab';
-import MovementTab from '@/components/tabs/MovementTab';
 import EngagementTab from '@/components/tabs/EngagementTab';
 import SpanTab from '@/components/tabs/SpanTab';
 import UnwantedTab from '@/components/tabs/UnwantedTab';
 import LeaversTab from '@/components/tabs/LeaversTab';
 import DataTab from '@/components/tabs/DataTab';
-import CompRatioTab from '@/components/tabs/CompRatioTab';
 
 /**
  * As abas de desligados dependem de dado individual, que agora vem do servidor
@@ -88,15 +86,13 @@ function DashboardContent() {
         {activeTab === 'overview' && <OverviewTab />}
         {activeTab === 'trend' && <TrendTab />}
         {activeTab === 'dei' && <DEITab />}
-        {activeTab === 'salary' && <SalaryTab />}
+        {activeTab === 'comp' && <CompensationTab />}
         {activeTab === 'location' && <LocationTab />}
-        {activeTab === 'movement' && <MovementTab />}
         {activeTab === 'engagement' && <EngagementTab />}
         {activeTab === 'span' && <SpanTab />}
         {activeTab === 'unwanted' && <LeaversGate><UnwantedTab /></LeaversGate>}
         {activeTab === 'leavers' && <LeaversGate><LeaversTab /></LeaversGate>}
         {activeTab === 'data' && <DataTab />}
-        {activeTab === 'compratio' && <CompRatioTab />}
       </main>
     </div>
   );

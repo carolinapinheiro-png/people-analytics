@@ -33,10 +33,8 @@ export type DashboardTab =
   | 'overview'
   | 'trend'
   | 'dei'
-  | 'salary'
-  | 'compratio'
+  | 'comp'
   | 'location'
-  | 'movement'
   | 'engagement'
   | 'span'
   | 'unwanted'
@@ -47,10 +45,8 @@ const ALL_TABS: DashboardTab[] = [
   'overview',
   'trend',
   'dei',
-  'salary',
-  'compratio',
+  'comp',
   'location',
-  'movement',
   'engagement',
   'span',
   'unwanted',
