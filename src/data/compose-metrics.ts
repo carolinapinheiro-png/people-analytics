@@ -49,6 +49,8 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
       r.leader_dept && Object.keys(r.leader_dept).length > 0 ? r.leader_dept : undefined,
     tenure_base:
       r.tenure_base && Object.keys(r.tenure_base).length > 0 ? r.tenure_base : undefined,
+    demographics:
+      r.demographics && Object.keys(r.demographics).length > 0 ? r.demographics : undefined,
   };
 };
 

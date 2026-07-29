@@ -18,7 +18,7 @@ const tabs: { id: TabType; label: string }[] = [
   { id: 'trend', label: 'Trend' },
   { id: 'dei', label: 'DEI Metrics' },
   { id: 'comp', label: 'Compensação' },
-  { id: 'location', label: 'Localização' },
+  { id: 'demographics', label: 'Demográficos' },
   { id: 'engagement', label: 'Experiência' },
   { id: 'span', label: 'Span de Controle' },
   { id: 'attrition', label: 'Atrição & Desligamentos' },

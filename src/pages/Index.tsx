@@ -8,7 +8,7 @@ import OverviewTab from '@/components/tabs/OverviewTab';
 import TrendTab from '@/components/tabs/TrendTab';
 import DEITab from '@/components/tabs/DEITab';
 import CompensationTab from '@/components/tabs/CompensationTab';
-import LocationTab from '@/components/tabs/LocationTab';
+import DemographicsTab from '@/components/tabs/DemographicsTab';
 import EngagementTab from '@/components/tabs/EngagementTab';
 import SpanTab from '@/components/tabs/SpanTab';
 import AttritionTab from '@/components/tabs/AttritionTab';
@@ -86,7 +86,7 @@ function DashboardContent() {
         {activeTab === 'trend' && <TrendTab />}
         {activeTab === 'dei' && <DEITab />}
         {activeTab === 'comp' && <CompensationTab />}
-        {activeTab === 'location' && <LocationTab />}
+        {activeTab === 'demographics' && <DemographicsTab />}
         {activeTab === 'engagement' && <EngagementTab />}
         {activeTab === 'span' && <SpanTab />}
         {activeTab === 'attrition' && <LeaversGate><AttritionTab /></LeaversGate>}

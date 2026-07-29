@@ -71,6 +71,11 @@ const PEOPLE_FIELDS: FieldSpec[] = [
   { field: 'pcd', required: false, match: (h) => h.includes('considera pcd') },
   // Vinculo (CLT/PJ/Aprendiz/etc.). Usado aqui so para detectar aprendiz.
   { field: 'vinculo', required: false, match: (h) => h.includes('vinculo') },
+  // Demograficos (so agregados saem da maquina).
+  { field: 'birth', required: false, match: (h) => h.includes('nascimento') },
+  { field: 'race', required: false, match: (h) => h.includes('raca') },
+  { field: 'marital', required: false, match: (h) => h.includes('estado civil') },
+  { field: 'origin', required: false, match: (h) => h.includes('uf natal') },
 ];
 
 const HISTORY_FIELDS: FieldSpec[] = [
@@ -261,6 +266,10 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
     gender: col(peopleMapping, 'gender')!,
     state: col(peopleMapping, 'state')!,
     leadership: col(peopleMapping, 'leadership')!,
+    birth: col(peopleMapping, 'birth'),
+    race: col(peopleMapping, 'race'),
+    marital: col(peopleMapping, 'marital'),
+    origin: col(peopleMapping, 'origin'),
   };
 
   // "Lideranca ?" existe em CINCO colunas, uma por bloco de unidade (Recife,
@@ -335,6 +344,10 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
       level: coalesceLevel(row),
       pcd: isPcd(row),
       apprentice: isApprentice(row),
+      birth: pc.birth ? toDate(row[pc.birth]) : null,
+      race: pc.race ? toStr(row[pc.race]) : '',
+      marital: pc.marital ? toStr(row[pc.marital]) : '',
+      origin: pc.origin ? toStr(row[pc.origin]) : '',
     });
   }
 

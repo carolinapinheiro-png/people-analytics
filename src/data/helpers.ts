@@ -113,6 +113,7 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       apprentice: (n.apprentice || 0) + (b.apprentice || 0) + (f.apprentice || 0),
       leader_dept: mergeLeaderDept(n.leader_dept, b.leader_dept, f.leader_dept),
       tenure_base: mergeLevels(n.tenure_base, b.tenure_base, f.tenure_base),
+      demographics: mergeDemographics(n.demographics, b.demographics, f.demographics),
     };
   }
   return data.find(d => d.month === month && d.brand === brand) || { month } as MonthRecord;
@@ -148,6 +149,32 @@ function mergeRaises(
       cur.n += v.n || 0;
       cur.delta += v.delta || 0;
       any = true;
+    }
+  }
+  return any ? out : undefined;
+}
+
+type Demographics = {
+  age?: Record<string, number>;
+  race?: Record<string, number>;
+  marital?: Record<string, number>;
+  origin?: Record<string, number>;
+};
+/** Soma os demograficos (age/race/marital/origin) das marcas para a combinada. */
+function mergeDemographics(...bases: Array<Demographics | undefined>): Demographics | undefined {
+  const dims: Array<keyof Demographics> = ['age', 'race', 'marital', 'origin'];
+  const out: Demographics = {};
+  let any = false;
+  for (const base of bases) {
+    if (!base) continue;
+    for (const dim of dims) {
+      const src = base[dim];
+      if (!src) continue;
+      const target = (out[dim] = out[dim] || {});
+      for (const [k, v] of Object.entries(src)) {
+        target[k] = (target[k] || 0) + (v || 0);
+        any = true;
+      }
     }
   }
   return any ? out : undefined;

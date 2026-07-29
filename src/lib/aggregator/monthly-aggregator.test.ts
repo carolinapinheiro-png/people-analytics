@@ -21,6 +21,7 @@ import {
   classifyRaise,
   salaryMovements,
   tenureBucket,
+  ageBucket,
   promotionDates,
   type HistoryRow,
   type PersonRow,
@@ -439,4 +440,29 @@ test('tenure_base distribui ativos por faixa', () => {
   const m = aggregateMonth(ppl, histMap([]), 2026, 1, 'nsx_br');
   assert.equal(m.tenure_base['0-3m'], 1);
   assert.equal(m.tenure_base['2-5a'], 1);
+});
+
+// ---------- demograficos ----------
+
+test('ageBucket: faixas etarias por nascimento', () => {
+  const ref = monthEnd(2026, 1);
+  assert.equal(ageBucket(d('2005-01-01'), ref), '<25');
+  assert.equal(ageBucket(d('1995-01-01'), ref), '25-34');
+  assert.equal(ageBucket(d('1985-01-01'), ref), '35-44');
+  assert.equal(ageBucket(d('1975-01-01'), ref), '45-54');
+  assert.equal(ageBucket(d('1960-01-01'), ref), '55+');
+  assert.equal(ageBucket(null, ref), 'Não informado');
+});
+
+test('demographics agrega idade, raca, estado civil e origem', () => {
+  const ppl = [
+    person({ cpf: '990', birth: d('1995-01-01'), race: 'Parda', marital: 'Solteiro(a)', origin: 'Pernambuco' }),
+    person({ cpf: '991', birth: d('1985-01-01'), race: 'Branca', marital: 'Casado(a)', origin: 'São Paulo' }),
+  ];
+  const m = aggregateMonth(ppl, histMap([]), 2026, 1, 'nsx_br');
+  assert.equal(m.demographics.age['25-34'], 1);
+  assert.equal(m.demographics.age['35-44'], 1);
+  assert.equal(m.demographics.race['Parda'], 1);
+  assert.equal(m.demographics.marital['Casado(a)'], 1);
+  assert.equal(m.demographics.origin['São Paulo'], 1);
 });

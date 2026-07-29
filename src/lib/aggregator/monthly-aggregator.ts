@@ -58,6 +58,17 @@ export function levelBucket(v: string | number | null | undefined): number | nul
   return m ? Number(m[1]) : null;
 }
 
+/** Faixa etaria na data de referencia (idade exata: ref menos nascimento). */
+export function ageBucket(birth: Date | null | undefined, ref: Date): string {
+  if (!birth) return 'Não informado';
+  const age = (ref.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 365.25);
+  if (age < 25) return '<25';
+  if (age < 35) return '25-34';
+  if (age < 45) return '35-44';
+  if (age < 55) return '45-54';
+  return '55+';
+}
+
 /** Faixa de tempo de casa na data de referencia (historico exato: fim do mes
  *  menos a admissao). Sem admissao -> "Não informado". */
 export function tenureBucket(admission: Date | null, ref: Date): string {
@@ -163,6 +174,12 @@ export interface PersonRow {
   pcd?: boolean;
   /** Cota legal: aprendiz (Vinculo = "Aprendiz"). Atributo atual. */
   apprentice?: boolean;
+  /** Demograficos (so agregados saem da maquina). Nascimento -> idade exata por
+   *  mes; raca (dado sensivel LGPD), estado civil e UF natal (origem). */
+  birth?: Date | null;
+  race?: string;
+  marital?: string;
+  origin?: string;
 }
 
 export interface HistoryRow {
@@ -226,6 +243,13 @@ export interface MonthAggregate {
   /** Distribuicao por tempo de casa dos ativos ({ "0-3m": n, ..., "5a+": n }).
    *  Historico exato (fim do mes menos admissao). */
   tenure_base: Record<string, number>;
+  /** Demograficos dos ativos: { age, race, marital, origin } (so contagens). */
+  demographics: {
+    age: Record<string, number>;
+    race: Record<string, number>;
+    marital: Record<string, number>;
+    origin: Record<string, number>;
+  };
 }
 
 /** dd/mm/aaaa ou ISO aaaa-mm-dd -> Date em UTC (evita armadilha de fuso). */
@@ -392,9 +416,19 @@ export function aggregateMonth(
   const apprentice = active.filter((p) => p.apprentice).length;
 
   const tenureBase: Record<string, number> = {};
+  const ageMix: Record<string, number> = {};
+  const raceMix: Record<string, number> = {};
+  const maritalMix: Record<string, number> = {};
+  const originMix: Record<string, number> = {};
+  const bump = (o: Record<string, number>, k: string) => {
+    o[k] = (o[k] ?? 0) + 1;
+  };
   for (const p of active) {
-    const b = tenureBucket(p.admission, end);
-    tenureBase[b] = (tenureBase[b] ?? 0) + 1;
+    bump(tenureBase, tenureBucket(p.admission, end));
+    bump(ageMix, ageBucket(p.birth, end));
+    bump(raceMix, (p.race ?? '').trim() || 'Não informado');
+    bump(maritalMix, (p.marital ?? '').trim() || 'Não informado');
+    bump(originMix, (p.origin ?? '').trim() || 'Não informado');
   }
 
   const deptData: Record<string, DeptAggregate> = {};
@@ -445,6 +479,7 @@ export function aggregateMonth(
     apprentice,
     leader_dept: leaderDept,
     tenure_base: tenureBase,
+    demographics: { age: ageMix, race: raceMix, marital: maritalMix, origin: originMix },
   };
 }
 
