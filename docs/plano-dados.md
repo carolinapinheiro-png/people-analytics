@@ -70,6 +70,37 @@ Revisão feita aba a aba com a área. Nada abaixo é sugestão: são decisões.
     (pessoa = linha da Worksheet) é imune. Para o DP: corrigir os Motivos e as 5
     admissões futuras.
 
+## Decisão de 28/07 — reconstrução histórica (liderança + nível)
+
+11. **A série passa a usar o valor DA ÉPOCA em liderança e nível**, não o snapshot
+    atual aplicado para trás. Ancorado no quadro atual (exato no mês mais recente,
+    Δ=0) e recuado só por eventos reais e datados. Prova offline fechada e
+    reproduzida pelo pipeline real (adapter+aggregator).
+    - **Liderança**: quem é líder hoje deixa de ser líder ANTES da sua transição
+      real para um cargo de liderança (1º cargo de liderança no histórico, tendo
+      havido cargo não-liderança antes). Sem transição detectada, mantém líder
+      (não fabrica recuo). Efeito NSX: jan/2025 60→43 líderes; a diferença
+      encolhe até 0 em jul/2026. Corrige a inflação de líderes no passado
+      (empresa cresceu 266→587; muitos gestores são recentes).
+    - **Nível**: nível atual −1 por promoção (Motivo="Promoção") posterior ao mês.
+      Premissa única e documentada: 1 nível por promoção (66 pessoas, 73 eventos).
+      Vira dimensão nova `level_base` (jsonb { "L0": n, ..., "NA": n }) + pirâmide
+      de senioridade no tempo na aba DEI.
+    - **Gênero**: NÃO é reconstruído — não muda no tempo, atual = histórico já é o
+      valor certo. Os "Não informado" (7 no NSX) não têm fonte e não se inventa.
+    - **Descartado**: mapa cargo→nível (ruído alto: L3 errava +40 já no mês
+      atual, onde deveria ser exato). O método de âncora+promoção tem ruído zero
+      na âncora.
+    - **Limitações**: Betfair/Flutter (Workday) não têm histórico de cargo nem
+      nível → liderança fica no atual e nível cai em "NA". Reconstrução real só
+      no NSX. Histórico do TM tem registros duplicados → estimativa com ruído nos
+      meses intermediários, exata na ponta.
+    - Implementado: `leadershipStart`/`promotionDates`/`levelBucket` no núcleo;
+      `level`/`cargo` no adapter; coluna `level_base` + RPC atualizada
+      (migration 20260728120000, aplicada à mão no prod). 31/31 testes verdes.
+      **Regravar a série**: reimportar pela tela do admin (recomputa tudo com o
+      código novo; a RPC grava level_base e a liderança da época).
+
 ## Pendências que dependem da área (e-mails enviados/rascunhados)
 
 - Satisfação jun/25 ambígua no deck (slide 4: 8,9 geral × 8,6 do recorte 6–12
