@@ -192,13 +192,11 @@ export default function LeaversTab() {
               <Pie
                 data={typeData}
                 cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={80}
+                cy="45%"
+                innerRadius={42}
+                outerRadius={66}
                 paddingAngle={3}
                 dataKey="value"
-                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                labelLine={false}
               >
                 {typeData.map((_, idx) => (
                   <Cell key={`cell-${idx}`} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
@@ -208,6 +206,7 @@ export default function LeaversTab() {
                 contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
                 formatter={(value: number, name: string) => [`${value} desligados`, name]}
               />
+              <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />
             </PieChart>
           </ResponsiveContainer>
         </ChartCard>

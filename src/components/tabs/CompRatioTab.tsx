@@ -57,6 +57,34 @@ export default function CompRatioTab() {
     return { total: rows.length, median, above, below, byQuartile, areas };
   }, [rows]);
 
+  // Distribuicao de pessoas por level x area (pedido da diretora). Dados ja
+  // carregados; nenhuma consulta extra.
+  const levelArea = useMemo(() => {
+    if (!rows || rows.length === 0) return null;
+    const levelSet = new Set<string>();
+    const areaMap: Record<string, Record<string, number>> = {};
+    const areaTotals: Record<string, number> = {};
+    for (const r of rows) {
+      const lv = (r.level ?? '—').trim() || '—';
+      const ar = (r.area ?? '—').trim() || '—';
+      levelSet.add(lv);
+      areaMap[ar] = areaMap[ar] ?? {};
+      areaMap[ar][lv] = (areaMap[ar][lv] ?? 0) + 1;
+      areaTotals[ar] = (areaTotals[ar] ?? 0) + 1;
+    }
+    const levels = [...levelSet].sort((a, b) => {
+      const na = parseInt(a.replace(/\D/g, ''), 10);
+      const nb = parseInt(b.replace(/\D/g, ''), 10);
+      if (Number.isNaN(na) && Number.isNaN(nb)) return a.localeCompare(b);
+      if (Number.isNaN(na)) return 1;
+      if (Number.isNaN(nb)) return -1;
+      return na - nb;
+    });
+    const areas = Object.keys(areaMap).sort((a, b) => areaTotals[b] - areaTotals[a]);
+    const max = Math.max(...areas.flatMap((a) => levels.map((l) => areaMap[a][l] ?? 0)), 1);
+    return { levels, areas, areaMap, areaTotals, max };
+  }, [rows]);
+
   const filtered = useMemo(() => {
     if (!rows) return [];
     const q = query.trim().toLowerCase();
@@ -133,6 +161,49 @@ export default function CompRatioTab() {
           </div>
         </ChartCard>
       </div>
+
+      {levelArea && (
+        <ChartCard title="Pessoas por nível e área" subtitle="Distribuição do quadro atual" icon={Scale}>
+          <div className="overflow-x-auto max-h-80 overflow-y-auto">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-card">
+                <tr className="text-muted-foreground">
+                  <th className="p-2 text-left">Área</th>
+                  {levelArea.levels.map((l) => (
+                    <th key={l} className="p-2 text-center tabular-nums">{l}</th>
+                  ))}
+                  <th className="p-2 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {levelArea.areas.map((ar) => (
+                  <tr key={ar} className="border-t border-border/50">
+                    <td className="p-2 font-medium whitespace-nowrap">{ar}</td>
+                    {levelArea.levels.map((l) => {
+                      const n = levelArea.areaMap[ar][l] ?? 0;
+                      return (
+                        <td key={l} className="p-1 text-center tabular-nums">
+                          {n > 0 ? (
+                            <span
+                              className="inline-block min-w-6 rounded px-1 py-0.5"
+                              style={{ background: `hsl(var(--flutter) / ${0.12 + (n / levelArea.max) * 0.6})` }}
+                            >
+                              {n}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/30">·</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                    <td className="p-2 text-right tabular-nums font-semibold">{levelArea.areaTotals[ar]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ChartCard>
+      )}
 
       <ChartCard title="Indivíduos" subtitle={`${rows.length} ativos · mostrando ${filtered.length}`} icon={DollarSign}>
         <Input

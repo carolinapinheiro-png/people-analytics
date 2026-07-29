@@ -88,15 +88,8 @@ export default function OverviewTab() {
       sub: `${curr.gender_female || 0} colaboradoras`,
       icon: UserCheck
     },
-    { 
-      label: 'Líderes', 
-      val: String(curr.leaders || 0), 
-      color: COLORS.purple, 
-      sub: `${curr.leaders_pct || 0}% do HC - ${leaderHealth === 'healthy' ? 'Ideal' : leaderHealth === 'low' ? 'Baixo' : 'Alto'}`,
-      icon: Award
-    },
-    { 
-      label: 'Promoções', 
+    {
+      label: 'Promoções',
       val: `${curr.promotions || 0}`, 
       color: COLORS.nsx, 
       sub: `${pr}% do HC`,
@@ -338,154 +331,22 @@ export default function OverviewTab() {
         </StoryInsight>
       </StorySection>
 
-      {/* Diversity & Leadership Story */}
-      <StorySection title="Diversidade e Liderança" icon={Users}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <ChartCard title="Composição de Gênero" subtitle="Distribuição feminina e masculina">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center">
-                <div className="text-[10px] uppercase text-muted-foreground mb-2">Geral</div>
-                <ResponsiveContainer width="100%" height={120}>
-                  <PieChart>
-                    <Pie data={genderData} innerRadius={35} outerRadius={50} dataKey="value" strokeWidth={0}>
-                      <Cell fill={COLORS.female} />
-                      <Cell fill={COLORS.info} />
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="text-center mt-2">
-                  <span className="text-2xl font-bold" style={{ color: COLORS.female }}>{curr.gender_female_pct}%</span>
-                  <span className="text-xs text-slate-400 ml-1">feminino</span>
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="text-[10px] uppercase text-muted-foreground mb-2">Liderança</div>
-                <ResponsiveContainer width="100%" height={120}>
-                  <PieChart>
-                    <Pie data={leaderGenderData} innerRadius={35} outerRadius={50} dataKey="value" strokeWidth={0}>
-                      <Cell fill={COLORS.female} />
-                      <Cell fill={COLORS.info} />
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="text-center mt-2">
-                  <span className="text-2xl font-bold" style={{ color: COLORS.female }}>{curr.leader_female_pct}%</span>
-                  <span className="text-xs text-slate-400 ml-1">líderes mulheres</span>
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-center gap-4 mt-3 text-[10px] text-muted-foreground">
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[hsl(var(--female))]" />Feminino</span>
-              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[hsl(var(--male))]" />Masculino</span>
-            </div>
-          </ChartCard>
-
-          <ChartCard title="Estrutura de Liderança" subtitle={`${curr.leaders} líderes (${curr.leaders_pct}% do HC)`}>
-            <ResponsiveContainer width="100%" height={130}>
-              <PieChart>
-                <Pie
-                  data={[
-                    { name: 'Líderes', value: curr.leaders || 0 },
-                    { name: 'Não-Líderes', value: (curr.headcount || 0) - (curr.leaders || 0) },
-                  ]}
-                  innerRadius={40}
-                  outerRadius={55}
-                  dataKey="value"
-                  strokeWidth={0}
-                >
-                  <Cell fill={COLORS.purple} />
-                  <Cell fill={COLORS.gray800} />
-                </Pie>
-                <Legend wrapperStyle={{ fontSize: 9 }} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="space-y-2 mt-3">
-              <div>
-                <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
-                  <span>Ratio Liderança</span>
-                  <span className={leaderHealth === 'healthy' ? 'text-green-500' : 'text-amber-500'}>
-                    {curr.leaders_pct}% {leaderHealth === 'healthy' ? '✓' : '⚠'}
-                  </span>
-                </div>
-                <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${Math.min((curr.leaders_pct || 0) / LEADERSHIP_HEALTHY_MAX * 100, 100)}%`, backgroundColor: brandColor }} />
-                </div>
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Ideal: {LEADERSHIP_HEALTHY_MIN}-{LEADERSHIP_HEALTHY_MAX}% | {leaderHealth === 'healthy' ? 'Dentro do esperado' : leaderHealth === 'low' ? 'Abaixo do ideal' : 'Acima do ideal'}
-                </p>
-              </div>
-            </div>
-          </ChartCard>
-
-          <ChartCard title="Distribuição por Departamento" subtitle="Headcount por área">
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={depts} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                <YAxis type="category" dataKey="name" tick={{ fill: '#4a5568', fontSize: 9 }} width={80} />
-                <Tooltip 
-                  contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }}
-                  formatter={(value: number, name: string, props: any) => [`${value} (${props.payload.pct}%)`, 'Colaboradores']}
-                />
-                <Bar dataKey="hc" fill={brandColor + '55'} stroke={brandColor} strokeWidth={1} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-        </div>
-        
-        <StoryInsight type={genderBalance === 'balanced' ? 'positive' : 'warning'}>
-          A representação feminina de {curr.gender_female_pct}% {genderBalance === 'balanced' 
-            ? 'está dentro da faixa equilibrada (40-60%), promovendo diversidade de perspectivas.' 
-            : 'está fora da faixa ideal. Recomenda-se ações para atrair mais talentos do gênero sub-representado.'}
-          {' '}Na liderança, {curr.leader_female_pct}% são mulheres, 
-          {curr.leader_female_pct >= 30 ? 'demonstrando presença significativa em posições de comando.' : 'com oportunidade de aumentar representatividade feminina.'}
-        </StoryInsight>
-      </StorySection>
-
-      {/* Promotions Story */}
-      <StorySection title="Desenvolvimento de Carreira" icon={Award}>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ChartCard title="Promoções ao Longo do Tempo" subtitle="Quantidade e % do headcount">
-            <ResponsiveContainer width="100%" height={220}>
-              <ComposedChart data={promoData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                <YAxis yAxisId="left" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
-                <Bar yAxisId="left" dataKey="num" name="Nº Promoções" fill={COLORS.nsx + '77'} stroke={COLORS.nsx} strokeWidth={1} radius={[4, 4, 0, 0]} />
-                <Line yAxisId="right" type="monotone" dataKey="pct" name="% do HC" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </ChartCard>
-
-          <div className="space-y-4">
-            <StoryMetric
-              label="Promoções no Mês"
-              value={String(curr.promotions || 0)}
-              subtext={`${pr}% do headcount`}
-              trend={curr.promotions > 5 ? 'Acima da média' : 'Dentro do esperado'}
-              trendDirection={curr.promotions > 5 ? 'up' : 'neutral'}
-            />
-            <StoryMetric
-              label="Taxa de Promoção"
-              value={`${pr}%`}
-              subtext="mensal"
-            />
-            <StoryMetric
-              label="Total no Ano"
-              value={String(allMonthsData.reduce((acc, d) => acc + (d.promotions || 0), 0))}
-              subtext="promoções acumuladas"
-            />
-          </div>
-        </div>
-        
-        <StoryInsight type="positive">
-          Foram realizadas {curr.promotions || 0} promoções em {mLabel(currentMonth)}, representando {pr}% do headcount. 
-          Este índice {pr > 1 ? 'demonstra oportunidades de crescimento interno' : 'indica oportunidade de aumentar mobilidade de carreira'}. 
-          Promoções são indicadores de sucesso em retenção e desenvolvimento de talentos.
-        </StoryInsight>
+      {/* Distribuição por Departamento */}
+      <StorySection title="Distribuição por Departamento" icon={Building2}>
+        <ChartCard title="Headcount por área" subtitle="Colaboradores e % do total">
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={depts} layout="vertical" margin={{ left: 8, right: 16 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
+              <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 10 }} />
+              <YAxis type="category" dataKey="name" tick={{ fill: '#4a5568', fontSize: 11 }} width={120} />
+              <Tooltip
+                contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }}
+                formatter={(value: number, name: string, props: any) => [`${value} (${props.payload.pct}%)`, 'Colaboradores']}
+              />
+              <Bar dataKey="hc" fill={brandColor + '55'} stroke={brandColor} strokeWidth={1} radius={[0, 4, 4, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartCard>
       </StorySection>
     </div>
   );

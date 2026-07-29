@@ -21,9 +21,6 @@ import {
   Users,
   Target,
   TrendingUp,
-  TrendingDown,
-  AlertTriangle,
-  CheckCircle2,
   Award,
   BarChart3
 } from 'lucide-react';
@@ -39,8 +36,6 @@ export default function DEITab() {
   const lpDelta = prevData
     ? (curr.leader_female_pct || 0) - (prevData.leader_female_pct || 0)
     : 0;
-  const gapTo40 = ((curr.gender_female_pct || 0) - 40).toFixed(1);
-
   const firstMonth = allMonthsData[0];
   const startFemalePct = firstMonth?.gender_female_pct || 0;
   const progressGrowth = (curr.gender_female_pct || 0) - startFemalePct;
@@ -62,24 +57,12 @@ export default function DEITab() {
         ? `<span style="color:#66bb6a">+${lpDelta.toFixed(1)}pp</span> vs mês ant.`
         : `<span style="color:#ef5350">${lpDelta.toFixed(1)}pp</span> vs mês ant.`
     },
-    {
-      label: 'Gap p/ Meta 40%',
-      value: gapTo40 + 'pp',
-      color: parseFloat(gapTo40) >= 0 ? '#66bb6a' : COLORS.amber
-    },
-    {
-      label: 'Líderes Female',
-      value: `${curr.leader_female || 0} de ${curr.leaders || 0}`,
-      color: COLORS.purple
-    },
   ];
 
   const genderTrend = allMonthsData.map(d => ({
     month: mLabel(d.month),
     overall: d.gender_female_pct,
     lideranca: d.leader_female_pct,
-    meta40: 40,
-    meta30: 30,
   }));
 
   const leaderStack = allMonthsData.map(d => ({
@@ -118,25 +101,15 @@ export default function DEITab() {
     return row;
   });
 
-  const genderBalance = (curr.gender_female_pct || 0) >= 40 && (curr.gender_female_pct || 0) <= 60
-    ? 'balanced'
-    : (curr.gender_female_pct || 0) < 40
-      ? 'low-female'
-      : 'high-female';
-
-  const leaderFemaleHealthy = (curr.leader_female_pct || 0) >= 30;
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex gap-5 flex-wrap text-xs text-muted-foreground">
         <span>Ref: <strong className="text-foreground">{mLabel(currentMonth)}</strong></span>
-        <span>Meta Female Overall: <strong className="text-foreground">40%</strong></span>
-        <span>Meta Female Liderança: <strong className="text-foreground">30%</strong></span>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         {kpis.map(k => <KpiCard key={k.label} label={k.label} value={k.value} color={k.color} sub={k.sub} icon={k.label.includes('Líder') ? Award : Users} />)}
       </div>
 
@@ -152,7 +125,6 @@ export default function DEITab() {
               <Legend wrapperStyle={{ fontSize: 10 }} />
               <Line type="monotone" dataKey="overall" name="Geral" stroke={COLORS.female} strokeWidth={2} dot={{ r: 3 }} />
               <Line type="monotone" dataKey="lideranca" name="Liderança" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="meta40" name="Meta 40%" stroke="#66bb6a" strokeDasharray="4 4" strokeWidth={1} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -317,15 +289,9 @@ export default function DEITab() {
             <div className="bg-slate-800/50 rounded-lg p-4">
               <h3 className="font-semibold text-slate-100 mb-3 flex items-center gap-2">
                 <Target className="h-4 w-4" />
-                Progresso vs Meta
+                Evolução no período
               </h3>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Gap p/ 40%</span>
-                  <span className={`font-bold ${parseFloat(gapTo40) >= 0 ? 'text-green-400' : 'text-yellow-400'}`}>
-                    {parseFloat(gapTo40) >= 0 ? '+' : ''}{gapTo40}pp
-                  </span>
-                </div>
                 <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
                   <span className="text-slate-400">Início do período</span>
                   <span className="font-bold">{startFemalePct.toFixed(1)}%</span>
@@ -344,37 +310,37 @@ export default function DEITab() {
             </div>
           </div>
 
-          <div className={`p-4 rounded-lg border text-sm ${genderBalance === 'balanced' ? 'bg-green-950/40 border-green-500/30 text-green-300' : 'bg-amber-950/40 border-amber-500/30 text-amber-300'}`}>
+          <div className="p-4 rounded-lg border text-sm bg-slate-800/40 border-slate-600/40 text-slate-300">
             <div className="flex items-start gap-3">
-              {genderBalance === 'balanced' ? <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" /> : <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" />}
+              <Users className="h-5 w-5 mt-0.5 flex-shrink-0" />
               <div>
-                <strong>Insight:</strong>{' '}
-                {genderBalance === 'balanced'
-                  ? `A representação feminina de ${curr.gender_female_pct}% está dentro da faixa equilibrada (40-60%).`
-                  : `A representação feminina de ${curr.gender_female_pct}% está abaixo da meta de 40%. Recomenda-se ações para atrair e reter mais talentos mulheres.`}
-                {' '}Na liderança, {curr.leader_female_pct}% são mulheres
-                {leaderFemaleHealthy ? ', atingindo a meta mínima de 30%.' : ', com oportunidade de aumentar representatividade feminina em posições de comando.'}
+                <strong>Panorama:</strong>{' '}
+                A representação feminina no quadro é de {curr.gender_female_pct}%
+                {' '}({fpDelta >= 0 ? '+' : ''}{fpDelta.toFixed(1)}pp vs mês anterior). Na liderança,
+                {' '}{curr.leader_female_pct}% são mulheres
+                {' '}({lpDelta >= 0 ? '+' : ''}{lpDelta.toFixed(1)}pp vs mês anterior). Desde o início
+                {' '}do período, a proporção geral variou {progressGrowth >= 0 ? '+' : ''}{progressGrowth.toFixed(1)}pp.
               </div>
             </div>
           </div>
 
-          <div className="bg-amber-950/30 border border-amber-500/20 rounded-lg p-4">
-            <h3 className="font-semibold text-amber-200 mb-3 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Recomendações Estratégicas DEI
+          <div className="bg-slate-800/40 border border-slate-600/40 rounded-lg p-4">
+            <h3 className="font-semibold text-slate-200 mb-3 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Pontos de atenção
             </h3>
-            <ul className="space-y-2 text-sm text-amber-200">
+            <ul className="space-y-2 text-sm text-slate-300">
               <li className="flex items-start gap-2">
                 <span className="font-bold">1.</span>
-                <span><strong>Meta 40%:</strong> Acompanhar evolução mensal e acelerar ações de recrutamento quando o ritmo de crescimento desacelerar.</span>
+                <span><strong>Representatividade geral:</strong> acompanhar a evolução mensal da proporção de mulheres no quadro e o ritmo de contratações.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">2.</span>
-                <span><strong>Liderança Feminina:</strong> Desenvolver pipeline interno e revisir processos de promoção para equilibrar representatividade.</span>
+                <span><strong>Liderança feminina:</strong> desenvolver pipeline interno e revisar processos de promoção para equilibrar a representatividade em posições de comando.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">3.</span>
-                <span><strong>Retenção:</strong> Monitorar taxa de atrito por gênero para garantir que mulheres não saiam em proporção maior.</span>
+                <span><strong>Retenção:</strong> monitorar a taxa de atrito por gênero para garantir que mulheres não saiam em proporção maior.</span>
               </li>
             </ul>
           </div>
