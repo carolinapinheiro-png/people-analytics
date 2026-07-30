@@ -38,7 +38,7 @@ export default function DataTab() {
           <p className="text-sm text-foreground">
             Visualização completa dos dados utilizados nos cálculos do dashboard.
             <span className="ml-1 text-muted-foreground">
-              Marca: <strong className="text-foreground">{brand === 'combined' ? 'Combined' : brand}</strong> ·
+              Marca: <strong className="text-foreground">{brand === 'combined' ? 'Combinado' : brand}</strong> ·
               Registros: <strong className="text-foreground">{allMonthsData.length}</strong>
             </span>
           </p>
@@ -82,7 +82,7 @@ export default function DataTab() {
                   <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Entradas</th>
                   <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Saídas</th>
                   <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Atrição %</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Female %</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Mulheres %</th>
                   <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Líderes</th>
                   <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Líd. %</th>
                   <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Fem. Líd. %</th>

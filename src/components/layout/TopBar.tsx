@@ -27,15 +27,15 @@ const BRAND_COLORS: Record<string, string> = {
 };
 
 const brands: { label: string; value: BrandType }[] = [
-  { label: 'Combined', value: 'combined' },
+  { label: 'Combinado', value: 'combined' },
   { label: 'NSX', value: 'NSX' },
   { label: 'Betfair BR', value: 'Betfair BR' },
   { label: 'Flutter Intl', value: 'Flutter International' },
 ];
 
 const views: { label: string; value: ViewType }[] = [
-  { label: 'Monthly', value: 'monthly' },
-  { label: 'Quarterly', value: 'quarterly' },
+  { label: 'Mensal', value: 'monthly' },
+  { label: 'Trimestral', value: 'quarterly' },
 ];
 
 export default function TopBar() {
@@ -57,14 +57,14 @@ export default function TopBar() {
         </div>
         <div>
           <div className="text-sm font-bold tracking-tight">Flutter Brazil · People Analytics</div>
-          <div className="text-[11px] text-muted-foreground">NSX + Betfair · Monthly HR Dashboard</div>
+          <div className="text-[11px] text-muted-foreground">NSX + Betfair · Dashboard mensal de RH</div>
         </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
         {/* Brand toggle */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden md:inline">Brand</span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden md:inline">Marca</span>
           <div className="flex border border-border rounded-md overflow-hidden">
             {brands.map(b => (
               <button
@@ -106,7 +106,7 @@ export default function TopBar() {
 
         {/* View toggle */}
         <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden md:inline">View</span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden md:inline">Visão</span>
           <div className="flex border border-border rounded-md overflow-hidden">
             {views.map(v => (
               <button

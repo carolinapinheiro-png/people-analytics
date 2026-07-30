@@ -22,13 +22,48 @@ const LEVELS = ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9'];
 const RACE_COLORS: Record<string, string> = {
   Branca: '#cbd5e1', Parda: '#c99a6b', Preta: '#5b4636', Amarela: '#e9c46a', Indígena: '#2a9d8f', 'Não informado': '#475569',
 };
-const REGIONS: Record<string, string> = {
-  SP: 'Sudeste', RJ: 'Sudeste', MG: 'Sudeste', ES: 'Sudeste',
-  PR: 'Sul', RS: 'Sul', SC: 'Sul',
-  BA: 'Nordeste', PE: 'Nordeste', CE: 'Nordeste', RN: 'Nordeste', PB: 'Nordeste', AL: 'Nordeste', MA: 'Nordeste', PI: 'Nordeste', SE: 'Nordeste',
-  DF: 'Centro-Oeste', GO: 'Centro-Oeste', MT: 'Centro-Oeste', MS: 'Centro-Oeste',
-  AM: 'Norte', PA: 'Norte', AC: 'Norte', RO: 'Norte', RR: 'Norte', AP: 'Norte', TO: 'Norte',
+// A serie guarda o estado por NOME (ex.: "São Paulo"), nao por sigla. Este mapa
+// resolve nome -> { sigla, regiao }; tambem aceita sigla como entrada (robustez).
+const STATE_INFO: Record<string, { uf: string; region: string }> = {
+  'São Paulo': { uf: 'SP', region: 'Sudeste' },
+  'Rio de Janeiro': { uf: 'RJ', region: 'Sudeste' },
+  'Minas Gerais': { uf: 'MG', region: 'Sudeste' },
+  'Espírito Santo': { uf: 'ES', region: 'Sudeste' },
+  'Paraná': { uf: 'PR', region: 'Sul' },
+  'Rio Grande do Sul': { uf: 'RS', region: 'Sul' },
+  'Santa Catarina': { uf: 'SC', region: 'Sul' },
+  'Bahia': { uf: 'BA', region: 'Nordeste' },
+  'Pernambuco': { uf: 'PE', region: 'Nordeste' },
+  'Ceará': { uf: 'CE', region: 'Nordeste' },
+  'Rio Grande do Norte': { uf: 'RN', region: 'Nordeste' },
+  'Paraíba': { uf: 'PB', region: 'Nordeste' },
+  'Alagoas': { uf: 'AL', region: 'Nordeste' },
+  'Maranhão': { uf: 'MA', region: 'Nordeste' },
+  'Piauí': { uf: 'PI', region: 'Nordeste' },
+  'Sergipe': { uf: 'SE', region: 'Nordeste' },
+  'Distrito Federal': { uf: 'DF', region: 'Centro-Oeste' },
+  'Goiás': { uf: 'GO', region: 'Centro-Oeste' },
+  'Mato Grosso': { uf: 'MT', region: 'Centro-Oeste' },
+  'Mato Grosso do Sul': { uf: 'MS', region: 'Centro-Oeste' },
+  'Amazonas': { uf: 'AM', region: 'Norte' },
+  'Pará': { uf: 'PA', region: 'Norte' },
+  'Acre': { uf: 'AC', region: 'Norte' },
+  'Rondônia': { uf: 'RO', region: 'Norte' },
+  'Roraima': { uf: 'RR', region: 'Norte' },
+  'Amapá': { uf: 'AP', region: 'Norte' },
+  'Tocantins': { uf: 'TO', region: 'Norte' },
 };
+const UF_TO_REGION: Record<string, string> = Object.values(STATE_INFO).reduce(
+  (acc, { uf, region }) => ((acc[uf] = region), acc),
+  {} as Record<string, string>,
+);
+function resolveState(name: string): { uf: string; region: string } {
+  const byName = STATE_INFO[name.trim()];
+  if (byName) return byName;
+  const up = name.trim().toUpperCase();
+  if (UF_TO_REGION[up]) return { uf: up, region: UF_TO_REGION[up] };
+  return { uf: name.length <= 3 ? up : name.slice(0, 3), region: 'Outros' };
+}
 
 const toArr = (o: Record<string, number> | undefined, order?: string[]) => {
   const e = Object.entries(o || {}).map(([name, value]) => ({ name, value }));
@@ -55,10 +90,13 @@ export default function DemographicsTab() {
   const level = LEVELS.map((l) => ({ name: l, value: curr.level_base?.[l] || 0 })).filter((l) => l.value > 0);
   const tenure = toArr(curr.tenure_base, TENURE_ORDER).filter((t) => t.value > 0);
 
-  const states = Object.entries(curr.state_mix || {}).map(([name, v]) => ({ name, value: v })).sort((a, b) => b.value - a.value).slice(0, 10);
+  const states = Object.entries(curr.state_mix || {})
+    .map(([name, v]) => ({ name: resolveState(name).uf, full: name, value: v }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 10);
   const regionMap: Record<string, number> = {};
   Object.entries(curr.state_mix || {}).forEach(([st, v]) => {
-    const reg = REGIONS[st.toUpperCase()] || 'Outros';
+    const reg = resolveState(st).region;
     regionMap[reg] = (regionMap[reg] || 0) + v;
   });
   const regions = Object.entries(regionMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
@@ -72,7 +110,7 @@ export default function DemographicsTab() {
   return (
     <div className="space-y-6">
       <div className="flex gap-5 flex-wrap text-xs text-muted-foreground">
-        <span>Marca: <strong className="text-foreground">{brand === 'combined' ? 'Combined' : brand}</strong></span>
+        <span>Marca: <strong className="text-foreground">{brand === 'combined' ? 'Combinado' : brand}</strong></span>
         <span>Ref: <strong className="text-foreground">{mLabel(currentMonth)}</strong></span>
         <span>Total: <strong className="text-foreground">{hc}</strong></span>
       </div>
@@ -170,8 +208,11 @@ export default function DemographicsTab() {
                 <BarChart data={states} layout="vertical" margin={{ left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} width={44} />
-                  <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={40} />
+                  <Tooltip
+                    contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }}
+                    formatter={(v: number, _n: string, item: any) => [`${v} · ${pctOf(v, hc).toFixed(0)}%`, item.payload.full]}
+                  />
                   <Bar dataKey="value" name="Pessoas" fill={brandColor} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>

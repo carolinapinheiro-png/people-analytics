@@ -42,7 +42,7 @@ export default function DEITab() {
 
   const kpis = [
     {
-      label: 'Female % Overall',
+      label: 'Mulheres — Geral',
       value: (curr.gender_female_pct || 0) + '%',
       color: COLORS.female,
       sub: fpDelta >= 0
@@ -50,7 +50,7 @@ export default function DEITab() {
         : `<span style="color:#ef5350">${fpDelta.toFixed(1)}pp</span> vs mês ant.`
     },
     {
-      label: 'Female % Liderança',
+      label: 'Mulheres na liderança',
       value: (curr.leader_female_pct || 0) + '%',
       color: COLORS.purple,
       sub: lpDelta >= 0
@@ -84,13 +84,13 @@ export default function DEITab() {
   }));
 
   const genderDonut = [
-    { name: 'Female', value: curr.gender_female || 0 },
-    { name: 'Male', value: curr.gender_male || 0 },
+    { name: 'Mulheres', value: curr.gender_female || 0 },
+    { name: 'Homens', value: curr.gender_male || 0 },
   ];
 
   const leaderDonut = [
-    { name: 'Female', value: curr.leader_female || 0 },
-    { name: 'Male', value: (curr.leaders || 0) - (curr.leader_female || 0) },
+    { name: 'Mulheres', value: curr.leader_female || 0 },
+    { name: 'Homens', value: (curr.leaders || 0) - (curr.leader_female || 0) },
   ];
 
   // Senioridade (nivel L0..L9) DA EPOCA: distribuicao reconstruida (âncora no
@@ -131,6 +131,10 @@ export default function DEITab() {
       <div className="flex gap-5 flex-wrap text-xs text-muted-foreground">
         <span>Ref: <strong className="text-foreground">{mLabel(currentMonth)}</strong></span>
       </div>
+      <p className="text-xs text-muted-foreground -mt-2">
+        <strong>Líder</strong> = colaborador marcado como liderança no cadastro (campo &quot;Liderança?&quot;),
+        reconstruído pelo cargo da época — não é por nível nem por nº de reportes diretos.
+      </p>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -139,7 +143,7 @@ export default function DEITab() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Evolução Female %" subtitle="Overall vs Liderança">
+        <ChartCard title="Evolução de mulheres (%)" subtitle="Geral vs Liderança">
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={genderTrend}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -161,15 +165,15 @@ export default function DEITab() {
               <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
               <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Bar dataKey="female" name="Female" stackId="a" fill={COLORS.female} />
-              <Bar dataKey="male" name="Male" stackId="a" fill="#42a5f5" />
+              <Bar dataKey="female" name="Mulheres" stackId="a" fill={COLORS.female} />
+              <Bar dataKey="male" name="Homens" stackId="a" fill="#42a5f5" />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ChartCard title="Gender Mix — Overall" subtitle={`${curr.gender_female || 0} / ${curr.headcount || 0}`}>
+        <ChartCard title="Gênero — Geral" subtitle={`${curr.gender_female || 0} / ${curr.headcount || 0}`}>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie data={genderDonut} innerRadius={50} outerRadius={70} dataKey="value" strokeWidth={0}>
@@ -185,7 +189,7 @@ export default function DEITab() {
           </div>
         </ChartCard>
 
-        <ChartCard title="Gender Mix — Liderança" subtitle={`${curr.leader_female || 0} / ${curr.leaders || 0}`}>
+        <ChartCard title="Gênero — Liderança" subtitle={`${curr.leader_female || 0} / ${curr.leaders || 0}`}>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie data={leaderDonut} innerRadius={50} outerRadius={70} dataKey="value" strokeWidth={0}>
@@ -285,19 +289,19 @@ export default function DEITab() {
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Female %</span>
+                  <span className="text-muted-foreground">Mulheres %</span>
                   <span className="font-bold text-pink-400">{curr.gender_female_pct}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Male %</span>
+                  <span className="text-muted-foreground">Homens %</span>
                   <span className="font-bold text-blue-400">{(100 - (curr.gender_female_pct || 0)).toFixed(1)}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Total Female</span>
+                  <span className="text-muted-foreground">Total mulheres</span>
                   <span className="font-bold">{curr.gender_female || 0}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Total Male</span>
+                  <span className="text-muted-foreground">Total homens</span>
                   <span className="font-bold">{curr.gender_male || 0}</span>
                 </div>
               </div>
@@ -310,15 +314,15 @@ export default function DEITab() {
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Female % Liderança</span>
+                  <span className="text-muted-foreground">Mulheres na liderança</span>
                   <span className="font-bold text-purple-400">{curr.leader_female_pct}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Líderes Female</span>
+                  <span className="text-muted-foreground">Líderes mulheres</span>
                   <span className="font-bold">{curr.leader_female || 0}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Líderes Male</span>
+                  <span className="text-muted-foreground">Líderes homens</span>
                   <span className="font-bold">{(curr.leaders || 0) - (curr.leader_female || 0)}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">

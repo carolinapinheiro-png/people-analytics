@@ -74,7 +74,7 @@ export default function UnwantedTab() {
   const curr = currentData;
 
   const brandColor = brand === 'NSX' ? COLORS.nsx : brand === 'Betfair BR' ? COLORS.betfair : COLORS.flutter;
-  const brandLabel = brand === 'combined' ? 'Combined' : brand;
+  const brandLabel = brand === 'combined' ? 'Combinado' : brand;
 
   // Filter real leavers data
   const filteredLeavers = leavers.filter(r => {
