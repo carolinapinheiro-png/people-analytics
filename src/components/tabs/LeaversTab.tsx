@@ -21,7 +21,9 @@ import {
   BarChart3,
   Search,
 } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useServerFn } from '@tanstack/react-start';
+import { getCompAggregates, type CompAggregates } from '@/lib/comp.functions';
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -69,6 +71,22 @@ export default function LeaversTab() {
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Ativos por faixa salarial (snapshot atual, agregado leve) -> denominador da
+  // taxa de atricao por faixa (#23). Company-wide, coerente com a lista de
+  // desligados (que nao e por marca).
+  const [comp, setComp] = useState<CompAggregates | null>(null);
+  const fetchComp = useServerFn(getCompAggregates);
+  useEffect(() => {
+    let cancelled = false;
+    fetchComp().then((d) => { if (!cancelled) setComp(d as CompAggregates); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [fetchComp]);
+  const activeByBand = useMemo(() => {
+    const acc: Record<string, number> = {};
+    comp?.bands.forEach((b) => { acc[b.band] = (acc[b.band] ?? 0) + b.n; });
+    return acc;
+  }, [comp]);
+
   const filteredLeavers = useMemo(() => {
     return leavers.filter(r => {
       if (activeYear && !(r.mes_desligamento || '').startsWith(activeYear)) return false;
@@ -107,7 +125,10 @@ export default function LeaversTab() {
   const addShare = (rows: { name: string; value: number }[]) =>
     rows.map(d => ({ ...d, pctTot: pctTot(d.value) }));
 
-  const salaryBandData = addShare(countBy(filteredLeavers, 'faixa_salarial', SALARY_BAND_ORDER));
+  const salaryBandData = countBy(filteredLeavers, 'faixa_salarial', SALARY_BAND_ORDER).map((d) => {
+    const hc = activeByBand[d.name] ?? 0;
+    return { ...d, pctTot: pctTot(d.value), hc, pctHC: hc > 0 ? (d.value / hc) * 100 : null };
+  });
   const tenureData = addShare(countBy(filteredLeavers, 'tempo_casa_faixa', TENURE_ORDER));
   const levelData = countBy(filteredLeavers, 'level', LEVEL_ORDER).map(d => {
     const hc = levelHC[d.name] ?? 0;
@@ -178,7 +199,7 @@ export default function LeaversTab() {
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Desligamentos por Faixa Salarial" subtitle="Distribuição real dos salários">
+        <ChartCard title="Desligamentos por Faixa Salarial" subtitle="Absoluto · no tooltip, taxa sobre os ativos da faixa">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={salaryBandData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -186,7 +207,15 @@ export default function LeaversTab() {
               <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
               <Tooltip
                 contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number, _n: string, item: any) => [`${value} · ${item.payload.pctTot.toFixed(0)}% do total`, 'Desligados']}
+                formatter={(value: number, _n: string, item: any) => {
+                  const p = item.payload;
+                  return [
+                    p.pctHC != null
+                      ? `${value} · ${p.pctHC.toFixed(1)}% dos ${p.hc} ativos na faixa`
+                      : `${value} · ${p.pctTot.toFixed(0)}% do total`,
+                    'Desligados',
+                  ];
+                }}
               />
               <Bar dataKey="value" name="Desligados" fill={brandColor} radius={[4, 4, 0, 0]} />
             </BarChart>

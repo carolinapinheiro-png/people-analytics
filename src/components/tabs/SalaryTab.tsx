@@ -95,6 +95,42 @@ export default function SalaryTab() {
       .sort((a, b) => (b.cr ?? 0) - (a.cr ?? 0));
   }, [comp, brand]);
 
+  // Bandas de senioridade (#13 da revisao do Caio): agrupa niveis em faixas
+  // nao-sobrepostas, com comp-ratio e salario medios. O split lider/IC dentro
+  // do nivel precisaria da flag de lideranca (nao esta no comp agregado).
+  const SENIORITY_BANDS: Array<{ label: string; levels: number[] }> = [
+    { label: 'Júnior (L0–L2)', levels: [0, 1, 2] },
+    { label: 'Pleno (L3–L4)', levels: [3, 4] },
+    { label: 'Sênior (L5–L6)', levels: [5, 6] },
+    { label: 'Liderança/C-level (L7+)', levels: [7, 8, 9] },
+  ];
+  const levelBands = useMemo(() => {
+    if (!comp) return null;
+    const set = new Set(BRAND_COMPANIES[brand] ?? BRAND_COMPANIES.combined);
+    const bandOf = (lvl: string) => {
+      const m = lvl.toUpperCase().match(/L?(\d+)/);
+      const n = m ? Number(m[1]) : null;
+      return n == null ? null : SENIORITY_BANDS.find((b) => b.levels.includes(n))?.label ?? null;
+    };
+    const acc: Record<string, { n: number; crSum: number; crN: number; salSum: number; salN: number }> = {};
+    comp.levels.forEach((l) => {
+      if (!set.has(l.company)) return;
+      const band = bandOf(l.level);
+      if (!band) return;
+      const x = (acc[band] = acc[band] ?? { n: 0, crSum: 0, crN: 0, salSum: 0, salN: 0 });
+      x.n += l.n; x.crSum += l.cr_sum; x.crN += l.cr_n; x.salSum += l.sal_sum; x.salN += l.sal_n;
+    });
+    return SENIORITY_BANDS.map((b) => {
+      const v = acc[b.label];
+      return {
+        band: b.label,
+        n: v?.n ?? 0,
+        cr: v && v.n >= 3 && v.crN ? Math.round((v.crSum / v.crN) * 10) / 10 : null,
+        sal: v && v.n >= 3 && v.salN ? Math.round(v.salSum / v.salN) : null,
+      };
+    }).filter((r) => r.n > 0);
+  }, [comp, brand]);
+
   const leaders = curr.leaders || 0;
   const nonLeaders = Math.max(0, (curr.headcount || 0) - leaders);
   const totalCost = calcTotalCost(curr);
@@ -244,6 +280,37 @@ export default function SalaryTab() {
           )}
         </ChartCard>
       </div>
+
+      {/* Bandas de senioridade (#13) */}
+      {levelBands && levelBands.length > 0 && (
+        <ChartCard title="Comp-ratio e salário por banda de senioridade" subtitle="Quadro atual · faixas de nível (n≥3)">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-muted-foreground">
+                <tr className="border-b border-border text-left">
+                  <th className="p-2">Banda</th>
+                  <th className="p-2 text-right">Pessoas</th>
+                  <th className="p-2 text-right">Comp-ratio médio</th>
+                  <th className="p-2 text-right">Salário médio</th>
+                </tr>
+              </thead>
+              <tbody>
+                {levelBands.map((b) => (
+                  <tr key={b.band} className="border-b border-border/50">
+                    <td className="p-2 font-medium">{b.band}</td>
+                    <td className="p-2 text-right tabular-nums">{b.n}</td>
+                    <td className="p-2 text-right tabular-nums font-semibold">{b.cr != null ? `${b.cr}%` : '—'}</td>
+                    <td className="p-2 text-right tabular-nums">{b.sal != null ? fmtC(b.sal) : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Faixas não sobrepostas por nível. O split líder × IC dentro do nível (ex.: L4) depende da flag de liderança, que não está no agregado de comp — fica para uma próxima iteração.
+          </p>
+        </ChartCard>
+      )}
 
       {/* Detailed Analysis */}
       <Card className="border-l-4 bg-card/50" style={{ borderLeftColor: brandColor }}>

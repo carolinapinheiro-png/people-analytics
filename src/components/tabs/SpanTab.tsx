@@ -42,6 +42,17 @@ export default function SpanTab() {
   const dist = rows.filter((r) => r.scope_type === 'distribution');
   const distMax = Math.max(...dist.map((d) => d.managers ?? 0), 1);
 
+  // Total de gestores e faixa onde cai a mediana (aproximada da distribuicao,
+  // ja que a serie nao guarda reports por gestor individual).
+  const totalMgr = dist.reduce((s, d) => s + (d.managers ?? 0), 0) || (overall?.managers ?? 0);
+  let cum = 0;
+  let medianBucket = '';
+  for (const d of dist) {
+    cum += d.managers ?? 0;
+    if (cum >= totalMgr / 2) { medianBucket = d.scope; break; }
+  }
+  const pctMgr = (n: number | null) => (totalMgr > 0 ? ((n ?? 0) / totalMgr) * 100 : 0);
+
   return (
     <div className="space-y-4">
       <div>
@@ -78,13 +89,13 @@ export default function SpanTab() {
       </ChartCard>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <ChartCard title="Distribuição do tamanho de time" subtitle="quantos gestores por faixa" icon={UserCog}>
+        <ChartCard title="Distribuição do tamanho de time" subtitle={`gestores por faixa · mediana na faixa ${medianBucket || '—'}`} icon={UserCog}>
           <div className="space-y-2 pt-1">
             {dist.map((d) => (
               <div key={d.scope} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">{d.scope}</span>
-                  <span className="font-semibold tabular-nums">{d.managers} gestores</span>
+                  <span className="font-semibold tabular-nums">{d.managers} · {pctMgr(d.managers).toFixed(0)}%</span>
                 </div>
                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${((d.managers ?? 0) / distMax) * 100}%`, background: COLORS.flutter }} />
@@ -92,6 +103,10 @@ export default function SpanTab() {
               </div>
             ))}
           </div>
+          <p className="text-[11px] text-muted-foreground mt-2">
+            % sobre {totalMgr} gestores. Faixa desejável a definir com HR e as áreas — exceções podem
+            ser justificadas pelo desenho operacional.
+          </p>
         </ChartCard>
 
         <ChartCard title="Detalhe por departamento" icon={Network}>
