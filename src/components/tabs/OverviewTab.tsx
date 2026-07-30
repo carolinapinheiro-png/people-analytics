@@ -131,6 +131,14 @@ export default function OverviewTab() {
   const attritionYoY = yearlyStats.length > 1 ? yearlyStats[yearlyStats.length - 1].avgAttr - yearlyStats[yearlyStats.length - 2].avgAttr : null;
   const totalPromoPeriod = allMonthsData.reduce((s, d) => s + (d.promotions || 0), 0);
 
+  // Acumulado do periodo (pergunta da Carolina): total de saidas/entradas do
+  // periodo sobre o HC medio -- diferente da media das taxas mensais.
+  const totalLeaversPeriod = allMonthsData.reduce((s, d) => s + (d.leavers || 0), 0);
+  const totalJoinersPeriod = allMonthsData.reduce((s, d) => s + (d.joiners || 0), 0);
+  const avgHcPeriod = allMonthsData.length ? allMonthsData.reduce((s, d) => s + (d.headcount || 0), 0) / allMonthsData.length : 0;
+  const attritionAccum = avgHcPeriod > 0 ? (totalLeaversPeriod / avgHcPeriod) * 100 : 0;
+  const turnoverAccum = avgHcPeriod > 0 ? ((totalJoinersPeriod + totalLeaversPeriod) / 2 / avgHcPeriod) * 100 : 0;
+
   // Calculate narrative metrics
   const netGrowth = (curr.joiners || 0) - (curr.leavers || 0);
   const growthTrend = netGrowth > 0 ? 'positive' : netGrowth < 0 ? 'negative' : 'neutral';
@@ -316,14 +324,25 @@ export default function OverviewTab() {
             trendDirection={hcGrowthPct >= 0 ? 'up' : 'down'}
           />
           <StoryMetric
-            label="Atrição média"
-            value={`${avgAttrition.toFixed(1)}%`}
-            subtext={attritionYoY != null ? `${attritionYoY >= 0 ? '+' : ''}${attritionYoY.toFixed(1)}pp YoY` : 'no período'}
+            label="Atrição acumulada"
+            value={`${attritionAccum.toFixed(1)}%`}
+            subtext={`${totalLeaversPeriod} saídas · média mensal ${avgAttrition.toFixed(1)}%`}
             trendDirection={attritionYoY != null ? (attritionYoY <= 0 ? 'up' : 'down') : 'neutral'}
           />
-          <StoryMetric label="Turnover médio" value={`${avgTurnover.toFixed(1)}%`} subtext="no período" />
+          <StoryMetric
+            label="Turnover acumulado"
+            value={`${turnoverAccum.toFixed(1)}%`}
+            subtext={`${totalJoinersPeriod} entradas / ${totalLeaversPeriod} saídas · média mensal ${avgTurnover.toFixed(1)}%`}
+          />
           <StoryMetric label="Promoções no período" value={String(totalPromoPeriod)} subtext="acumulado" />
         </div>
+        <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
+          <strong>Como é calculado.</strong> <em>Atrição acumulada</em> = total de saídas do período ÷ HC médio do período.
+          <em> Turnover acumulado</em> = (entradas + saídas) ÷ 2 ÷ HC médio. A <em>média mensal</em> é a média das taxas de cada mês —
+          útil para o ritmo recorrente, enquanto o acumulado mostra o total do período selecionado. A atrição{' '}
+          <em>não desejada</em> (estimativa de 65% das saídas, ainda sem classificação real na origem) fica detalhada na aba{' '}
+          <strong>Atrição &amp; Desligamentos</strong>.
+        </p>
         {yearlyStats.length > 1 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
             {yearlyStats.map((s) => (

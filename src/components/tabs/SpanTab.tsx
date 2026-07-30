@@ -17,7 +17,9 @@ import { COLORS } from '@/lib/colors';
 const fmt1 = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 
-// cor por span: muito alto (>8) alerta, muito baixo (<3) atencao, saudavel verde
+// Referencia (nao meta), decisao Carolina (30/07): ate ~8 reports e considerado
+// saudavel; times operacionais/repetitivos podem acumular mais de forma saudavel.
+// A cor e so um sinalizador visual para olhar, nunca um alvo.
 const spanColor = (s: number | null) =>
   s == null ? COLORS.info : s > 8 ? COLORS.warning : s < 3 ? COLORS.info : COLORS.success;
 
@@ -112,8 +114,9 @@ export default function SpanTab() {
             ))}
           </div>
           <p className="text-[11px] text-muted-foreground mt-2">
-            % sobre {totalMgr} gestores. Faixa desejável a definir com HR e as áreas — exceções podem
-            ser justificadas pelo desenho operacional.
+            % sobre {totalMgr} gestores. <strong>Até ~8 reports é uma referência de span saudável — não
+            uma meta.</strong> Times com trabalho mais operacional e repetitivo podem acumular mais reports
+            de forma saudável; a cor é só um sinalizador para olhar, não um alvo.
           </p>
         </ChartCard>
 

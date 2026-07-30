@@ -67,7 +67,7 @@ function avgTenureMonths(records: LeaverRecord[]): number {
 export default function LeaversTab() {
   // Filtro de ano agora e GLOBAL (TopBar). Aqui so consumimos activeYear para
   // filtrar os desligados individuais pelo mes de desligamento.
-  const { leavers, filters, brand, currentMonth, currentData, activeYear } = useDashboard();
+  const { leavers, filters, brand, currentMonth, currentData, activeYear, allMonthsData } = useDashboard();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -156,8 +156,18 @@ export default function LeaversTab() {
       .sort((a, b) => a.month.localeCompare(b.month));
   }, [filteredLeavers]);
 
+  // Taxa de atricao ACUMULADA do periodo (pergunta da Carolina): total de saidas
+  // da serie ÷ HC medio do periodo -- distinta da media das taxas mensais. Usa a
+  // serie mensal (allMonthsData, ja filtrada por activeYear no contexto).
+  const seriesLeavers = allMonthsData.reduce((s, d) => s + (d.leavers || 0), 0);
+  const avgHcPeriod = allMonthsData.length
+    ? allMonthsData.reduce((s, d) => s + (d.headcount || 0), 0) / allMonthsData.length
+    : 0;
+  const accAttrition = avgHcPeriod > 0 ? (seriesLeavers / avgHcPeriod) * 100 : 0;
+
   const kpis = [
     { label: 'Total Desligados', value: fmt(totalLeavers), color: COLORS.danger, icon: UserX, sub: activeYear ? `acumulado ${activeYear}` : 'todos os anos' },
+    { label: 'Atrição acumulada', value: `${accAttrition.toFixed(1)}%`, color: COLORS.orange, icon: TrendingUp, sub: `${seriesLeavers} saídas ÷ HC médio ${Math.round(avgHcPeriod)}` },
     { label: 'Voluntários', value: `${fmt(voluntary)} (${pctTot(voluntary).toFixed(0)}%)`, color: COLORS.info, icon: LogOut },
     { label: 'Involuntários', value: `${fmt(involuntary)} (${pctTot(involuntary).toFixed(0)}%)`, color: COLORS.orange, icon: AlertTriangle },
     { label: 'Tempo Médio de Casa', value: `${avgTenure.toFixed(1)}m`, color: COLORS.nsx, icon: Clock },
@@ -191,7 +201,7 @@ export default function LeaversTab() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {kpis.map((kpi, idx) => (
           <KpiCard key={idx} {...kpi} />
         ))}
