@@ -170,7 +170,7 @@ export default function DemographicsTab() {
       {/* Modelo de trabalho (company-wide, Talent Mobility) */}
       {wmTotal > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ChartCard title="Modelo de trabalho" subtitle={`${wmTotal} ativos · ${wmRemotoPct.toFixed(0)}% remoto`} icon={Laptop}>
+          <ChartCard title="Modelo de trabalho" subtitle={`Retrato atual · ${wmTotal} ativos · ${wmRemotoPct.toFixed(0)}% remoto`} icon={Laptop}>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={wmOverall} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2}>
@@ -181,7 +181,9 @@ export default function DemographicsTab() {
               </PieChart>
             </ResponsiveContainer>
             <p className="text-[11px] text-muted-foreground mt-1">
-              Fonte: Talent Mobility (coluna "Modelo de Jornada de Trabalho"). "Remoto" agrupa com e sem registro de ponto.
+              <strong>Foto retroativa</strong> (retrato de jul/2026, consolidado — todas as marcas): não há série histórica de
+              modelo de trabalho, então este retrato único vale para todo o período, sem variar com o filtro de ano/mês.
+              Fonte: Talent Mobility ("Modelo de Jornada de Trabalho"); "Remoto" agrupa com e sem registro de ponto.
             </p>
           </ChartCard>
 
