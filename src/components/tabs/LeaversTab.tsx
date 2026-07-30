@@ -63,19 +63,11 @@ function avgTenureMonths(records: LeaverRecord[]): number {
 }
 
 export default function LeaversTab() {
-  const { leavers, filters, brand, currentMonth, currentData } = useDashboard();
+  // Filtro de ano agora e GLOBAL (TopBar). Aqui so consumimos activeYear para
+  // filtrar os desligados individuais pelo mes de desligamento.
+  const { leavers, filters, brand, currentMonth, currentData, activeYear } = useDashboard();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const [searchTerm, setSearchTerm] = useState('');
-
-  // Anos disponiveis nos dados; padrao = ano corrente (concentra no ano, decisao
-  // da diretora). "Todos" mostra a serie inteira.
-  const years = useMemo(() => {
-    const s = new Set<string>();
-    leavers.forEach(r => { const y = (r.mes_desligamento || '').slice(0, 4); if (y) s.add(y); });
-    return [...s].sort();
-  }, [leavers]);
-  const [yearFilter, setYearFilter] = useState<string>('atual');
-  const activeYear = yearFilter === 'atual' ? (years[years.length - 1] ?? '') : yearFilter === 'Todos' ? '' : yearFilter;
 
   const filteredLeavers = useMemo(() => {
     return leavers.filter(r => {
@@ -160,26 +152,9 @@ export default function LeaversTab() {
             Análise de Desligamentos
           </h2>
           <p className="text-sm text-slate-400 mt-1">
-            {totalLeavers} desligamentos{activeYear ? ` em ${activeYear}` : ' (todos os anos)'} · dados reais
+            {totalLeavers} desligamentos{activeYear ? ` em ${activeYear}` : ' (todos os anos)'} · dados reais ·
+            {' '}filtro de ano no topo
           </p>
-          <div className="flex items-center gap-1.5 mt-2">
-            {[{ k: 'atual', label: `Ano atual (${years[years.length - 1] ?? '—'})` }, ...years.map(y => ({ k: y, label: y })), { k: 'Todos', label: 'Todos' }]
-              .filter((o, i, arr) => arr.findIndex(x => x.k === o.k) === i)
-              .map(o => (
-                <button
-                  key={o.k}
-                  onClick={() => setYearFilter(o.k)}
-                  className={`text-xs px-2.5 py-1 rounded border transition-colors ${
-                    yearFilter === o.k
-                      ? 'text-slate-100 border-transparent'
-                      : 'text-slate-400 border-border hover:text-slate-200'
-                  }`}
-                  style={yearFilter === o.k ? { background: brandColor } : undefined}
-                >
-                  {o.label}
-                </button>
-              ))}
-          </div>
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />

@@ -38,8 +38,15 @@ const views: { label: string; value: ViewType }[] = [
 ];
 
 export default function TopBar() {
-  const { brand, setBrand, view, setView, currentMonthIdx, setCurrentMonthIdx, monthsOrder, currentMonth } = useDashboard();
+  const { brand, setBrand, view, setView, currentMonthIdx, setCurrentMonthIdx, monthsOrder, currentMonth,
+    yearFilter, setYearFilter, availableYears } = useDashboard();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
+  const latestYear = availableYears[availableYears.length - 1] ?? '';
+  const yearOptions: { k: string; label: string }[] = [
+    { k: 'atual', label: `Ano atual${latestYear ? ` (${latestYear})` : ''}` },
+    ...availableYears.map((y) => ({ k: y, label: y })),
+    { k: 'Todos', label: 'Todos' },
+  ];
 
   return (
     <header className="bg-card border-b border-border px-4 md:px-7 py-3 flex items-center justify-between sticky top-0 z-50">
@@ -71,6 +78,26 @@ export default function TopBar() {
                 style={brand === b.value ? { backgroundColor: brandColor } : undefined}
               >
                 {b.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Year toggle (global) */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden md:inline">Ano</span>
+          <div className="flex border border-border rounded-md overflow-hidden">
+            {yearOptions.map((y) => (
+              <button
+                key={y.k}
+                onClick={() => setYearFilter(y.k)}
+                className={cn(
+                  'px-3 py-1.5 text-[11px] font-semibold transition-all',
+                  yearFilter === y.k ? 'text-white' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                )}
+                style={yearFilter === y.k ? { backgroundColor: brandColor } : undefined}
+              >
+                {y.label}
               </button>
             ))}
           </div>

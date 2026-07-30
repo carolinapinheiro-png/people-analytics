@@ -37,6 +37,13 @@ interface DashboardState {
   setView: (v: ViewType) => void;
   filters: Filters;
   setFilters: (f: Filters) => void;
+  /** Filtro de ano global: 'atual' (ano mais recente), 'Todos', ou 'AAAA'. */
+  yearFilter: string;
+  setYearFilter: (y: string) => void;
+  /** Anos presentes na serie (para montar o seletor). */
+  availableYears: string[];
+  /** Ano em escopo hoje (null = Todos). Util para filtrar dados individuais. */
+  activeYear: string | null;
   monthsOrder: string[];
   currentMonth: string;
   currentData: MonthRecord;
@@ -194,23 +201,43 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     );
   }, [scopedDepartments]);
 
-  const monthsOrder = useMemo(() => getMonthsOrder(data), [data]);
+  const monthsOrderAll = useMemo(() => getMonthsOrder(data), [data]);
+  const availableYears = useMemo(
+    () => [...new Set(monthsOrderAll.map((m) => m.slice(0, 4)))].sort(),
+    [monthsOrderAll],
+  );
+  const [yearFilter, setYearFilter] = useState<string>('atual');
+  const activeYear =
+    yearFilter === 'Todos'
+      ? null
+      : yearFilter === 'atual'
+        ? (availableYears[availableYears.length - 1] ?? null)
+        : yearFilter;
+
+  // Filtro de ano global: restringe a serie ao ano escolhido (mes atual passa a
+  // ser o mais recente daquele ano; historico so daquele ano). "Todos" = tudo.
+  const monthsOrder = useMemo(
+    () => (activeYear ? monthsOrderAll.filter((m) => m.startsWith(activeYear)) : monthsOrderAll),
+    [monthsOrderAll, activeYear],
+  );
   const [currentMonthIdx, setCurrentMonthIdx] = useState(0);
 
-  // Os dados chegam de forma assincrona (banco). Quando a lista de meses muda
-  // (carga inicial), aponta para o mes mais recente.
+  // Quando a lista de meses em escopo muda (carga inicial ou troca de ano),
+  // aponta para o mes mais recente do escopo.
   useEffect(() => {
     if (monthsOrder.length > 0) setCurrentMonthIdx(monthsOrder.length - 1);
-  }, [monthsOrder.length]);
+  }, [monthsOrder.length, activeYear]);
 
-  const currentMonth = monthsOrder[currentMonthIdx] || '';
+  const currentMonth = monthsOrder[currentMonthIdx] || monthsOrder[monthsOrder.length - 1] || '';
   const filteredDeptKey = filters.departamento !== 'Todos' ? filters.departamento : null;
 
-  // Get monthly data first
+  // Get monthly data first (ja restrito ao ano em escopo).
   const monthlyAllData = useMemo(() => {
-    const raw = getAllMonthsForBrand(data, brand);
+    const raw = getAllMonthsForBrand(data, brand).filter(
+      (r) => !activeYear || r.month.startsWith(activeYear),
+    );
     return filteredDeptKey ? raw.map(r => applyDeptFilter(r, filteredDeptKey)) : raw;
-  }, [data, brand, filteredDeptKey]);
+  }, [data, brand, filteredDeptKey, activeYear]);
 
   // Aggregate to quarterly if needed
   const allMonthsData = useMemo(() => {
@@ -259,6 +286,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     <DashboardContext.Provider value={{
       data, leavers, brand, setBrand, currentMonthIdx, setCurrentMonthIdx,
       activeTab, setActiveTab, view, setView, filters, setFilters,
+      yearFilter, setYearFilter, availableYears, activeYear,
       monthsOrder, currentMonth, currentData, prevData, allMonthsData,
       filteredDeptKey, dataLoading, dataError,
       leaversLoading, leaversError, reloadLeavers,
