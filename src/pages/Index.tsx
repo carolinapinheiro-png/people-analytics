@@ -11,6 +11,7 @@ import DemographicsTab from '@/components/tabs/DemographicsTab';
 import EngagementTab from '@/components/tabs/EngagementTab';
 import SpanTab from '@/components/tabs/SpanTab';
 import AttritionTab from '@/components/tabs/AttritionTab';
+import ProfileTab from '@/components/tabs/ProfileTab';
 import DataTab from '@/components/tabs/DataTab';
 
 /**
@@ -88,6 +89,7 @@ function DashboardContent() {
         {activeTab === 'engagement' && <EngagementTab />}
         {activeTab === 'span' && <SpanTab />}
         {activeTab === 'attrition' && <LeaversGate><AttritionTab /></LeaversGate>}
+        {activeTab === 'individual' && <ProfileTab />}
         {activeTab === 'data' && <DataTab />}
       </main>
     </div>

@@ -183,6 +183,186 @@ export function salaryBand(salary: number | null): string {
   return '50k+';
 }
 
+/**
+ * Perfil individual do colaborador (pergunta da Marilia, decisoes 30/07):
+ *  - Remuneracao: SO faixa + comp-ratio. Nunca o valor nominal.
+ *  - Acesso: todos os usuarios logados (allowed_emails). Ainda assim cada
+ *    consulta e REGISTRADA em comp_ratio_access_log -- mesma protecao dos
+ *    demais dados individuais.
+ *  - Conteudo: admissao/tempo de casa, ultima promocao, nivel/senioridade e
+ *    comparacao com o cohort (mesmo nivel e mesma area).
+ */
+export interface EmployeeSearchResult {
+  id: string;
+  name: string;
+  area: string | null;
+  level: string | null;
+  job_title: string | null;
+}
+
+export interface CohortStat {
+  n: number;
+  med_cr: number | null;
+  med_tenure_months: number | null;
+}
+
+export interface EmployeeProfile {
+  id: string;
+  name: string;
+  company: string | null;
+  area: string | null;
+  team: string | null;
+  job_title: string | null;
+  level: string | null;
+  contract: string | null;
+  hire: string | null;
+  tenure_months: number | null;
+  last_promotion: string | null;
+  months_since_promotion: number | null;
+  band: string;
+  comp_ratio: number | null;
+  quartile: string | null;
+  /** Posicao do comp-ratio da pessoa dentro do nivel (0..100). */
+  cr_percentile_level: number | null;
+  cohort_level: CohortStat;
+  cohort_area: CohortStat;
+}
+
+/** Converte "DD/MM/YY" (formato do Convenia) em meses ate hoje. */
+function tenureMonthsFrom(dateStr: string | null | undefined): number | null {
+  if (!dateStr) return null;
+  const m = String(dateStr).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (!m) return null;
+  const dd = Number(m[1]);
+  const mm = Number(m[2]);
+  let yy = Number(m[3]);
+  if (yy < 100) yy += 2000;
+  const from = new Date(yy, mm - 1, dd);
+  if (isNaN(from.getTime())) return null;
+  const now = new Date();
+  const months = (now.getFullYear() - from.getFullYear()) * 12 + (now.getMonth() - from.getMonth());
+  return Math.max(0, months);
+}
+
+/** Meses desde uma data ISO (last_promotion e date -> "YYYY-MM-DD"). */
+function monthsSinceIso(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const now = new Date();
+  const months = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+  return Math.max(0, months);
+}
+
+const SearchInput = z.object({ query: z.string().max(80) });
+
+export const searchEmployees = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => SearchInput.parse(input))
+  .handler(async ({ context, data }): Promise<EmployeeSearchResult[]> => {
+    const { email, scope } = await authorize(context.claims.email as string | undefined);
+    const q = (data.query ?? '').trim();
+    if (q.length < 2) return [];
+
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const db = supabaseAdmin as unknown as UntypedClient;
+
+    const { data: rows, error } = await db
+      .from('comp_ratio')
+      .select('id, name, area, level, job_title')
+      .ilike('name', `%${q}%`)
+      .order('name', { ascending: true })
+      .limit(20);
+    if (error) throw new Error(`Falha na busca: ${error.message}`);
+
+    const scoped = (rows ?? []).filter((r) => isInScope(scope, r.area));
+
+    const { error: logError } = await db.from('comp_ratio_access_log').insert({
+      user_email: email,
+      rows_returned: scoped.length,
+      context: `busca-perfil:${q.slice(0, 40)}`,
+    });
+    if (logError) throw new Error(`Falha ao registrar acesso; busca abortada: ${logError.message}`);
+
+    return scoped as EmployeeSearchResult[];
+  });
+
+const ProfileInput = z.object({ id: z.string().uuid() });
+
+export const getEmployeeProfile = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => ProfileInput.parse(input))
+  .handler(async ({ context, data }): Promise<EmployeeProfile | null> => {
+    const { email, scope } = await authorize(context.claims.email as string | undefined);
+
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const db = supabaseAdmin as unknown as UntypedClient;
+
+    const { data: person, error } = await db
+      .from('comp_ratio')
+      .select('id, company, name, area, team, job_title, level, contract, hire, salary, comp_ratio, quartile, last_promotion')
+      .eq('id', data.id)
+      .maybeSingle();
+    if (error) throw new Error(`Falha ao carregar perfil: ${error.message}`);
+    if (!person || !isInScope(scope, person.area)) {
+      // Loga a tentativa mesmo sem retorno.
+      await db.from('comp_ratio_access_log').insert({
+        user_email: email, rows_returned: 0, context: `perfil:${data.id}`,
+      });
+      return null;
+    }
+
+    // Cohort: mesmo nivel e mesma area (para comparacao relativa).
+    const level = (person.level ?? '').trim();
+    const area = (person.area ?? '').trim();
+    const { data: cohort, error: cErr } = await db
+      .from('comp_ratio')
+      .select('area, level, comp_ratio, hire');
+    if (cErr) throw new Error(`Falha ao carregar cohort: ${cErr.message}`);
+
+    const byLevel = (cohort ?? []).filter((r) => (r.level ?? '').trim() === level && level !== '');
+    const byArea = (cohort ?? []).filter((r) => (r.area ?? '').trim() === area && area !== '');
+
+    const crLevel = byLevel.map((r) => (r.comp_ratio == null ? null : Number(r.comp_ratio))).filter((v): v is number => v != null);
+    const crArea = byArea.map((r) => (r.comp_ratio == null ? null : Number(r.comp_ratio))).filter((v): v is number => v != null);
+    const tenLevel = byLevel.map((r) => tenureMonthsFrom(r.hire)).filter((v): v is number => v != null);
+    const tenArea = byArea.map((r) => tenureMonthsFrom(r.hire)).filter((v): v is number => v != null);
+
+    const myCr = person.comp_ratio == null ? null : Number(person.comp_ratio);
+    const crPct =
+      myCr != null && crLevel.length
+        ? Math.round((crLevel.filter((v) => v <= myCr).length / crLevel.length) * 100)
+        : null;
+
+    const profile: EmployeeProfile = {
+      id: person.id,
+      name: person.name,
+      company: person.company ?? null,
+      area: person.area ?? null,
+      team: person.team ?? null,
+      job_title: person.job_title ?? null,
+      level: person.level ?? null,
+      contract: person.contract ?? null,
+      hire: person.hire ?? null,
+      tenure_months: tenureMonthsFrom(person.hire),
+      last_promotion: person.last_promotion ?? null,
+      months_since_promotion: monthsSinceIso(person.last_promotion),
+      band: salaryBand(person.salary == null ? null : Number(person.salary)),
+      comp_ratio: myCr,
+      quartile: person.quartile ?? null,
+      cr_percentile_level: crPct,
+      cohort_level: { n: byLevel.length, med_cr: median(crLevel), med_tenure_months: median(tenLevel) },
+      cohort_area: { n: byArea.length, med_cr: median(crArea), med_tenure_months: median(tenArea) },
+    };
+
+    const { error: logError } = await db.from('comp_ratio_access_log').insert({
+      user_email: email, rows_returned: 1, context: `perfil:${person.name.slice(0, 40)}`,
+    });
+    if (logError) throw new Error(`Falha ao registrar acesso; consulta abortada: ${logError.message}`);
+
+    return profile;
+  });
+
 export const getCompAggregates = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<CompAggregates> => {
