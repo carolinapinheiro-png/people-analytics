@@ -44,6 +44,8 @@ export interface MonthRecord {
     marital?: Record<string, number>;
     origin?: Record<string, number>;
   };
+  /** Recorte DEI por raca ({ raca: { total, female, leaders, female_leaders } }). */
+  race_cross?: Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
 }
 
 export const RAW_DATA: MonthRecord[] = [

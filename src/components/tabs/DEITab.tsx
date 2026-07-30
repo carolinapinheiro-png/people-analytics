@@ -125,6 +125,21 @@ export default function DEITab() {
     .filter((r) => r.leaders >= 2 && r.area !== 'SEM DEPTO')
     .sort((a, b) => b.pct - a.pct);
 
+  // Recorte de DEI por raca (representatividade + lideranca por raca).
+  const RACE_ORDER = ['Branca', 'Parda', 'Preta', 'Amarela', 'Indígena', 'Não informado'];
+  const raceCross = curr.race_cross || {};
+  const raceRows = Object.entries(raceCross)
+    .map(([race, v]) => ({
+      race,
+      total: v.total,
+      pctQuadro: (curr.headcount || 0) > 0 ? (v.total / (curr.headcount || 1)) * 100 : 0,
+      pctFemale: v.total > 0 ? (v.female / v.total) * 100 : 0,
+      pctLead: v.total > 0 ? (v.leaders / v.total) * 100 : 0,
+    }))
+    .filter((r) => r.total > 0)
+    .sort((a, b) => (RACE_ORDER.indexOf(a.race) - RACE_ORDER.indexOf(b.race)) || b.total - a.total);
+  const hasRaceCross = raceRows.length > 0;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -221,6 +236,40 @@ export default function DEITab() {
               <Bar dataKey="pct" fill={COLORS.female + '99'} stroke={COLORS.female} strokeWidth={1} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </ChartCard>
+      )}
+
+      {/* Recorte por raça (DEI) */}
+      {hasRaceCross && (
+        <ChartCard title="Recorte por raça" subtitle={`${mLabel(currentMonth)} · representatividade e liderança por cor/raça (dado sensível, só agregado)`}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-muted-foreground">
+                <tr className="border-b border-border text-left">
+                  <th className="p-2">Cor / Raça</th>
+                  <th className="p-2 text-right">Pessoas</th>
+                  <th className="p-2 text-right">% do quadro</th>
+                  <th className="p-2 text-right">% mulheres</th>
+                  <th className="p-2 text-right">% em liderança</th>
+                </tr>
+              </thead>
+              <tbody>
+                {raceRows.map((r) => (
+                  <tr key={r.race} className="border-b border-border/50">
+                    <td className="p-2 font-medium">{r.race}</td>
+                    <td className="p-2 text-right tabular-nums">{r.total}</td>
+                    <td className="p-2 text-right tabular-nums">{r.pctQuadro.toFixed(0)}%</td>
+                    <td className="p-2 text-right tabular-nums">{r.pctFemale.toFixed(0)}%</td>
+                    <td className="p-2 text-right tabular-nums font-semibold">{r.pctLead.toFixed(0)}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-2">
+            "% em liderança" = share de cada grupo que está em posição de liderança. Diferenças grandes
+            entre grupos (ex.: Parda vs Branca) apontam onde a representatividade na liderança falta.
+          </p>
         </ChartCard>
       )}
 

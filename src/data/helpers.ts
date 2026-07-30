@@ -114,6 +114,7 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       leader_dept: mergeLeaderDept(n.leader_dept, b.leader_dept, f.leader_dept),
       tenure_base: mergeLevels(n.tenure_base, b.tenure_base, f.tenure_base),
       demographics: mergeDemographics(n.demographics, b.demographics, f.demographics),
+      race_cross: mergeRaceCross(n.race_cross, b.race_cross, f.race_cross),
     };
   }
   return data.find(d => d.month === month && d.brand === brand) || { month } as MonthRecord;
@@ -175,6 +176,25 @@ function mergeDemographics(...bases: Array<Demographics | undefined>): Demograph
         target[k] = (target[k] || 0) + (v || 0);
         any = true;
       }
+    }
+  }
+  return any ? out : undefined;
+}
+
+type RaceCross = Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
+/** Soma o recorte DEI por raca das marcas para a visao combinada. */
+function mergeRaceCross(...bases: Array<RaceCross | undefined>): RaceCross | undefined {
+  const out: RaceCross = {};
+  let any = false;
+  for (const base of bases) {
+    if (!base) continue;
+    for (const [race, v] of Object.entries(base)) {
+      const cur = (out[race] = out[race] || { total: 0, female: 0, leaders: 0, female_leaders: 0 });
+      cur.total += v.total || 0;
+      cur.female += v.female || 0;
+      cur.leaders += v.leaders || 0;
+      cur.female_leaders += v.female_leaders || 0;
+      any = true;
     }
   }
   return any ? out : undefined;

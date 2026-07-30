@@ -250,6 +250,9 @@ export interface MonthAggregate {
     marital: Record<string, number>;
     origin: Record<string, number>;
   };
+  /** Recorte de DEI por raca: { raca: { total, female, leaders, female_leaders } }.
+   *  Lideranca da epoca. Permite % de mulheres e % em lideranca por raca. */
+  race_cross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
 }
 
 /** dd/mm/aaaa ou ISO aaaa-mm-dd -> Date em UTC (evita armadilha de fuso). */
@@ -431,6 +434,20 @@ export function aggregateMonth(
     bump(originMix, (p.origin ?? '').trim() || 'Não informado');
   }
 
+  // Recorte DEI por raca (raca x genero x lideranca da epoca).
+  const raceCross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }> = {};
+  for (const r of recon) {
+    const race = (r.p.race ?? '').trim() || 'Não informado';
+    const x = (raceCross[race] = raceCross[race] ?? { total: 0, female: 0, leaders: 0, female_leaders: 0 });
+    const fem = FEM.has(r.p.gender);
+    x.total++;
+    if (fem) x.female++;
+    if (r.lead) {
+      x.leaders++;
+      if (fem) x.female_leaders++;
+    }
+  }
+
   const deptData: Record<string, DeptAggregate> = {};
   for (const dept of [...new Set(deptRows.map((r) => r.dept))].sort()) {
     const g = deptRows.filter((r) => r.dept === dept);
@@ -480,6 +497,7 @@ export function aggregateMonth(
     leader_dept: leaderDept,
     tenure_base: tenureBase,
     demographics: { age: ageMix, race: raceMix, marital: maritalMix, origin: originMix },
+    race_cross: raceCross,
   };
 }
 

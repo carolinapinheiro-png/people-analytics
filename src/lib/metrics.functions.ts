@@ -88,6 +88,15 @@ const MetricRowSchema = z.object({
     })
     .partial()
     .default({}),
+  /** Recorte DEI por raca ({ raca: { total, female, leaders, female_leaders } }). */
+  race_cross: z
+    .record(z.object({
+      total: z.number().int().nonnegative(),
+      female: z.number().int().nonnegative(),
+      leaders: z.number().int().nonnegative(),
+      female_leaders: z.number().int().nonnegative(),
+    }))
+    .default({}),
 });
 
 const ImportInput = z.object({
@@ -198,6 +207,8 @@ export interface MonthlyMetricRow extends MetricSeriesRow {
     marital?: Record<string, number>;
     origin?: Record<string, number>;
   } | null;
+  /** Recorte DEI por raca. */
+  race_cross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }> | null;
 }
 
 /**
@@ -219,7 +230,7 @@ export const getMonthlyMetrics = createServerFn({ method: 'GET' })
     let q = db
       .from('monthly_metrics')
       .select(
-        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, raise_events, pcd, apprentice, leader_dept, tenure_base, demographics',
+        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, raise_events, pcd, apprentice, leader_dept, tenure_base, demographics, race_cross',
       )
       .is('quality_flag', null)
       .order('month', { ascending: true });

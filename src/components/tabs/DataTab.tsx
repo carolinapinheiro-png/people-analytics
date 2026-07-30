@@ -32,6 +32,25 @@ export default function DataTab() {
 
   return (
     <div className="space-y-6">
+      {/* Notas de confiabilidade / gaps (pergunta da Marilia) */}
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+        <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-2">
+          <Database className="h-4 w-4" />
+          Confiabilidade e gaps conhecidos dos dados
+        </h3>
+        <ul className="space-y-1.5 text-xs text-muted-foreground leading-relaxed">
+          <li><strong className="text-foreground">PCD:</strong> campo quase vazio no cadastro (5 de ~649 ativos marcados) — subconta a representatividade real.</li>
+          <li><strong className="text-foreground">Betfair (via Workday):</strong> a fonte não traz gênero, departamento nem salário; é retrato de mai/2026 (viés de sobrevivência no histórico).</li>
+          <li><strong className="text-foreground">Flutter International:</strong> cadastro incompleto — sem histórico salarial e demográfico esparso.</li>
+          <li><strong className="text-foreground">Atrição desejada × não desejada:</strong> estimativa (65% das saídas), não classificação individual real.</li>
+          <li><strong className="text-foreground">Custo de substituição:</strong> premissa de R$ 45.000 por pessoa — não é custo apurado.</li>
+          <li><strong className="text-foreground">Reconstrução histórica:</strong> liderança e nível usam o valor da época (nível assume +1 nível por promoção); gênero/estado são o valor atual onde não há histórico.</li>
+          <li><strong className="text-foreground">&quot;Sem departamento&quot;:</strong> ativos sem registro de depto vigente — cadastro a regularizar no DP.</li>
+          <li><strong className="text-foreground">Metas e faixas (&quot;saudável/atenção&quot;, 40%/30%):</strong> placeholders — dependem de validação da liderança para virarem referência.</li>
+          <li><strong className="text-foreground">Salário individual:</strong> não é exposto no dashboard — apenas comp-ratio e agregados (médias/medianas).</li>
+        </ul>
+      </div>
+
       {/* Header */}
       <StorySection title="Dados Brutos" icon={Database} variant="highlight">
         <div className="flex flex-col sm:flex-row gap-4 sm:items-center justify-between">

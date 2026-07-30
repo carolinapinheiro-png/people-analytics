@@ -466,3 +466,22 @@ test('demographics agrega idade, raca, estado civil e origem', () => {
   assert.equal(m.demographics.marital['Casado(a)'], 1);
   assert.equal(m.demographics.origin['São Paulo'], 1);
 });
+
+test('race_cross cruza raca x genero x lideranca', () => {
+  const ppl = [
+    person({ cpf: 'a', race: 'Preta', gender: 'Mulher', leadership: 'Sim' }),
+    person({ cpf: 'b', race: 'Preta', gender: 'Homem', leadership: 'Não' }),
+    person({ cpf: 'c', race: 'Branca', gender: 'Mulher', leadership: 'Não' }),
+  ];
+  const rows = histMap([
+    hist({ cpf: 'a', from: d('2024-01-10'), cargo: 'Head' }),
+    hist({ cpf: 'b', from: d('2024-01-10'), cargo: 'Analyst' }),
+    hist({ cpf: 'c', from: d('2024-01-10'), cargo: 'Analyst' }),
+  ]);
+  const m = aggregateMonth(ppl, rows, 2026, 1, 'nsx_br');
+  assert.equal(m.race_cross['Preta'].total, 2);
+  assert.equal(m.race_cross['Preta'].female, 1);
+  assert.equal(m.race_cross['Preta'].leaders, 1);
+  assert.equal(m.race_cross['Preta'].female_leaders, 1);
+  assert.equal(m.race_cross['Branca'].total, 1);
+});
