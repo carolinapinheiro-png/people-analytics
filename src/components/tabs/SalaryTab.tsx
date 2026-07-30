@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { useDashboard } from '@/data/DashboardContext';
 import { getCompAggregates, type CompAggregates } from '@/lib/comp.functions';
+import { getContractMix, type ContractMixRow } from '@/lib/contract-mix.functions';
 import { mLabel, shortDept, fmtC } from '@/data/helpers';
 import KpiCard from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
@@ -28,7 +29,7 @@ const BRAND_COMPANIES: Record<string, string[]> = {
 };
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Legend
+  ResponsiveContainer, Legend, AreaChart, Area
 } from 'recharts';
 import {
   TrendingUp,
@@ -64,6 +65,31 @@ export default function SalaryTab() {
     fetchComp().then((d) => { if (!cancelled) setComp(d as CompAggregates); }).catch(() => {});
     return () => { cancelled = true; };
   }, [fetchComp]);
+
+  // Evolucao CLT/PJ no tempo (NSX) -- reconstruida do historico, ancorada no HC.
+  const [contractSeries, setContractSeries] = useState<ContractMixRow[] | null>(null);
+  const fetchContractMix = useServerFn(getContractMix);
+  useEffect(() => {
+    let cancelled = false;
+    fetchContractMix().then((d) => { if (!cancelled) setContractSeries(d as ContractMixRow[]); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [fetchContractMix]);
+
+  const CONTRACT_ORDER = ['CLT', 'PJ', 'Aprendiz', 'Estatutário/Sócio'];
+  const CONTRACT_COLORS: Record<string, string> = {
+    CLT: COLORS.nsx, PJ: COLORS.flutter, Aprendiz: COLORS.purple, 'Estatutário/Sócio': COLORS.orange,
+  };
+  const contractTrend = useMemo(() => {
+    if (!contractSeries || contractSeries.length === 0) return [];
+    const byMonth: Record<string, Record<string, number>> = {};
+    contractSeries.forEach((r) => {
+      const ym = String(r.month).slice(0, 7);
+      (byMonth[ym] ??= {})[r.contract] = r.n;
+    });
+    return Object.entries(byMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([ym, v]) => ({ month: ym, ...v }));
+  }, [contractSeries]);
 
   const contractMix = useMemo(() => {
     if (!comp) return null;
@@ -288,6 +314,38 @@ export default function SalaryTab() {
           )}
         </ChartCard>
       </div>
+
+      {/* Evolução CLT/PJ no tempo (NSX, reconstruído) */}
+      {contractTrend.length > 0 && (
+        <ChartCard title="Evolução CLT / PJ" subtitle="NSX · reconstruído da época · empilhado bate com o headcount">
+          <ResponsiveContainer width="100%" height={280}>
+            <AreaChart data={contractTrend} margin={{ left: 4, right: 8 }}>
+              <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+              <XAxis dataKey="month" tickFormatter={mLabel} tick={{ fontSize: 10 }} minTickGap={16} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip labelFormatter={(l) => mLabel(l as string)} />
+              <Legend />
+              {CONTRACT_ORDER.map((c) => (
+                <Area
+                  key={c}
+                  type="monotone"
+                  dataKey={c}
+                  name={c}
+                  stackId="1"
+                  stroke={CONTRACT_COLORS[c]}
+                  fill={CONTRACT_COLORS[c]}
+                  fillOpacity={0.75}
+                />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Só NSX (Betfair BR e Flutter vêm de outra fonte, sem série de vínculo). Vínculo <strong>da época</strong>
+            {' '}(reflete conversões PJ→CLT) do histórico; ativos por mês do Talent Mobility; totais ancorados no
+            headcount oficial. CLT e PJ começam parelhos em 2025 e o CLT dispara a partir de mar/2026.
+          </p>
+        </ChartCard>
+      )}
 
       {/* Bandas de senioridade (#13) */}
       {levelBands && levelBands.length > 0 && (
