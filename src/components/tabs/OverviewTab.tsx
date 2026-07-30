@@ -111,6 +111,26 @@ export default function OverviewTab() {
     return top && total > 0 ? { faixa: top.k, pct: (top.n / total) * 100 } : null;
   })();
 
+  // Panorama do periodo (incorpora a antiga aba Trend na visao executiva).
+  const periodFirst = allMonthsData[0];
+  const periodLast = allMonthsData[allMonthsData.length - 1];
+  const hcGrowthPct = periodFirst?.headcount > 0 ? ((periodLast.headcount - periodFirst.headcount) / periodFirst.headcount) * 100 : 0;
+  const attritionVals = allMonthsData.map((d) => d.attrition_rate || 0);
+  const avgAttrition = attritionVals.length ? attritionVals.reduce((a, b) => a + b, 0) / attritionVals.length : 0;
+  const turnoverVals = allMonthsData.map((d, i) => calcTurnover(d, i > 0 ? allMonthsData[i - 1] : undefined));
+  const avgTurnover = turnoverVals.length ? turnoverVals.reduce((a, b) => a + b, 0) / turnoverVals.length : 0;
+  const periodYears = [...new Set(allMonthsData.map((d) => d.year))].sort();
+  const yearlyStats = periodYears.map((year) => {
+    const yd = allMonthsData.filter((d) => d.year === year);
+    return {
+      year,
+      avgHc: Math.round(yd.reduce((s, d) => s + (d.headcount || 0), 0) / yd.length),
+      avgAttr: yd.reduce((s, d) => s + (d.attrition_rate || 0), 0) / yd.length,
+    };
+  });
+  const attritionYoY = yearlyStats.length > 1 ? yearlyStats[yearlyStats.length - 1].avgAttr - yearlyStats[yearlyStats.length - 2].avgAttr : null;
+  const totalPromoPeriod = allMonthsData.reduce((s, d) => s + (d.promotions || 0), 0);
+
   // Calculate narrative metrics
   const netGrowth = (curr.joiners || 0) - (curr.leavers || 0);
   const growthTrend = netGrowth > 0 ? 'positive' : netGrowth < 0 ? 'negative' : 'neutral';
@@ -294,6 +314,39 @@ export default function OverviewTab() {
           />
         ))}
       </div>
+
+      {/* Panorama do período (antiga aba Trend, agora na visão executiva) */}
+      <StorySection title="Panorama do Período" icon={Activity}>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <StoryMetric
+            label="Crescimento no período"
+            value={`${hcGrowthPct >= 0 ? '+' : ''}${hcGrowthPct.toFixed(1)}%`}
+            subtext={`${periodFirst?.headcount || 0} → ${periodLast?.headcount || 0}`}
+            trendDirection={hcGrowthPct >= 0 ? 'up' : 'down'}
+          />
+          <StoryMetric
+            label="Atrição média"
+            value={`${avgAttrition.toFixed(1)}%`}
+            subtext={attritionYoY != null ? `${attritionYoY >= 0 ? '+' : ''}${attritionYoY.toFixed(1)}pp YoY` : 'no período'}
+            trendDirection={attritionYoY != null ? (attritionYoY <= 0 ? 'up' : 'down') : 'neutral'}
+          />
+          <StoryMetric label="Turnover médio" value={`${avgTurnover.toFixed(1)}%`} subtext="no período" />
+          <StoryMetric label="Promoções no período" value={String(totalPromoPeriod)} subtext="acumulado" />
+        </div>
+        {yearlyStats.length > 1 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+            {yearlyStats.map((s) => (
+              <div key={s.year} className="rounded-lg border border-border bg-slate-900/40 p-3 flex items-center justify-between text-sm">
+                <span className="font-medium">{s.year}</span>
+                <span className="text-muted-foreground">
+                  HC médio <strong className="text-foreground">{s.avgHc}</strong> · atrição{' '}
+                  <strong className="text-foreground">{s.avgAttr.toFixed(1)}%</strong>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </StorySection>
 
       {/* Headcount Evolution Story */}
       <StorySection title="Evolução do Headcount" icon={TrendingUp}>

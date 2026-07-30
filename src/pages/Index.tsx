@@ -5,7 +5,6 @@ import TopBar from '@/components/layout/TopBar';
 import FilterBar from '@/components/layout/FilterBar';
 import TabNavigation from '@/components/layout/TabNavigation';
 import OverviewTab from '@/components/tabs/OverviewTab';
-import TrendTab from '@/components/tabs/TrendTab';
 import DEITab from '@/components/tabs/DEITab';
 import CompensationTab from '@/components/tabs/CompensationTab';
 import DemographicsTab from '@/components/tabs/DemographicsTab';
@@ -83,7 +82,6 @@ function DashboardContent() {
       <TabNavigation />
       <main className="p-4 md:p-6 max-w-[1600px] mx-auto">
         {activeTab === 'overview' && <OverviewTab />}
-        {activeTab === 'trend' && <TrendTab />}
         {activeTab === 'dei' && <DEITab />}
         {activeTab === 'comp' && <CompensationTab />}
         {activeTab === 'demographics' && <DemographicsTab />}
