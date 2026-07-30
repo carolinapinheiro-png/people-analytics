@@ -404,37 +404,35 @@ export default function SalaryTab() {
             </div>
           </div>
 
-          <div className={`p-4 rounded-lg border text-sm ${costDelta > 10 ? 'bg-amber-950/40 border-amber-500/30 text-amber-300' : 'bg-green-950/40 border-green-500/30 text-green-300'}`}>
+          <div className="p-4 rounded-lg border text-sm bg-muted/40 border-border/40 text-foreground">
             <div className="flex items-start gap-3">
-              {costDelta > 10 ? <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" /> : <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" />}
+              <BarChart3 className="h-5 w-5 mt-0.5 flex-shrink-0" />
               <div>
-                <strong>Insight:</strong>{' '}
-                O custo total estimado é {fmtC(totalCost)} ({fmtC(fteCost)} por FTE).
-                {costDelta > 10
-                  ? ` A variação de ${costDelta.toFixed(1)}% no custo total vs mês anterior merece atenção.`
-                  : ` Variação de custo vs mês anterior está em ${costDelta.toFixed(1)}%.`}
-                {' '}O gap salarial líder/não-líder é de {salaryGap}x.
+                <strong>Resumo:</strong>{' '}
+                Custo total estimado {fmtC(totalCost)} ({fmtC(fteCost)} por FTE), variação de
+                {' '}{costDelta >= 0 ? '+' : ''}{costDelta.toFixed(1)}% vs o mês anterior. O salário médio
+                {' '}de líderes é {salaryGap}x o dos não-líderes.
               </div>
             </div>
           </div>
 
-          <div className="bg-amber-950/30 border border-amber-500/20 rounded-lg p-4">
-            <h3 className="font-semibold text-amber-200 mb-3 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Recomendações Estratégicas
+          <div className="bg-muted/40 border border-border/40 rounded-lg p-4">
+            <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Pontos de atenção
             </h3>
-            <ul className="space-y-2 text-sm text-amber-200">
+            <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-start gap-2">
                 <span className="font-bold">1.</span>
-                <span><strong>Monitorar evolução salarial:</strong> Acompanhar custo por FTE e gap líder/não-líder ao longo do tempo.</span>
+                <span><strong>Evolução salarial:</strong> acompanhar custo por FTE e a razão líder/não-líder ao longo do tempo.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">2.</span>
-                <span><strong>Benchmark por departamento:</strong> Comparar salários médios por área com práticas de mercado.</span>
+                <span><strong>Comparabilidade:</strong> comparar comp-ratio por área e por banda de senioridade para leituras consistentes.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">3.</span>
-                <span><strong>Eficiência:</strong> Avaliar relação entre custo e headcount por departamento para identificar oportunidades.</span>
+                <span><strong>Cobertura do dado:</strong> Betfair/Flutter têm dado de comp parcial; considerar na leitura consolidada.</span>
               </li>
             </ul>
           </div>

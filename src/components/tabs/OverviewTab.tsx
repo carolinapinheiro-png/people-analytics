@@ -157,10 +157,10 @@ export default function OverviewTab() {
       icon: TrendingUp
     },
     { 
-      label: 'Taxa de Atrição', 
-      val: (curr.attrition_rate || 0).toFixed(2) + '%', 
-      color: attritionTrend === 'high' ? COLORS.danger : attritionTrend === 'medium' ? COLORS.warning : COLORS.success, 
-      sub: attritionTrend === 'high' ? 'Acima do ideal' : 'Dentro do esperado',
+      label: 'Taxa de Atrição',
+      val: (curr.attrition_rate || 0).toFixed(2) + '%',
+      color: attritionTrend === 'high' ? COLORS.danger : attritionTrend === 'medium' ? COLORS.warning : COLORS.success,
+      sub: `saídas ÷ HC · média período ${avgAttrition.toFixed(1)}%`,
       icon: Activity
     },
     {
@@ -265,22 +265,12 @@ export default function OverviewTab() {
       parts.push('estabilidade no headcount');
     }
     
-    // Attrition narrative
-    if (attritionTrend === 'high') {
-      parts.push('atrição elevada requer atenção');
-    } else if (attritionTrend === 'medium') {
-      parts.push('atrição dentro da faixa de atenção');
-    } else {
-      parts.push('atrição controlada');
-    }
-    
-    // Gender narrative
-    if (genderBalance === 'balanced') {
-      parts.push('diversidade de gênero equilibrada');
-    } else {
-      parts.push('oportunidade de melhoria na diversidade');
-    }
-    
+    // Attrition narrative (factual, sem rotulo de benchmark nao validado).
+    parts.push(`atrição de ${(curr.attrition_rate || 0).toFixed(1)}% no mês (média do período ${avgAttrition.toFixed(1)}%)`);
+
+    // Gender narrative (factual).
+    parts.push(`${curr.gender_female_pct || 0}% de mulheres no quadro`);
+
     return parts.join(', ');
   };
 
@@ -297,8 +287,9 @@ export default function OverviewTab() {
           Em {mLabel(currentMonth)}, a organização apresenta <strong>{generateNarrative()}</strong>. 
           Com {curr.headcount} colaboradores ativos, {curr.leaders} líderes ({curr.leaders_pct}% do total) 
           e {curr.promotions || 0} promoções realizadas, o cenário atual demonstra 
-          {growthTrend === 'positive' ? ' expansão' : growthTrend === 'negative' ? ' contração' : ' estabilidade'} 
-          {' '}com {attritionTrend === 'high' ? 'desafios de retenção' : 'indicadores saudáveis de retenção'}.
+          {growthTrend === 'positive' ? ' expansão' : growthTrend === 'negative' ? ' contração' : ' estabilidade'}
+          {' '}no headcount. Números factuais do período; leituras de "adequado/atenção" dependem de metas
+          {' '}a validar com a liderança.
         </p>
       </div>
 
@@ -431,9 +422,9 @@ export default function OverviewTab() {
         <StoryInsight type={netGrowth >= 0 ? 'positive' : 'negative'}>
           O headcount {netGrowth >= 0 ? 'cresceu' : 'reduziu'} {Math.abs(netGrowth)} colaboradores em {mLabel(currentMonth)}, 
           representando uma variação de {((netGrowth / (curr.headcount - netGrowth)) * 100).toFixed(1)}% 
-          em relação ao mês anterior. {netGrowth >= 0 
-            ? 'Este crescimento demonstra expansão organizacional.' 
-            : 'Esta redução requer atenção para entender os drivers de saída.'}
+          em relação ao mês anterior. {netGrowth >= 0
+            ? 'Resultado de mais entradas que saídas no mês.'
+            : 'As saídas superaram as entradas no mês; os motivos ficam na aba Atrição & Desligamentos.'}
         </StoryInsight>
       </StorySection>
 
@@ -469,22 +460,12 @@ export default function OverviewTab() {
           </ChartCard>
         </div>
         
-        {attritionTrend === 'high' && (
-          <StoryAlert title="Atenção: Atrição Elevada" severity="medium">
-            A taxa de atrição de {(curr.attrition_rate || 0).toFixed(2)}% está acima do ideal ({ATTRITION_HIGH_THRESHOLD}%). 
-            Recomenda-se revisar as causas principais de saída e implementar ações de retenção. 
-            O turnover de {tv}% indica alta movimentação no período.
-          </StoryAlert>
-        )}
-        
-        <StoryInsight type={attritionTrend === 'high' ? 'negative' : 'positive'}>
-          {attritionTrend === 'high' 
-            ? `Com ${curr.leavers} saídas em ${mLabel(currentMonth)}, a atrição está acima do benchmark de mercado. 
-               O turnover de ${tv}% indica que aproximadamente 1 em cada ${Math.round(100 / tv)} colaboradores 
-               está sendo substituído mensalmente.`
-            : `A atrição de ${(curr.attrition_rate || 0).toFixed(2)}% está dentro da faixa saudável, 
-               indicando boa retenção de talentos. O turnover de ${tv}% reflete movimentação normal.`
-          }
+        <StoryInsight type="neutral">
+          Em {mLabel(currentMonth)}: {curr.joiners || 0} entradas e {curr.leavers || 0} saídas
+          {' '}(atrição {(curr.attrition_rate || 0).toFixed(2)}%, turnover {tv}%). Média do período:
+          {' '}atrição {avgAttrition.toFixed(1)}%, turnover {avgTurnover.toFixed(1)}%.
+          {tv > 0 && ` No ritmo do mês, cerca de 1 em cada ${Math.round(100 / tv)} colaboradores é substituído.`}
+          {' '}Para aprofundar as causas, ver a aba Atrição &amp; Desligamentos.
         </StoryInsight>
       </StorySection>
 

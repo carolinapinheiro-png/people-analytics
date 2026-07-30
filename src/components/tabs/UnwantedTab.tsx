@@ -409,43 +409,40 @@ export default function UnwantedTab() {
             </div>
           </div>
 
-          <div className={`p-4 rounded-lg border text-sm ${unwantedRate > BENCHMARK_CRITICAL ? 'bg-red-950/40 border-red-500/30 text-red-300' : unwantedRate > BENCHMARK_TARGET ? 'bg-amber-950/40 border-amber-500/30 text-amber-300' : 'bg-green-950/40 border-green-500/30 text-green-300'}`}>
+          <div className="p-4 rounded-lg border text-sm bg-muted/40 border-border/40 text-foreground">
             <div className="flex items-start gap-3">
-              {unwantedRate > BENCHMARK_CRITICAL ? <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" /> : <CheckCircle2 className="h-5 w-5 mt-0.5 flex-shrink-0" />}
+              <BarChart3 className="h-5 w-5 mt-0.5 flex-shrink-0" />
               <div>
-                <strong>Insight:</strong>{' '}
-                A taxa de atrito não desejado está em {unwantedRate.toFixed(2)}%,
-                {unwantedRate > BENCHMARK_CRITICAL
-                  ? ' acima do limite crítico. Recomenda-se investigação imediata das causas.'
-                  : unwantedRate > BENCHMARK_TARGET
-                  ? ' acima da meta interna, mas abaixo do limite crítico.'
-                  : ' dentro da meta interna.'}
-                {' '}A variação mensal é de {monthlyChange >= 0 ? '+' : ''}{monthlyChange.toFixed(2)} p.p.
+                <strong>Resumo:</strong>{' '}
+                A atrição não desejada estimada está em {unwantedRate.toFixed(2)}% do HC, variação de
+                {' '}{monthlyChange >= 0 ? '+' : ''}{monthlyChange.toFixed(2)} p.p. vs o mês anterior.
+                {' '}As faixas de referência internas ({BENCHMARK_TARGET}% alvo, {BENCHMARK_CRITICAL}% limite)
+                {' '}são placeholders a validar com a liderança.
               </div>
             </div>
           </div>
 
-          <div className="bg-amber-950/30 border border-amber-500/20 rounded-lg p-4">
-            <h3 className="font-semibold text-amber-200 mb-3 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Recomendações
+          <div className="bg-muted/40 border border-border/40 rounded-lg p-4">
+            <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Pontos de atenção
             </h3>
-            <ul className="space-y-2 text-sm text-amber-200">
+            <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-start gap-2">
                 <span className="font-bold">1.</span>
-                <span><strong>Investigar picos:</strong> Meses com taxa não desejada acima de {BENCHMARK_CRITICAL}% devem ser analisados com entrevistas de saída.</span>
+                <span><strong>Picos mensais:</strong> nos meses de maior atrição não desejada, entrevistas de saída ajudam a entender os motivos.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">2.</span>
-                <span><strong>Revisar compensação:</strong> Quando a taxa supera a média de mercado, avaliar política salarial e benefícios.</span>
+                <span><strong>Classificação real:</strong> marcar cada saída como desejada/não na origem substitui a estimativa de {(UNWANTED_ATTRITION_PCT * 100).toFixed(0)}% por dado real.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">3.</span>
-                <span><strong>Plano de sucessão:</strong> Reduzir dependência de colaboradores críticos com cross-training e documentação.</span>
+                <span><strong>Faixas de referência:</strong> validar alvo e limite com a liderança antes de classificar meses como adequado/atenção.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">4.</span>
-                <span><strong>Monitorar tendência:</strong> Acompanhar variação mensal para identificar deterioração precoce.</span>
+                <span><strong>Acompanhamento:</strong> monitorar a variação mensal da taxa ao longo do tempo.</span>
               </li>
             </ul>
           </div>
