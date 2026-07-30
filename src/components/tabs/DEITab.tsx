@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useDashboard } from '@/data/DashboardContext';
 import { mLabel } from '@/data/helpers';
 import KpiCard from '@/components/dashboard/KpiCard';
@@ -40,22 +41,36 @@ export default function DEITab() {
   const startFemalePct = firstMonth?.gender_female_pct || 0;
   const progressGrowth = (curr.gender_female_pct || 0) - startFemalePct;
 
+  // Filtro de raca (interativo): quando uma raca e escolhida, os KPIs de
+  // representatividade e lideranca recalculam so para aquele grupo (via
+  // race_cross). As series temporais seguem company-wide (a serie nao guarda
+  // gênero/liderança por raca no tempo) -- avisado na tela.
+  const raceCross = curr.race_cross || {};
+  const [raceFilter, setRaceFilter] = useState<string>('Todas');
+  const sel = raceFilter !== 'Todas' ? raceCross[raceFilter] : null;
+  const selFemalePct = sel && sel.total > 0 ? (sel.female / sel.total) * 100 : 0;
+  const selLeadFemalePct = sel && sel.leaders > 0 ? (sel.female_leaders / sel.leaders) * 100 : 0;
+
   const kpis = [
     {
-      label: 'Mulheres — Geral',
-      value: (curr.gender_female_pct || 0) + '%',
+      label: sel ? `Mulheres · ${raceFilter}` : 'Mulheres — Geral',
+      value: (sel ? selFemalePct.toFixed(0) : (curr.gender_female_pct || 0)) + '%',
       color: COLORS.female,
-      sub: fpDelta >= 0
-        ? `<span style="color:#66bb6a">+${fpDelta.toFixed(1)}pp</span> vs mês ant.`
-        : `<span style="color:#ef5350">${fpDelta.toFixed(1)}pp</span> vs mês ant.`
+      sub: sel
+        ? `${sel.female} de ${sel.total} pessoas ${raceFilter}`
+        : fpDelta >= 0
+          ? `<span style="color:#66bb6a">+${fpDelta.toFixed(1)}pp</span> vs mês ant.`
+          : `<span style="color:#ef5350">${fpDelta.toFixed(1)}pp</span> vs mês ant.`
     },
     {
-      label: 'Mulheres na liderança',
-      value: (curr.leader_female_pct || 0) + '%',
+      label: sel ? `Mulheres na liderança · ${raceFilter}` : 'Mulheres na liderança',
+      value: (sel ? selLeadFemalePct.toFixed(0) : (curr.leader_female_pct || 0)) + '%',
       color: COLORS.purple,
-      sub: lpDelta >= 0
-        ? `<span style="color:#66bb6a">+${lpDelta.toFixed(1)}pp</span> vs mês ant.`
-        : `<span style="color:#ef5350">${lpDelta.toFixed(1)}pp</span> vs mês ant.`
+      sub: sel
+        ? `${sel.female_leaders} de ${sel.leaders} líderes ${raceFilter}`
+        : lpDelta >= 0
+          ? `<span style="color:#66bb6a">+${lpDelta.toFixed(1)}pp</span> vs mês ant.`
+          : `<span style="color:#ef5350">${lpDelta.toFixed(1)}pp</span> vs mês ant.`
     },
     {
       label: '% PCD',
@@ -127,7 +142,6 @@ export default function DEITab() {
 
   // Recorte de DEI por raca (representatividade + lideranca por raca).
   const RACE_ORDER = ['Branca', 'Parda', 'Preta', 'Amarela', 'Indígena', 'Não informado'];
-  const raceCross = curr.race_cross || {};
   const raceRows = Object.entries(raceCross)
     .map(([race, v]) => ({
       race,
@@ -150,6 +164,30 @@ export default function DEITab() {
         <strong>Líder</strong> = colaborador marcado como liderança no cadastro (campo &quot;Liderança?&quot;),
         reconstruído pelo cargo da época — não é por nível nem por nº de reportes diretos.
       </p>
+
+      {/* Filtro de raça (interativo) */}
+      {hasRaceCross && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Filtrar por raça</span>
+          {['Todas', ...raceRows.map((r) => r.race)].map((r) => (
+            <button
+              key={r}
+              onClick={() => setRaceFilter(r)}
+              className={`text-xs px-2.5 py-1 rounded border transition-colors ${
+                raceFilter === r ? 'text-white border-transparent' : 'text-muted-foreground border-border hover:text-foreground'
+              }`}
+              style={raceFilter === r ? { background: brandColor } : undefined}
+            >
+              {r}
+            </button>
+          ))}
+          {sel && (
+            <span className="text-[11px] text-muted-foreground ml-1">
+              KPIs de mulheres/liderança abaixo são de <strong className="text-foreground">{raceFilter}</strong>; gráficos de tendência seguem company-wide.
+            </span>
+          )}
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -255,7 +293,11 @@ export default function DEITab() {
               </thead>
               <tbody>
                 {raceRows.map((r) => (
-                  <tr key={r.race} className="border-b border-border/50">
+                  <tr
+                    key={r.race}
+                    onClick={() => setRaceFilter(raceFilter === r.race ? 'Todas' : r.race)}
+                    className={`border-b border-border/50 cursor-pointer hover:bg-muted/40 ${raceFilter === r.race ? 'bg-muted/60' : ''}`}
+                  >
                     <td className="p-2 font-medium">{r.race}</td>
                     <td className="p-2 text-right tabular-nums">{r.total}</td>
                     <td className="p-2 text-right tabular-nums">{r.pctQuadro.toFixed(0)}%</td>
