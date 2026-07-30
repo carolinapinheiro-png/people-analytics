@@ -6,7 +6,18 @@ import { COLORS } from '@/lib/colors';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { Users, MapPin, Cake, ShieldCheck, Globe, GraduationCap } from 'lucide-react';
+import { Users, MapPin, Cake, ShieldCheck, Globe, GraduationCap, Laptop } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useServerFn } from '@tanstack/react-start';
+import { getWorkModel, type WorkModelRow } from '@/lib/work-model.functions';
+
+const WORK_MODEL_ORDER = ['Remoto', 'Híbrido', 'Presencial', 'Não informado'];
+const WORK_MODEL_COLORS: Record<string, string> = {
+  Remoto: COLORS.flutter,
+  Híbrido: COLORS.purple,
+  Presencial: COLORS.nsx,
+  'Não informado': '#475569',
+};
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -76,6 +87,38 @@ export default function DemographicsTab() {
   const { currentData, currentMonth, brand } = useDashboard();
   const curr = currentData;
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
+
+  // Modelo de trabalho: agregado dos ativos (Talent Mobility). E company-wide,
+  // nao filtra por marca -- por isso vem do server, nao da serie mensal.
+  const fetchWorkModel = useServerFn(getWorkModel);
+  const [workModel, setWorkModel] = useState<WorkModelRow[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchWorkModel()
+      .then((d) => { if (!cancelled) setWorkModel(d as WorkModelRow[]); })
+      .catch(() => { if (!cancelled) setWorkModel([]); });
+    return () => { cancelled = true; };
+  }, [fetchWorkModel]);
+
+  const wmOverall = (workModel ?? [])
+    .filter((r) => r.scope_type === 'overall')
+    .map((r) => ({ name: r.model, value: r.n }))
+    .sort((a, b) => WORK_MODEL_ORDER.indexOf(a.name) - WORK_MODEL_ORDER.indexOf(b.name));
+  const wmTotal = wmOverall.reduce((s, r) => s + r.value, 0);
+  const wmByDept = (() => {
+    const m: Record<string, Record<string, number>> = {};
+    (workModel ?? []).filter((r) => r.scope_type === 'department').forEach((r) => {
+      (m[r.scope] ??= {})[r.model] = r.n;
+    });
+    return Object.entries(m)
+      .map(([dept, models]) => ({
+        dept,
+        total: Object.values(models).reduce((s, v) => s + v, 0),
+        ...models,
+      }))
+      .sort((a, b) => b.total - a.total);
+  })();
+  const wmRemotoPct = wmTotal > 0 ? (wmOverall.find((r) => r.name === 'Remoto')?.value ?? 0) / wmTotal * 100 : 0;
   const dg = curr.demographics || {};
   const hc = curr.headcount || 0;
 
@@ -123,6 +166,40 @@ export default function DemographicsTab() {
         <KpiCard label="% PCD" value={`${pctOf(curr.pcd || 0, hc).toFixed(1)}%`} sub={`${curr.pcd || 0} · campo parcial`} color={COLORS.warning} icon={ShieldCheck} />
         <KpiCard label="% Aprendiz" value={`${pctOf(curr.apprentice || 0, hc).toFixed(1)}%`} sub={`${curr.apprentice || 0} aprendizes`} color={COLORS.purple} icon={GraduationCap} />
       </div>
+
+      {/* Modelo de trabalho (company-wide, Talent Mobility) */}
+      {wmTotal > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <ChartCard title="Modelo de trabalho" subtitle={`${wmTotal} ativos · ${wmRemotoPct.toFixed(0)}% remoto`} icon={Laptop}>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={wmOverall} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2}>
+                  {wmOverall.map((e) => <Cell key={e.name} fill={WORK_MODEL_COLORS[e.name] || COLORS.info} />)}
+                </Pie>
+                <Tooltip formatter={(v: number) => [`${v} (${pctOf(v, wmTotal).toFixed(1)}%)`, 'Pessoas']} />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Fonte: Talent Mobility (coluna "Modelo de Jornada de Trabalho"). "Remoto" agrupa com e sem registro de ponto.
+            </p>
+          </ChartCard>
+
+          <ChartCard title="Modelo por departamento" subtitle="% dentro de cada área" icon={Users}>
+            <ResponsiveContainer width="100%" height={Math.max(220, wmByDept.length * 26)}>
+              <BarChart data={wmByDept} layout="vertical" stackOffset="expand" margin={{ left: 30, right: 16 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} className="opacity-30" />
+                <XAxis type="number" tickFormatter={(v) => `${Math.round(v * 100)}%`} tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="dept" width={95} tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(v: number, n) => [`${v}`, n as string]} />
+                {WORK_MODEL_ORDER.map((m) => (
+                  <Bar key={m} dataKey={m} name={m} stackId="a" fill={WORK_MODEL_COLORS[m]} />
+                ))}
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        </div>
+      )}
 
       {!hasDemographics && (
         <p className="text-sm text-muted-foreground text-center py-8">
