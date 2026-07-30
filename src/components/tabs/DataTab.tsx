@@ -35,11 +35,11 @@ export default function DataTab() {
       {/* Header */}
       <StorySection title="Dados Brutos" icon={Database} variant="highlight">
         <div className="flex flex-col sm:flex-row gap-4 sm:items-center justify-between">
-          <p className="text-sm text-slate-300">
+          <p className="text-sm text-foreground">
             Visualização completa dos dados utilizados nos cálculos do dashboard.
-            <span className="ml-1 text-slate-400">
-              Marca: <strong className="text-slate-100">{brand === 'combined' ? 'Combined' : brand}</strong> ·
-              Registros: <strong className="text-slate-100">{allMonthsData.length}</strong>
+            <span className="ml-1 text-muted-foreground">
+              Marca: <strong className="text-foreground">{brand === 'combined' ? 'Combined' : brand}</strong> ·
+              Registros: <strong className="text-foreground">{allMonthsData.length}</strong>
             </span>
           </p>
         </div>
@@ -74,45 +74,45 @@ export default function DataTab() {
           <div className="overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead>
-                <tr className="border-b border-slate-700/50">
-                  <th className="text-left p-2 text-[10px] uppercase text-slate-400 sticky left-0 bg-card/95 backdrop-blur-sm">
+                <tr className="border-b border-border/50">
+                  <th className="text-left p-2 text-[10px] uppercase text-muted-foreground sticky left-0 bg-card/95 backdrop-blur-sm">
                     Mês
                   </th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">HC</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Entradas</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Saídas</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Atrição %</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Female %</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Líderes</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Líd. %</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Fem. Líd. %</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Promoções</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Sal. Líd.</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Sal. Não-Líd.</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">HC</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Entradas</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Saídas</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Atrição %</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Female %</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Líderes</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Líd. %</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Fem. Líd. %</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Promoções</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Sal. Líd.</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Sal. Não-Líd.</th>
                 </tr>
               </thead>
               <tbody>
                 {allMonthsData.map((d, i) => (
                   <tr
                     key={d.month + i}
-                    className="border-b border-slate-700/30 hover:bg-slate-800/50"
+                    className="border-b border-border/30 hover:bg-muted/50"
                   >
-                    <td className="p-2 font-semibold text-slate-100 sticky left-0 bg-card/95 backdrop-blur-sm">
+                    <td className="p-2 font-semibold text-foreground sticky left-0 bg-card/95 backdrop-blur-sm">
                       {mLabel(d.month)}
                     </td>
-                    <td className="p-2 text-right text-slate-300">{fmt(d.headcount)}</td>
+                    <td className="p-2 text-right text-foreground">{fmt(d.headcount)}</td>
                     <td className="p-2 text-right text-green-400">+{d.joiners || 0}</td>
                     <td className="p-2 text-right text-red-400">-{d.leavers || 0}</td>
-                    <td className="p-2 text-right text-slate-300">
+                    <td className="p-2 text-right text-foreground">
                       {d.attrition_rate > 20 ? '—' : (d.attrition_rate || 0) + '%'}
                     </td>
-                    <td className="p-2 text-right text-slate-300">{d.gender_female_pct || 0}%</td>
-                    <td className="p-2 text-right text-slate-300">{d.leaders || 0}</td>
-                    <td className="p-2 text-right text-slate-300">{d.leaders_pct || 0}%</td>
-                    <td className="p-2 text-right text-slate-300">{d.leader_female_pct || 0}%</td>
-                    <td className="p-2 text-right text-slate-300">{d.promotions || 0}</td>
-                    <td className="p-2 text-right text-slate-300">{fmtC(d.avg_salary_leaders)}</td>
-                    <td className="p-2 text-right text-slate-300">{fmtC(d.avg_salary_non_leaders)}</td>
+                    <td className="p-2 text-right text-foreground">{d.gender_female_pct || 0}%</td>
+                    <td className="p-2 text-right text-foreground">{d.leaders || 0}</td>
+                    <td className="p-2 text-right text-foreground">{d.leaders_pct || 0}%</td>
+                    <td className="p-2 text-right text-foreground">{d.leader_female_pct || 0}%</td>
+                    <td className="p-2 text-right text-foreground">{d.promotions || 0}</td>
+                    <td className="p-2 text-right text-foreground">{fmtC(d.avg_salary_leaders)}</td>
+                    <td className="p-2 text-right text-foreground">{fmtC(d.avg_salary_non_leaders)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -131,12 +131,12 @@ export default function DataTab() {
           <div className="overflow-x-auto">
             <table className="w-full text-[11px]">
               <thead>
-                <tr className="border-b border-slate-700/50">
-                  <th className="text-left p-2 text-[10px] uppercase text-slate-400">Departamento</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">HC</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Sal. Líd. Avg</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Sal. Não-Líd. Avg</th>
-                  <th className="text-right p-2 text-[10px] uppercase text-slate-400">Gap</th>
+                <tr className="border-b border-border/50">
+                  <th className="text-left p-2 text-[10px] uppercase text-muted-foreground">Departamento</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">HC</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Sal. Líd. Avg</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Sal. Não-Líd. Avg</th>
+                  <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">Gap</th>
                 </tr>
               </thead>
               <tbody>
@@ -150,13 +150,13 @@ export default function DataTab() {
                     return (
                       <tr
                         key={k}
-                        className="border-b border-slate-700/30 hover:bg-slate-800/50"
+                        className="border-b border-border/30 hover:bg-muted/50"
                       >
-                        <td className="p-2 font-semibold text-slate-100">{k}</td>
-                        <td className="p-2 text-right text-slate-300">{v.hc || 0}</td>
-                        <td className="p-2 text-right text-slate-300">{fmtC(v.avg_salary_leaders)}</td>
-                        <td className="p-2 text-right text-slate-300">{fmtC(v.avg_salary_non_leaders)}</td>
-                        <td className="p-2 text-right text-slate-300">{gap}</td>
+                        <td className="p-2 font-semibold text-foreground">{k}</td>
+                        <td className="p-2 text-right text-foreground">{v.hc || 0}</td>
+                        <td className="p-2 text-right text-foreground">{fmtC(v.avg_salary_leaders)}</td>
+                        <td className="p-2 text-right text-foreground">{fmtC(v.avg_salary_non_leaders)}</td>
+                        <td className="p-2 text-right text-foreground">{gap}</td>
                       </tr>
                     );
                   })}
@@ -177,10 +177,10 @@ export default function DataTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-[11px]">
                 <thead>
-                  <tr className="border-b border-slate-700/50">
-                    <th className="text-left p-2 text-[10px] uppercase text-slate-400">Estado/Local</th>
-                    <th className="text-right p-2 text-[10px] uppercase text-slate-400">HC</th>
-                    <th className="text-right p-2 text-[10px] uppercase text-slate-400">%</th>
+                  <tr className="border-b border-border/50">
+                    <th className="text-left p-2 text-[10px] uppercase text-muted-foreground">Estado/Local</th>
+                    <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">HC</th>
+                    <th className="text-right p-2 text-[10px] uppercase text-muted-foreground">%</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -192,10 +192,10 @@ export default function DataTab() {
                         0
                       );
                       return (
-                        <tr key={k} className="border-b border-slate-700/30">
-                          <td className="p-2 text-slate-100">{k}</td>
-                          <td className="p-2 text-right text-slate-300">{v}</td>
-                          <td className="p-2 text-right text-slate-300">
+                        <tr key={k} className="border-b border-border/30">
+                          <td className="p-2 text-foreground">{k}</td>
+                          <td className="p-2 text-right text-foreground">{v}</td>
+                          <td className="p-2 text-right text-foreground">
                             {total > 0 ? ((v / total) * 100).toFixed(1) : 0}%
                           </td>
                         </tr>

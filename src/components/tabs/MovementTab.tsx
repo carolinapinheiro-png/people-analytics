@@ -58,11 +58,11 @@ export default function MovementTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+        <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
           <Award className="h-5 w-5 text-[hsl(var(--purple))]" />
           Movimentações Salariais
         </h2>
-        <p className="text-sm text-slate-400 mt-1">
+        <p className="text-sm text-muted-foreground mt-1">
           Reconstruídas do histórico (Motivo). Valor = salário do evento menos o último salário
           conhecido da pessoa. Ref: {mLabel(currentMonth)}.
         </p>
@@ -73,9 +73,9 @@ export default function MovementTab() {
         {TYPES.map(({ key, label, color }) => (
           <Card key={key}>
             <CardContent className="p-4">
-              <p className="text-xs text-slate-400">{label}</p>
+              <p className="text-xs text-muted-foreground">{label}</p>
               <p className="text-xl font-bold" style={{ color }}>{totals[key].n}</p>
-              <p className="text-xs text-slate-400 mt-1">
+              <p className="text-xs text-muted-foreground mt-1">
                 {totals[key].n > 0 ? `${fmtC(Math.round(totals[key].delta / totals[key].n))} médio` : 'sem eventos'}
               </p>
             </CardContent>
@@ -83,9 +83,9 @@ export default function MovementTab() {
         ))}
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-slate-400">Reajuste total (período)</p>
+            <p className="text-xs text-muted-foreground">Reajuste total (período)</p>
             <p className="text-xl font-bold text-green-400">{fmtC(grandDelta)}</p>
-            <p className="text-xs text-slate-400 mt-1">soma dos três tipos</p>
+            <p className="text-xs text-muted-foreground mt-1">soma dos três tipos</p>
           </CardContent>
         </Card>
       </div>
@@ -95,10 +95,10 @@ export default function MovementTab() {
         <ChartCard title="Eventos por mês e tipo" subtitle="Nº de movimentações" icon={Award}>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={monthlyN}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-              <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
-              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+              <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
               {TYPES.map(({ label, color }) => (
                 <Bar key={label} dataKey={label} stackId="n" fill={color} />
@@ -110,10 +110,10 @@ export default function MovementTab() {
         <ChartCard title="Valor do reajuste por mês e tipo" subtitle="Soma dos reajustes (R$)" icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={monthlyValue}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-              <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
-              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => fmtC(v)} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} tickFormatter={(v) => `R$${(v / 1000).toFixed(0)}k`} />
+              <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => fmtC(v)} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
               {TYPES.map(({ label, color }) => (
                 <Bar key={label} dataKey={label} stackId="v" fill={color} />
@@ -131,7 +131,7 @@ export default function MovementTab() {
             Como ler
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm text-slate-300">
+        <CardContent className="space-y-2 text-sm text-foreground">
           <p>
             <strong>Promoção</strong>: mudança de cargo com aumento (maior reajuste médio).{' '}
             <strong>Mérito/Reajuste</strong>: ajuste individual por desempenho.{' '}

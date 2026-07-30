@@ -5,7 +5,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { COLORS } from '@/lib/colors';
 
 import { useAuth } from '@/contexts/AuthContext';
-import { LogOut, User, Shield } from 'lucide-react';
+import { useTheme } from '@/lib/theme';
+import { LogOut, User, Shield, Sun, Moon } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import {
@@ -129,23 +130,40 @@ export default function TopBar() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => currentMonthIdx > 0 && setCurrentMonthIdx(currentMonthIdx - 1)}
-            className="p-1 rounded border border-border hover:border-slate-500 transition-colors"
+            className="p-1 rounded border border-border hover:border-border transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <span className="text-sm font-semibold min-w-[80px] text-center">{mLabel(currentMonth)}</span>
           <button
             onClick={() => currentMonthIdx < monthsOrder.length - 1 && setCurrentMonthIdx(currentMonthIdx + 1)}
-            className="p-1 rounded border border-border hover:border-slate-500 transition-colors"
+            className="p-1 rounded border border-border hover:border-border transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
 
+        {/* Theme toggle */}
+        <ThemeToggle />
+
         {/* User menu */}
         <UserMenu />
       </div>
     </header>
+  );
+}
+
+function ThemeToggle() {
+  const { theme, toggle } = useTheme();
+  return (
+    <button
+      onClick={toggle}
+      title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
+      aria-label="Alternar tema"
+      className="p-2 rounded-full border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+    >
+      {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+    </button>
   );
 }
 

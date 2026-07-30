@@ -290,10 +290,10 @@ export default function OverviewTab() {
       <div className="bg-gradient-to-r p-6 rounded-xl border" style={{ background: `linear-gradient(to right, ${brandColor}1a, transparent)`, borderColor: `${brandColor}33` }}>
         <div className="flex items-center gap-3 mb-3">
           <Building2 className="h-6 w-6" style={{ color: brandColor }} />
-          <h2 className="text-xl font-bold text-slate-100">Resumo Executivo</h2>
-          <span className="text-sm text-slate-400">{mLabel(currentMonth)}</span>
+          <h2 className="text-xl font-bold text-foreground">Resumo Executivo</h2>
+          <span className="text-sm text-muted-foreground">{mLabel(currentMonth)}</span>
         </div>
-        <p className="text-slate-300 leading-relaxed">
+        <p className="text-foreground leading-relaxed">
           Em {mLabel(currentMonth)}, a organização apresenta <strong>{generateNarrative()}</strong>. 
           Com {curr.headcount} colaboradores ativos, {curr.leaders} líderes ({curr.leaders_pct}% do total) 
           e {curr.promotions || 0} promoções realizadas, o cenário atual demonstra 
@@ -336,7 +336,7 @@ export default function OverviewTab() {
         {yearlyStats.length > 1 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
             {yearlyStats.map((s) => (
-              <div key={s.year} className="rounded-lg border border-border bg-slate-900/40 p-3 flex items-center justify-between text-sm">
+              <div key={s.year} className="rounded-lg border border-border bg-card/40 p-3 flex items-center justify-between text-sm">
                 <span className="font-medium">{s.year}</span>
                 <span className="text-muted-foreground">
                   HC médio <strong className="text-foreground">{s.avgHc}</strong> · atrição{' '}
@@ -361,11 +361,11 @@ export default function OverviewTab() {
                       <stop offset="95%" stopColor={brandColor} stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                  <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 10 }} />
-                  <YAxis tick={{ fill: '#4a5568', fontSize: 10 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
+                  <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
                   <Tooltip 
-                    contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 12 }}
+                    contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
                     formatter={(value: number, name: string) => [value, name === 'hc' ? 'Headcount' : name]}
                   />
                   <Area 
@@ -388,9 +388,9 @@ export default function OverviewTab() {
               trend={netGrowth > 0 ? `+${netGrowth}` : `${netGrowth}`}
               trendDirection={netGrowth > 0 ? 'up' : netGrowth < 0 ? 'down' : 'neutral'}
             />
-            <div className="rounded-lg border border-border bg-slate-900/40 p-3 space-y-2 text-sm">
+            <div className="rounded-lg border border-border bg-card/40 p-3 space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-slate-400">Este mês</span>
+                <span className="text-muted-foreground">Este mês</span>
                 <span className="font-semibold">
                   <span className="text-green-400">+{curr.joiners || 0}</span>
                   {' / '}
@@ -398,7 +398,7 @@ export default function OverviewTab() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">% Mulheres / Homens</span>
+                <span className="text-muted-foreground">% Mulheres / Homens</span>
                 <span className="font-semibold">
                   <span className="text-pink-400">{curr.gender_female_pct || 0}%</span>
                   {' / '}
@@ -406,11 +406,11 @@ export default function OverviewTab() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Tempo de casa (moda)</span>
+                <span className="text-muted-foreground">Tempo de casa (moda)</span>
                 <span className="font-semibold">{tenureTop ? `${tenureTop.faixa} (${tenureTop.pct.toFixed(0)}%)` : '—'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">CLT / PJ</span>
+                <span className="text-muted-foreground">CLT / PJ</span>
                 <span className="font-semibold">
                   {contractMix && contractMix.total > 0
                     ? `${contractMix.clt} / ${contractMix.pj}`
@@ -418,7 +418,7 @@ export default function OverviewTab() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-400">Time que + cresceu</span>
+                <span className="text-muted-foreground">Time que + cresceu</span>
                 <span className="font-semibold text-right">
                   {topGrowthDept
                     ? <>{topGrowthDept.dept.replace(/_/g, ' ')} <span className="text-green-400">+{topGrowthDept.delta}</span></>
@@ -443,10 +443,10 @@ export default function OverviewTab() {
           <ChartCard title="Entradas vs Saídas" subtitle="Fluxo mensal de colaboradores">
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={jlData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
-                <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                 <Bar dataKey="entradas" name="Entradas" fill={COLORS.success + '99'} stroke={COLORS.success} strokeWidth={1} radius={[4, 4, 0, 0]} />
                 <Bar dataKey="saidas" name="Saídas" fill={COLORS.danger + '99'} stroke={COLORS.danger} strokeWidth={1} radius={[4, 4, 0, 0]} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -457,10 +457,10 @@ export default function OverviewTab() {
           <ChartCard title="Taxas de Movimentação" subtitle="Atrição vs Turnover (%)">
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={attrTurnData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
-                <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                 <Line type="monotone" dataKey="attricao" name="Atrição %" stroke={COLORS.warning} strokeWidth={3} dot={{ r: 4 }} connectNulls />
                 <Line type="monotone" dataKey="turnover" name="Turnover %" stroke={COLORS.orange} strokeWidth={2} dot={{ r: 3 }} strokeDasharray="5 5" connectNulls />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -493,11 +493,11 @@ export default function OverviewTab() {
         <ChartCard title="Headcount por área" subtitle="Colaboradores e % do total">
           <ResponsiveContainer width="100%" height={340}>
             <BarChart data={depts} layout="vertical" margin={{ left: 8, right: 16 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 10 }} />
-              <YAxis type="category" dataKey="name" tick={{ fill: '#4a5568', fontSize: 11 }} width={120} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
+              <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} width={120} />
               <Tooltip
-                contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }}
                 formatter={(value: number, name: string, props: any) => [`${value} (${props.payload.pct}%)`, 'Colaboradores']}
               />
               <Bar dataKey="hc" fill={brandColor + '55'} stroke={brandColor} strokeWidth={1} radius={[0, 4, 4, 0]} />

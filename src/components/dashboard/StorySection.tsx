@@ -25,7 +25,7 @@ interface StorySectionProps {
 }
 
 const variantStyles = {
-  default: 'border-l-4 border-l-[hsl(var(--flutter))] bg-slate-900/50',
+  default: 'border-l-4 border-l-[hsl(var(--flutter))] bg-card/50',
   highlight: 'border-l-4 border-l-[hsl(var(--flutter))] bg-gradient-to-r from-[hsl(var(--flutter))]/10 to-transparent',
   warning: 'border-l-4 border-l-amber-500 bg-amber-950/30',
   success: 'border-l-4 border-l-green-500 bg-green-950/30',
@@ -50,7 +50,7 @@ export function StorySection({
   return (
     <Card className={cn(variantStyles[variant], className)}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg flex items-center gap-2 text-slate-100">
+        <CardTitle className="text-lg flex items-center gap-2 text-foreground">
           <Icon className={cn("h-5 w-5", iconColors[variant])} />
           {title}
         </CardTitle>
@@ -71,7 +71,7 @@ interface StoryInsightProps {
 const insightStyles = {
   positive: 'bg-green-950/40 border-green-500/30 text-green-300',
   negative: 'bg-red-950/40 border-red-500/30 text-red-300',
-  neutral: 'bg-slate-800/50 border-slate-600/30 text-slate-300',
+  neutral: 'bg-muted/50 border-border/30 text-foreground',
   warning: 'bg-amber-950/40 border-amber-500/30 text-amber-300',
 };
 
@@ -123,21 +123,21 @@ export function StoryMetric({
   icon: Icon
 }: StoryMetricProps & { color?: string; icon?: React.ElementType }) {
   return (
-    <div className={cn("text-center p-4 bg-slate-800/50 rounded-lg border border-slate-700/50", className)}>
-      <p className="text-xs text-slate-400 mb-1 uppercase tracking-wider">{label}</p>
+    <div className={cn("text-center p-4 bg-muted/50 rounded-lg border border-border/50", className)}>
+      <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">{label}</p>
       <p className={cn(
         'text-3xl font-bold',
-        color ? '' : 'text-slate-100'
+        color ? '' : 'text-foreground'
       )} style={color ? { color } : undefined}>{value}</p>
       {subtext && (
-        <p className="text-xs text-slate-500 mt-1">{subtext}</p>
+        <p className="text-xs text-muted-foreground mt-1">{subtext}</p>
       )}
       {trend && (
         <div className={cn(
           "flex items-center justify-center gap-1 text-xs mt-2 font-medium",
           trendDirection === 'up' && "text-green-400",
           trendDirection === 'down' && "text-red-400",
-          trendDirection === 'neutral' && "text-slate-400"
+          trendDirection === 'neutral' && "text-muted-foreground"
         )}>
           {trendDirection === 'up' && <TrendingUp className="h-3 w-3" />}
           {trendDirection === 'down' && <TrendingDown className="h-3 w-3" />}
@@ -234,7 +234,7 @@ export function ExecutiveSummary({
 }: ExecutiveSummaryProps) {
   return (
     <StorySection title={title} icon={Target} variant="highlight">
-      <p className="text-sm text-slate-300 leading-relaxed">
+      <p className="text-sm text-foreground leading-relaxed">
         {summary}
       </p>
       

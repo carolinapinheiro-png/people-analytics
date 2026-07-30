@@ -37,7 +37,7 @@ export function SubSection({
   return (
     <Card className={cn('border', variantStyles[variant], className)}>
       <CardHeader className="pb-3">
-        <CardTitle className="text-sm flex items-center gap-2 text-slate-100">
+        <CardTitle className="text-sm flex items-center gap-2 text-foreground">
           {Icon && <Icon className={cn('h-4 w-4', iconColors[variant])} />}
           {title}
         </CardTitle>
@@ -58,7 +58,7 @@ interface MetricBoxProps {
 }
 
 const metricBoxStyles = {
-  default: 'bg-slate-800/50 border-slate-700/50 text-slate-100',
+  default: 'bg-muted/50 border-border/50 text-foreground',
   success: 'bg-green-950/30 border-green-500/20 text-green-300',
   warning: 'bg-amber-950/30 border-amber-500/20 text-amber-300',
   danger: 'bg-red-950/30 border-red-500/20 text-red-300',
@@ -74,9 +74,9 @@ export function MetricBox({
 }: MetricBoxProps) {
   return (
     <div className={cn('p-3 rounded-lg border text-center', metricBoxStyles[variant], className)}>
-      <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">{label}</p>
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
       <p className="text-xl font-bold">{value}</p>
-      {subtext && <p className="text-[10px] text-slate-500 mt-1">{subtext}</p>}
+      {subtext && <p className="text-[10px] text-muted-foreground mt-1">{subtext}</p>}
     </div>
   );
 }
@@ -88,7 +88,7 @@ interface ListItemProps {
 }
 
 const listItemStyles = {
-  default: 'bg-slate-800/30 border-slate-700/30',
+  default: 'bg-muted/30 border-border/30',
   success: 'bg-green-950/20 border-green-500/20',
   warning: 'bg-amber-950/20 border-amber-500/20',
   danger: 'bg-red-950/20 border-red-500/20',
@@ -97,8 +97,8 @@ const listItemStyles = {
 export function ListItem({ label, value, variant = 'default' }: ListItemProps) {
   return (
     <div className={cn('flex items-center justify-between p-2 rounded border text-sm', listItemStyles[variant])}>
-      <span className="text-slate-300">{label}</span>
-      <span className="font-medium text-slate-100">{value}</span>
+      <span className="text-foreground">{label}</span>
+      <span className="font-medium text-foreground">{value}</span>
     </div>
   );
 }

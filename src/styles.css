@@ -146,3 +146,62 @@
     color: var(--color-foreground);
   }
 }
+
+/* =====================================================================
+ * Tema da marca Flutter Brasil (Brand Guidelines 2025) + variaveis de
+ * grafico theme-aware. Estes blocos vem DEPOIS dos tokens shadcn e os
+ * sobrepoem, mantendo a estrutura original intacta.
+ *   Flutter Navy #16215B (core) · Flutter Blue #0285FF (acento primario)
+ *   Dark Navy #0B112E (fundo escuro) · Sky Blue #CCE7FF (claro)
+ * ===================================================================== */
+:root {
+  --background: #ffffff;
+  --foreground: #16215b;
+  --card: #ffffff;
+  --card-foreground: #16215b;
+  --popover: #ffffff;
+  --popover-foreground: #16215b;
+  --primary: #0285ff;
+  --primary-foreground: #ffffff;
+  --secondary: #eaf3ff;
+  --secondary-foreground: #16215b;
+  --muted: #eef4fc;
+  --muted-foreground: #5b6b8c;
+  --accent: #eaf3ff;
+  --accent-foreground: #16215b;
+  --border: #d8e4f4;
+  --input: #d8e4f4;
+  --ring: #0285ff;
+  /* graficos */
+  --chart-tooltip-bg: #ffffff;
+  --chart-tooltip-border: #d8e4f4;
+  --chart-tooltip-fg: #16215b;
+  --chart-tick: #64748b;
+  --chart-grid: rgba(22, 33, 91, 0.10);
+}
+
+.dark {
+  --background: #0b112e;
+  --foreground: #f2f6ff;
+  --card: #16215b;
+  --card-foreground: #f2f6ff;
+  --popover: #16215b;
+  --popover-foreground: #f2f6ff;
+  --primary: #0285ff;
+  --primary-foreground: #ffffff;
+  --secondary: #1c2b64;
+  --secondary-foreground: #f2f6ff;
+  --muted: #1c2b64;
+  --muted-foreground: #9fb0d9;
+  --accent: #1c2b64;
+  --accent-foreground: #f2f6ff;
+  --border: #29407f;
+  --input: #29407f;
+  --ring: #0285ff;
+  /* graficos */
+  --chart-tooltip-bg: #16215b;
+  --chart-tooltip-border: #29407f;
+  --chart-tooltip-fg: #e2e8f0;
+  --chart-tick: #9fb0d9;
+  --chart-grid: rgba(159, 176, 217, 0.16);
+}

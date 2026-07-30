@@ -168,10 +168,10 @@ export default function SalaryTab() {
         <ChartCard title="Evolução Custo por FTE" subtitle="Custo médio mensal por colaborador">
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={costTrend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-              <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
-              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => fmtC(v)} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+              <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => fmtC(v)} />
               <Line type="monotone" dataKey="custoFTE" name="Custo/FTE" stroke={COLORS.flutter} strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
@@ -180,10 +180,10 @@ export default function SalaryTab() {
         <ChartCard title="Salário Médio por Grupo" subtitle="Líderes vs Não-Líderes">
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={salaryTrend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-              <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
-              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => fmtC(v)} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+              <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => fmtC(v)} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
               <Line type="monotone" dataKey="lideres" name="Líderes" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
               <Line type="monotone" dataKey="naoLideres" name="Não-Líderes" stroke={COLORS.info} strokeWidth={2} dot={{ r: 3 }} />
@@ -197,11 +197,11 @@ export default function SalaryTab() {
           {areaComp && areaComp.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={areaComp} layout="vertical" margin={{ left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} domain={[0, 'dataMax']} tickFormatter={(v) => `${v}%`} />
-                <YAxis type="category" dataKey="area" tick={{ fill: '#4a5568', fontSize: 10 }} width={130} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} domain={[0, 'dataMax']} tickFormatter={(v) => `${v}%`} />
+                <YAxis type="category" dataKey="area" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={130} />
                 <Tooltip
-                  contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }}
+                  contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }}
                   formatter={(v: number, _n: string, item: any) => [`${v}% · ${item.payload.n} pessoas`, 'Comp-ratio médio']}
                 />
                 <Bar dataKey="cr" fill={COLORS.nsx + '99'} stroke={COLORS.nsx} strokeWidth={1} radius={[0, 4, 4, 0]} />
@@ -246,35 +246,35 @@ export default function SalaryTab() {
       </div>
 
       {/* Detailed Analysis */}
-      <Card className="border-l-4 bg-slate-900/50" style={{ borderLeftColor: brandColor }}>
+      <Card className="border-l-4 bg-card/50" style={{ borderLeftColor: brandColor }}>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2 text-slate-100">
+          <CardTitle className="text-lg flex items-center gap-2 text-foreground">
             <BarChart3 className="h-5 w-5" style={{ color: brandColor }} />
             Análise de Compensação — {mLabel(currentMonth)}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-slate-800/50 rounded-lg p-4">
-              <h3 className="font-semibold text-slate-100 mb-3 flex items-center gap-2">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Wallet className="h-4 w-4" />
                 Visão Geral de Custos
               </h3>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Custo Total Est.</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Custo Total Est.</span>
                   <span className="font-bold text-green-400">{fmtC(totalCost)}</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Custo por FTE</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Custo por FTE</span>
                   <span className="font-bold">{fmtC(fteCost)}</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Custo / Hora</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Custo / Hora</span>
                   <span className="font-bold">R$ {hourCost}</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Var. vs mês ant.</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Var. vs mês ant.</span>
                   <span className={`font-bold ${costDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {costDelta >= 0 ? '+' : ''}{costDelta.toFixed(1)}%
                   </span>
@@ -282,55 +282,55 @@ export default function SalaryTab() {
               </div>
             </div>
 
-            <div className="bg-slate-800/50 rounded-lg p-4">
-              <h3 className="font-semibold text-slate-100 mb-3 flex items-center gap-2">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Scale className="h-4 w-4" />
                 Estrutura Salarial
               </h3>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Média Líderes</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Média Líderes</span>
                   <span className="font-bold text-purple-400">{fmtC(curr.avg_salary_leaders || 0)}</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Média Não-Líderes</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Média Não-Líderes</span>
                   <span className="font-bold text-blue-400">{fmtC(curr.avg_salary_non_leaders || 0)}</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Gap Líder/NL</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Gap Líder/NL</span>
                   <span className="font-bold">{salaryGap}x</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Líderes / Total</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Líderes / Total</span>
                   <span className="font-bold">{leaders} / {curr.headcount || 0}</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-slate-800/50 rounded-lg p-4">
-              <h3 className="font-semibold text-slate-100 mb-3 flex items-center gap-2">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
                 Tendências
               </h3>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Var. Headcount</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Var. Headcount</span>
                   <span className={`font-bold ${hcDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {hcDelta >= 0 ? '+' : ''}{hcDelta.toFixed(1)}%
                   </span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Var. Custo/FTE (YoY)</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Var. Custo/FTE (YoY)</span>
                   <span className={`font-bold ${yoyCostChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {yoyCostChange >= 0 ? '+' : ''}{yoyCostChange.toFixed(1)}%
                   </span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Maior Depto</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Maior Depto</span>
                   <span className="font-bold">{highestDept?.name || '—'}</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Menor Depto</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Menor Depto</span>
                   <span className="font-bold">{lowestDept?.name || '—'}</span>
                 </div>
               </div>

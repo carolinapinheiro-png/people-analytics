@@ -106,10 +106,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+// Aplica o tema salvo (padrao: escuro) ANTES da pintura, evitando o flash de
+// tema errado. Le localStorage; se o usuario escolheu claro, remove `.dark`.
+const themeInitScript = `(function(){try{var t=localStorage.getItem('theme')||'dark';var e=document.documentElement;if(t==='light'){e.classList.remove('dark');}else{e.classList.add('dark');}e.style.colorScheme=t;}catch(_){document.documentElement.classList.add('dark');}})();`;
+
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="pt-BR" className="dark">
+    <html lang="pt-BR" className="dark" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         <HeadContent />
       </head>
       <body>

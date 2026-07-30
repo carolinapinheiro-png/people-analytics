@@ -103,7 +103,7 @@ export default function DemographicsTab() {
                     <Cell fill={COLORS.female} />
                     <Cell fill={COLORS.info} />
                   </Pie>
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                  <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                   <Legend wrapperStyle={{ fontSize: 10 }} />
                 </PieChart>
               </ResponsiveContainer>
@@ -112,10 +112,10 @@ export default function DemographicsTab() {
             <ChartCard title="Faixa etária" subtitle="Idade exata no mês" icon={Cake}>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={age}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                  <XAxis dataKey="name" tick={{ fill: '#4a5568', fontSize: 10 }} />
-                  <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
+                  <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                  <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                   <Bar dataKey="value" name="Pessoas" fill={brandColor} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -127,10 +127,10 @@ export default function DemographicsTab() {
             <ChartCard title="Cor / Raça" subtitle="Autodeclaração · dado sensível, só agregado (LGPD)" icon={Globe}>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={race} layout="vertical" margin={{ left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                  <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: '#4a5568', fontSize: 10 }} width={90} />
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`${v} · ${pctOf(v, hc).toFixed(0)}%`, 'Pessoas']} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={90} />
+                  <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`${v} · ${pctOf(v, hc).toFixed(0)}%`, 'Pessoas']} />
                   <Bar dataKey="value" name="Pessoas" radius={[0, 4, 4, 0]}>
                     {race.map((r) => <Cell key={r.name} fill={RACE_COLORS[r.name] || brandColor} />)}
                   </Bar>
@@ -141,10 +141,10 @@ export default function DemographicsTab() {
             <ChartCard title="Estado civil" icon={Users}>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={marital} layout="vertical" margin={{ left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                  <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: '#4a5568', fontSize: 10 }} width={100} />
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`${v} · ${pctOf(v, hc).toFixed(0)}%`, 'Pessoas']} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={100} />
+                  <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`${v} · ${pctOf(v, hc).toFixed(0)}%`, 'Pessoas']} />
                   <Bar dataKey="value" name="Pessoas" fill={COLORS.nsx + '99'} stroke={COLORS.nsx} strokeWidth={1} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -156,10 +156,10 @@ export default function DemographicsTab() {
             <ChartCard title="Origem (UF natal)" subtitle="Onde nasceram — top 10" icon={Globe}>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={origin} layout="vertical" margin={{ left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                  <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: '#4a5568', fontSize: 9 }} width={110} />
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} width={110} />
+                  <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                   <Bar dataKey="value" name="Pessoas" fill={COLORS.betfair + '99'} stroke={COLORS.betfair} strokeWidth={1} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -168,16 +168,16 @@ export default function DemographicsTab() {
             <ChartCard title="Local de trabalho (UF)" subtitle="Top estados e regiões" icon={MapPin}>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={states} layout="vertical" margin={{ left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                  <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: '#4a5568', fontSize: 9 }} width={44} />
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} width={44} />
+                  <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                   <Bar dataKey="value" name="Pessoas" fill={brandColor} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
               <div className="flex flex-wrap gap-2 mt-2 text-[11px] text-muted-foreground">
                 {regions.map((r) => (
-                  <span key={r.name} className="rounded bg-slate-800/60 px-2 py-0.5">
+                  <span key={r.name} className="rounded bg-muted/60 px-2 py-0.5">
                     {r.name}: <strong className="text-foreground">{pctOf(r.value, hc).toFixed(0)}%</strong>
                   </span>
                 ))}
@@ -190,10 +190,10 @@ export default function DemographicsTab() {
             <ChartCard title="Senioridade (nível)" subtitle="Pirâmide do quadro" icon={GraduationCap}>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={level} layout="vertical" margin={{ left: 8 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                  <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fill: '#4a5568', fontSize: 10 }} width={32} />
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                  <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={32} />
+                  <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                   <Bar dataKey="value" name="Pessoas" fill={COLORS.purple + '99'} stroke={COLORS.purple} strokeWidth={1} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -202,10 +202,10 @@ export default function DemographicsTab() {
             <ChartCard title="Tempo de casa" subtitle="Distribuição dos ativos" icon={Cake}>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={tenure}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                  <XAxis dataKey="name" tick={{ fill: '#4a5568', fontSize: 10 }} />
-                  <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                  <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
+                  <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                  <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                   <Bar dataKey="value" name="Pessoas" fill={COLORS.info} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>

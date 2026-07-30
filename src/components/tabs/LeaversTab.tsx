@@ -147,17 +147,17 @@ export default function LeaversTab() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
             <LogOut className="h-5 w-5" style={{ color: brandColor }} />
             Análise de Desligamentos
           </h2>
-          <p className="text-sm text-slate-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             {totalLeavers} desligamentos{activeYear ? ` em ${activeYear}` : ' (todos os anos)'} · dados reais ·
             {' '}filtro de ano no topo
           </p>
         </div>
         <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
             placeholder="Buscar colaborador, cargo ou departamento..."
@@ -181,11 +181,11 @@ export default function LeaversTab() {
         <ChartCard title="Desligamentos por Faixa Salarial" subtitle="Distribuição real dos salários">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={salaryBandData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
+              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
               <Tooltip
-                contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
                 formatter={(value: number, _n: string, item: any) => [`${value} · ${item.payload.pctTot.toFixed(0)}% do total`, 'Desligados']}
               />
               <Bar dataKey="value" name="Desligados" fill={brandColor} radius={[4, 4, 0, 0]} />
@@ -196,11 +196,11 @@ export default function LeaversTab() {
         <ChartCard title="Desligamentos por Tempo de Casa" subtitle="Permanência média na empresa">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={tenureData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
+              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
               <Tooltip
-                contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
                 formatter={(value: number, _n: string, item: any) => [`${value} · ${item.payload.pctTot.toFixed(0)}% do total`, 'Desligados']}
               />
               <Bar dataKey="value" name="Desligados" fill={COLORS.nsx} radius={[4, 4, 0, 0]} />
@@ -228,7 +228,7 @@ export default function LeaversTab() {
                 ))}
               </Pie>
               <Tooltip
-                contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
                 formatter={(value: number, name: string) => [`${value} desligados`, name]}
               />
               <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />
@@ -239,11 +239,11 @@ export default function LeaversTab() {
         <ChartCard title="Por Departamento" subtitle="Absoluto · no tooltip, % sobre o HC do depto">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={deptData.slice(0, 8)} layout="vertical" margin={{ left: 20 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis type="number" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-              <YAxis type="category" dataKey="name" tick={{ fill: '#94a3b8', fontSize: 10 }} width={90} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
+              <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={90} />
               <Tooltip
-                contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
                 formatter={(value: number, _n: string, item: any) => {
                   const p = item.payload;
                   return [p.pctHC != null ? `${value} · ${p.pctHC.toFixed(1)}% do HC (${p.hc} ativos)` : `${value} · ${p.pctTot.toFixed(0)}% do total`, 'Desligados'];
@@ -257,11 +257,11 @@ export default function LeaversTab() {
         <ChartCard title="Por Level" subtitle="Absoluto · no tooltip, % sobre o HC do nível">
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={levelData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis dataKey="name" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-              <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
+              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
               <Tooltip
-                contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
+                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
                 formatter={(value: number, _n: string, item: any) => {
                   const p = item.payload;
                   return [p.pctHC != null ? `${value} · ${p.pctHC.toFixed(1)}% do HC (${p.hc} ativos)` : `${value} · ${p.pctTot.toFixed(0)}% do total`, 'Desligados'];
@@ -277,15 +277,15 @@ export default function LeaversTab() {
       <ChartCard title="Evolução Mensal de Desligamentos" subtitle="Mês a mês, classificado por tipo">
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={monthlyData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
             <XAxis
               dataKey="month"
-              tick={{ fill: '#94a3b8', fontSize: 10 }}
+              tick={{ fill: 'var(--chart-tick)', fontSize: 10 }}
               tickFormatter={(v) => mLabel(v)}
             />
-            <YAxis tick={{ fill: '#94a3b8', fontSize: 11 }} />
+            <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
             <Tooltip
-              contentStyle={{ background: '#0f172a', border: '1px solid #1e293b', borderRadius: 8, fontSize: 12 }}
+              contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
               labelFormatter={(label) => mLabel(String(label))}
             />
             <Legend wrapperStyle={{ fontSize: 10 }} />
@@ -297,9 +297,9 @@ export default function LeaversTab() {
       </ChartCard>
 
       {/* Detailed Table */}
-      <Card className="border-l-4 bg-slate-900/50" style={{ borderLeftColor: brandColor }}>
+      <Card className="border-l-4 bg-card/50" style={{ borderLeftColor: brandColor }}>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2 text-slate-100">
+          <CardTitle className="text-lg flex items-center gap-2 text-foreground">
             <BarChart3 className="h-5 w-5" style={{ color: brandColor }} />
             Lista de Desligados
           </CardTitle>
@@ -307,8 +307,8 @@ export default function LeaversTab() {
         <CardContent>
           <div className="overflow-auto max-h-[500px]">
             <table className="w-full text-[11px]">
-              <thead className="text-muted-foreground uppercase sticky top-0 bg-slate-900/95 backdrop-blur-sm">
-                <tr className="border-b border-slate-700/50">
+              <thead className="text-muted-foreground uppercase sticky top-0 bg-card/95 backdrop-blur-sm">
+                <tr className="border-b border-border/50">
                   <th className="text-left p-2">Nome</th>
                   <th className="text-left p-2">Cargo</th>
                   <th className="text-left p-2">Depto</th>
@@ -321,14 +321,14 @@ export default function LeaversTab() {
               </thead>
               <tbody>
                 {filteredLeavers.map((leaver) => (
-                  <tr key={leaver.id} className="border-b border-slate-700/30 hover:bg-slate-800/50">
-                    <td className="p-2 font-medium text-slate-100 whitespace-nowrap">{leaver.nome}</td>
-                    <td className="p-2 text-slate-300">{leaver.cargo}</td>
-                    <td className="p-2 text-slate-300">{leaver.departamento}</td>
-                    <td className="p-2 text-slate-300">{leaver.level}</td>
-                    <td className="p-2 text-slate-300">{leaver.vinculo}</td>
-                    <td className="p-2 text-slate-300">{leaver.tempo_casa_faixa}</td>
-                    <td className="p-2 text-slate-300 whitespace-nowrap">{leaver.data_desligamento_str}</td>
+                  <tr key={leaver.id} className="border-b border-border/30 hover:bg-muted/50">
+                    <td className="p-2 font-medium text-foreground whitespace-nowrap">{leaver.nome}</td>
+                    <td className="p-2 text-foreground">{leaver.cargo}</td>
+                    <td className="p-2 text-foreground">{leaver.departamento}</td>
+                    <td className="p-2 text-foreground">{leaver.level}</td>
+                    <td className="p-2 text-foreground">{leaver.vinculo}</td>
+                    <td className="p-2 text-foreground">{leaver.tempo_casa_faixa}</td>
+                    <td className="p-2 text-foreground whitespace-nowrap">{leaver.data_desligamento_str}</td>
                     <td className="p-2">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
                         leaver.tipo_desligamento_agrupado === 'Involuntário'
@@ -337,7 +337,7 @@ export default function LeaversTab() {
                           ? 'bg-blue-500/20 text-blue-400'
                           : leaver.tipo_desligamento_agrupado === 'Acordo'
                           ? 'bg-yellow-500/20 text-yellow-400'
-                          : 'bg-slate-500/20 text-slate-400'
+                          : 'bg-muted text-muted-foreground'
                       }`}>
                         {leaver.tipo_desligamento_agrupado}
                       </span>
@@ -347,7 +347,7 @@ export default function LeaversTab() {
               </tbody>
             </table>
             {filteredLeavers.length === 0 && (
-              <p className="text-center text-slate-400 py-8">Nenhum desligado encontrado com os filtros selecionados.</p>
+              <p className="text-center text-muted-foreground py-8">Nenhum desligado encontrado com os filtros selecionados.</p>
             )}
           </div>
         </CardContent>

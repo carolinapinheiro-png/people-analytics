@@ -142,10 +142,10 @@ export default function DEITab() {
         <ChartCard title="Evolução Female %" subtitle="Overall vs Liderança">
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={genderTrend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-              <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} domain={[0, 60]} />
-              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} domain={[0, 60]} />
+              <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
               <Line type="monotone" dataKey="overall" name="Geral" stroke={COLORS.female} strokeWidth={2} dot={{ r: 3 }} />
               <Line type="monotone" dataKey="lideranca" name="Liderança" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
@@ -156,10 +156,10 @@ export default function DEITab() {
         <ChartCard title="Composição de Liderança" subtitle="Líderes por gênero ao longo do tempo">
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={leaderStack}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-              <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
-              <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+              <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
               <Bar dataKey="female" name="Female" stackId="a" fill={COLORS.female} />
               <Bar dataKey="male" name="Male" stackId="a" fill="#42a5f5" />
@@ -181,7 +181,7 @@ export default function DEITab() {
           </ResponsiveContainer>
           <div className="text-center -mt-4">
             <span className="text-2xl font-bold" style={{ color: COLORS.female }}>{curr.gender_female_pct}%</span>
-            <span className="text-xs text-slate-400 ml-1">feminino</span>
+            <span className="text-xs text-muted-foreground ml-1">feminino</span>
           </div>
         </ChartCard>
 
@@ -197,7 +197,7 @@ export default function DEITab() {
           </ResponsiveContainer>
           <div className="text-center -mt-4">
             <span className="text-2xl font-bold" style={{ color: COLORS.purple }}>{curr.leader_female_pct}%</span>
-            <span className="text-xs text-slate-400 ml-1">líderes mulheres</span>
+            <span className="text-xs text-muted-foreground ml-1">líderes mulheres</span>
           </div>
         </ChartCard>
       </div>
@@ -207,11 +207,11 @@ export default function DEITab() {
         <ChartCard title="Liderança feminina por área" subtitle={`${mLabel(currentMonth)} · áreas com ≥2 líderes`}>
           <ResponsiveContainer width="100%" height={Math.max(200, leaderByArea.length * 34)}>
             <BarChart data={leaderByArea} layout="vertical" margin={{ left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-              <XAxis type="number" domain={[0, 100]} tick={{ fill: '#4a5568', fontSize: 9 }} tickFormatter={(v) => `${v}%`} />
-              <YAxis type="category" dataKey="area" tick={{ fill: '#4a5568', fontSize: 10 }} width={130} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+              <XAxis type="number" domain={[0, 100]} tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} tickFormatter={(v) => `${v}%`} />
+              <YAxis type="category" dataKey="area" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={130} />
               <Tooltip
-                contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }}
+                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }}
                 formatter={(v: number, _n: string, item: any) => [`${v.toFixed(0)}% · ${item.payload.female} de ${item.payload.leaders} líderes`, 'Mulheres na liderança']}
               />
               <Bar dataKey="pct" fill={COLORS.female + '99'} stroke={COLORS.female} strokeWidth={1} radius={[0, 4, 4, 0]} />
@@ -229,10 +229,10 @@ export default function DEITab() {
           >
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={levelPyramid} layout="vertical" margin={{ left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                <XAxis type="number" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                <YAxis type="category" dataKey="level" tick={{ fill: '#4a5568', fontSize: 10 }} width={32} />
-                <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                <YAxis type="category" dataKey="level" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={32} />
+                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                 <Bar dataKey="n" name="Pessoas" radius={[0, 4, 4, 0]}>
                   {levelPyramid.map((r) => (
                     <Cell key={r.level} fill={LEVEL_COLORS[LEVELS.indexOf(r.level)] || COLORS.flutter} />
@@ -245,10 +245,10 @@ export default function DEITab() {
           <ChartCard title="Senioridade no tempo" subtitle="Distribuição por nível a cada mês (valor da época)">
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={levelStack}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(218 40% 21%)" />
-                <XAxis dataKey="month" tick={{ fill: '#4a5568', fontSize: 9 }} />
-                <YAxis tick={{ fill: '#4a5568', fontSize: 9 }} />
-                <Tooltip contentStyle={{ background: '#111827', border: '1px solid #1f2e4a', borderRadius: 8, fontSize: 11 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
+                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                 <Legend wrapperStyle={{ fontSize: 9 }} />
                 {LEVELS.map((l, i) => (
                   <Bar key={l} dataKey={l} name={l} stackId="lv" fill={LEVEL_COLORS[i]} />
@@ -269,90 +269,90 @@ export default function DEITab() {
       )}
 
       {/* Detailed Analysis */}
-      <Card className="border-l-4 bg-slate-900/50" style={{ borderLeftColor: brandColor }}>
+      <Card className="border-l-4 bg-card/50" style={{ borderLeftColor: brandColor }}>
         <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2 text-slate-100">
+          <CardTitle className="text-lg flex items-center gap-2 text-foreground">
             <BarChart3 className="h-5 w-5" style={{ color: brandColor }} />
             Análise DEI — {mLabel(currentMonth)}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-slate-800/50 rounded-lg p-4">
-              <h3 className="font-semibold text-slate-100 mb-3 flex items-center gap-2">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 Visão Geral
               </h3>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Female %</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Female %</span>
                   <span className="font-bold text-pink-400">{curr.gender_female_pct}%</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Male %</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Male %</span>
                   <span className="font-bold text-blue-400">{(100 - (curr.gender_female_pct || 0)).toFixed(1)}%</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Total Female</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Total Female</span>
                   <span className="font-bold">{curr.gender_female || 0}</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Total Male</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Total Male</span>
                   <span className="font-bold">{curr.gender_male || 0}</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-slate-800/50 rounded-lg p-4">
-              <h3 className="font-semibold text-slate-100 mb-3 flex items-center gap-2">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Award className="h-4 w-4" />
                 Liderança
               </h3>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Female % Liderança</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Female % Liderança</span>
                   <span className="font-bold text-purple-400">{curr.leader_female_pct}%</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Líderes Female</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Líderes Female</span>
                   <span className="font-bold">{curr.leader_female || 0}</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Líderes Male</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Líderes Male</span>
                   <span className="font-bold">{(curr.leaders || 0) - (curr.leader_female || 0)}</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Total Líderes</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Total Líderes</span>
                   <span className="font-bold">{curr.leaders || 0}</span>
                 </div>
               </div>
             </div>
 
-            <div className="bg-slate-800/50 rounded-lg p-4">
-              <h3 className="font-semibold text-slate-100 mb-3 flex items-center gap-2">
+            <div className="bg-muted/50 rounded-lg p-4">
+              <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Target className="h-4 w-4" />
                 Evolução no período
               </h3>
               <div className="space-y-3 text-sm">
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Início do período</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Início do período</span>
                   <span className="font-bold">{startFemalePct.toFixed(1)}%</span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Crescimento</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Crescimento</span>
                   <span className={`font-bold ${progressGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                     {progressGrowth >= 0 ? '+' : ''}{progressGrowth.toFixed(1)}pp
                   </span>
                 </div>
-                <div className="flex justify-between p-2 bg-slate-800/50 rounded border">
-                  <span className="text-slate-400">Tendência</span>
+                <div className="flex justify-between p-2 bg-muted/50 rounded border">
+                  <span className="text-muted-foreground">Tendência</span>
                   <span className="font-bold">{fpDelta >= 0 ? 'Subindo' : 'Descendo'}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="p-4 rounded-lg border text-sm bg-slate-800/40 border-slate-600/40 text-slate-300">
+          <div className="p-4 rounded-lg border text-sm bg-muted/40 border-border/40 text-foreground">
             <div className="flex items-start gap-3">
               <Users className="h-5 w-5 mt-0.5 flex-shrink-0" />
               <div>
@@ -366,12 +366,12 @@ export default function DEITab() {
             </div>
           </div>
 
-          <div className="bg-slate-800/40 border border-slate-600/40 rounded-lg p-4">
-            <h3 className="font-semibold text-slate-200 mb-3 flex items-center gap-2">
+          <div className="bg-muted/40 border border-border/40 rounded-lg p-4">
+            <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
               Pontos de atenção
             </h3>
-            <ul className="space-y-2 text-sm text-slate-300">
+            <ul className="space-y-2 text-sm text-foreground">
               <li className="flex items-start gap-2">
                 <span className="font-bold">1.</span>
                 <span><strong>Representatividade geral:</strong> acompanhar a evolução mensal da proporção de mulheres no quadro e o ritmo de contratações.</span>
