@@ -1,0 +1,11 @@
+-- Perfil individual: incluir People (HR) + diretoria, que ficaram FORA do
+-- arquivo-fonte de comp-ratio (COMP RATIO base.csv nao tem a area HR e traz a
+-- diretoria so parcialmente). Decisao (30/07) da Carolina: carregar esses ativos
+-- a partir do historico, com admissao/tempo de casa/faixa/ultima promocao, mas
+-- SEM comp-ratio (cargos de People/diretoria nao tem faixa MED/MN/Q1-Q4 definida).
+--
+-- Para nao poluir a aba de Compensacao (populacao com faixa/comp-ratio), marcamos
+-- a origem: in_comp_scope=true = veio do arquivo de comp (entra nos agregados);
+-- false = carregado do historico so para o Perfil Individual (fica fora dos
+-- agregados de compensacao, mas aparece na busca de perfil).
+ALTER TABLE public.comp_ratio ADD COLUMN IF NOT EXISTS in_comp_scope boolean NOT NULL DEFAULT true;

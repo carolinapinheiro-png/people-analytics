@@ -142,6 +142,14 @@ export default function ProfileTab() {
             </CardHeader>
           </Card>
 
+          {!profile.in_comp_scope && (
+            <div className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-xs text-muted-foreground leading-relaxed">
+              <strong>Fora do arquivo de comp-ratio.</strong> Esta pessoa (People/diretoria) não consta no arquivo
+              de comp — os dados vêm do histórico. Aparecem <strong>faixa salarial, admissão, nível e última promoção</strong>,
+              mas <strong>não há comp-ratio</strong> (esses cargos não têm faixa MED/MN/Q1–Q4 definida).
+            </div>
+          )}
+
           {/* KPIs do individuo */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KpiCard

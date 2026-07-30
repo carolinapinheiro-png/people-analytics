@@ -75,7 +75,11 @@ export const listCompRatio = createServerFn({ method: 'GET' })
       .order('salary', { ascending: false });
     if (error) throw new Error(`Falha ao carregar comp ratio: ${error.message}`);
 
-    const scoped = (rows ?? []).filter((r) => isInScope(scope, r.area));
+    // So a populacao do arquivo de comp (in_comp_scope). Os ativos carregados do
+    // historico so para o Perfil Individual (People/diretoria) ficam de fora aqui.
+    const scoped = (rows ?? [])
+      .filter((r) => r.in_comp_scope !== false)
+      .filter((r) => isInScope(scope, r.area));
     const visible = canSeeIndividualData(scope.profile)
       ? scoped
       : scoped.map((r) => ({ ...r, name: 'Confidencial', salary: null }));
@@ -226,6 +230,9 @@ export interface EmployeeProfile {
   cr_percentile_level: number | null;
   cohort_level: CohortStat;
   cohort_area: CohortStat;
+  /** false = carregado do historico so para o perfil (People/diretoria fora do
+   *  arquivo de comp); nesse caso nao ha comp-ratio, so faixa via folha. */
+  in_comp_scope: boolean;
 }
 
 /** Converte "DD/MM/YY" (formato do Convenia) em meses ate hoje. */
@@ -300,7 +307,7 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
 
     const { data: person, error } = await db
       .from('comp_ratio')
-      .select('id, company, name, area, team, job_title, level, contract, hire, salary, comp_ratio, quartile, last_promotion')
+      .select('id, company, name, area, team, job_title, level, contract, hire, salary, comp_ratio, quartile, last_promotion, in_comp_scope')
       .eq('id', data.id)
       .maybeSingle();
     if (error) throw new Error(`Falha ao carregar perfil: ${error.message}`);
@@ -353,6 +360,7 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
       cr_percentile_level: crPct,
       cohort_level: { n: byLevel.length, med_cr: median(crLevel), med_tenure_months: median(tenLevel) },
       cohort_area: { n: byArea.length, med_cr: median(crArea), med_tenure_months: median(tenArea) },
+      in_comp_scope: person.in_comp_scope !== false,
     };
 
     const { error: logError } = await db.from('comp_ratio_access_log').insert({
@@ -371,10 +379,13 @@ export const getCompAggregates = createServerFn({ method: 'GET' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
 
-    const { data: rows, error } = await db
+    const { data: allRows, error } = await db
       .from('comp_ratio')
-      .select('company, area, contract, level, salary, comp_ratio');
+      .select('company, area, contract, level, salary, comp_ratio, in_comp_scope');
     if (error) throw new Error(`Falha ao carregar agregados de comp: ${error.message}`);
+
+    // Agregados de compensacao usam SO a populacao do arquivo de comp.
+    const rows = (allRows ?? []).filter((r) => r.in_comp_scope !== false);
 
     const cMap = new Map<string, CompContractAgg>();
     const aMap = new Map<string, CompAreaAgg>();
