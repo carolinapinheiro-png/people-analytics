@@ -90,9 +90,13 @@ export const listCompRatio = createServerFn({ method: 'GET' })
       throw new Error(`Falha ao registrar acesso; consulta abortada: ${logError.message}`);
     }
 
+    // Decisao (30/07): o salario individual NAO sai daqui, nem para quem tem
+    // acesso no Convenia -- o comp-ratio ja da a leitura relativa sem expor o
+    // valor nominal. Fica sempre null; a folha continua disponivel em agregados
+    // (getCompAggregates: medias por contrato/nivel/area).
     return visible.map((r) => ({
       ...r,
-      salary: r.salary == null ? null : Number(r.salary),
+      salary: null,
       comp_ratio: r.comp_ratio == null ? null : Number(r.comp_ratio),
     })) as CompRatioRow[];
   });

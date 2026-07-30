@@ -15,8 +15,6 @@ import { COLORS } from '@/lib/colors';
 
 const fmt1 = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-const fmtBRL = (n: number | null | undefined) =>
-  n == null ? '—' : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
 const QUARTILE_ORDER = ['Below Range', 'Q1', 'Q2', 'Q3', 'Q4', 'Above range'];
 const quartileColor = (q: string) =>
@@ -110,7 +108,7 @@ export default function CompRatioTab() {
         </h2>
         <p className="text-sm text-muted-foreground flex items-center gap-1.5">
           <ShieldAlert className="h-3.5 w-3.5" />
-          Salário individual — cada consulta é registrada. {stats.total} ativos com banda salarial.
+          Comp-ratio individual (sem salário nominal exposto) — cada consulta é registrada. {stats.total} ativos com banda salarial.
         </p>
       </div>
 
@@ -220,7 +218,6 @@ export default function CompRatioTab() {
                 <th className="p-2">Nível</th>
                 <th className="p-2">Área</th>
                 <th className="p-2">Cargo</th>
-                <th className="p-2 text-right">Salário</th>
                 <th className="p-2 text-right">Comp ratio</th>
                 <th className="p-2">Quartil</th>
               </tr>
@@ -232,7 +229,6 @@ export default function CompRatioTab() {
                   <td className="p-2">{r.level}</td>
                   <td className="p-2 text-xs">{r.area}</td>
                   <td className="p-2 text-xs text-muted-foreground max-w-[220px] truncate">{r.job_title}</td>
-                  <td className="p-2 text-right tabular-nums whitespace-nowrap">{fmtBRL(r.salary)}</td>
                   <td className="p-2 text-right tabular-nums font-semibold">{fmt1(r.comp_ratio)}%</td>
                   <td className="p-2">
                     <Badge variant="outline" className="text-[10px]" style={{ borderColor: quartileColor(r.quartile ?? ''), color: quartileColor(r.quartile ?? '') }}>
