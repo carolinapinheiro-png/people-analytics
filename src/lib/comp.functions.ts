@@ -137,15 +137,38 @@ export interface CompLevelAgg {
   sal_sum: number;
   sal_n: number;
 }
+export interface CompMedianAgg {
+  /** Grupo: marca ('NSX' | 'Betfair BR') ou 'combined'. */
+  group: string;
+  med_salary: number | null;
+  med_cr: number | null;
+}
+
+const COMPANY_TO_BRAND: Record<string, string> = {
+  'NSX BRASIL RECIFE': 'NSX',
+  'NSX BRASIL SÃO PAULO': 'NSX',
+  'NSX MARECHAL': 'NSX',
+  'NSX BETFAIR BRASIL S.A.': 'Betfair BR',
+};
 export interface CompAggregates {
   contracts: CompContractAgg[];
   areas: CompAreaAgg[];
+  /** Mediana de salario e comp-ratio por empresa (visao mais robusta que a
+   *  media para distribuicoes puxadas por poucos C-levels). */
+  medians: CompMedianAgg[];
   /** Ativos por faixa salarial (mesmos cortes dos desligados) -> denominador
    *  para a taxa de atricao por faixa. */
   bands: CompBandAgg[];
   /** Por nivel (L0..L9): contagem + somas de comp-ratio e salario. Para as
    *  bandas de comparacao (L0-L2, L3-L4, lideres L4-L5/L6-L7, C-level). */
   levels: CompLevelAgg[];
+}
+
+function median(nums: number[]): number | null {
+  if (!nums.length) return null;
+  const s = [...nums].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
 }
 
 /** Mesmos cortes de faixa salarial usados nos desligados (LeaverRecord). */
@@ -177,6 +200,8 @@ export const getCompAggregates = createServerFn({ method: 'GET' })
     const aMap = new Map<string, CompAreaAgg>();
     const bMap = new Map<string, CompBandAgg>();
     const lMap = new Map<string, CompLevelAgg>();
+    const salByCo = new Map<string, number[]>();
+    const crByCo = new Map<string, number[]>();
     for (const r of rows ?? []) {
       const company = (r.company ?? '—') as string;
       const contract = (r.contract ?? '—') as string;
@@ -184,6 +209,12 @@ export const getCompAggregates = createServerFn({ method: 'GET' })
       const level = ((r.level ?? '—') as string).trim() || '—';
       const sal = r.salary == null ? null : Number(r.salary);
       const cr = r.comp_ratio == null ? null : Number(r.comp_ratio);
+      const brandGroup = COMPANY_TO_BRAND[company];
+      const groups = brandGroup ? [brandGroup, 'combined'] : ['combined'];
+      for (const g of groups) {
+        if (sal != null) (salByCo.get(g) ?? salByCo.set(g, []).get(g)!).push(sal);
+        if (cr != null) (crByCo.get(g) ?? crByCo.set(g, []).get(g)!).push(cr);
+      }
 
       const ck = `${company}||${contract}`;
       const c = cMap.get(ck) ?? { company, contract, n: 0, sal_sum: 0, sal_n: 0 };
@@ -211,10 +242,18 @@ export const getCompAggregates = createServerFn({ method: 'GET' })
       lMap.set(lk, l);
     }
 
+    const groups = new Set<string>([...salByCo.keys(), ...crByCo.keys()]);
+    const medians: CompMedianAgg[] = [...groups].map((group) => ({
+      group,
+      med_salary: median(salByCo.get(group) ?? []),
+      med_cr: median(crByCo.get(group) ?? []),
+    }));
+
     return {
       contracts: [...cMap.values()],
       areas: [...aMap.values()],
       bands: [...bMap.values()],
       levels: [...lMap.values()],
+      medians,
     };
   });

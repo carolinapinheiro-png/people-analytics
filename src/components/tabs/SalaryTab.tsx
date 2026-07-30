@@ -145,9 +145,13 @@ export default function SalaryTab() {
     ? (curr.avg_salary_leaders / curr.avg_salary_non_leaders).toFixed(1)
     : '0';
 
+  // Mediana (mais robusta que a media p/ visao geral -- pedido da Marilia).
+  const medBrand = comp?.medians.find((m) => m.group === (brand === 'combined' ? 'combined' : brand)) ?? null;
+
   const kpis = [
     { label: 'Custo Total Est.', value: fmtC(totalCost), color: COLORS.purple, icon: Wallet },
     { label: 'Custo por FTE', value: fmtC(fteCost), color: COLORS.flutter, icon: DollarSign },
+    { label: 'Salário mediano', value: medBrand?.med_salary != null ? fmtC(medBrand.med_salary) : '—', color: COLORS.info, icon: Scale },
     { label: 'Custo / Hora Est.', value: `R$ ${hourCost}`, color: COLORS.nsx, icon: Activity },
     { label: 'FTEs', value: String(curr.headcount || 0), color: COLORS.orange, icon: Users },
   ];
@@ -195,9 +199,13 @@ export default function SalaryTab() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         {kpis.map(k => <KpiCard key={k.label} label={k.label} value={k.value} color={k.color} icon={k.icon} />)}
       </div>
+      <p className="text-xs text-muted-foreground -mt-1">
+        O <strong>salário mediano</strong> ({medBrand?.med_salary != null ? fmtC(medBrand.med_salary) : '—'})
+        é a leitura mais robusta do &quot;típico&quot; da organização — menos puxada por poucos C-levels que a média.
+      </p>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

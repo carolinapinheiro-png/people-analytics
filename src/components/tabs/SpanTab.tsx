@@ -65,6 +65,14 @@ export default function SpanTab() {
         </p>
       </div>
 
+      <div className="rounded-lg border border-border/50 bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
+        <strong>Gestor ≠ Líder.</strong> Aqui &quot;gestor&quot; é quem tem pelo menos um reporte direto na
+        cadeia ({fmt1(overall?.managers)} pessoas, sobre {fmt1(overall?.actives)} ativos do Talent Mobility).
+        No DEI/Overview, &quot;líder&quot; é quem está marcado como liderança no cadastro (flag
+        &quot;Liderança?&quot;) — populações e critérios diferentes, por isso os números não batem (ex.: ~130
+        líderes marcados no consolidado × {fmt1(overall?.managers)} gestores com reportes).
+      </div>
+
       {overall && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <KpiCard label="Ativos" value={fmt1(overall.actives)} color={COLORS.flutter} icon={Users} />

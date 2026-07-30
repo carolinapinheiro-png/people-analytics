@@ -105,6 +105,13 @@ function EngagementSection({ data }: { data: ExperienceData }) {
           <KpiCard label="Participação" value={`${fmt1(company.participation)}%`} color={COLORS.info} icon={Users} />
         </div>
       )}
+      {company && (
+        <p className="text-xs text-muted-foreground -mt-1">
+          <strong>Participação da pesquisa (jan/2026): {fmt1(company.participation)}%</strong> dos elegíveis
+          responderam. Departamentos com participação baixa devem ser lidos com cautela — veja a coluna
+          &quot;Participação&quot; no detalhe abaixo.
+        </p>
+      )}
 
       {driverGroups.length > 0 && (
         <ChartCard title="Drivers de engajamento" subtitle="média das perguntas (1–5) · clique para abrir" icon={Sparkles}>
@@ -138,7 +145,7 @@ function EngagementSection({ data }: { data: ExperienceData }) {
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="p-2">Departamento</th><th className="p-2 text-right">eNPS</th><th className="p-2 text-right">Δ</th>
-                <th className="p-2 text-right">Risco ret.</th><th className="p-2 text-right">Satisfação</th><th className="p-2">Status</th>
+                <th className="p-2 text-right">Risco ret.</th><th className="p-2 text-right">Satisfação</th><th className="p-2 text-right">Participação</th><th className="p-2">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -149,6 +156,7 @@ function EngagementSection({ data }: { data: ExperienceData }) {
                   <td className="p-2 text-right"><Delta v={d.enps_delta} /></td>
                   <td className="p-2 text-right tabular-nums">{fmt1(d.retention_risk)}%</td>
                   <td className="p-2 text-right tabular-nums">{fmt1(d.satisfaction)}</td>
+                  <td className="p-2 text-right tabular-nums">{d.participation != null ? `${fmt1(d.participation)}%` : '—'}</td>
                   <td className="p-2 text-xs text-muted-foreground">{d.status}</td>
                 </tr>
               ))}
