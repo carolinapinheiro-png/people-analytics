@@ -46,6 +46,27 @@ export interface MonthRecord {
   };
   /** Recorte DEI por raca ({ raca: { total, female, leaders, female_leaders } }). */
   race_cross?: Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
+  /** Fase 2 (recorte por time): as MESMAS dimensoes por departamento da epoca.
+   *  { DEPT: { gender_female, gender_male, leaders, leader_female, level_base,
+   *  tenure_base, demographics{age,race,marital,origin}, race_cross } }. Permite
+   *  o applyDeptFilter trocar os blocos de dimensao pela fatia do depto. */
+  dept_breakdown?: Record<string, DeptBreakdownRecord>;
+}
+
+export interface DeptBreakdownRecord {
+  gender_female: number;
+  gender_male: number;
+  leaders: number;
+  leader_female: number;
+  level_base: Record<string, number>;
+  tenure_base: Record<string, number>;
+  demographics: {
+    age: Record<string, number>;
+    race: Record<string, number>;
+    marital: Record<string, number>;
+    origin: Record<string, number>;
+  };
+  race_cross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
 }
 
 export const RAW_DATA: MonthRecord[] = [

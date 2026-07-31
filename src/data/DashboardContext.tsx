@@ -76,7 +76,13 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
   const [deptName, deptInfo] = deptEntry;
   const ratio = record.headcount > 0 ? deptInfo.hc / record.headcount : 0;
 
-  return {
+  // Fase 2: se a serie tem a quebra EXATA deste departamento (dept_breakdown),
+  // troca os blocos de dimensao (genero, nivel, tempo de casa, demograficos,
+  // raca) pela fatia do depto -- as abas de tendencia passam a recortar de
+  // verdade. Sem o breakdown (Betfair/Flutter ou meses antigos), cai no rateio
+  // proporcional dos escalares e mantem as dimensoes company-wide (fallback).
+  const db = record.dept_breakdown?.[deptName];
+  const base: MonthRecord = {
     ...record,
     headcount: deptInfo.hc,
     joiners: Math.round((record.joiners || 0) * ratio),
@@ -92,6 +98,25 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
     avg_salary_leaders: deptInfo.avg_salary_leaders,
     avg_salary_non_leaders: deptInfo.avg_salary_non_leaders,
     dept_data: { [deptName]: deptInfo },
+    dept_breakdown: db ? { [deptName]: db } : undefined,
+  };
+  if (!db) return base;
+
+  const genderBase = db.gender_female + db.gender_male;
+  return {
+    ...base,
+    gender_female: db.gender_female,
+    gender_male: db.gender_male,
+    gender_female_pct: genderBase ? Math.round((db.gender_female / genderBase) * 1000) / 10 : 0,
+    leaders: db.leaders,
+    leader_female: db.leader_female,
+    leader_female_pct: db.leaders ? Math.round((db.leader_female / db.leaders) * 1000) / 10 : 0,
+    leaders_pct: deptInfo.hc ? Math.round((db.leaders / deptInfo.hc) * 1000) / 10 : 0,
+    level_base: db.level_base,
+    tenure_base: db.tenure_base,
+    demographics: db.demographics,
+    race_cross: db.race_cross,
+    leader_dept: { [deptName]: { leaders: db.leaders, female: db.leader_female } },
   };
 }
 

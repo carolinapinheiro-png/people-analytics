@@ -53,6 +53,10 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
       r.demographics && Object.keys(r.demographics).length > 0 ? r.demographics : undefined,
     race_cross:
       r.race_cross && Object.keys(r.race_cross).length > 0 ? r.race_cross : undefined,
+    dept_breakdown:
+      r.dept_breakdown && Object.keys(r.dept_breakdown).length > 0
+        ? (r.dept_breakdown as MonthRecord['dept_breakdown'])
+        : undefined,
   };
 };
 

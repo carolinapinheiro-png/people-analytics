@@ -253,6 +253,28 @@ export interface MonthAggregate {
   /** Recorte de DEI por raca: { raca: { total, female, leaders, female_leaders } }.
    *  Lideranca da epoca. Permite % de mulheres e % em lideranca por raca. */
   race_cross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
+  /** Fase 2 (recorte por time): as MESMAS dimensoes acima, mas quebradas por
+   *  departamento da epoca. { DEPT: { gender_female, gender_male, leaders,
+   *  leader_female, level_base, tenure_base, demographics, race_cross } }. Permite
+   *  o applyDeptFilter trocar os blocos de dimensao pela fatia do departamento.
+   *  Somar todos os deptos reproduz os totais da empresa (por construcao). */
+  dept_breakdown: Record<string, DeptBreakdown>;
+}
+
+export interface DeptBreakdown {
+  gender_female: number;
+  gender_male: number;
+  leaders: number;
+  leader_female: number;
+  level_base: Record<string, number>;
+  tenure_base: Record<string, number>;
+  demographics: {
+    age: Record<string, number>;
+    race: Record<string, number>;
+    marital: Record<string, number>;
+    origin: Record<string, number>;
+  };
+  race_cross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
 }
 
 /** dd/mm/aaaa ou ISO aaaa-mm-dd -> Date em UTC (evita armadilha de fuso). */
@@ -399,6 +421,17 @@ export function aggregateMonth(
 
   const deptRows: Array<{ dept: string; lead: boolean; salary: number | null }> = [];
   const leaderDept: Record<string, { leaders: number; female: number }> = {};
+  // Fase 2: quebra de todas as dimensoes por departamento (mesma pessoa/mes que
+  // dept_data, logo soma dos deptos = totais da empresa por construcao).
+  const deptBreakdown: Record<string, DeptBreakdown> = {};
+  const ensureDb = (d: string): DeptBreakdown =>
+    (deptBreakdown[d] = deptBreakdown[d] ?? {
+      gender_female: 0, gender_male: 0, leaders: 0, leader_female: 0,
+      level_base: {}, tenure_base: {},
+      demographics: { age: {}, race: {}, marital: {}, origin: {} },
+      race_cross: {},
+    });
+  const bumpDb = (o: Record<string, number>, k: string) => { o[k] = (o[k] ?? 0) + 1; };
   for (const r of recon) {
     const vig = departmentAt(historyByCpf.get(r.p.cpf) ?? [], end);
     // Decisao 24/07 (revisao fria): ativo sem registro vigente entra como
@@ -413,6 +446,23 @@ export function aggregateMonth(
       ld.leaders++;
       if (FEM.has(r.p.gender)) ld.female++;
     }
+    // dept_breakdown: as mesmas dimensoes dos totais, por departamento.
+    const db = ensureDb(dept);
+    const isFem = FEM.has(r.p.gender);
+    if (isFem) db.gender_female++;
+    else if (MASC.has(r.p.gender)) db.gender_male++;
+    if (r.lead) { db.leaders++; if (isFem) db.leader_female++; }
+    bumpDb(db.level_base, r.level == null ? 'NA' : `L${r.level}`);
+    bumpDb(db.tenure_base, tenureBucket(r.p.admission, end));
+    bumpDb(db.demographics.age, ageBucket(r.p.birth, end));
+    const race = (r.p.race ?? '').trim() || 'Não informado';
+    bumpDb(db.demographics.race, race);
+    bumpDb(db.demographics.marital, (r.p.marital ?? '').trim() || 'Não informado');
+    bumpDb(db.demographics.origin, (r.p.origin ?? '').trim() || 'Não informado');
+    const rc = (db.race_cross[race] = db.race_cross[race] ?? { total: 0, female: 0, leaders: 0, female_leaders: 0 });
+    rc.total++;
+    if (isFem) rc.female++;
+    if (r.lead) { rc.leaders++; if (isFem) rc.female_leaders++; }
   }
 
   const pcd = active.filter((p) => p.pcd).length;
@@ -498,6 +548,7 @@ export function aggregateMonth(
     tenure_base: tenureBase,
     demographics: { age: ageMix, race: raceMix, marital: maritalMix, origin: originMix },
     race_cross: raceCross,
+    dept_breakdown: deptBreakdown,
   };
 }
 

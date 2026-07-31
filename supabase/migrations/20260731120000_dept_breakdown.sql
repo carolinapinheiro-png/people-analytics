@@ -1,0 +1,13 @@
+-- Fase 2 do recorte por time: quebra por departamento da epoca de TODAS as
+-- dimensoes (genero, nivel, tempo de casa, demograficos, raca), por mes. Permite
+-- as abas de tendencia (Overview, DEI, Demograficos, Span) recortarem por
+-- departamento -- o applyDeptFilter troca os blocos de dimensao pela fatia do
+-- depto quando dept_breakdown existe (fallback company-wide quando nao).
+--
+-- Coluna aditiva: NAO altera nenhum campo validado da serie. O conteudo e
+-- calculado pelo MESMO agregador que produz dept_data (mesma pessoa/mes/depto),
+-- entao a soma dos departamentos reproduz os totais da empresa por construcao --
+-- validado offline antes da gravacao. Populado so para brand='NSX' (Betfair BR e
+-- Flutter International nao tem demografico/departamento historico confiavel;
+-- caem no fallback). Regravar via re-agregacao offline (aggregateRange nsx_br).
+ALTER TABLE public.monthly_metrics ADD COLUMN IF NOT EXISTS dept_breakdown jsonb;

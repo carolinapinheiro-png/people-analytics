@@ -209,6 +209,22 @@ export interface MonthlyMetricRow extends MetricSeriesRow {
   } | null;
   /** Recorte DEI por raca. */
   race_cross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }> | null;
+  /** Fase 2: quebras por departamento da epoca (mesmas dimensoes acima). */
+  dept_breakdown: Record<string, {
+    gender_female: number;
+    gender_male: number;
+    leaders: number;
+    leader_female: number;
+    level_base: Record<string, number>;
+    tenure_base: Record<string, number>;
+    demographics: {
+      age: Record<string, number>;
+      race: Record<string, number>;
+      marital: Record<string, number>;
+      origin: Record<string, number>;
+    };
+    race_cross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
+  }> | null;
 }
 
 /**
@@ -230,7 +246,7 @@ export const getMonthlyMetrics = createServerFn({ method: 'GET' })
     let q = db
       .from('monthly_metrics')
       .select(
-        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, raise_events, pcd, apprentice, leader_dept, tenure_base, demographics, race_cross',
+        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, raise_events, pcd, apprentice, leader_dept, tenure_base, demographics, race_cross, dept_breakdown',
       )
       .is('quality_flag', null)
       .order('month', { ascending: true });
