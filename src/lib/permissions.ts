@@ -122,3 +122,43 @@ export function isInScope(
   if (jobFamily != null && allowedFamilies.includes(normalizeFamily(jobFamily))) return true;
   return false;
 }
+
+/** Job type families (Talent Mobility). Escopo do gestor = uniao de departamentos + familias. */
+export const JOB_TYPE_FAMILIES = [
+  'Customer Operations',
+  'Commercial & Marketing',
+  'Product & Technology',
+  'Data & Analytics',
+  'Finance',
+  'HR',
+  'Legal',
+  'Other (Property, Security, Cleaning)',
+  'Leadership (Executive) SR and C-Levels (reporting to CEO or N-3)',
+  'Risk and Trading',
+];
+
+/** Sugestoes de level no cadastro (campo livre, datalist). */
+export const JOB_LEVEL_PRESETS = [
+  'C-Level',
+  'VP',
+  'Director',
+  'Senior Manager',
+  'Manager',
+  'Coordinator',
+  'Specialist',
+  'Senior Analyst',
+  'Analyst',
+  'Intern',
+];
+
+/** Sugestoes de responsabilidades no cadastro (chips, campo livre nao permitido). */
+export const RESPONSIBILITY_PRESETS = [
+  'Headcount & Movimentação',
+  'Turnover & Retenção',
+  'Comp & Ben',
+  'DEI',
+  'Engagement & Experiência',
+  'Onboarding',
+  'Estrutura & Span',
+  'Talent Mobility',
+];

@@ -48,29 +48,41 @@ export type Database = {
         Row: {
           created_at: string | null
           departments: string[]
-          job_families: string[]
           email: string
           id: string
+          job_families: string[]
+          job_level: string | null
+          job_title: string | null
           profile: Database["public"]["Enums"]["access_profile"]
+          responsibilities: string[]
           role: string
+          updated_at: string
         }
         Insert: {
           created_at?: string | null
           departments?: string[]
-          job_families?: string[]
           email: string
           id?: string
+          job_families?: string[]
+          job_level?: string | null
+          job_title?: string | null
           profile?: Database["public"]["Enums"]["access_profile"]
+          responsibilities?: string[]
           role?: string
+          updated_at?: string
         }
         Update: {
           created_at?: string | null
           departments?: string[]
-          job_families?: string[]
           email?: string
           id?: string
+          job_families?: string[]
+          job_level?: string | null
+          job_title?: string | null
           profile?: Database["public"]["Enums"]["access_profile"]
+          responsibilities?: string[]
           role?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -83,7 +95,12 @@ export type Database = {
           created_at: string | null
           hire: string | null
           id: string
+          in_comp_scope: boolean
+          is_leader: boolean
+          is_people_manager: boolean
           job_title: string | null
+          job_type_family: string | null
+          last_promotion: string | null
           level: string | null
           name: string
           quartile: string | null
@@ -98,7 +115,12 @@ export type Database = {
           created_at?: string | null
           hire?: string | null
           id?: string
+          in_comp_scope?: boolean
+          is_leader?: boolean
+          is_people_manager?: boolean
           job_title?: string | null
+          job_type_family?: string | null
+          last_promotion?: string | null
           level?: string | null
           name: string
           quartile?: string | null
@@ -113,7 +135,12 @@ export type Database = {
           created_at?: string | null
           hire?: string | null
           id?: string
+          in_comp_scope?: boolean
+          is_leader?: boolean
+          is_people_manager?: boolean
           job_title?: string | null
+          job_type_family?: string | null
+          last_promotion?: string | null
           level?: string | null
           name?: string
           quartile?: string | null
@@ -167,6 +194,63 @@ export type Database = {
           created_at?: string | null
           notes?: string | null
           source_system?: string
+        }
+        Relationships: []
+      }
+      contract_mix_monthly: {
+        Row: {
+          brand: string
+          contract: string
+          id: string
+          loaded_at: string | null
+          month: string
+          n: number
+          position: number | null
+        }
+        Insert: {
+          brand: string
+          contract: string
+          id?: string
+          loaded_at?: string | null
+          month: string
+          n: number
+          position?: number | null
+        }
+        Update: {
+          brand?: string
+          contract?: string
+          id?: string
+          loaded_at?: string | null
+          month?: string
+          n?: number
+          position?: number | null
+        }
+        Relationships: []
+      }
+      departments: {
+        Row: {
+          active: boolean
+          aliases: string[]
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          aliases?: string[]
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          aliases?: string[]
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -539,12 +623,15 @@ export type Database = {
       }
       monthly_metrics: {
         Row: {
+          apprentice: number
           attrition_rate: number | null
           avg_salary_leaders: number | null
           avg_salary_non_leaders: number | null
           brand: string
           business_unit: Database["public"]["Enums"]["business_unit"] | null
           created_at: string | null
+          demographics: Json
+          dept_breakdown: Json | null
           dept_data: Json
           exit_survey: Json | null
           gender_female: number | null
@@ -553,26 +640,35 @@ export type Database = {
           headcount: number
           id: string
           joiners: number
+          leader_dept: Json
           leader_female: number | null
           leader_female_pct: number | null
           leaders: number | null
           leaders_pct: number | null
           leavers: number
+          level_base: Json
           month: string
+          pcd: number
           promotions: number | null
           quality_flag: string | null
+          race_cross: Json
+          raise_events: Json
           salary_band_attrition: Json | null
           source: string
           state_mix: Json
+          tenure_base: Json
           updated_at: string | null
         }
         Insert: {
+          apprentice?: number
           attrition_rate?: number | null
           avg_salary_leaders?: number | null
           avg_salary_non_leaders?: number | null
           brand: string
           business_unit?: Database["public"]["Enums"]["business_unit"] | null
           created_at?: string | null
+          demographics?: Json
+          dept_breakdown?: Json | null
           dept_data?: Json
           exit_survey?: Json | null
           gender_female?: number | null
@@ -581,26 +677,35 @@ export type Database = {
           headcount: number
           id?: string
           joiners?: number
+          leader_dept?: Json
           leader_female?: number | null
           leader_female_pct?: number | null
           leaders?: number | null
           leaders_pct?: number | null
           leavers?: number
+          level_base?: Json
           month: string
+          pcd?: number
           promotions?: number | null
           quality_flag?: string | null
+          race_cross?: Json
+          raise_events?: Json
           salary_band_attrition?: Json | null
           source?: string
           state_mix?: Json
+          tenure_base?: Json
           updated_at?: string | null
         }
         Update: {
+          apprentice?: number
           attrition_rate?: number | null
           avg_salary_leaders?: number | null
           avg_salary_non_leaders?: number | null
           brand?: string
           business_unit?: Database["public"]["Enums"]["business_unit"] | null
           created_at?: string | null
+          demographics?: Json
+          dept_breakdown?: Json | null
           dept_data?: Json
           exit_survey?: Json | null
           gender_female?: number | null
@@ -609,17 +714,23 @@ export type Database = {
           headcount?: number
           id?: string
           joiners?: number
+          leader_dept?: Json
           leader_female?: number | null
           leader_female_pct?: number | null
           leaders?: number | null
           leaders_pct?: number | null
           leavers?: number
+          level_base?: Json
           month?: string
+          pcd?: number
           promotions?: number | null
           quality_flag?: string | null
+          race_cross?: Json
+          raise_events?: Json
           salary_band_attrition?: Json | null
           source?: string
           state_mix?: Json
+          tenure_base?: Json
           updated_at?: string | null
         }
         Relationships: []
@@ -768,6 +879,39 @@ export type Database = {
           managers?: number | null
           position?: number | null
           reports?: number | null
+          scope?: string
+          scope_type?: string
+          snapshot_month?: string
+        }
+        Relationships: []
+      }
+      work_model_snapshot: {
+        Row: {
+          id: string
+          loaded_at: string | null
+          model: string
+          n: number
+          position: number | null
+          scope: string
+          scope_type: string
+          snapshot_month: string
+        }
+        Insert: {
+          id?: string
+          loaded_at?: string | null
+          model: string
+          n: number
+          position?: number | null
+          scope: string
+          scope_type: string
+          snapshot_month: string
+        }
+        Update: {
+          id?: string
+          loaded_at?: string | null
+          model?: string
+          n?: number
+          position?: number | null
           scope?: string
           scope_type?: string
           snapshot_month?: string
