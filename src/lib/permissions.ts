@@ -31,6 +31,7 @@ export const PROFILE_DESCRIPTIONS: Record<AccessProfile, string> = {
 
 export type DashboardTab =
   | 'overview'
+  | 'team'
   | 'dei'
   | 'comp'
   | 'demographics'
@@ -42,6 +43,7 @@ export type DashboardTab =
 
 const ALL_TABS: DashboardTab[] = [
   'overview',
+  'team',
   'dei',
   'comp',
   'demographics',

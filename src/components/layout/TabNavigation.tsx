@@ -15,6 +15,7 @@ import { visibleTabs } from '@/lib/permissions';
 
 const tabs: { id: TabType; label: string }[] = [
   { id: 'overview', label: 'Overview' },
+  { id: 'team', label: 'Meu Time' },
   { id: 'dei', label: 'DEI Metrics' },
   { id: 'comp', label: 'Compensação' },
   { id: 'demographics', label: 'Demográficos' },

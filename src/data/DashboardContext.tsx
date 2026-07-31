@@ -10,7 +10,7 @@ import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
 import { getMonthsOrder, getMonthData, getAllMonthsForBrand, aggregateMonthlyToQuarterly } from './helpers';
 
 export type BrandType = 'combined' | 'NSX' | 'Betfair BR' | 'Flutter International';
-export type TabType = 'overview' | 'dei' | 'comp' | 'demographics' | 'engagement' | 'span' | 'attrition' | 'individual' | 'data';
+export type TabType = 'overview' | 'team' | 'dei' | 'comp' | 'demographics' | 'engagement' | 'span' | 'attrition' | 'individual' | 'data';
 export type ViewType = 'monthly' | 'quarterly';
 
 export interface Filters {
