@@ -51,8 +51,12 @@ export type Database = {
           email: string
           id: string
           job_families: string[]
+          job_level: string | null
+          job_title: string | null
           profile: Database["public"]["Enums"]["access_profile"]
+          responsibilities: string[]
           role: string
+          updated_at: string
         }
         Insert: {
           created_at?: string | null
@@ -60,8 +64,12 @@ export type Database = {
           email: string
           id?: string
           job_families?: string[]
+          job_level?: string | null
+          job_title?: string | null
           profile?: Database["public"]["Enums"]["access_profile"]
+          responsibilities?: string[]
           role?: string
+          updated_at?: string
         }
         Update: {
           created_at?: string | null
@@ -69,8 +77,12 @@ export type Database = {
           email?: string
           id?: string
           job_families?: string[]
+          job_level?: string | null
+          job_title?: string | null
           profile?: Database["public"]["Enums"]["access_profile"]
+          responsibilities?: string[]
           role?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -212,6 +224,33 @@ export type Database = {
           month?: string
           n?: number
           position?: number | null
+        }
+        Relationships: []
+      }
+      departments: {
+        Row: {
+          active: boolean
+          aliases: string[]
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          aliases?: string[]
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          aliases?: string[]
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
         }
         Relationships: []
       }
