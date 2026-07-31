@@ -70,7 +70,7 @@ async function authorize(userEmail: string | undefined) {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data, error } = await supabaseAdmin
     .from('allowed_emails')
-    .select('role, profile, departments')
+    .select('role, profile, departments, job_families')
     .ilike('email', userEmail)
     .maybeSingle();
 
@@ -78,10 +78,11 @@ async function authorize(userEmail: string | undefined) {
   if (error) throw new Error(`Access check failed: ${error.message}`);
   if (!data) throw new Error('Forbidden');
 
-  const row = data as { role?: string; profile?: string; departments?: string[] };
+  const row = data as { role?: string; profile?: string; departments?: string[]; job_families?: string[] };
   const scope: AccessScope = {
     profile: (row.profile as AccessProfile) ?? 'dept_leader',
     departments: row.departments ?? [],
+    jobFamilies: row.job_families ?? [],
   };
   return { email: userEmail, role: (row.role as 'admin' | 'viewer') ?? 'viewer', scope };
 }
@@ -110,7 +111,7 @@ export const listLeavers = createServerFn({ method: 'GET' })
 
     // Escopo e mascaramento aplicados no servidor: o perfil nunca recebe linha
     // fora dos seus departamentos, nem nome/salario quando nao tem direito.
-    const scoped = (rows ?? []).filter((r) => isInScope(scope, r.departamento));
+    const scoped = (rows ?? []).filter((r) => isInScope(scope, r.departamento, r.job_family));
     const visible = canSeeIndividualData(scope.profile)
       ? scoped
       : scoped.map((r) => ({ ...r, nome: 'Confidencial', salario: null, faixa_salarial: null }));

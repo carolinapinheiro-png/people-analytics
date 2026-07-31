@@ -43,15 +43,16 @@ async function authorize(userEmail: string | undefined) {
   const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
   const { data, error } = await supabaseAdmin
     .from('allowed_emails')
-    .select('role, profile, departments')
+    .select('role, profile, departments, job_families')
     .ilike('email', userEmail)
     .maybeSingle();
   if (error) throw new Error(`Access check failed: ${error.message}`);
   if (!data) throw new Error('Forbidden');
-  const row = data as { role?: string; profile?: string; departments?: string[] };
+  const row = data as { role?: string; profile?: string; departments?: string[]; job_families?: string[] };
   const scope: AccessScope = {
     profile: (row.profile as AccessProfile) ?? 'dept_leader',
     departments: row.departments ?? [],
+    jobFamilies: row.job_families ?? [],
   };
   return { email: userEmail, role: (row.role as 'admin' | 'viewer') ?? 'viewer', scope };
 }
@@ -79,7 +80,7 @@ export const listCompRatio = createServerFn({ method: 'GET' })
     // historico so para o Perfil Individual (People/diretoria) ficam de fora aqui.
     const scoped = (rows ?? [])
       .filter((r) => r.in_comp_scope !== false)
-      .filter((r) => isInScope(scope, r.area));
+      .filter((r) => isInScope(scope, r.area, r.job_type_family));
     const visible = canSeeIndividualData(scope.profile)
       ? scoped
       : scoped.map((r) => ({ ...r, name: 'Confidencial', salary: null }));
@@ -276,13 +277,15 @@ export const searchEmployees = createServerFn({ method: 'GET' })
 
     const { data: rows, error } = await db
       .from('comp_ratio')
-      .select('id, name, area, level, job_title')
+      .select('id, name, area, level, job_title, job_type_family')
       .ilike('name', `%${q}%`)
       .order('name', { ascending: true })
       .limit(20);
     if (error) throw new Error(`Falha na busca: ${error.message}`);
 
-    const scoped = (rows ?? []).filter((r) => isInScope(scope, r.area));
+    const scoped = (rows ?? [])
+      .filter((r) => isInScope(scope, r.area, r.job_type_family))
+      .map(({ job_type_family: _jtf, ...rest }) => rest);
 
     const { error: logError } = await db.from('comp_ratio_access_log').insert({
       user_email: email,
@@ -307,11 +310,11 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
 
     const { data: person, error } = await db
       .from('comp_ratio')
-      .select('id, company, name, area, team, job_title, level, contract, hire, salary, comp_ratio, quartile, last_promotion, in_comp_scope')
+      .select('id, company, name, area, team, job_title, level, contract, hire, salary, comp_ratio, quartile, last_promotion, in_comp_scope, job_type_family')
       .eq('id', data.id)
       .maybeSingle();
     if (error) throw new Error(`Falha ao carregar perfil: ${error.message}`);
-    if (!person || !isInScope(scope, person.area)) {
+    if (!person || !isInScope(scope, person.area, person.job_type_family)) {
       // Loga a tentativa mesmo sem retorno.
       await db.from('comp_ratio_access_log').insert({
         user_email: email, rows_returned: 0, context: `perfil:${data.id}`,

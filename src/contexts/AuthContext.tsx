@@ -27,6 +27,8 @@ interface AuthContextType {
   profile: AccessProfile | null;
   /** Departamentos atendidos; vazio para perfis globais. */
   departments: string[];
+  /** Job type families atendidas; vazio para perfis globais. */
+  jobFamilies: string[];
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -56,6 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [role, setRole] = useState<'admin' | 'viewer' | null>(null);
   const [profile, setProfile] = useState<AccessProfile | null>(null);
   const [departments, setDepartments] = useState<string[]>([]);
+  const [jobFamilies, setJobFamilies] = useState<string[]>([]);
   const checkAccessFn = useServerFn(checkAccess);
 
   /**
@@ -81,6 +84,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setRole(result.role);
           setProfile((result.profile as AccessProfile | null) ?? null);
           setDepartments(result.departments ?? []);
+          setJobFamilies((result as { jobFamilies?: string[] }).jobFamilies ?? []);
           return 'allowed';
         }
 
@@ -89,6 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setRole(null);
         setProfile(null);
         setDepartments([]);
+        setJobFamilies([]);
         setUser(null);
         setSession(null);
 
@@ -118,6 +123,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setRole(null);
     setProfile(null);
     setDepartments([]);
+    setJobFamilies([]);
     return 'error';
   }, [checkAccessFn]);
 
@@ -137,6 +143,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setRole(null);
           setProfile(null);
           setDepartments([]);
+          setJobFamilies([]);
           setLoading(false);
           return;
         }
@@ -201,6 +208,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setRole(null);
     setProfile(null);
     setDepartments([]);
+    setJobFamilies([]);
   };
 
   const retryAccessCheck = useCallback(() => verifyAccess(), [verifyAccess]);
@@ -219,6 +227,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         role,
         profile,
         departments,
+        jobFamilies,
         signIn,
         signUp,
         signOut,

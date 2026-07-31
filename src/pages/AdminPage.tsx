@@ -34,6 +34,7 @@ interface AllowedEmail {
   role: 'admin' | 'viewer';
   profile: AccessProfile;
   departments: string[];
+  job_families: string[];
   created_at: string;
 }
 
@@ -45,6 +46,21 @@ const DEPARTMENTS = [
   'FINANCE',
   'OPERATIONS',
   'HR',
+];
+
+// Job type families (Talent Mobility). Escopo do gestor = uniao de departamentos
+// + familias atribuidas.
+const JOB_FAMILIES = [
+  'Customer Operations',
+  'Commercial & Marketing',
+  'Product & Technology',
+  'Data & Analytics',
+  'Finance',
+  'HR',
+  'Legal',
+  'Other (Property, Security, Cleaning)',
+  'Leadership (Executive) SR and C-Levels (reporting to CEO or N-3)',
+  'Risk and Trading',
 ];
 
 interface AccessLog {
@@ -63,6 +79,7 @@ export default function AdminPage() {
   const [newEmail, setNewEmail] = useState('');
   const [newProfile, setNewProfile] = useState<AccessProfile>('dept_leader');
   const [newDepartments, setNewDepartments] = useState<string[]>([]);
+  const [newJobFamilies, setNewJobFamilies] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const getAllowedEmailsFn = useServerFn(getAllowedEmails);
@@ -105,12 +122,13 @@ export default function AdminPage() {
     setIsLoading(true);
     try {
       await addAllowedEmailFn({
-        data: { email: newEmail.trim(), profile: newProfile, departments: newDepartments },
+        data: { email: newEmail.trim(), profile: newProfile, departments: newDepartments, jobFamilies: newJobFamilies },
       });
       toast.success('Email autorizado com sucesso');
       setNewEmail('');
       setNewProfile('dept_leader');
       setNewDepartments([]);
+      setNewJobFamilies([]);
       fetchEmails();
     } catch (error) {
       toast.error('Erro ao adicionar email');
@@ -135,9 +153,10 @@ export default function AdminPage() {
     id: string,
     profile: AccessProfile,
     departments: string[],
+    jobFamilies: string[],
   ) => {
     try {
-      await updateAllowedEmailProfileFn({ data: { id, profile, departments } });
+      await updateAllowedEmailProfileFn({ data: { id, profile, departments, jobFamilies } });
       toast.success('Perfil atualizado');
       fetchEmails();
     } catch (error) {
@@ -230,7 +249,13 @@ export default function AdminPage() {
                     {PROFILE_DESCRIPTIONS[newProfile]}
                   </p>
                   {!isGlobalProfile(newProfile) && (
-                    <DepartmentPicker value={newDepartments} onChange={setNewDepartments} />
+                    <div className="space-y-3">
+                      <ChipPicker label="Departamentos atendidos" options={DEPARTMENTS} value={newDepartments} onChange={setNewDepartments} />
+                      <ChipPicker label="Job type families atendidas" options={JOB_FAMILIES} value={newJobFamilies} onChange={setNewJobFamilies} />
+                      <p className="text-[11px] text-muted-foreground">
+                        O gestor vê o dashboard, mas só do seu time: <strong>união</strong> dos departamentos e das famílias marcadas.
+                      </p>
+                    </div>
                   )}
                 </form>
               </CardContent>
@@ -267,9 +292,9 @@ export default function AdminPage() {
                         </div>
                         {!isGlobalProfile(item.profile) && (
                           <span className="text-xs text-muted-foreground truncate">
-                            {item.departments?.length
-                              ? item.departments.join(', ')
-                              : 'Sem departamento atribuido — sem acesso a dados'}
+                            {(item.departments?.length || item.job_families?.length)
+                              ? [...(item.departments ?? []), ...(item.job_families ?? [])].join(' · ')
+                              : 'Sem escopo atribuido — sem acesso a dados'}
                           </span>
                         )}
                       </div>
@@ -281,6 +306,7 @@ export default function AdminPage() {
                               item.id,
                               e.target.value as AccessProfile,
                               item.departments ?? [],
+                              item.job_families ?? [],
                             )
                           }
                           className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
@@ -295,13 +321,36 @@ export default function AdminPage() {
                           <select
                             value=""
                             onChange={(e) => {
+                              const fam = e.target.value;
+                              if (!fam) return;
+                              const current = item.job_families ?? [];
+                              const next = current.includes(fam)
+                                ? current.filter((d) => d !== fam)
+                                : [...current, fam];
+                              handleProfileChange(item.id, item.profile, item.departments ?? [], next);
+                            }}
+                            className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs max-w-[140px]"
+                          >
+                            <option value="">Job families…</option>
+                            {JOB_FAMILIES.map((f) => (
+                              <option key={f} value={f}>
+                                {(item.job_families ?? []).includes(f) ? '✓ ' : ''}
+                                {f}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {!isGlobalProfile(item.profile) && (
+                          <select
+                            value=""
+                            onChange={(e) => {
                               const dept = normalizeDept(e.target.value);
                               if (!dept) return;
                               const current = item.departments ?? [];
                               const next = current.includes(dept)
                                 ? current.filter((d) => d !== dept)
                                 : [...current, dept];
-                              handleProfileChange(item.id, item.profile, next);
+                              handleProfileChange(item.id, item.profile, next, item.job_families ?? []);
                             }}
                             className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
                           >
@@ -386,34 +435,38 @@ export default function AdminPage() {
   );
 }
 
-function DepartmentPicker({
+function ChipPicker({
+  label,
+  options,
   value,
   onChange,
 }: {
+  label: string;
+  options: string[];
   value: string[];
   onChange: (next: string[]) => void;
 }) {
-  const toggle = (dept: string) => {
-    onChange(value.includes(dept) ? value.filter((d) => d !== dept) : [...value, dept]);
+  const toggle = (opt: string) => {
+    onChange(value.includes(opt) ? value.filter((d) => d !== opt) : [...value, opt]);
   };
 
   return (
     <div className="space-y-2">
-      <Label className="text-xs text-muted-foreground">Departamentos atendidos</Label>
+      <Label className="text-xs text-muted-foreground">{label}</Label>
       <div className="flex flex-wrap gap-2">
-        {DEPARTMENTS.map((dept) => (
+        {options.map((opt) => (
           <button
-            key={dept}
+            key={opt}
             type="button"
-            onClick={() => toggle(dept)}
+            onClick={() => toggle(opt)}
             className={
               'rounded-full border px-3 py-1 text-xs transition-colors ' +
-              (value.includes(dept)
+              (value.includes(opt)
                 ? 'border-primary bg-primary text-primary-foreground'
                 : 'border-input text-muted-foreground hover:text-foreground')
             }
           >
-            {dept}
+            {opt}
           </button>
         ))}
       </div>

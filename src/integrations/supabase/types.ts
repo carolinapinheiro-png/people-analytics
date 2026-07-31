@@ -48,6 +48,7 @@ export type Database = {
         Row: {
           created_at: string | null
           departments: string[]
+          job_families: string[]
           email: string
           id: string
           profile: Database["public"]["Enums"]["access_profile"]
@@ -56,6 +57,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           departments?: string[]
+          job_families?: string[]
           email: string
           id?: string
           profile?: Database["public"]["Enums"]["access_profile"]
@@ -64,6 +66,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           departments?: string[]
+          job_families?: string[]
           email?: string
           id?: string
           profile?: Database["public"]["Enums"]["access_profile"]

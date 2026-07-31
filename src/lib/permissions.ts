@@ -59,6 +59,14 @@ export interface AccessScope {
   profile: AccessProfile;
   /** Departamentos atendidos. Vazio = sem restricao apenas para perfis globais. */
   departments: string[];
+  /** Job type families atendidas (ex.: "Product & Technology"). Decisao (30/07):
+   *  um gestor pode ser escopado por departamento E/OU por job family; ve a
+   *  UNIAO -- tudo que bate em qualquer um dos criterios atribuidos. */
+  jobFamilies?: string[];
+}
+
+export function normalizeFamily(value: string | null | undefined): string {
+  return (value ?? '').trim().toLowerCase();
 }
 
 /** Perfis que enxergam a empresa toda. */
@@ -92,10 +100,23 @@ export function normalizeDept(value: string | null | undefined): string {
   return (value ?? '').trim().toUpperCase();
 }
 
-/** Um perfil com escopo so ve linhas dos departamentos atribuidos. */
-export function isInScope(scope: AccessScope, dept: string | null | undefined): boolean {
+/**
+ * Um perfil com escopo so ve linhas do seu "time": UNIAO dos departamentos e das
+ * job families atribuidas. Uma linha entra se seu departamento esta na lista OU
+ * sua job family esta na lista. Perfis globais veem tudo; um perfil sem nenhum
+ * criterio nao ve nada. `jobFamily` e opcional para nao quebrar chamadas antigas
+ * (nesse caso, so o criterio de departamento pesa).
+ */
+export function isInScope(
+  scope: AccessScope,
+  dept: string | null | undefined,
+  jobFamily?: string | null | undefined,
+): boolean {
   if (isGlobalProfile(scope.profile)) return true;
-  const allowed = scope.departments.map(normalizeDept).filter(Boolean);
-  if (allowed.length === 0) return false;
-  return allowed.includes(normalizeDept(dept));
+  const allowedDepts = scope.departments.map(normalizeDept).filter(Boolean);
+  const allowedFamilies = (scope.jobFamilies ?? []).map(normalizeFamily).filter(Boolean);
+  if (allowedDepts.length === 0 && allowedFamilies.length === 0) return false;
+  if (allowedDepts.includes(normalizeDept(dept))) return true;
+  if (jobFamily != null && allowedFamilies.includes(normalizeFamily(jobFamily))) return true;
+  return false;
 }

@@ -6,6 +6,12 @@ import type { Database } from '@/integrations/supabase/types';
 
 const ProfileSchema = z.enum(['admin', 'hr_leader', 'hrbp', 'dept_leader']);
 const DepartmentsSchema = z.array(z.string().trim().min(1).max(80)).max(50).default([]);
+const JobFamiliesSchema = z.array(z.string().trim().min(1).max(120)).max(50).default([]);
+
+/** Departamento e job family so valem para perfis escopados (hrbp/dept_leader). */
+function scopedProfile(profile: z.infer<typeof ProfileSchema>): boolean {
+  return profile === 'hrbp' || profile === 'dept_leader';
+}
 
 /** Perfil admin e o unico que administra usuarios; role fica derivado dele. */
 function roleForProfile(profile: z.infer<typeof ProfileSchema>): 'admin' | 'viewer' {
@@ -37,7 +43,7 @@ export const checkAccess = createServerFn({ method: 'GET' })
   .handler(async ({ context }) => {
     const userEmail = context.claims.email as string | undefined;
     if (!userEmail) {
-      return { allowed: false, role: null, profile: null, departments: [] as string[] };
+      return { allowed: false, role: null, profile: null, departments: [] as string[], jobFamilies: [] as string[] };
     }
 
     // The RLS policy on allowed_emails compares against auth.users.email, but the
@@ -47,7 +53,7 @@ export const checkAccess = createServerFn({ method: 'GET' })
     const { supabaseAdmin: lookupClient } = await import('@/integrations/supabase/client.server');
     const { data, error } = await lookupClient
       .from('allowed_emails')
-      .select('role, profile, departments')
+      .select('role, profile, departments, job_families')
       .ilike('email', userEmail)
       .maybeSingle();
 
@@ -61,11 +67,14 @@ export const checkAccess = createServerFn({ method: 'GET' })
     }
 
     const allowed = !!data;
-    const row = data as { role?: string; profile?: string; departments?: string[] } | null;
+    const row = data as {
+      role?: string; profile?: string; departments?: string[]; job_families?: string[];
+    } | null;
     const profile =
       (row?.profile as 'admin' | 'hr_leader' | 'hrbp' | 'dept_leader' | undefined) ?? null;
     const role = profile === 'admin' ? 'admin' : row ? 'viewer' : null;
     const departments = row?.departments ?? [];
+    const jobFamilies = row?.job_families ?? [];
 
     try {
       const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
@@ -79,7 +88,7 @@ export const checkAccess = createServerFn({ method: 'GET' })
       console.error('Failed to log access attempt:', logError);
     }
 
-    return { allowed, role, profile, departments };
+    return { allowed, role, profile, departments, jobFamilies };
   });
 
 export const getAllowedEmails = createServerFn({ method: 'GET' })
@@ -129,6 +138,7 @@ export const addAllowedEmail = createServerFn({ method: 'POST' })
         email: z.string().email(),
         profile: ProfileSchema,
         departments: DepartmentsSchema,
+        jobFamilies: JobFamiliesSchema,
       })
       .parse(data)
   )
@@ -146,7 +156,8 @@ export const addAllowedEmail = createServerFn({ method: 'POST' })
         email: data.email.trim().toLowerCase(),
         role: roleForProfile(data.profile),
         profile: data.profile,
-        departments: data.profile === 'hrbp' || data.profile === 'dept_leader' ? data.departments : [],
+        departments: scopedProfile(data.profile) ? data.departments : [],
+        job_families: scopedProfile(data.profile) ? data.jobFamilies : [],
       } as never);
 
     if (error) throw new Error(error.message);
@@ -182,6 +193,7 @@ export const updateAllowedEmailProfile = createServerFn({ method: 'POST' })
         id: z.string().uuid(),
         profile: ProfileSchema,
         departments: DepartmentsSchema,
+        jobFamilies: JobFamiliesSchema,
       })
       .parse(data)
   )
@@ -198,7 +210,8 @@ export const updateAllowedEmailProfile = createServerFn({ method: 'POST' })
       .update({
         role: roleForProfile(data.profile),
         profile: data.profile,
-        departments: data.profile === 'hrbp' || data.profile === 'dept_leader' ? data.departments : [],
+        departments: scopedProfile(data.profile) ? data.departments : [],
+        job_families: scopedProfile(data.profile) ? data.jobFamilies : [],
       } as never)
       .eq('id', data.id);
 
