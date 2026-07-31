@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { useDashboard } from '@/data/DashboardContext';
-import { getCompAggregates, type CompAggregates } from '@/lib/comp.functions';
+import { getCompAggregates, type CompAggregates, getCompByLevelRole, type CompByRole } from '@/lib/comp.functions';
 import { getContractMix, type ContractMixRow } from '@/lib/contract-mix.functions';
 import { mLabel, shortDept, fmtC } from '@/data/helpers';
 import KpiCard from '@/components/dashboard/KpiCard';
@@ -74,6 +74,31 @@ export default function SalaryTab() {
     fetchContractMix().then((d) => { if (!cancelled) setContractSeries(d as ContractMixRow[]); }).catch(() => {});
     return () => { cancelled = true; };
   }, [fetchContractMix]);
+
+  // Split salarial por nivel x papel (líder×IC e gestor×IC) -- Caio #13.
+  const [roleSplit, setRoleSplit] = useState<CompByRole | null>(null);
+  const fetchRoleSplit = useServerFn(getCompByLevelRole);
+  useEffect(() => {
+    let cancelled = false;
+    fetchRoleSplit().then((d) => { if (!cancelled) setRoleSplit(d as CompByRole); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [fetchRoleSplit]);
+  const [roleDim, setRoleDim] = useState<'gestao' | 'lideranca'>('gestao');
+
+  const roleTable = useMemo(() => {
+    if (!roleSplit) return null;
+    const cells = roleDim === 'gestao' ? roleSplit.gestao : roleSplit.lideranca;
+    const groups = roleDim === 'gestao'
+      ? ['Gestor de pessoas', 'Contribuidor individual']
+      : ['Líder', 'Não-líder'];
+    const levels = [...new Set(cells.map((c) => c.level))].sort();
+    const byKey = new Map(cells.map((c) => [`${c.level}|${c.group}`, c]));
+    const rows = levels.map((level) => ({
+      level,
+      cells: groups.map((g) => byKey.get(`${level}|${g}`) ?? null),
+    }));
+    return { groups, rows };
+  }, [roleSplit, roleDim]);
 
   const CONTRACT_ORDER = ['CLT', 'PJ', 'Aprendiz', 'Estatutário/Sócio'];
   const CONTRACT_COLORS: Record<string, string> = {
@@ -373,7 +398,73 @@ export default function SalaryTab() {
             </table>
           </div>
           <p className="text-[11px] text-muted-foreground mt-2">
-            Faixas não sobrepostas por nível. O split líder × IC dentro do nível (ex.: L4) depende da flag de liderança, que não está no agregado de comp — fica para uma próxima iteração.
+            Faixas não sobrepostas por nível. O split líder × IC e gestor × IC dentro do nível está logo abaixo.
+          </p>
+        </ChartCard>
+      )}
+
+      {/* Split por papel dentro do nível (Caio #13) */}
+      {roleTable && roleTable.rows.length > 0 && (
+        <ChartCard
+          title="Salário por nível: papel dentro do nível"
+          subtitle="Mediana salarial e comp-ratio · dois eixos · NSX (n≥3)"
+          icon={Users}
+        >
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={() => setRoleDim('gestao')}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${roleDim === 'gestao' ? 'text-white' : 'text-muted-foreground border-border'}`}
+              style={roleDim === 'gestao' ? { background: brandColor, borderColor: brandColor } : undefined}
+            >
+              Gestor de pessoas × IC
+            </button>
+            <button
+              onClick={() => setRoleDim('lideranca')}
+              className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${roleDim === 'lideranca' ? 'text-white' : 'text-muted-foreground border-border'}`}
+              style={roleDim === 'lideranca' ? { background: brandColor, borderColor: brandColor } : undefined}
+            >
+              Líder (flag) × Não-líder
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-xs text-muted-foreground">
+                <tr className="border-b border-border text-left">
+                  <th className="p-2">Nível</th>
+                  {roleTable.groups.map((g) => (
+                    <th key={g} className="p-2 text-right">{g} <span className="font-normal">(n · mediana · CR)</span></th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {roleTable.rows.map((row) => (
+                  <tr key={row.level} className="border-b border-border/50">
+                    <td className="p-2 font-medium">{row.level}</td>
+                    {row.cells.map((c, i) => (
+                      <td key={i} className="p-2 text-right tabular-nums">
+                        {c && c.n >= 3 ? (
+                          <>
+                            <span className="text-muted-foreground">{c.n}</span>
+                            {' · '}
+                            <span className="font-semibold">{c.med_salary != null ? fmtC(c.med_salary) : '—'}</span>
+                            {' · '}
+                            <span className="text-muted-foreground">{c.med_cr != null ? `${c.med_cr}%` : '—'}</span>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">{c && c.n > 0 ? `n=${c.n}` : '—'}</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-2">
+            <strong>Dois eixos, populações diferentes</strong> (Gestor ≠ Líder): "gestor de pessoas" = tem reporte direto
+            na cadeia; "líder" = flag do cadastro. Mediana (mais robusta que a média). Só grupos com <strong>n≥3</strong>
+            aparecem com valor. Leitura útil: em L4/L5 o IC costuma ter mediana <strong>acima</strong> do gestor — reflete
+            engenheiros sênior/staff (PJ) vs. coordenadores de operação. Só NSX (população do arquivo de comp).
           </p>
         </ChartCard>
       )}

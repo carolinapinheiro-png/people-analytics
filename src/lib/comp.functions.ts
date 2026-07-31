@@ -371,6 +371,74 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
     return profile;
   });
 
+/**
+ * Split salarial por nivel x papel (Caio #13). Dois eixos independentes:
+ *  - gestao: "Gestor de pessoas" (tem reporte) vs "Contribuidor individual".
+ *  - lideranca: "Líder" (flag do cadastro) vs "Não-líder".
+ * So agregados por nivel (mediana de salario e comp-ratio + n). Nenhuma linha
+ * individual sai; mesma natureza de getCompAggregates (sem log).
+ */
+export interface CompRoleCell {
+  level: string;
+  group: string;
+  n: number;
+  med_salary: number | null;
+  med_cr: number | null;
+}
+export interface CompByRole {
+  gestao: CompRoleCell[];
+  lideranca: CompRoleCell[];
+}
+
+export const getCompByLevelRole = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<CompByRole> => {
+    await authorize(context.claims.email as string | undefined);
+
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const db = supabaseAdmin as unknown as UntypedClient;
+
+    const { data: rows, error } = await db
+      .from('comp_ratio')
+      .select('level, salary, comp_ratio, is_leader, is_people_manager, in_comp_scope');
+    if (error) throw new Error(`Falha ao carregar split por papel: ${error.message}`);
+
+    const active = (rows ?? []).filter(
+      (r) => r.in_comp_scope !== false && (r.level ?? '').trim() !== '',
+    );
+
+    // Acumula salarios/comp-ratio por (nivel, grupo) e tira a mediana no fim.
+    type Acc = { sal: number[]; cr: number[] };
+    const bucket = new Map<string, Acc>();
+    const add = (key: string, sal: number | null, cr: number | null) => {
+      const a = bucket.get(key) ?? { sal: [], cr: [] };
+      if (sal != null) a.sal.push(sal);
+      if (cr != null) a.cr.push(cr);
+      bucket.set(key, a);
+    };
+    for (const r of active) {
+      const level = (r.level as string).trim();
+      const sal = r.salary == null ? null : Number(r.salary);
+      const cr = r.comp_ratio == null ? null : Number(r.comp_ratio);
+      const gGrp = r.is_people_manager ? 'Gestor de pessoas' : 'Contribuidor individual';
+      const lGrp = r.is_leader ? 'Líder' : 'Não-líder';
+      add(`g|${level}|${gGrp}`, sal, cr);
+      add(`l|${level}|${lGrp}`, sal, cr);
+    }
+
+    const cells = (prefix: string): CompRoleCell[] => {
+      const out: CompRoleCell[] = [];
+      for (const [key, a] of bucket) {
+        if (!key.startsWith(prefix)) continue;
+        const [, level, group] = key.split('|');
+        out.push({ level, group, n: a.sal.length, med_salary: median(a.sal), med_cr: median(a.cr) });
+      }
+      return out.sort((x, y) => (x.level < y.level ? -1 : x.level > y.level ? 1 : x.group.localeCompare(y.group)));
+    };
+
+    return { gestao: cells('g|'), lideranca: cells('l|') };
+  });
+
 export const getCompAggregates = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<CompAggregates> => {
