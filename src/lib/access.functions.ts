@@ -88,7 +88,7 @@ export const getAllowedEmails = createServerFn({ method: 'POST' })
 
     if (hasSearch) {
       const pattern = `%${search}%`;
-      const filter = `email.ilike.${pattern},job_title.ilike.${pattern},profile::text.ilike.${pattern}`;
+      const filter = `email.ilike.${pattern},job_title.ilike.${pattern}`;
       countQuery = countQuery.or(filter);
       itemsQuery = itemsQuery.or(filter);
     }
