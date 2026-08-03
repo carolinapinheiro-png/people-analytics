@@ -6,6 +6,8 @@ import {
   RemoveAllowedEmailSchema,
   AddDepartmentSchema,
   SetDepartmentActiveSchema,
+  GetAllowedEmailsSchema,
+  type AllowedEmailRow,
   isScopedProfileValue,
   roleForProfile,
   SCOPED_REQUIRES_SCOPE_MESSAGE,
