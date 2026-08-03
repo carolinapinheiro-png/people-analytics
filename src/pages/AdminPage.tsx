@@ -25,7 +25,6 @@ interface UserPaginationState {
 
 export default function AdminPage() {
   const { user, loading, isAdmin } = useAuth();
-  const [emails, setEmails] = useState<AllowedEmail[]>([]);
   const [pagination, setPagination] = useState<UserPaginationState>({
     items: [],
     count: 0,
@@ -43,17 +42,26 @@ export default function AdminPage() {
   const getAccessLogsFn = useServerFn(getAccessLogs);
   const getDepartmentsFn = useServerFn(getDepartments);
 
-  const fetchEmails = async () => {
+  const fetchEmails = useCallback(async () => {
     try {
-      const data = await getAllowedEmailsFn();
-      setEmails(data as AllowedEmail[]);
+      const data = await getAllowedEmailsFn({ data: { search, page, limit } });
+      setPagination({
+        items: data.items as AllowedEmail[],
+        count: data.count,
+        page: data.page,
+        limit: data.limit,
+        totalPages: data.totalPages,
+      });
+      if (data.page > data.totalPages && data.totalPages > 0) {
+        setPage(data.totalPages);
+      }
     } catch (error) {
       toast.error('Erro ao carregar emails autorizados');
       console.error(error);
     }
-  };
+  }, [getAllowedEmailsFn, search, page, limit]);
 
-  const fetchDepartments = async () => {
+  const fetchDepartments = useCallback(async () => {
     try {
       const data = await getDepartmentsFn();
       setDepartments(data as DepartmentOption[]);
@@ -61,9 +69,9 @@ export default function AdminPage() {
       toast.error('Erro ao carregar catálogo de departamentos');
       console.error(error);
     }
-  };
+  }, [getDepartmentsFn]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       const data = await getAccessLogsFn();
       setLogs(data as AccessLog[]);
@@ -71,20 +79,25 @@ export default function AdminPage() {
       toast.error('Erro ao carregar logs');
       console.error(error);
     }
-  };
+  }, [getAccessLogsFn]);
 
-  const refreshAccess = () => {
+  const refreshAccess = useCallback(() => {
     fetchEmails();
     fetchDepartments();
-  };
+  }, [fetchEmails, fetchDepartments]);
 
   useEffect(() => {
     if (user && isAdmin) {
-      refreshAccess();
+      fetchEmails();
+    }
+  }, [user, isAdmin, fetchEmails]);
+
+  useEffect(() => {
+    if (user && isAdmin) {
+      fetchDepartments();
       fetchLogs();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, isAdmin]);
+  }, [user, isAdmin, fetchDepartments, fetchLogs]);
 
   if (loading) {
     return (
