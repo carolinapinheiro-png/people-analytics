@@ -168,15 +168,9 @@ export default function AdminPage() {
               totalPages={pagination.totalPages}
               limit={pagination.limit}
               search={search}
-              onSearchChange={(value) => {
-                setSearch(value);
-                setPage(1);
-              }}
+              onSearchChange={handleSearchChange}
               onPageChange={setPage}
-              onLimitChange={(value) => {
-                setLimit(value);
-                setPage(1);
-              }}
+              onLimitChange={handleLimitChange}
               onChanged={refreshAccess}
             />
           </TabsContent>
