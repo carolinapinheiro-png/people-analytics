@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
@@ -15,9 +15,27 @@ import AuditSection, { type AccessLog } from '@/components/admin/AuditSection';
 import ImportReconstruidoCard from '@/components/admin/ImportReconstruidoCard';
 import SeriesComparisonCard from '@/components/admin/SeriesComparisonCard';
 
+interface UserPaginationState {
+  items: AllowedEmail[];
+  count: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export default function AdminPage() {
   const { user, loading, isAdmin } = useAuth();
   const [emails, setEmails] = useState<AllowedEmail[]>([]);
+  const [pagination, setPagination] = useState<UserPaginationState>({
+    items: [],
+    count: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+  });
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [logs, setLogs] = useState<AccessLog[]>([]);
 
