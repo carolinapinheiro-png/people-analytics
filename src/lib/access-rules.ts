@@ -10,6 +10,22 @@ import { z } from 'zod';
 
 export const ProfileSchema = z.enum(['admin', 'hr_leader', 'hrbp', 'dept_leader']);
 
+export type AccessProfileValue = z.infer<typeof ProfileSchema>;
+
+export interface AllowedEmailRow {
+  id: string;
+  email: string;
+  role: 'admin' | 'viewer';
+  profile: AccessProfileValue;
+  departments: string[];
+  job_families: string[];
+  job_title: string | null;
+  job_level: string | null;
+  responsibilities: string[];
+  created_at: string;
+  updated_at: string;
+}
+
 export const DepartmentsSchema = z
   .array(z.string().trim().min(1).max(80))
   .max(50)
@@ -28,7 +44,11 @@ export const ResponsibilitiesSchema = z
   .max(20)
   .default([]);
 
-export type AccessProfileValue = z.infer<typeof ProfileSchema>;
+export const GetAllowedEmailsSchema = z.object({
+  search: z.string().trim().max(120).default(''),
+  page: z.number().int().min(1).default(1),
+  limit: z.number().int().min(5).max(100).default(20),
+});
 
 /** Departamento e job family so valem para perfis escopados (hrbp/dept_leader). */
 export function isScopedProfileValue(profile: AccessProfileValue): boolean {

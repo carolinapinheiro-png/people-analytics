@@ -927,6 +927,8 @@ export type Database = {
         Args: { p_rows: Json; p_user_email: string }
         Returns: number
       }
+      show_limit: { Args: never; Returns: number }
+      show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
       access_profile: "admin" | "hr_leader" | "hrbp" | "dept_leader"

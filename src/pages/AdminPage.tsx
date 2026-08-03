@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
@@ -15,9 +15,26 @@ import AuditSection, { type AccessLog } from '@/components/admin/AuditSection';
 import ImportReconstruidoCard from '@/components/admin/ImportReconstruidoCard';
 import SeriesComparisonCard from '@/components/admin/SeriesComparisonCard';
 
+interface UserPaginationState {
+  items: AllowedEmail[];
+  count: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
 export default function AdminPage() {
   const { user, loading, isAdmin } = useAuth();
-  const [emails, setEmails] = useState<AllowedEmail[]>([]);
+  const [pagination, setPagination] = useState<UserPaginationState>({
+    items: [],
+    count: 0,
+    page: 1,
+    limit: 20,
+    totalPages: 1,
+  });
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
   const [logs, setLogs] = useState<AccessLog[]>([]);
 
@@ -25,17 +42,26 @@ export default function AdminPage() {
   const getAccessLogsFn = useServerFn(getAccessLogs);
   const getDepartmentsFn = useServerFn(getDepartments);
 
-  const fetchEmails = async () => {
+  const fetchEmails = useCallback(async () => {
     try {
-      const data = await getAllowedEmailsFn();
-      setEmails(data as AllowedEmail[]);
+      const data = await getAllowedEmailsFn({ data: { search, page, limit } });
+      setPagination({
+        items: data.items as AllowedEmail[],
+        count: data.count,
+        page: data.page,
+        limit: data.limit,
+        totalPages: data.totalPages,
+      });
+      if (data.page > data.totalPages && data.totalPages > 0) {
+        setPage(data.totalPages);
+      }
     } catch (error) {
       toast.error('Erro ao carregar emails autorizados');
       console.error(error);
     }
-  };
+  }, [getAllowedEmailsFn, search, page, limit]);
 
-  const fetchDepartments = async () => {
+  const fetchDepartments = useCallback(async () => {
     try {
       const data = await getDepartmentsFn();
       setDepartments(data as DepartmentOption[]);
@@ -43,9 +69,9 @@ export default function AdminPage() {
       toast.error('Erro ao carregar catálogo de departamentos');
       console.error(error);
     }
-  };
+  }, [getDepartmentsFn]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       const data = await getAccessLogsFn();
       setLogs(data as AccessLog[]);
@@ -53,20 +79,35 @@ export default function AdminPage() {
       toast.error('Erro ao carregar logs');
       console.error(error);
     }
-  };
+  }, [getAccessLogsFn]);
 
-  const refreshAccess = () => {
+  const refreshAccess = useCallback(() => {
     fetchEmails();
     fetchDepartments();
-  };
+  }, [fetchEmails, fetchDepartments]);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    setPage(1);
+  }, []);
+
+  const handleLimitChange = useCallback((value: number) => {
+    setLimit(value);
+    setPage(1);
+  }, []);
 
   useEffect(() => {
     if (user && isAdmin) {
-      refreshAccess();
+      fetchEmails();
+    }
+  }, [user, isAdmin, fetchEmails]);
+
+  useEffect(() => {
+    if (user && isAdmin) {
+      fetchDepartments();
       fetchLogs();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, isAdmin]);
+  }, [user, isAdmin, fetchDepartments, fetchLogs]);
 
   if (loading) {
     return (
@@ -120,8 +161,16 @@ export default function AdminPage() {
 
           <TabsContent value="access" className="mt-0">
             <UsersAccessSection
-              emails={emails}
+              emails={pagination.items}
               departments={departments}
+              totalCount={pagination.count}
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              limit={pagination.limit}
+              search={search}
+              onSearchChange={handleSearchChange}
+              onPageChange={setPage}
+              onLimitChange={handleLimitChange}
               onChanged={refreshAccess}
             />
           </TabsContent>
@@ -129,7 +178,7 @@ export default function AdminPage() {
           <TabsContent value="departments" className="mt-0">
             <DepartmentsSection
               departments={departments}
-              emails={emails}
+              emails={pagination.items}
               onChanged={refreshAccess}
             />
           </TabsContent>

@@ -6,6 +6,8 @@ import {
   RemoveAllowedEmailSchema,
   AddDepartmentSchema,
   SetDepartmentActiveSchema,
+  GetAllowedEmailsSchema,
+  type AllowedEmailRow,
   isScopedProfileValue,
   roleForProfile,
   SCOPED_REQUIRES_SCOPE_MESSAGE,
@@ -65,19 +67,51 @@ export const checkAccess = createServerFn({ method: 'GET' })
     };
   });
 
-export const getAllowedEmails = createServerFn({ method: 'GET' })
+export const getAllowedEmails = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
+  .inputValidator((data) => GetAllowedEmailsSchema.parse(data))
+  .handler(async ({ context, data }) => {
     const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
     await requireAdmin(context.claims.email as string | undefined);
 
-    const { data, error } = await supabaseAdmin
+    const search = data.search.trim().toLowerCase();
+    const hasSearch = search.length > 0;
+
+    let countQuery = supabaseAdmin
+      .from('allowed_emails')
+      .select('*', { count: 'exact', head: true });
+
+    let itemsQuery = supabaseAdmin
       .from('allowed_emails')
       .select('*')
       .order('created_at', { ascending: false });
 
+    if (hasSearch) {
+      const pattern = `%${search}%`;
+      const filter = `email.ilike.${pattern},job_title.ilike.${pattern}`;
+      countQuery = countQuery.or(filter);
+      itemsQuery = itemsQuery.or(filter);
+    }
+
+    const from = (data.page - 1) * data.limit;
+    const to = from + data.limit - 1;
+
+    const { count, error: countError } = await countQuery;
+    if (countError) throw new Error(countError.message);
+
+    const { data: items, error } = await itemsQuery.range(from, to);
     if (error) throw new Error(error.message);
-    return data || [];
+
+    const total = count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / data.limit));
+
+    return {
+      items: items as AllowedEmailRow[],
+      count: total,
+      page: data.page,
+      limit: data.limit,
+      totalPages,
+    };
   });
 
 export const getAccessLogs = createServerFn({ method: 'GET' })
