@@ -151,8 +151,22 @@ export default function AdminPage() {
 
           <TabsContent value="access" className="mt-0">
             <UsersAccessSection
-              emails={emails}
+              emails={pagination.items}
               departments={departments}
+              totalCount={pagination.count}
+              page={pagination.page}
+              totalPages={pagination.totalPages}
+              limit={pagination.limit}
+              search={search}
+              onSearchChange={(value) => {
+                setSearch(value);
+                setPage(1);
+              }}
+              onPageChange={setPage}
+              onLimitChange={(value) => {
+                setLimit(value);
+                setPage(1);
+              }}
               onChanged={refreshAccess}
             />
           </TabsContent>
@@ -160,7 +174,7 @@ export default function AdminPage() {
           <TabsContent value="departments" className="mt-0">
             <DepartmentsSection
               departments={departments}
-              emails={emails}
+              emails={pagination.items}
               onChanged={refreshAccess}
             />
           </TabsContent>
