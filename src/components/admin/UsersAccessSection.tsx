@@ -14,7 +14,16 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
-import { UserPlus, ShieldAlert, ShieldCheck, Trash2, Pencil } from 'lucide-react';
+import {
+  UserPlus,
+  ShieldAlert,
+  ShieldCheck,
+  Trash2,
+  Pencil,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react';
 import {
   addAllowedEmail,
   removeAllowedEmail,
