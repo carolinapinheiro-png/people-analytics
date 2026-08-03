@@ -86,6 +86,16 @@ export default function AdminPage() {
     fetchDepartments();
   }, [fetchEmails, fetchDepartments]);
 
+  const handleSearchChange = useCallback((value: string) => {
+    setSearch(value);
+    setPage(1);
+  }, []);
+
+  const handleLimitChange = useCallback((value: number) => {
+    setLimit(value);
+    setPage(1);
+  }, []);
+
   useEffect(() => {
     if (user && isAdmin) {
       fetchEmails();
