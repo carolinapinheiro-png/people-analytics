@@ -340,7 +340,7 @@ export default function UsersAccessSection({
             )}
           </div>
 
-          {totalPages > 1 && (
+          {totalCount > 0 && (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pt-4 border-t border-border">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span>
