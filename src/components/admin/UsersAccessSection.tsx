@@ -266,7 +266,7 @@ export default function UsersAccessSection({
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Buscar por email, cargo ou perfil..."
+                placeholder="Buscar por email ou cargo..."
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
                 className="pl-9"
