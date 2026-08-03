@@ -101,10 +101,26 @@ function validateForm(form: UserFormState): string | null {
 export default function UsersAccessSection({
   emails,
   departments,
+  totalCount,
+  page,
+  totalPages,
+  limit,
+  search,
+  onSearchChange,
+  onPageChange,
+  onLimitChange,
   onChanged,
 }: {
   emails: AllowedEmail[];
   departments: DepartmentOption[];
+  totalCount: number;
+  page: number;
+  totalPages: number;
+  limit: number;
+  search: string;
+  onSearchChange: (value: string) => void;
+  onPageChange: (page: number) => void;
+  onLimitChange: (limit: number) => void;
   onChanged: () => void;
 }) {
   const [newEmail, setNewEmail] = useState('');
