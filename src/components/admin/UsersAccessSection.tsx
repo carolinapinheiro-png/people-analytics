@@ -253,11 +253,26 @@ export default function UsersAccessSection({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Usuários autorizados</CardTitle>
-          <CardDescription>
-            {emails.length} usuário{emails.length !== 1 ? 's' : ''} com acesso
-          </CardDescription>
+        <CardHeader className="pb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <CardTitle className="text-lg">Usuários autorizados</CardTitle>
+              <CardDescription>
+                {totalCount} usuário{totalCount !== 1 ? 's' : ''} com acesso
+                {search ? ` · filtrado por "${search}"` : ''}
+              </CardDescription>
+            </div>
+            <div className="relative max-w-xs w-full">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Buscar por email, cargo ou perfil..."
+                value={search}
+                onChange={(e) => onSearchChange(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
@@ -320,10 +335,67 @@ export default function UsersAccessSection({
             ))}
             {emails.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
-                Nenhum email autorizado ainda.
+                {search ? 'Nenhum usuário encontrado para esta busca.' : 'Nenhum email autorizado ainda.'}
               </p>
             )}
           </div>
+
+          {totalPages > 1 && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pt-4 border-t border-border">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>
+                  Página {page} de {totalPages}
+                </span>
+                <span className="hidden sm:inline">·</span>
+                <span className="flex items-center gap-1">
+                  <select
+                    value={limit}
+                    onChange={(e) => onLimitChange(Number(e.target.value))}
+                    className="h-7 rounded-md border border-input bg-background px-2 text-xs"
+                    aria-label="Itens por página"
+                  >
+                    {[10, 20, 50].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                  por página
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPageChange(page - 1)}
+                  disabled={page <= 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="sr-only">Anterior</span>
+                </Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <Button
+                    key={p}
+                    variant={p === page ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => onPageChange(p)}
+                    className="min-w-[2.25rem]"
+                  >
+                    {p}
+                  </Button>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onPageChange(page + 1)}
+                  disabled={page >= totalPages}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  <span className="sr-only">Próxima</span>
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
