@@ -19,6 +19,7 @@ import { getRecruitment, type RecruitmentData, type RecruitmentOpen } from '@/li
 import { useDashboard } from '@/data/DashboardContext';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 import { COLORS } from '@/lib/colors';
+import TaSatisfactionSection from '@/components/dashboard/TaSatisfactionSection';
 
 /**
  * Aba de Recrutamento (InHire).
@@ -374,6 +375,8 @@ export default function RecruitmentTab() {
           </div>
         </CardContent>
       </Card>
+
+      <TaSatisfactionSection />
 
       <p className="text-[11px] text-muted-foreground leading-relaxed">
         <strong>Como o TTH é calculado:</strong> dias corridos entre a abertura e o fechamento,
