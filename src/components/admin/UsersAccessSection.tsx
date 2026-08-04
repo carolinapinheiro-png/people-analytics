@@ -23,7 +23,9 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Eye,
 } from 'lucide-react';
+import MultiSelect from '@/components/admin/MultiSelect';
 import {
   addAllowedEmail,
   removeAllowedEmail,
@@ -86,6 +88,32 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
 
+/**
+ * Traduz o escopo para uma frase.
+ *
+ * Existe porque "departamentos + familias" e ambiguo em portugues: lido como
+ * INTERSECAO ("so quem e das duas coisas") o admin acha que esta restringindo,
+ * quando na verdade a regra e UNIAO e ele esta AMPLIANDO o acesso. Numa tela de
+ * permissao, errar esse sentido vaza dado -- entao o resumo diz "ou", em texto,
+ * antes de salvar.
+ */
+function accessSummary(form: UserFormState, email: string): string {
+  const who = email.trim() || 'A pessoa';
+  if (isGlobalProfile(form.profile)) {
+    return `${who} vê a empresa inteira, sem recorte de time.`;
+  }
+  const d = form.departments;
+  const f = form.jobFamilies;
+  if (d.length === 0 && f.length === 0) {
+    return `${who} ainda não vê nada: falta marcar ao menos um departamento ou uma job family.`;
+  }
+  const partes: string[] = [];
+  if (d.length) partes.push(`${d.length === 1 ? 'o departamento' : 'os departamentos'} ${d.join(', ')}`);
+  if (f.length) partes.push(`${f.length === 1 ? 'a família' : 'as famílias'} ${f.join(', ')}`);
+  // "ou" e nao "e": quem bate em QUALQUER um dos criterios entra no escopo.
+  return `${who} vê quem está em ${partes.join(' — ou em — ')}. Só números agregados, sem nome de pessoa.`;
+}
+
 /** Validacao client-side espelhando o trigger do banco. */
 function validateForm(form: UserFormState): string | null {
   if (
@@ -126,6 +154,8 @@ export default function UsersAccessSection({
   const [newEmail, setNewEmail] = useState('');
   const [addForm, setAddForm] = useState<UserFormState>(EMPTY_FORM);
   const [isLoading, setIsLoading] = useState(false);
+  /** So mostra o erro depois da primeira mexida no formulario. */
+  const [addTouched, setAddTouched] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<UserFormState>(EMPTY_FORM);
@@ -156,6 +186,7 @@ export default function UsersAccessSection({
       toast.success('Email autorizado com sucesso');
       setNewEmail('');
       setAddForm(EMPTY_FORM);
+      setAddTouched(false);
       onChanged();
     } catch (error) {
       toast.error(errorMessage(error, 'Erro ao adicionar email'));
@@ -228,26 +259,47 @@ export default function UsersAccessSection({
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAdd} className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground" htmlFor="new-user-email">
+                E-mail
+              </Label>
               <Input
+                id="new-user-email"
                 type="email"
-                placeholder="email@flutter.com"
+                placeholder="nome@nsx.bet"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
                 required
-                className="flex-1"
+                className="max-w-md"
               />
-              <Button type="submit" disabled={isLoading || !!addValidationError}>
-                {isLoading ? 'Adicionando...' : 'Adicionar'}
-              </Button>
             </div>
+
             <UserAccessFormFields
               idSuffix="add"
               value={addForm}
-              onChange={setAddForm}
+              onChange={(next) => {
+                setAddTouched(true);
+                setAddForm(next);
+              }}
               departmentOptions={activeDepartments}
               validationError={addValidationError}
+              showError={addTouched}
+              emailPreview={newEmail}
             />
+
+            {/* Acao no FIM do formulario, com o motivo do bloqueio do lado.
+                Antes o botao ficava no topo: a pessoa clicava, nada acontecia,
+                e a explicacao estava a uma rolagem inteira de distancia. */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1">
+              <Button type="submit" disabled={isLoading || !!addValidationError || !newEmail.trim()}>
+                {isLoading ? 'Adicionando...' : 'Adicionar usuário'}
+              </Button>
+              {!newEmail.trim() ? (
+                <span className="text-xs text-muted-foreground">Informe o e-mail para continuar.</span>
+              ) : addValidationError ? (
+                <span className="text-xs text-destructive">{addValidationError}</span>
+              ) : null}
+            </div>
           </form>
         </CardContent>
       </Card>
@@ -411,6 +463,7 @@ export default function UsersAccessSection({
             onChange={setEditForm}
             departmentOptions={activeDepartments}
             validationError={editValidationError}
+            emailPreview={editingUser?.email}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingId(null)}>
@@ -432,12 +485,20 @@ function UserAccessFormFields({
   onChange,
   departmentOptions,
   validationError,
+  /** Erro so aparece depois que a pessoa mexeu: o form nasce em dept_leader
+   *  (perfil que exige escopo), entao antes a tela abria ja em vermelho,
+   *  culpando o usuario por nao ter feito nada ainda. */
+  showError = true,
+  /** Email digitado, so para o resumo falar "fulano ve X" em vez de "A pessoa". */
+  emailPreview,
 }: {
   idSuffix: string;
   value: UserFormState;
   onChange: (next: UserFormState) => void;
   departmentOptions: string[];
   validationError: string | null;
+  showError?: boolean;
+  emailPreview?: string;
 }) {
   const patch = (partial: Partial<UserFormState>) => onChange({ ...value, ...partial });
   const levelListId = `job-levels-${idSuffix}`;
@@ -486,76 +547,61 @@ function UserAccessFormFields({
         </div>
       </div>
 
-      <ChipPicker
+      <MultiSelect
+        id={`resp-${idSuffix}`}
         label="Responsabilidades"
         options={RESPONSIBILITY_PRESETS}
         value={value.responsibilities}
         onChange={(responsibilities) => patch({ responsibilities })}
+        placeholder="Nenhuma (opcional)"
+        searchPlaceholder="Buscar responsabilidade..."
       />
 
       {isScopedProfileValue(value.profile) && (
-        <div className="space-y-3">
-          <ChipPicker
-            label="Departamentos atendidos"
-            options={departmentOptions}
-            value={value.departments}
-            onChange={(departments) => patch({ departments })}
-          />
-          <ChipPicker
-            label="Job type families atendidas"
-            options={JOB_TYPE_FAMILIES}
-            value={value.jobFamilies}
-            onChange={(jobFamilies) => patch({ jobFamilies })}
-          />
-          {validationError ? (
-            <p className="text-[11px] text-destructive">{validationError}</p>
-          ) : (
+        <div className="space-y-3 rounded-lg border border-border p-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <MultiSelect
+              id={`dept-${idSuffix}`}
+              label="Departamentos atendidos"
+              options={departmentOptions}
+              value={value.departments}
+              onChange={(departments) => patch({ departments })}
+              placeholder="Selecionar departamentos"
+              searchPlaceholder="Buscar departamento..."
+            />
+            <MultiSelect
+              id={`fam-${idSuffix}`}
+              label="Job type families atendidas"
+              options={JOB_TYPE_FAMILIES}
+              value={value.jobFamilies}
+              onChange={(jobFamilies) => patch({ jobFamilies })}
+              placeholder="Selecionar famílias"
+              searchPlaceholder="Buscar família..."
+            />
+          </div>
+
+          {/* Resumo do efeito. Fica SEMPRE visivel -- antes a explicacao da
+              uniao era trocada pela mensagem de erro, ou seja, sumia justo
+              quando a pessoa mais precisava dela. */}
+          <div className="rounded-md bg-muted/50 p-2.5 space-y-1">
+            <p className="text-xs">
+              <Eye className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5 text-muted-foreground" />
+              {accessSummary(value, emailPreview ?? '')}
+            </p>
             <p className="text-[11px] text-muted-foreground">
-              O gestor vê o dashboard, mas só do seu time: <strong>união</strong> dos
-              departamentos e das famílias marcadas.
+              Departamento <strong>ou</strong> família: quem bate em qualquer um dos dois entra no
+              escopo. Marcar os dois <em>amplia</em> o acesso, não restringe.
+            </p>
+          </div>
+
+          {showError && validationError && (
+            <p className="text-[11px] text-destructive flex items-center gap-1.5">
+              <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+              {validationError}
             </p>
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function ChipPicker({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: string[];
-  value: string[];
-  onChange: (next: string[]) => void;
-}) {
-  const toggle = (opt: string) => {
-    onChange(value.includes(opt) ? value.filter((d) => d !== opt) : [...value, opt]);
-  };
-
-  return (
-    <div className="space-y-2">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
-      <div className="flex flex-wrap gap-2">
-        {options.map((opt) => (
-          <button
-            key={opt}
-            type="button"
-            onClick={() => toggle(opt)}
-            className={
-              'rounded-full border px-3 py-1 text-xs transition-colors ' +
-              (value.includes(opt)
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-input text-muted-foreground hover:text-foreground')
-            }
-          >
-            {opt}
-          </button>
-        ))}
-      </div>
     </div>
   );
 }

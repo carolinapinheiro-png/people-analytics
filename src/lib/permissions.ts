@@ -23,10 +23,10 @@ export const PROFILE_LABELS: Record<AccessProfile, string> = {
 };
 
 export const PROFILE_DESCRIPTIONS: Record<AccessProfile, string> = {
-  admin: 'Ve, edita e administra tudo.',
-  hr_leader: 'Ve tudo, sem administrar usuarios.',
-  hrbp: 'Ve tudo dos departamentos que atende.',
-  dept_leader: 'Ve os proprios departamentos, sem dado individual.',
+  admin: 'Vê tudo e administra usuários.',
+  hr_leader: 'Vê a empresa inteira, sem administrar usuários.',
+  hrbp: 'Vê tudo dos departamentos e famílias que atende.',
+  dept_leader: 'Vê só o próprio time, em números agregados — sem dado individual.',
 };
 
 export type DashboardTab =
