@@ -38,6 +38,7 @@ export type DashboardTab =
   | 'engagement'
   | 'span'
   | 'attrition'
+  | 'recruitment'
   | 'individual'
   | 'data';
 
@@ -50,6 +51,7 @@ const ALL_TABS: DashboardTab[] = [
   'engagement',
   'span',
   'attrition',
+  'recruitment',
   'individual',
   'data',
 ];

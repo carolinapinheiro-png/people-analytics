@@ -22,6 +22,7 @@ const tabs: { id: TabType; label: string }[] = [
   { id: 'engagement', label: 'Experiência' },
   { id: 'span', label: 'Span de Controle' },
   { id: 'attrition', label: 'Atrição & Desligamentos' },
+  { id: 'recruitment', label: 'Recrutamento' },
   { id: 'individual', label: 'Perfil Individual' },
   { id: 'data', label: 'Dados' },
 ];
