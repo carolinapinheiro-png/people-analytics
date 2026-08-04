@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { getRecruitment, type RecruitmentData, type RecruitmentOpen } from '@/lib/recruitment.functions';
 import { useDashboard } from '@/data/DashboardContext';
+import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 
 /**
  * Aba de Recrutamento (InHire).
@@ -190,6 +191,7 @@ export default function RecruitmentTab() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end"><FreshnessBadge dataset="recruitment" /></div>
       {/* Honestidade de origem, no topo e nao no rodape. */}
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Badge variant="secondary" className="text-[10px]">InHire</Badge>

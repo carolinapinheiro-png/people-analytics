@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { DollarSign, TrendingUp, TrendingDown, Scale, ShieldAlert } from 'lucide-react';
 import { COLORS } from '@/lib/colors';
+import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 
 /**
  * CompRatio individual (587 ativos). Dado sensivel: vem da server function
@@ -101,6 +102,7 @@ export default function CompRatioTab() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end"><FreshnessBadge dataset="comp_ratio" /></div>
       <div>
         <h2 className="text-lg font-bold flex items-center gap-2">
           <Scale className="h-5 w-5 text-[hsl(var(--flutter))]" />

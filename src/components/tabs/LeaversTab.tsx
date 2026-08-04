@@ -24,6 +24,7 @@ import {
 import { useState, useMemo, useEffect } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { getCompAggregates, type CompAggregates } from '@/lib/comp.functions';
+import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -175,6 +176,7 @@ export default function LeaversTab() {
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end"><FreshnessBadge dataset="leavers" /></div>
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

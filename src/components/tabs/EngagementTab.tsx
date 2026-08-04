@@ -12,6 +12,7 @@ import {
   Heart, Users, Sparkles, TrendingUp, TrendingDown, HandHeart, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import { COLORS } from '@/lib/colors';
+import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 
 /**
  * Aba Experiencia (profunda): engajamento (KPIs + 8 drivers com perguntas +
@@ -97,6 +98,7 @@ function EngagementSection({ data }: { data: ExperienceData }) {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end"><FreshnessBadge dataset="engagement" /></div>
       {company && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <KpiCard label="eNPS (jan/26)" value={fmt1(company.enps)} color={COLORS.flutter} icon={Heart} />

@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
+import GlossaryDialog from '@/components/dashboard/GlossaryDialog';
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -142,6 +143,9 @@ export default function TopBar() {
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
+
+        {/* Glossario: disponivel em qualquer aba, para qualquer perfil. */}
+        <GlossaryDialog />
 
         {/* Theme toggle */}
         <ThemeToggle />

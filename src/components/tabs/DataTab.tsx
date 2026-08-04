@@ -3,6 +3,7 @@ import { mLabel, fmt, fmtC } from '@/data/helpers';
 import { StorySection, StoryMetric } from '@/components/dashboard/StorySection';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
+import DataQualityPanel from '@/components/dashboard/DataQualityPanel';
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -32,6 +33,8 @@ export default function DataTab() {
 
   return (
     <div className="space-y-6">
+      <DataQualityPanel />
+
       {/* Notas de confiabilidade / gaps (pergunta da Marilia) */}
       <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
         <h3 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-2">
