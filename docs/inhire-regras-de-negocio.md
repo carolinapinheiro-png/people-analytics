@@ -75,6 +75,76 @@ A fonte 1 é a mais valiosa (é a única que mede se a contratação **deu certo
 que permite cruzar com atrição precoce) e a única sem caminho automático. Vale
 priorizar a descoberta do banco por trás do Appsmith.
 
+## O que a camada analítica REALMENTE entrega (validado em 04/08/2026)
+
+Consulta direta ao ClickHouse do InHire via MCP, tenant `flutterbrazil`, produção.
+**Uma única view:** `JobsWithStatusTSV2` (label "Vagas"). Não há view de candidatos,
+candidaturas ou pesquisas — só vagas. 156 registros, de 24/01/2023 a 04/08/2026.
+
+### Campos que a documentação promete e NÃO estão preenchidos
+
+| Campo | Prometido | Real | Consequência |
+|---|---|---|---|
+| `sla` | "SLA já calculado, excluindo congelamento" | **0 de 156** | Tem que ser calculado por nós. |
+| `area` | Área da vaga | **0 de 156** | A área vem do custom field `Departamento`. |
+| `positions` (array) | Posições da vaga | **0 de 156** | Contagem depende do escalar `openPositions`. |
+| `hired` | Contratados | **0 de 156** | Contratação não sai desta view. |
+
+O caso do `sla` é o mais importante: era o campo que tornaria nosso TTH idêntico ao do
+InHire de graça. Como está vazio, o cálculo é nosso — mas o `statusHistory` está
+completo (**156 de 156**), então dá para reconstruir o desconto de congelamento.
+`slaDaysGoal` (a meta) está em 117 de 156.
+
+### Onde os dados realmente estão
+
+- **Departamento**: `customFields_map['Departamento']` — 154 de 156. É a chave do
+  cruzamento com o dado de gente.
+- **Nível**: `customFields_map["Level's"]` — 137 de 156.
+- **Centro de custo**: `customFields_map['Centro de Custo']` — 154 de 156.
+- Também há `Tipo de Contrato`, `Modelo de Contratação`, `Vaga Internacional`,
+  `Justificativa de abertura` (81 cada) e `Job Family Type` (só 7 — não dá para usar).
+- Recrutador 141/156, gestor 140/156, `isDiversityActive` em 56.
+
+### Armadilhas de contagem (achadas na validação)
+
+**1. Talent Pool contamina tudo.** Uma única vaga — "Talent Pool - Agente de Suporte
+ao Cliente Bilíngue" — tem `openPositions = 299`, ou seja **86% de todas as 346
+posições da base**. A flag `isTalentPool` está `false` nela; marca só 4 vagas, e
+nenhuma delas tem posição. Filtrar por flag NÃO resolve — é preciso combinar flag +
+departamento (`N/A - Talent Pool`) + nome. Sem esse filtro, o painel anuncia 346
+posições abertas quando o número real é 47.
+
+**2. Os nomes de departamento não batem com os nossos.** De-para necessário:
+
+| InHire | Nosso canônico |
+|---|---|
+| Tecnologia | TECHNOLOGY |
+| RH | HR |
+| Operation **e** Operations (as duas existem) | OPERATION |
+| Customer Ops | OPERATION |
+| Marketing · Product · Commercial · Finance · Legal & Compliance | iguais |
+| Betfair | **não é departamento** — é marca |
+| N/A - Talent Pool · N/A - Talent Pool ou Template | não é departamento |
+
+A tabela `departments` que já temos suporta `aliases` — o de-para vive lá, não
+espalhado no código.
+
+**3. `openPositions` é foto do agora, não fluxo.** É quantas posições estão abertas
+neste instante, não quantas foram abertas no período. Para série histórica de
+aberturas é preciso snapshot mensal ou reconstrução pelo `statusHistory`.
+
+### Números reais hoje (excluindo talent pool)
+
+148 vagas: **115 fechadas · 22 abertas · 6 congeladas · 5 canceladas**.
+30 posições abertas. ~17 mil candidaturas nas vagas reais (a base inteira tem 37 mil,
+mas ~20 mil estão em talent pools).
+
+### O que NÃO vem por aqui
+
+A view só cobre vagas. Candidatos, etapas do funil por candidato e as pesquisas de
+experiência (fontes 2 e 3) precisam das outras ferramentas do MCP
+(`search_candidates`, `count_candidates_by_field`) ou da API REST.
+
 ## Acesso técnico à API
 
 - Service account: Configurações → Usuários de API → Adicionar Usuário (owner, plano Advanced).
