@@ -60,9 +60,19 @@ export interface RecruitmentData {
   /** Data da foto -- o painel NAO e tempo real, e o InHire e. Sem isto na tela,
    *  alguem compara os dois num intervalo de carga e acha que ha erro. */
   asOf: string | null;
-  /** Primeiro mes com fechamento no ATS. Antes disso nao ha dado, e "zero" seria
-   *  mentira -- a tela precisa dizer "nao medido", nao desenhar uma linha no chao. */
+  /**
+   * Primeiro mes com fechamento no ATS, considerando a EMPRESA TODA -- nao o
+   * escopo de quem esta olhando.
+   *
+   * A distincao importa: para um gestor de Finance, cujo primeiro fechamento e
+   * jan/2026, os meses anteriores nao sao "nao medidos" -- sao meses medidos em
+   * que a area nao fechou nada, ou seja, zero de verdade. Usar o primeiro mes do
+   * escopo como inicio faria a tela chamar de "sem medicao" um periodo que foi
+   * medido e deu zero. Antes de `seriesStart` (global), sim, nao ha medicao.
+   */
   seriesStart: string | null;
+  /** Ultimo mes com dado na base, para fechar o eixo do grafico. */
+  seriesEnd: string | null;
 }
 
 export const getRecruitment = createServerFn({ method: 'GET' })
@@ -88,13 +98,22 @@ export const getRecruitment = createServerFn({ method: 'GET' })
     // gestor por departamento; so perfis globais veem.
     const visible = (dept: string) => global || isInScope(scope, dept);
 
-    const monthly = ((mRows ?? []) as RecruitmentMonth[])
-      .filter((r) => visible(r.department))
-      .map((r) => ({ ...r, month: String(r.month).slice(0, 10) }));
-    const open = ((oRows ?? []) as RecruitmentOpen[]).filter((r) => visible(r.department));
+    const all = ((mRows ?? []) as RecruitmentMonth[]).map((r) => ({
+      ...r,
+      month: String(r.month).slice(0, 10),
+    }));
+    const allOpen = ((oRows ?? []) as RecruitmentOpen[]);
 
-    const asOf = open.length ? String(open[0].as_of).slice(0, 10) : null;
-    const seriesStart = monthly.length ? monthly[0].month : null;
+    const monthly = all.filter((r) => visible(r.department));
+    const open = allOpen.filter((r) => visible(r.department));
+
+    // Extremos calculados SEM o escopo: sao propriedades da medicao, nao de quem
+    // esta olhando (ver comentario em seriesStart).
+    const seriesStart = all.length ? all[0].month : null;
+    const seriesEnd = all.length ? all[all.length - 1].month : null;
+    // A data da foto tambem vem da base inteira: um gestor sem vaga aberta ainda
+    // precisa saber de quando e o retrato.
+    const asOf = allOpen.length ? String(allOpen[0].as_of).slice(0, 10) : null;
 
     return {
       global,
@@ -103,5 +122,6 @@ export const getRecruitment = createServerFn({ method: 'GET' })
       open,
       asOf,
       seriesStart,
+      seriesEnd,
     };
   });

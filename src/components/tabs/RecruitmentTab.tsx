@@ -4,7 +4,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
   Line,
   ComposedChart,
@@ -26,10 +25,12 @@ import { useDashboard } from '@/data/DashboardContext';
  * existe para o que o InHire nao consegue fazer: cruzar o funil com o dado de
  * gente que ja esta neste dashboard (headcount e saidas por departamento).
  *
- * Duas honestidades ficam na tela, nao no rodape:
+ * Tres honestidades ficam na tela, nao no rodape:
  *  - a data da foto (o InHire e tempo real; nos somos a ultima carga);
- *  - o inicio da serie (o ATS so registra fechamento desde nov/2025 -- antes
- *    disso "zero" seria mentira, e "nao medido" e a verdade).
+ *  - o inicio da medicao, vindo do servidor (antes dele "zero" seria mentira; a
+ *    verdade e "nao medido"). DEPOIS dele, mes sem fechamento e zero de verdade
+ *    -- por isso o eixo do grafico e continuo e preenche as lacunas;
+ *  - que esta aba NAO responde ao filtro de ano do topo.
  */
 
 const fmt1 = (n: number | null | undefined) =>
@@ -57,25 +58,39 @@ export default function RecruitmentTab() {
   }, [fn]);
 
   const serie = useMemo(() => {
-    if (!data) return [];
-    const byMonth = new Map<string, { month: string; fechadas: number; tth: number[]; cand: number }>();
+    if (!data?.seriesStart || !data.seriesEnd) return [];
+    // Agrega os meses que TEM linha.
+    const byMonth = new Map<string, { somaTth: number; fechadas: number }>();
     for (const r of data.monthly) {
       const k = r.month.slice(0, 7);
-      const e = byMonth.get(k) ?? { month: k, fechadas: 0, tth: [], cand: 0 };
+      const e = byMonth.get(k) ?? { somaTth: 0, fechadas: 0 };
       e.fechadas += r.closed_jobs;
-      if (r.tth_avg != null) for (let i = 0; i < r.closed_jobs; i++) e.tth.push(Number(r.tth_avg));
-      e.cand += r.applications;
+      // Media ponderada pelo numero de vagas: cada departamento contribui com o
+      // peso do que fechou, senao uma area com 1 vaga pesaria igual a uma com 10.
+      if (r.tth_avg != null) e.somaTth += Number(r.tth_avg) * r.closed_jobs;
       byMonth.set(k, e);
     }
-    return [...byMonth.values()]
-      .sort((a, b) => (a.month < b.month ? -1 : 1))
-      .map((e) => ({
-        mes: monthLabel(e.month),
-        ym: e.month,
-        fechadas: e.fechadas,
-        tth: e.tth.length ? Math.round(e.tth.reduce((s, v) => s + v, 0) / e.tth.length) : null,
-        candidaturas: e.cand,
-      }));
+
+    // EIXO CONTINUO. Sem isto, meses sem fechamento simplesmente somem e os que
+    // sobram sao desenhados lado a lado -- Finance fecha em 01, 03, 04 e 07/26, e
+    // o grafico mostraria os quatro grudados como se fossem consecutivos, com a
+    // linha de TTH ligando janeiro a marco. Depois do inicio da medicao, mes sem
+    // fechamento e ZERO de verdade, entao entra como zero.
+    const out: Array<{ mes: string; fechadas: number; tth: number | null }> = [];
+    const [y0, m0] = data.seriesStart.slice(0, 7).split('-').map(Number);
+    const [y1, m1] = data.seriesEnd.slice(0, 7).split('-').map(Number);
+    for (let y = y0, m = m0; y < y1 || (y === y1 && m <= m1); m === 12 ? ((y += 1), (m = 1)) : (m += 1)) {
+      const k = `${y}-${String(m).padStart(2, '0')}`;
+      const e = byMonth.get(k);
+      out.push({
+        mes: monthLabel(k),
+        fechadas: e?.fechadas ?? 0,
+        // TTH so existe se houve fechamento. null vira buraco na linha, nao zero:
+        // "nao fechamos nada" nao e "fechamos em 0 dias".
+        tth: e && e.fechadas ? Math.round(e.somaTth / e.fechadas) : null,
+      });
+    }
+    return out;
   }, [data]);
 
   const porDepto = useMemo(() => {
@@ -132,7 +147,6 @@ export default function RecruitmentTab() {
         fechadas: r.fechadas,
         hc: hcPorDepto.get(r.dept)!,
         intensidade: Math.round((r.fechadas / hcPorDepto.get(r.dept)!) * 1000) / 10,
-        tth: r.tth,
       }))
       .sort((a, b) => b.intensidade - a.intensidade);
   }, [data, months, porDepto]);
@@ -155,6 +169,25 @@ export default function RecruitmentTab() {
     ? Math.round(porDepto.reduce((s, r) => s + (r.tth ?? 0) * r.fechadas, 0) / totalFechadas)
     : null;
 
+  const desde = data.seriesStart ? monthLabel(data.seriesStart) : '—';
+
+  // Escopo sem nenhuma vaga: dizer isso e diferente de desenhar zeros. Zero num
+  // grafico parece medicao; a verdade e que nao ha o que medir aqui.
+  if (totalFechadas === 0 && abertas.jobs === 0 && abertas.congeladas === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6 space-y-2">
+          <p className="text-sm font-medium">Nenhuma vaga no seu escopo</p>
+          <p className="text-sm text-muted-foreground">
+            {data.scopeDepartments.length > 0
+              ? `Não há vagas abertas nem fechadas em ${data.scopeDepartments.join(', ')} desde ${desde}, que é quando o ATS passou a registrar fechamentos.`
+              : `Não há vagas registradas desde ${desde}.`}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Honestidade de origem, no topo e nao no rodape. */}
@@ -163,7 +196,8 @@ export default function RecruitmentTab() {
         <span>
           Foto de {data.asOf ? new Date(data.asOf + 'T12:00').toLocaleDateString('pt-BR') : '—'} — o
           painel do InHire é tempo real; este é a última carga, então pequenas diferenças entre os
-          dois são esperadas.
+          dois são esperadas. Esta aba mostra sempre o período completo desde {desde} e{' '}
+          <strong>não responde ao filtro de ano</strong> do topo.
         </span>
         {!data.global && data.scopeDepartments.length > 0 && (
           <Badge variant="outline" className="text-[10px]">
@@ -175,8 +209,10 @@ export default function RecruitmentTab() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label: 'Vagas abertas', value: abertas.jobs, icon: Briefcase, note: `${abertas.positions} posições` },
-          { label: 'Congeladas', value: abertas.congeladas, icon: Snowflake, note: 'fora do SLA' },
-          { label: 'Fechadas no período', value: totalFechadas, icon: Briefcase, note: 'desde nov/2025' },
+          // "fora do SLA" lia como "estourou o prazo". Congelada é o oposto: o
+          // relógio para, por decisão. A cadeira segue vazia — daí o alerta.
+          { label: 'Congeladas', value: abertas.congeladas, icon: Snowflake, note: 'relógio parado' },
+          { label: 'Fechadas no período', value: totalFechadas, icon: Briefcase, note: `desde ${desde}` },
           { label: 'TTH médio', value: tthGeral == null ? '—' : `${tthGeral}d`, icon: Clock, note: 'dias ativos' },
           {
             label: 'Candidaturas',
@@ -244,7 +280,17 @@ export default function RecruitmentTab() {
               </div>
               {porDepto.map((r) => (
                 <div key={r.dept} className="grid grid-cols-12 gap-2 items-center py-0.5">
-                  <span className="col-span-5 truncate text-xs">{r.dept}</span>
+                  <span className="col-span-5 truncate text-xs flex items-center gap-1">
+                    {r.dept}
+                    {/* Amostra pequena no topo de um ranking engana: 3 vagas nao
+                        sustentam "a area mais lenta". Marcar e mais honesto que
+                        esconder a linha. */}
+                    {r.fechadas < 5 && (
+                      <span className="text-[10px] text-muted-foreground" title="Poucas vagas: média instável">
+                        n baixo
+                      </span>
+                    )}
+                  </span>
                   <span className="col-span-2 text-right text-xs text-muted-foreground">{r.fechadas}</span>
                   <span className="col-span-2 text-right text-xs font-medium">
                     {r.tth == null ? '—' : `${r.tth}d`}
@@ -260,9 +306,10 @@ export default function RecruitmentTab() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Intensidade de contratação</CardTitle>
             <CardDescription className="text-xs">
-              Vagas fechadas como % do headcount atual da área — o cruzamento que o InHire não faz,
-              porque ele não conhece o seu quadro. Mede o esforço de recrutamento em relação ao
-              tamanho do time.
+              Vagas fechadas desde {desde} como % do headcount <em>atual</em> da área — o cruzamento
+              que o InHire não faz, porque ele não conhece o seu quadro. Atenção: é um fluxo de
+              vários meses dividido por uma foto de hoje, então serve para comparar áreas entre si,
+              não como taxa de um período.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -283,11 +330,7 @@ export default function RecruitmentTab() {
                       'Intensidade',
                     ]}
                   />
-                  <Bar dataKey="intensidade" radius={[0, 3, 3, 0]}>
-                    {cruzamento.map((c) => (
-                      <Cell key={c.dept} fill="hsl(var(--chart-2))" />
-                    ))}
-                  </Bar>
+                  <Bar dataKey="intensidade" fill="hsl(var(--chart-2))" radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -335,7 +378,8 @@ export default function RecruitmentTab() {
         Diretrizes do InHire. O campo <code>sla</code> da API do InHire está vazio, então o número é
         reconstruído do histórico de status. Excluídos: talent pools e 5 vagas fechadas no mesmo dia
         da abertura (1 candidatura cada, não são processos reais). O ATS só registra fechamento
-        desde nov/2025 — antes disso não há medição, e não é zero.
+        desde {desde} — antes disso não há medição, e não é zero. Depois disso, mês sem barra é
+        zero de verdade.
       </p>
     </div>
   );
