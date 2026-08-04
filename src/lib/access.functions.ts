@@ -1,83 +1,53 @@
 import { createServerFn } from '@tanstack/react-start';
-import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@/integrations/supabase/types';
-
-const ProfileSchema = z.enum(['admin', 'hr_leader', 'hrbp', 'dept_leader']);
-const DepartmentsSchema = z.array(z.string().trim().min(1).max(80)).max(50).default([]);
-const JobFamiliesSchema = z.array(z.string().trim().min(1).max(120)).max(50).default([]);
-
-/** Departamento e job family so valem para perfis escopados (hrbp/dept_leader). */
-function scopedProfile(profile: z.infer<typeof ProfileSchema>): boolean {
-  return profile === 'hrbp' || profile === 'dept_leader';
-}
-
-/** Perfil admin e o unico que administra usuarios; role fica derivado dele. */
-function roleForProfile(profile: z.infer<typeof ProfileSchema>): 'admin' | 'viewer' {
-  return profile === 'admin' ? 'admin' : 'viewer';
-}
-
-type AppSupabaseClient = SupabaseClient<Database>;
-
-async function getAdminRole(
-  _supabase: AppSupabaseClient,
-  userEmail: string
-): Promise<'admin' | 'viewer' | null> {
-  // Mantido: authorize por profile, mas devolvendo o role derivado.
-  // RLS on allowed_emails joins to auth.users, which authenticated users cannot
-  // read, so we authorize via the admin client using the JWT-verified email.
-  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  const { data, error } = await supabaseAdmin
-    .from('allowed_emails')
-    .select('profile')
-    .ilike('email', userEmail)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  return (data as { profile?: string }).profile === 'admin' ? 'admin' : 'viewer';
-}
+import {
+  AddAllowedEmailSchema,
+  UpdateAllowedEmailUserSchema,
+  RemoveAllowedEmailSchema,
+  AddDepartmentSchema,
+  SetDepartmentActiveSchema,
+  GetAllowedEmailsSchema,
+  type AllowedEmailRow,
+  isScopedProfileValue,
+  roleForProfile,
+  SCOPED_REQUIRES_SCOPE_MESSAGE,
+} from '@/lib/access-rules';
 
 export const checkAccess = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const userEmail = context.claims.email as string | undefined;
     if (!userEmail) {
-      return { allowed: false, role: null, profile: null, departments: [] as string[], jobFamilies: [] as string[] };
+      return {
+        allowed: false,
+        role: null,
+        profile: null,
+        departments: [] as string[],
+        jobFamilies: [] as string[],
+      };
     }
 
-    // The RLS policy on allowed_emails compares against auth.users.email, but the
-    // authenticated role has no SELECT on auth.users, so the subquery returns null
-    // and every read is denied. The JWT-verified claims.email is trustworthy here,
-    // so look up authorization via the admin client.
-    const { supabaseAdmin: lookupClient } = await import('@/integrations/supabase/client.server');
-    const { data, error } = await lookupClient
+    // A policy de allowed_emails faz join com auth.users, que o papel
+    // authenticated nao le — o subselect volta nulo e tudo seria negado.
+    // O claims.email ja vem verificado pelo JWT, entao a consulta de
+    // autorizacao usa o admin client.
+    const { supabaseAdmin } = await import('./access-rules.server');
+    const { data, error } = await supabaseAdmin
       .from('allowed_emails')
       .select('role, profile, departments, job_families')
       .ilike('email', userEmail)
       .maybeSingle();
 
-    // A failed lookup is NOT a denial. Collapsing the two lets a transient
-    // database error masquerade as "you are not authorized" and destroy a valid
-    // session on the client. Throw instead: the client treats a thrown error as
-    // 'error' (access blocked, session preserved) and a clean `data === null`
-    // as an authoritative denial.
-    if (error) {
-      throw new Error(`Access check failed: ${error.message}`);
-    }
+    // Falha de lookup NAO e negacao: erro transitorio de banco nao pode se
+    // disfarcar de "nao autorizado" e derrubar uma sessao valida. Lanca erro
+    // (cliente trata como 'error'); data === null e a negacao autoritativa.
+    if (error) throw new Error(`Access check failed: ${error.message}`);
 
     const allowed = !!data;
-    const row = data as {
-      role?: string; profile?: string; departments?: string[]; job_families?: string[];
-    } | null;
-    const profile =
-      (row?.profile as 'admin' | 'hr_leader' | 'hrbp' | 'dept_leader' | undefined) ?? null;
-    const role = profile === 'admin' ? 'admin' : row ? 'viewer' : null;
-    const departments = row?.departments ?? [];
-    const jobFamilies = row?.job_families ?? [];
+    const profile = data?.profile ?? null;
+    const role = profile === 'admin' ? 'admin' : data ? 'viewer' : null;
 
     try {
-      const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
       await supabaseAdmin.from('access_logs').insert({
         email: userEmail,
         user_id: context.userId,
@@ -88,38 +58,68 @@ export const checkAccess = createServerFn({ method: 'GET' })
       console.error('Failed to log access attempt:', logError);
     }
 
-    return { allowed, role, profile, departments, jobFamilies };
+    return {
+      allowed,
+      role,
+      profile,
+      departments: data?.departments ?? [],
+      jobFamilies: data?.job_families ?? [],
+    };
   });
 
-export const getAllowedEmails = createServerFn({ method: 'GET' })
+export const getAllowedEmails = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const userEmail = context.claims.email as string | undefined;
-    if (!userEmail) throw new Error('Unauthorized');
+  .inputValidator((data) => GetAllowedEmailsSchema.parse(data))
+  .handler(async ({ context, data }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
 
-    const role = await getAdminRole(context.supabase, userEmail);
-    if (role !== 'admin') throw new Error('Forbidden');
+    const search = data.search.trim().toLowerCase();
+    const hasSearch = search.length > 0;
 
-    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-    const { data, error } = await supabaseAdmin
+    let countQuery = supabaseAdmin
+      .from('allowed_emails')
+      .select('*', { count: 'exact', head: true });
+
+    let itemsQuery = supabaseAdmin
       .from('allowed_emails')
       .select('*')
       .order('created_at', { ascending: false });
 
+    if (hasSearch) {
+      const pattern = `%${search}%`;
+      const filter = `email.ilike.${pattern},job_title.ilike.${pattern}`;
+      countQuery = countQuery.or(filter);
+      itemsQuery = itemsQuery.or(filter);
+    }
+
+    const from = (data.page - 1) * data.limit;
+    const to = from + data.limit - 1;
+
+    const { count, error: countError } = await countQuery;
+    if (countError) throw new Error(countError.message);
+
+    const { data: items, error } = await itemsQuery.range(from, to);
     if (error) throw new Error(error.message);
-    return data || [];
+
+    const total = count ?? 0;
+    const totalPages = Math.max(1, Math.ceil(total / data.limit));
+
+    return {
+      items: items as AllowedEmailRow[],
+      count: total,
+      page: data.page,
+      limit: data.limit,
+      totalPages,
+    };
   });
 
 export const getAccessLogs = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const userEmail = context.claims.email as string | undefined;
-    if (!userEmail) throw new Error('Unauthorized');
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
 
-    const role = await getAdminRole(context.supabase, userEmail);
-    if (role !== 'admin') throw new Error('Forbidden');
-
-    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const { data, error } = await supabaseAdmin
       .from('access_logs')
       .select('*')
@@ -132,33 +132,64 @@ export const getAccessLogs = createServerFn({ method: 'GET' })
 
 export const addAllowedEmail = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) =>
-    z
-      .object({
-        email: z.string().email(),
-        profile: ProfileSchema,
-        departments: DepartmentsSchema,
-        jobFamilies: JobFamiliesSchema,
-      })
-      .parse(data)
-  )
+  .inputValidator((data) => AddAllowedEmailSchema.parse(data))
   .handler(async ({ context, data }) => {
-    const userEmail = context.claims.email as string | undefined;
-    if (!userEmail) throw new Error('Unauthorized');
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
 
-    const role = await getAdminRole(context.supabase, userEmail);
-    if (role !== 'admin') throw new Error('Forbidden');
+    if (
+      isScopedProfileValue(data.profile) &&
+      data.departments.length === 0 &&
+      data.jobFamilies.length === 0
+    ) {
+      throw new Error(SCOPED_REQUIRES_SCOPE_MESSAGE);
+    }
 
-    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const scoped = isScopedProfileValue(data.profile);
+    const { error } = await supabaseAdmin.from('allowed_emails').insert({
+      email: data.email.toLowerCase(),
+      role: roleForProfile(data.profile),
+      profile: data.profile,
+      departments: scoped ? data.departments : [],
+      job_families: scoped ? data.jobFamilies : [],
+      job_title: data.jobTitle || null,
+      job_level: data.jobLevel || null,
+      responsibilities: data.responsibilities,
+    });
+
+    if (error) throw new Error(error.message);
+    return { success: true };
+  });
+
+/** Atualiza perfil, escopo, cargo, level e responsabilidades de um usuario. */
+export const updateAllowedEmailUser = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => UpdateAllowedEmailUserSchema.parse(data))
+  .handler(async ({ context, data }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
+
+    if (
+      isScopedProfileValue(data.profile) &&
+      data.departments.length === 0 &&
+      data.jobFamilies.length === 0
+    ) {
+      throw new Error(SCOPED_REQUIRES_SCOPE_MESSAGE);
+    }
+
+    const scoped = isScopedProfileValue(data.profile);
     const { error } = await supabaseAdmin
       .from('allowed_emails')
-      .insert({
-        email: data.email.trim().toLowerCase(),
+      .update({
         role: roleForProfile(data.profile),
         profile: data.profile,
-        departments: scopedProfile(data.profile) ? data.departments : [],
-        job_families: scopedProfile(data.profile) ? data.jobFamilies : [],
-      } as never);
+        departments: scoped ? data.departments : [],
+        job_families: scoped ? data.jobFamilies : [],
+        job_title: data.jobTitle || null,
+        job_level: data.jobLevel || null,
+        responsibilities: data.responsibilities,
+      })
+      .eq('id', data.id);
 
     if (error) throw new Error(error.message);
     return { success: true };
@@ -166,53 +197,56 @@ export const addAllowedEmail = createServerFn({ method: 'POST' })
 
 export const removeAllowedEmail = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) =>
-    z
-      .object({ id: z.string().uuid() })
-      .parse(data)
-  )
+  .inputValidator((data) => RemoveAllowedEmailSchema.parse(data))
   .handler(async ({ context, data }) => {
-    const userEmail = context.claims.email as string | undefined;
-    if (!userEmail) throw new Error('Unauthorized');
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
 
-    const role = await getAdminRole(context.supabase, userEmail);
-    if (role !== 'admin') throw new Error('Forbidden');
-
-    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const { error } = await supabaseAdmin.from('allowed_emails').delete().eq('id', data.id);
 
     if (error) throw new Error(error.message);
     return { success: true };
   });
 
-export const updateAllowedEmailProfile = createServerFn({ method: 'POST' })
+/** Catalogo de departamentos — leitura para qualquer usuario autenticado. */
+export const getDepartments = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .inputValidator((data) =>
-    z
-      .object({
-        id: z.string().uuid(),
-        profile: ProfileSchema,
-        departments: DepartmentsSchema,
-        jobFamilies: JobFamiliesSchema,
-      })
-      .parse(data)
-  )
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from('departments')
+      .select('id, name, aliases, active')
+      .order('name');
+
+    if (error) throw new Error(error.message);
+    return data || [];
+  });
+
+export const addDepartment = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => AddDepartmentSchema.parse(data))
   .handler(async ({ context, data }) => {
-    const userEmail = context.claims.email as string | undefined;
-    if (!userEmail) throw new Error('Unauthorized');
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
 
-    const role = await getAdminRole(context.supabase, userEmail);
-    if (role !== 'admin') throw new Error('Forbidden');
+    const { error } = await supabaseAdmin.from('departments').insert({
+      name: data.name.toUpperCase(),
+      aliases: data.aliases,
+    });
 
-    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    if (error) throw new Error(error.message);
+    return { success: true };
+  });
+
+export const setDepartmentActive = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => SetDepartmentActiveSchema.parse(data))
+  .handler(async ({ context, data }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
+
     const { error } = await supabaseAdmin
-      .from('allowed_emails')
-      .update({
-        role: roleForProfile(data.profile),
-        profile: data.profile,
-        departments: scopedProfile(data.profile) ? data.departments : [],
-        job_families: scopedProfile(data.profile) ? data.jobFamilies : [],
-      } as never)
+      .from('departments')
+      .update({ active: data.active, updated_at: new Date().toISOString() })
       .eq('id', data.id);
 
     if (error) throw new Error(error.message);
