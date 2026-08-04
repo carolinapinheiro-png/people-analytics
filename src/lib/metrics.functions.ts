@@ -97,6 +97,34 @@ const MetricRowSchema = z.object({
       female_leaders: z.number().int().nonnegative(),
     }))
     .default({}),
+  /** Fase 2: as mesmas dimensoes quebradas por departamento da epoca. Sem isto
+   *  aqui o campo era descartado no validator e nunca chegava na RPC -- o
+   *  recorte por time congelava na carga anterior enquanto o headcount andava. */
+  dept_breakdown: z
+    .record(z.object({
+      gender_female: z.number().int().nonnegative(),
+      gender_male: z.number().int().nonnegative(),
+      leaders: z.number().int().nonnegative(),
+      leader_female: z.number().int().nonnegative(),
+      level_base: z.record(z.number().int().nonnegative()),
+      tenure_base: z.record(z.number().int().nonnegative()),
+      demographics: z.object({
+        age: z.record(z.number().int().nonnegative()),
+        race: z.record(z.number().int().nonnegative()),
+        marital: z.record(z.number().int().nonnegative()),
+        origin: z.record(z.number().int().nonnegative()),
+      }),
+      race_cross: z.record(z.object({
+        total: z.number().int().nonnegative(),
+        female: z.number().int().nonnegative(),
+        leaders: z.number().int().nonnegative(),
+        female_leaders: z.number().int().nonnegative(),
+      })),
+    }))
+    .default({}),
+  /** Evolucao CLT/PJ do mes (vinculo da epoca). Gravada em contract_mix_monthly
+   *  pela mesma RPC/transacao, para nao poder ficar defasada do headcount. */
+  contract_mix: z.record(z.number().int().nonnegative()).default({}),
 });
 
 const ImportInput = z.object({

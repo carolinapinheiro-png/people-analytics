@@ -97,6 +97,10 @@ const HISTORY_FIELDS: FieldSpec[] = [
   { field: 'reason', required: false, match: (h) => h === 'motivo' || h.includes('motivo') },
   // Cargo vigente no registro: data a transicao para lideranca (reconstrucao).
   { field: 'cargo', required: false, match: (h) => h === 'cargo' || h.includes('cargo') },
+  // Vinculo vigente no registro (CLT / Pessoa Juridica / Aprendiz / Diretor
+  // Estatutario...). E o que permite reconstruir a evolucao CLT/PJ "da epoca",
+  // refletindo as conversoes PJ->CLT na data em que aconteceram.
+  { field: 'vinculo', required: false, match: (h) => h.includes('vinculo') },
 ];
 
 export interface ColumnMatch {
@@ -344,6 +348,7 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
       level: coalesceLevel(row),
       pcd: isPcd(row),
       apprentice: isApprentice(row),
+      vinculo: vinculoHeader ? toStr(row[vinculoHeader]) : null,
       birth: pc.birth ? toDate(row[pc.birth]) : null,
       race: pc.race ? toStr(row[pc.race]) : '',
       marital: pc.marital ? toStr(row[pc.marital]) : '',
@@ -364,6 +369,7 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
     salary: col(historyMapping, 'salary'),
     reason: col(historyMapping, 'reason'),
     cargo: col(historyMapping, 'cargo'),
+    vinculo: col(historyMapping, 'vinculo'),
   };
 
   for (const row of hRows) {
@@ -382,6 +388,7 @@ export function parseTalentMobility(data: ArrayBuffer | Uint8Array): ParsedWorkb
       salary: parseBrNumber(rawSalary as string | number | null),
       reason: hcCol.reason ? toStr(row[hcCol.reason]) : null,
       cargo: hcCol.cargo ? toStr(row[hcCol.cargo]) : null,
+      vinculo: hcCol.vinculo ? toStr(row[hcCol.vinculo]) : null,
     });
   }
 

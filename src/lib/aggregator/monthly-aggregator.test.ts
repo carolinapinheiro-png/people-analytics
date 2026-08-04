@@ -23,6 +23,8 @@ import {
   tenureBucket,
   ageBucket,
   promotionDates,
+  contractBucket,
+  checkInvariants,
   type HistoryRow,
   type PersonRow,
 } from './monthly-aggregator';
@@ -484,4 +486,98 @@ test('race_cross cruza raca x genero x lideranca', () => {
   assert.equal(m.race_cross['Preta'].leaders, 1);
   assert.equal(m.race_cross['Preta'].female_leaders, 1);
   assert.equal(m.race_cross['Branca'].total, 1);
+});
+
+// ---------- evolucao CLT/PJ (contract_mix) ----------
+
+test('contractBucket normaliza os textos livres de Vinculo', () => {
+  assert.equal(contractBucket('CLT'), 'CLT');
+  assert.equal(contractBucket('Pessoa Jurídica'), 'PJ');
+  assert.equal(contractBucket('pj'), 'PJ');
+  assert.equal(contractBucket('Aprendiz'), 'Aprendiz');
+  assert.equal(contractBucket('Diretor Estatutário'), 'Estatutário/Sócio');
+  assert.equal(contractBucket('Associado'), 'Estatutário/Sócio');
+  // Intermitente e celetista: jornada variavel, nao regime a parte.
+  assert.equal(contractBucket('Contrato Intermitente'), 'CLT');
+  // Sem informacao nao pode virar uma faixa propria (o grafico e do vinculo,
+  // e todo ativo tem um): cai no default.
+  assert.equal(contractBucket(null), 'CLT');
+});
+
+test('contract_mix usa o vinculo DA EPOCA, nao o atual', () => {
+  // Pessoa entrou PJ e virou CLT em 2026-03. O snapshot atual diz CLT, mas
+  // janeiro tem que continuar contando ela como PJ -- senao a conversao
+  // reescreve o passado e o grafico mente sobre quando a virada aconteceu.
+  const p = person({ cpf: '700', admission: d('2025-01-10'), vinculo: 'CLT' });
+  const h = histMap([
+    hist({ cpf: '700', from: d('2025-01-10'), to: d('2026-02-28'), vinculo: 'Pessoa Jurídica' }),
+    hist({ cpf: '700', from: d('2026-03-01'), to: null, vinculo: 'CLT' }),
+  ]);
+  const jan = aggregateMonth([p], h, 2026, 1, 'nsx_br');
+  assert.equal(jan.contract_mix.PJ, 1);
+  assert.equal(jan.contract_mix.CLT, 0);
+
+  const abr = aggregateMonth([p], h, 2026, 4, 'nsx_br');
+  assert.equal(abr.contract_mix.CLT, 1);
+  assert.equal(abr.contract_mix.PJ, 0);
+});
+
+test('contract_mix cai no vinculo do snapshot quando nao ha registro vigente', () => {
+  const p = person({ cpf: '701', admission: d('2026-01-05'), vinculo: 'Pessoa Jurídica' });
+  const m = aggregateMonth([p], histMap([]), 2026, 1, 'nsx_br');
+  assert.equal(m.contract_mix.PJ, 1);
+});
+
+test('contract_mix sempre traz as 4 chaves e soma o headcount', () => {
+  const ppl = [
+    person({ cpf: '710', vinculo: 'CLT' }),
+    person({ cpf: '711', vinculo: 'Pessoa Jurídica' }),
+    person({ cpf: '712', vinculo: 'Aprendiz' }),
+  ];
+  const m = aggregateMonth(ppl, histMap([]), 2026, 1, 'nsx_br');
+  assert.deepEqual(Object.keys(m.contract_mix).sort(), ['Aprendiz', 'CLT', 'Estatutário/Sócio', 'PJ']);
+  // Faixa zerada existe (o empilhado nao pode trocar de cor no meio da serie).
+  assert.equal(m.contract_mix['Estatutário/Sócio'], 0);
+  const soma = Object.values(m.contract_mix).reduce((a, b) => a + b, 0);
+  assert.equal(soma, m.headcount);
+});
+
+// ---------- invariantes (a trava da importacao) ----------
+
+test('checkInvariants aprova um mes coerente do proprio agregador', () => {
+  const ppl = [
+    person({ cpf: '800', gender: 'Mulher', vinculo: 'CLT' }),
+    person({ cpf: '801', gender: 'Homem', vinculo: 'Pessoa Jurídica', leadership: 'Sim' }),
+  ];
+  const m = aggregateMonth(ppl, histMap([hist({ cpf: '800' }), hist({ cpf: '801' })]), 2026, 1, 'nsx_br');
+  assert.deepEqual(checkInvariants(m), []);
+});
+
+test('checkInvariants pega soma de departamento que nao fecha', () => {
+  const m = aggregateMonth([person({ cpf: '810' })], histMap([hist({ cpf: '810' })]), 2026, 1, 'nsx_br');
+  // Simula o erro classico: alguem editou o agregado na mao e o depto ficou a mais.
+  const quebrado = { ...m, dept_data: { ...m.dept_data, TECH: { ...m.dept_data['TECH'], hc: 99 } } };
+  const issues = checkInvariants(quebrado);
+  assert.equal(issues.length, 1);
+  assert.match(issues[0], /departamentos/);
+});
+
+test('checkInvariants pega nivel, tempo de casa e vinculo fora do headcount', () => {
+  const m = aggregateMonth([person({ cpf: '820' })], histMap([hist({ cpf: '820' })]), 2026, 1, 'nsx_br');
+  assert.match(checkInvariants({ ...m, level_base: { L1: 5 } })[0], /níveis/);
+  assert.match(checkInvariants({ ...m, tenure_base: { '0-3m': 7 } })[0], /tempo de casa/);
+  assert.match(
+    checkInvariants({ ...m, contract_mix: { ...m.contract_mix, CLT: 9 } })[0],
+    /vínculo/,
+  );
+});
+
+test('checkInvariants nao reclama de bloco vazio (Betfair/Flutter)', () => {
+  const m = aggregateMonth([person({ cpf: '830' })], histMap([hist({ cpf: '830' })]), 2026, 1, 'nsx_br');
+  const semDimensoes = {
+    ...m,
+    dept_data: {}, level_base: {}, tenure_base: {}, dept_breakdown: {},
+    contract_mix: { CLT: 0, PJ: 0, Aprendiz: 0, 'Estatutário/Sócio': 0 } as typeof m.contract_mix,
+  };
+  assert.deepEqual(checkInvariants(semDimensoes), []);
 });

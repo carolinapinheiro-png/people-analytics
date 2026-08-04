@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { importReconstruido } from '@/lib/metrics.functions';
+import { importReconstruido, listMetricsBySource, type MetricSeriesRow } from '@/lib/metrics.functions';
 import type { BusinessUnit, MonthAggregate } from '@/lib/aggregator/monthly-aggregator';
 import type { ParsedWorkbook } from '@/lib/aggregator/xlsx-adapter';
 
@@ -34,6 +34,47 @@ const YM = /^\d{4}-\d{2}$/;
 interface Preview {
   parsed: ParsedWorkbook;
   aggregates: MonthAggregate[];
+  /** Problemas de integridade (mesmas regras do banco). Nao-vazio trava o botao. */
+  issues: string[];
+  /** O que muda em relacao ao que ja esta no ar. */
+  diff: DiffRow[];
+}
+
+/** Uma linha do diff: um mes de uma marca, com o antes e o depois. */
+interface DiffRow {
+  brand: string;
+  ym: string;
+  kind: 'novo' | 'alterado' | 'igual';
+  changes: Array<{ field: string; from: number | null; to: number }>;
+}
+
+/** Campos escalares comparados no diff -- os que a area olha primeiro. */
+const DIFF_FIELDS: Array<{ key: keyof MonthAggregate & keyof MetricSeriesRow; label: string }> = [
+  { key: 'headcount', label: 'headcount' },
+  { key: 'joiners', label: 'entradas' },
+  { key: 'leavers', label: 'saídas' },
+  { key: 'promotions', label: 'promoções' },
+  { key: 'leaders', label: 'líderes' },
+  { key: 'gender_female', label: 'mulheres' },
+];
+
+function buildDiff(aggs: MonthAggregate[], current: MetricSeriesRow[]): DiffRow[] {
+  const byKey = new Map<string, MetricSeriesRow>();
+  for (const r of current) byKey.set(`${r.brand}|${String(r.month).slice(0, 7)}`, r);
+
+  return aggs.map((a) => {
+    const brand = BU_TO_BRAND[a.business_unit];
+    const ym = a.month.slice(0, 7);
+    const cur = byKey.get(`${brand}|${ym}`);
+    if (!cur) return { brand, ym, kind: 'novo' as const, changes: [] };
+
+    const changes = DIFF_FIELDS.flatMap(({ key, label }) => {
+      const to = Number(a[key] ?? 0);
+      const from = cur[key] == null ? null : Number(cur[key]);
+      return from === to ? [] : [{ field: label, from, to }];
+    });
+    return { brand, ym, kind: changes.length ? ('alterado' as const) : ('igual' as const), changes };
+  });
 }
 
 export default function ImportReconstruidoCard() {
@@ -50,6 +91,7 @@ export default function ImportReconstruidoCard() {
   const [preview, setPreview] = useState<Preview | null>(null);
 
   const importFn = useServerFn(importReconstruido);
+  const listFn = useServerFn(listMetricsBySource);
 
   // Recalcula a partir do que estiver carregado: TM (obrigatorio) e, se houver,
   // Workday (compoe Betfair BR: 34 do TM + 52 so-Workday, TM vence os 18 dups).
@@ -63,7 +105,7 @@ export default function ImportReconstruidoCard() {
     setPreview(null);
     setWdAdded(null);
     try {
-      const [{ parseTalentMobility }, { parseWorkdayBetfair }, { aggregateRange }] =
+      const [{ parseTalentMobility }, { parseWorkdayBetfair }, { aggregateRange, checkInvariants }] =
         await Promise.all([
           import('@/lib/aggregator/xlsx-adapter'),
           import('@/lib/aggregator/workday-adapter'),
@@ -71,7 +113,7 @@ export default function ImportReconstruidoCard() {
         ]);
       const parsed = parseTalentMobility(tmBufRef.current);
       if (parsed.report.errors.length) {
-        setPreview({ parsed, aggregates: [] });
+        setPreview({ parsed, aggregates: [], issues: [], diff: [] });
         toast.error('A planilha nao pode ser agregada; veja o relatorio.');
         return;
       }
@@ -94,7 +136,26 @@ export default function ImportReconstruidoCard() {
           bu,
         ),
       );
-      setPreview({ parsed, aggregates });
+      // Integridade antes de qualquer coisa: se um mes nao fecha, a pessoa ve
+      // qual e por que, em vez de descobrir no erro da transacao.
+      const issues = aggregates.flatMap((a) =>
+        checkInvariants(a).map((m) => `${BU_TO_BRAND[a.business_unit]} ${m}`),
+      );
+
+      // Diff contra o que ja esta no ar. Falhar aqui nao impede gravar -- sem o
+      // diff a pessoa grava as cegas, que e o que acontecia antes; nao e pior.
+      let diff: DiffRow[] = [];
+      try {
+        const current = (await listFn({
+          data: { sources: ['reconstruido'] },
+        })) as MetricSeriesRow[];
+        diff = buildDiff(aggregates, current);
+      } catch {
+        toast.warning('Nao consegui ler a serie atual para comparar; a previa vai sem o diff.');
+      }
+
+      setPreview({ parsed, aggregates, issues, diff });
+      if (issues.length) toast.error(`${issues.length} inconsistencia(s): a gravacao esta bloqueada.`);
     } catch (err) {
       toast.error('Falha ao ler os arquivos.');
       console.error(err);
@@ -119,6 +180,12 @@ export default function ImportReconstruidoCard() {
 
   const handleSave = async () => {
     if (!preview || preview.aggregates.length === 0) return;
+    // Cinto e suspensorio: o botao ja fica desabilitado, mas se algo escapar o
+    // banco recusa de qualquer jeito. Melhor nao chegar la.
+    if (preview.issues.length) {
+      toast.error('Ha inconsistencias na previa; corrija a base antes de gravar.');
+      return;
+    }
     setBusy('save');
     try {
       const rows = preview.aggregates.map((a) => ({
@@ -138,6 +205,9 @@ export default function ImportReconstruidoCard() {
   };
 
   const report = preview?.parsed.report;
+  const diffChanged = preview?.diff.filter((d) => d.kind === 'alterado') ?? [];
+  const diffNew = preview?.diff.filter((d) => d.kind === 'novo') ?? [];
+  const diffSame = preview?.diff.filter((d) => d.kind === 'igual').length ?? 0;
   const byBu = preview
     ? (Object.keys(BU_TO_BRAND) as BusinessUnit[]).map((bu) => {
         const months = preview.aggregates.filter((a) => a.business_unit === bu);
@@ -347,7 +417,65 @@ export default function ImportReconstruidoCard() {
                     </div>
                   ))}
                 </div>
-                <Button onClick={handleSave} disabled={busy !== null}>
+                {/* Integridade: bloqueia a gravacao e diz qual mes nao fecha. */}
+                {preview.issues.length > 0 && (
+                  <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 space-y-1">
+                    <p className="text-sm font-medium text-destructive flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      {preview.issues.length} inconsistência(s) — gravação bloqueada
+                    </p>
+                    {preview.issues.slice(0, 8).map((i) => (
+                      <p key={i} className="text-xs text-destructive/90 pl-6">{i}</p>
+                    ))}
+                    {preview.issues.length > 8 && (
+                      <p className="text-xs text-destructive/70 pl-6">
+                        …e mais {preview.issues.length - 8}.
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground pl-6 pt-1">
+                      Números que não fecham entre si viram gráficos que se contradizem. Corrija a
+                      planilha (ou o cadastro no DP) e carregue de novo.
+                    </p>
+                  </div>
+                )}
+
+                {/* Diff: o que muda em relacao ao que ja esta no ar. */}
+                {diffChanged.length + diffNew.length > 0 ? (
+                  <div className="rounded-lg border border-border p-3 space-y-2">
+                    <p className="text-sm font-medium">
+                      O que muda: {diffChanged.length} mês(es) alterado(s)
+                      {diffNew.length > 0 && `, ${diffNew.length} novo(s)`}
+                      {diffSame > 0 && ` · ${diffSame} sem alteração`}
+                    </p>
+                    <div className="max-h-56 overflow-y-auto divide-y divide-border">
+                      {diffNew.map((r) => (
+                        <p key={`n-${r.brand}-${r.ym}`} className="text-xs py-1 flex gap-2">
+                          <Badge variant="secondary" className="text-[10px]">novo</Badge>
+                          <span className="text-muted-foreground">{r.brand} {r.ym}</span>
+                        </p>
+                      ))}
+                      {diffChanged.map((r) => (
+                        <p key={`c-${r.brand}-${r.ym}`} className="text-xs py-1">
+                          <span className="text-muted-foreground">{r.brand} {r.ym}: </span>
+                          {r.changes.map((c, i) => (
+                            <span key={c.field}>
+                              {i > 0 && ', '}
+                              {c.field} {c.from ?? '—'} → <strong>{c.to}</strong>
+                            </span>
+                          ))}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  preview.diff.length > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Nada muda: os {diffSame} meses da prévia são idênticos ao que já está no ar.
+                    </p>
+                  )
+                )}
+
+                <Button onClick={handleSave} disabled={busy !== null || preview.issues.length > 0}>
                   {busy === 'save' ? 'Gravando...' : 'Gravar serie reconstruida'}
                 </Button>
               </div>

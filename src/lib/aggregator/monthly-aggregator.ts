@@ -174,6 +174,9 @@ export interface PersonRow {
   pcd?: boolean;
   /** Cota legal: aprendiz (Vinculo = "Aprendiz"). Atributo atual. */
   apprentice?: boolean;
+  /** Vinculo ATUAL do snapshot. Serve de fallback do contract_mix quando a
+   *  pessoa nao tem registro vigente no historico no mes consultado. */
+  vinculo?: string | null;
   /** Demograficos (so agregados saem da maquina). Nascimento -> idade exata por
    *  mes; raca (dado sensivel LGPD), estado civil e UF natal (origem). */
   birth?: Date | null;
@@ -194,6 +197,33 @@ export interface HistoryRow {
   /** Cargo vigente no registro (coluna "Cargo"). Fonte para DATAR a transicao
    *  para lideranca na reconstrucao historica. */
   cargo?: string | null;
+  /** Vinculo vigente no registro (coluna "Vínculo"): "CLT", "Pessoa Jurídica",
+   *  "Aprendiz", "Diretor Estatutário"... Fonte da evolucao CLT/PJ "da epoca":
+   *  como o registro e datado, uma conversao PJ->CLT aparece no mes em que
+   *  ocorreu, e nao retroativamente. */
+  vinculo?: string | null;
+}
+
+/** Buckets de vinculo do grafico CLT/PJ. */
+export type ContractBucket = 'CLT' | 'PJ' | 'Aprendiz' | 'Estatutário/Sócio';
+
+export const CONTRACT_BUCKETS: ContractBucket[] = ['CLT', 'PJ', 'Aprendiz', 'Estatutário/Sócio'];
+
+/**
+ * Normaliza o texto livre de "Vínculo" nos 4 buckets do grafico.
+ *
+ * "Contrato Intermitente" cai em CLT: e um contrato celetista com jornada
+ * variavel, nao um regime a parte. Socio/associado/diretor estatutario andam
+ * juntos porque sao a mesma realidade societaria, nao emprego.
+ */
+export function contractBucket(vinculo: string | null | undefined): ContractBucket {
+  const s = (vinculo ?? '').trim().toLowerCase();
+  if (s.includes('aprendiz')) return 'Aprendiz';
+  if (s.includes('jurídica') || s.includes('juridica') || s === 'pj') return 'PJ';
+  if (s.includes('estatut') || s.includes('associado') || s.includes('sócio') || s.includes('socio')) {
+    return 'Estatutário/Sócio';
+  }
+  return 'CLT';
 }
 
 export interface DeptAggregate {
@@ -259,6 +289,11 @@ export interface MonthAggregate {
    *  o applyDeptFilter trocar os blocos de dimensao pela fatia do departamento.
    *  Somar todos os deptos reproduz os totais da empresa (por construcao). */
   dept_breakdown: Record<string, DeptBreakdown>;
+  /** Evolucao CLT/PJ: contagem por vinculo DA EPOCA (registro vigente no mes),
+   *  o que faz as conversoes PJ->CLT aparecerem na data em que ocorreram.
+   *  Sempre com as 4 chaves. Soma = headcount, por construcao (todo ativo cai
+   *  em exatamente um bucket). */
+  contract_mix: Record<ContractBucket, number>;
 }
 
 export interface DeptBreakdown {
@@ -327,6 +362,55 @@ export function departmentAt(rows: HistoryRow[], ref: Date): HistoryRow | null {
     if (!best || (best.from && r.from.getTime() >= best.from.getTime())) best = r;
   }
   return best;
+}
+
+/**
+ * Invariantes de um mes agregado. Devolve a lista de problemas (vazia = ok).
+ *
+ * As MESMAS regras rodam no banco (import_reconstruido). Aqui elas existem para
+ * a pessoa ver o problema ANTES de clicar em gravar, com o mes nomeado, em vez
+ * de tomar um erro de transacao. O banco continua sendo a garantia -- esta
+ * copia e conveniencia, nao a linha de defesa.
+ *
+ * Blocos vazios passam de proposito: Betfair BR e Flutter International vem do
+ * Workday, sem demografico nem departamento historico.
+ */
+export function checkInvariants(a: MonthAggregate): string[] {
+  const ym = a.month.slice(0, 7);
+  const out: string[] = [];
+  const sum = (o: Record<string, number>) => Object.values(o).reduce((x, y) => x + y, 0);
+  const check = (cond: boolean, msg: string) => { if (!cond) out.push(`${ym}: ${msg}`); };
+
+  const deptHc = Object.values(a.dept_data).reduce((s, d) => s + d.hc, 0);
+  if (Object.keys(a.dept_data).length) {
+    check(deptHc === a.headcount, `soma dos departamentos (${deptHc}) ≠ headcount (${a.headcount})`);
+  }
+  if (Object.keys(a.level_base).length) {
+    check(sum(a.level_base) === a.headcount,
+      `soma dos níveis (${sum(a.level_base)}) ≠ headcount (${a.headcount})`);
+  }
+  if (Object.keys(a.tenure_base).length) {
+    check(sum(a.tenure_base) === a.headcount,
+      `soma do tempo de casa (${sum(a.tenure_base)}) ≠ headcount (${a.headcount})`);
+  }
+  const gen = a.gender_female + a.gender_male;
+  check(gen <= a.headcount, `gênero (${gen}) maior que o headcount (${a.headcount})`);
+  check(a.leaders <= a.headcount, `líderes (${a.leaders}) maior que o headcount (${a.headcount})`);
+
+  const cm = sum(a.contract_mix);
+  if (cm > 0) {
+    check(cm === a.headcount, `soma do vínculo CLT/PJ (${cm}) ≠ headcount (${a.headcount})`);
+  }
+
+  const depts = Object.values(a.dept_breakdown);
+  if (depts.length) {
+    const dbLevel = depts.reduce((s, d) => s + sum(d.level_base), 0);
+    check(dbLevel === a.headcount,
+      `recorte por departamento soma ${dbLevel} pessoas, headcount é ${a.headcount}`);
+    const dbGen = depts.reduce((s, d) => s + d.gender_female + d.gender_male, 0);
+    check(dbGen === gen, `gênero por departamento (${dbGen}) ≠ total (${gen})`);
+  }
+  return out;
 }
 
 export function aggregateMonth(
@@ -432,6 +516,11 @@ export function aggregateMonth(
       race_cross: {},
     });
   const bumpDb = (o: Record<string, number>, k: string) => { o[k] = (o[k] ?? 0) + 1; };
+  // Mix de vinculo do mes. Sempre com as 4 chaves (mesmo zeradas) para o grafico
+  // empilhado nao "sumir" com uma faixa e mudar de cor no meio da serie.
+  const contractMix: Record<ContractBucket, number> = {
+    CLT: 0, PJ: 0, Aprendiz: 0, 'Estatutário/Sócio': 0,
+  };
   for (const r of recon) {
     const vig = departmentAt(historyByCpf.get(r.p.cpf) ?? [], end);
     // Decisao 24/07 (revisao fria): ativo sem registro vigente entra como
@@ -440,6 +529,10 @@ export function aggregateMonth(
     // de equivalencia, ja concluida.)
     const dept = vig ? normalizeDept(vig.department) : 'SEM DEPTO';
     deptRows.push({ dept, lead: r.lead, salary: vig ? vig.salary : null });
+    // Evolucao CLT/PJ "da epoca": o vinculo do registro VIGENTE no mes, nao o
+    // atual. Assim uma conversao PJ->CLT aparece no mes em que aconteceu, em vez
+    // de reescrever o passado. Sem registro vigente, cai no vinculo do snapshot.
+    contractMix[contractBucket(vig?.vinculo ?? r.p.vinculo)]++;
     // Lideranca da epoca por depto (para a quebra de lideranca feminina por area).
     if (r.lead) {
       const ld = (leaderDept[dept] = leaderDept[dept] ?? { leaders: 0, female: 0 });
@@ -549,6 +642,7 @@ export function aggregateMonth(
     demographics: { age: ageMix, race: raceMix, marital: maritalMix, origin: originMix },
     race_cross: raceCross,
     dept_breakdown: deptBreakdown,
+    contract_mix: contractMix,
   };
 }
 
