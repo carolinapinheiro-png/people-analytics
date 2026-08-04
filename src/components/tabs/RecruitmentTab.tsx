@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { getRecruitment, type RecruitmentData, type RecruitmentOpen } from '@/lib/recruitment.functions';
 import { useDashboard } from '@/data/DashboardContext';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
+import { COLORS } from '@/lib/colors';
 
 /**
  * Aba de Recrutamento (InHire).
@@ -247,7 +248,7 @@ export default function RecruitmentTab() {
         <CardContent>
           <ResponsiveContainer width="100%" height={260}>
             <ComposedChart data={serie} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
               <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
               <YAxis yAxisId="l" tick={{ fontSize: 11 }} />
               <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 11 }} unit="d" />
@@ -256,8 +257,8 @@ export default function RecruitmentTab() {
                 formatter={(v, n) => [n === 'tth' ? `${v} dias` : v, n === 'tth' ? 'TTH médio' : 'Fechadas']}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar yAxisId="l" dataKey="fechadas" name="Vagas fechadas" fill="hsl(var(--chart-1))" radius={[3, 3, 0, 0]} />
-              <Line yAxisId="r" type="monotone" dataKey="tth" name="TTH médio (dias)" stroke="hsl(var(--chart-3))" strokeWidth={2} dot={{ r: 2 }} connectNulls />
+              <Bar yAxisId="l" dataKey="fechadas" name="Vagas fechadas" fill={COLORS.flutter} radius={[3, 3, 0, 0]} />
+              <Line yAxisId="r" type="monotone" dataKey="tth" name="TTH médio (dias)" stroke={COLORS.warning} strokeWidth={2} dot={{ r: 2 }} connectNulls />
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
@@ -322,7 +323,7 @@ export default function RecruitmentTab() {
             ) : (
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={cruzamento} layout="vertical" margin={{ left: 8, right: 24 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11 }} unit="%" />
                   <YAxis type="category" dataKey="dept" width={110} tick={{ fontSize: 10 }} />
                   <Tooltip
@@ -332,7 +333,7 @@ export default function RecruitmentTab() {
                       'Intensidade',
                     ]}
                   />
-                  <Bar dataKey="intensidade" fill="hsl(var(--chart-2))" radius={[0, 3, 3, 0]} />
+                  <Bar dataKey="intensidade" fill={COLORS.nsx} radius={[0, 3, 3, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
