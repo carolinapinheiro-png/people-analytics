@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isInScope, isGlobalProfile, type AccessProfile, type AccessScope } from '@/lib/permissions';
+import { DeptFilterInput, selectedDept } from '@/lib/dept-filter';
 
 /**
  * Fase 1 do recorte por time: FOTO ATUAL do time do gestor, escopada por
@@ -60,8 +61,10 @@ const LEVEL_ORDER = ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9']
 
 export const getTeamSnapshot = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<TeamSnapshot> => {
+  .validator((input: unknown) => DeptFilterInput.parse(input))
+  .handler(async ({ context, data: input }): Promise<TeamSnapshot> => {
     const scope = await authorize(context.claims.email as string | undefined);
+    const sel = selectedDept(input);
     const global = isGlobalProfile(scope.profile);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
@@ -72,7 +75,11 @@ export const getTeamSnapshot = createServerFn({ method: 'GET' })
     if (error) throw new Error(`Falha ao carregar foto do time: ${error.message}`);
 
     // Escopo: global ve tudo; senao, uniao depto/familia (mesma trava do isInScope).
-    const team = (rows ?? []).filter((r) => isInScope(scope, r.area, r.job_type_family));
+    // O filtro de tela entra DEPOIS e so estreita -- nunca amplia o que a
+    // permissao ja decidiu (ver dept-filter.ts).
+    const team = (rows ?? [])
+      .filter((r) => isInScope(scope, r.area, r.job_type_family))
+      .filter((r) => !sel || (r.area ?? '').trim().toUpperCase() === sel);
 
     const level = new Map<string, number>();
     const contract = new Map<string, number>();

@@ -1,7 +1,8 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isInScope, isGlobalProfile, type AccessProfile, type AccessScope } from '@/lib/permissions';
+import { isGlobalProfile, type AccessProfile, type AccessScope } from '@/lib/permissions';
+import { DeptFilterInput, selectedDept, visibleWithFilter } from '@/lib/dept-filter';
 
 /**
  * Recrutamento (InHire): serie mensal por departamento + foto das vagas abertas.
@@ -77,8 +78,10 @@ export interface RecruitmentData {
 
 export const getRecruitment = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<RecruitmentData> => {
+  .validator((input: unknown) => DeptFilterInput.parse(input))
+  .handler(async ({ context, data }): Promise<RecruitmentData> => {
     const scope = await authorize(context.claims.email as string | undefined);
+    const sel = selectedDept(data);
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
 
@@ -96,7 +99,8 @@ export const getRecruitment = createServerFn({ method: 'GET' })
     const global = isGlobalProfile(scope.profile);
     // BETFAIR nao e departamento nosso -- e marca. Nao entra no escopo de nenhum
     // gestor por departamento; so perfis globais veem.
-    const visible = (dept: string) => global || isInScope(scope, dept);
+    const visible = (dept: string) =>
+      (global || visibleWithFilter(scope, dept, null)) && (!sel || dept.toUpperCase() === sel);
 
     const all = ((mRows ?? []) as RecruitmentMonth[]).map((r) => ({
       ...r,

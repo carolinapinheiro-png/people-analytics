@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { COLORS } from '@/lib/colors';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
+import { useDashboard } from '@/data/DashboardContext';
 
 /**
  * Aba Experiencia (profunda): engajamento (KPIs + 8 drivers com perguntas +
@@ -396,17 +397,18 @@ function InclusionSection({ data }: { data: ExperienceData }) {
 // ---------------------------------------------------------------- Tab
 
 export default function EngagementTab() {
+  const { filters } = useDashboard();
   const [data, setData] = useState<ExperienceData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fetchData = useServerFn(getExperienceData);
 
   useEffect(() => {
     let cancelled = false;
-    fetchData()
+    fetchData({ data: { department: filters.departamento } })
       .then((d) => { if (!cancelled) setData(d as ExperienceData); })
       .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Falha ao carregar'); });
     return () => { cancelled = true; };
-  }, [fetchData]);
+  }, [fetchData, filters.departamento]);
 
   if (error) return <p className="text-sm text-muted-foreground text-center py-24">Não foi possível carregar a Experiência: {error}</p>;
   if (!data) return <Loading />;

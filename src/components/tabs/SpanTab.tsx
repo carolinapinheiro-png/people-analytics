@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 import { Network, Users, UserCog, GitBranch } from 'lucide-react';
 import { COLORS } from '@/lib/colors';
+import { useDashboard } from '@/data/DashboardContext';
 
 /**
  * Span de controle calculado da cadeia real de reporte (Talent Mobility),
@@ -24,17 +25,18 @@ const spanColor = (s: number | null) =>
   s == null ? COLORS.info : s > 8 ? COLORS.warning : s < 3 ? COLORS.info : COLORS.success;
 
 export default function SpanTab() {
+  const { filters } = useDashboard();
   const [rows, setRows] = useState<SpanRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fetchSpan = useServerFn(getSpanSnapshot);
 
   useEffect(() => {
     let cancelled = false;
-    fetchSpan()
+    fetchSpan({ data: { department: filters.departamento } })
       .then((d) => { if (!cancelled) setRows(d as SpanRow[]); })
       .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Falha ao carregar'); });
     return () => { cancelled = true; };
-  }, [fetchSpan]);
+  }, [fetchSpan, filters.departamento]);
 
   if (error) return <p className="text-sm text-muted-foreground text-center py-24">Não foi possível carregar o Span: {error}</p>;
   if (!rows) return <div className="flex items-center justify-center py-24"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;

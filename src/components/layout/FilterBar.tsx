@@ -4,7 +4,7 @@ import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
-import { filtersForTab, FILTER_LABELS, type FilterKey } from '@/lib/tab-filters';
+import { filtersForTab, unavailableFilters, FILTER_LABELS, type FilterKey } from '@/lib/tab-filters';
 import { SlidersHorizontal, X } from 'lucide-react';
 
 /**
@@ -62,6 +62,7 @@ export default function FilterBar() {
 
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const disponiveis = filtersForTab(activeTab, activeSubTab);
+  const indisponiveis = unavailableFilters(activeTab, activeSubTab);
 
   // Perfis com escopo só escolhem entre os departamentos que atendem.
   const scoped = !!profile && !isGlobalProfile(profile);
@@ -141,6 +142,9 @@ export default function FilterBar() {
 
       {aberto && (
         <div className="flex flex-wrap items-end gap-3 pt-2.5">
+          {/* Indisponíveis primeiro? Não: depois, esmaecidos. Ver comentário
+              em unavailableFilters -- some sem explicação faz a pessoa procurar
+              o controle de novo na próxima vez. */}
           {disponiveis.map((k) => (
             <div key={k} className="space-y-1">
               <label className="block text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -171,7 +175,26 @@ export default function FilterBar() {
               </select>
             </div>
           ))}
+
+          {indisponiveis.map(({ key, reason }) => (
+            <div key={key} className="space-y-1 opacity-45" title={reason}>
+              <label className="block text-[10px] uppercase tracking-wider text-muted-foreground">
+                {FILTER_LABELS[key]}
+              </label>
+              <div className="border border-dashed border-border rounded px-2 py-1 text-[11px] text-muted-foreground min-w-[140px] max-w-[200px] cursor-help">
+                não se aplica aqui
+              </div>
+            </div>
+          ))}
         </div>
+      )}
+
+      {aberto && indisponiveis.length > 0 && (
+        <p className="text-[11px] text-muted-foreground pt-2 max-w-3xl leading-relaxed">
+          Os esmaecidos existem em Atrição &amp; Desligamentos, que lê pessoa a pessoa. Nas abas de
+          série mensal só o departamento é recortável — a série é pré-agregada e guarda apenas essa
+          quebra. Passe o mouse para ver o motivo de cada um.
+        </p>
       )}
     </div>
   );

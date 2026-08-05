@@ -8,12 +8,14 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { Users, Layers, Scale, Building2, UserCog, Briefcase } from 'lucide-react';
+import { useDashboard } from '@/data/DashboardContext';
 
 const PIE = [COLORS.flutter, COLORS.nsx, COLORS.betfair, COLORS.purple, COLORS.orange, COLORS.info, COLORS.success, COLORS.danger];
 const fmt1 = (n: number | null | undefined) =>
   n == null ? '—' : n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 export default function TeamTab() {
+  const { filters } = useDashboard();
   const fetchTeam = useServerFn(getTeamSnapshot);
   const [snap, setSnap] = useState<TeamSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,12 +24,12 @@ export default function TeamTab() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchTeam()
+    fetchTeam({ data: { department: filters.departamento } })
       .then((d) => { if (!cancelled) { setSnap(d as TeamSnapshot); setError(null); } })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Falha ao carregar'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [fetchTeam]);
+  }, [fetchTeam, filters.departamento]);
 
   if (loading) {
     return <div className="flex items-center justify-center py-24"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;

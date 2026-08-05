@@ -63,9 +63,11 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   // Agrupadores: o que vale é a sub-aba (ver SUBTAB abaixo). O valor aqui é o
   // que se aplica enquanto nenhuma sub-aba foi escolhida.
   quadro: ['departamento'],
-  lifecycle: [],
-  // Escopo vem do servidor (perfil do usuário), não da barra.
-  team: [],
+  lifecycle: ['departamento'],
+  // Meu Time agora aceita estreitar dentro do próprio escopo: um gestor de
+  // duas áreas consegue olhar uma de cada vez.
+  team: ['departamento'],
+  // Tem busca própria por pessoa; filtro de área não acrescenta.
   individual: [],
 };
 
@@ -80,12 +82,44 @@ const FILTERS_BY_SUBTAB: Record<string, FilterKey[]> = {
   // Quadro
   demograficos: ['departamento'],
   dei: ['departamento'],
-  span: [],                 // lê da própria server function
+  span: ['departamento'],   // filtrado no servidor, sobre span_snapshot
   // Ciclo de vida
-  recrutamento: [],         // a aba declara que não responde a filtro
-  experiencia: [],          // server functions próprias
+  recrutamento: ['departamento'],
+  experiencia: ['departamento'],  // alcança o engajamento; ver nota abaixo
   atricao: TODOS,           // LeaversTab e UnwantedTab filtram linha a linha
 };
+
+/**
+ * Filtros que existem mas NÃO se aplicam à aba, com o motivo.
+ *
+ * A barra mostra estes esmaecidos em vez de sumir com eles: some sem
+ * explicação faz parecer que o controle nunca existiu, e a pessoa não aprende
+ * o limite -- volta a procurar o filtro na próxima vez.
+ */
+export const FILTER_UNAVAILABLE_REASON: Record<string, string> = {
+  serie:
+    'A série mensal guarda apenas a quebra por departamento. Para recortar por este critério seria preciso pré-calcular a quebra dele mês a mês.',
+  pessoa:
+    'Este recorte só existe nas bases por pessoa (comp ratio e desligados), não nesta aba.',
+  escopo: 'Esta aba já vem escopada pelo seu perfil de acesso.',
+};
+
+/** Para cada aba, o que fica visível-porém-inativo e por quê. */
+export function unavailableFilters(
+  tab: DashboardTab,
+  subTab?: string | null,
+): Array<{ key: FilterKey; reason: string }> {
+  const ativos = new Set(filtersForTab(tab, subTab));
+  const daSerie: FilterKey[] = ['tempoCasa', 'tipoContrato', 'faixaSalarial', 'level', 'jobFamily'];
+  const abasDeSerie: DashboardTab[] = ['overview', 'quadro', 'data', 'comp'];
+  const out: Array<{ key: FilterKey; reason: string }> = [];
+  if (abasDeSerie.includes(tab)) {
+    for (const k of daSerie) {
+      if (!ativos.has(k)) out.push({ key: k, reason: FILTER_UNAVAILABLE_REASON.serie });
+    }
+  }
+  return out;
+}
 
 export function filtersForTab(tab: DashboardTab, subTab?: string | null): FilterKey[] {
   if (subTab && subTab in FILTERS_BY_SUBTAB) return FILTERS_BY_SUBTAB[subTab];

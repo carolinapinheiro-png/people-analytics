@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { DeptFilterInput, selectedDept } from '@/lib/dept-filter';
 
 /**
  * Span de controle calculado da cadeia real de reporte (Talent Mobility).
@@ -35,8 +36,10 @@ export interface SpanRow {
 
 export const getSpanSnapshot = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<SpanRow[]> => {
+  .validator((input: unknown) => DeptFilterInput.parse(input))
+  .handler(async ({ context, data: input }): Promise<SpanRow[]> => {
     await authorize(context.claims.email as string | undefined);
+    const sel = selectedDept(input);
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
     const { data, error } = await db
@@ -44,5 +47,16 @@ export const getSpanSnapshot = createServerFn({ method: 'GET' })
       .select('*')
       .order('position', { ascending: true });
     if (error) throw new Error(`Falha ao carregar span: ${error.message}`);
-    return (data ?? []) as SpanRow[];
+    const rows = (data ?? []) as SpanRow[];
+    if (!sel) return rows;
+
+    // Filtro conservador de propósito: com um departamento selecionado, devolve
+    // SÓ as linhas daquele departamento. As linhas 'overall' e 'distribution'
+    // são da empresa inteira -- mantê-las ao lado de um recorte faria número de
+    // empresa passar por número de área, que é o erro mais caro aqui. Se a aba
+    // ficar vazia para algum departamento, é porque não há linha dele: falha
+    // visível é melhor que número enganoso.
+    return rows.filter(
+      (r) => r.scope_type === 'department' && r.scope?.trim().toUpperCase() === sel,
+    );
   });

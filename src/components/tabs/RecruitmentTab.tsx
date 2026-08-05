@@ -49,17 +49,17 @@ export default function RecruitmentTab() {
   const [data, setData] = useState<RecruitmentData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fn = useServerFn(getRecruitment);
-  const { data: months } = useDashboard();
+  const { data: months, filters } = useDashboard();
 
   useEffect(() => {
     let alive = true;
-    fn()
+    fn({ data: { department: filters.departamento } })
       .then((d) => alive && setData(d as RecruitmentData))
       .catch((e) => alive && setError(e instanceof Error ? e.message : 'Falha ao carregar'));
     return () => {
       alive = false;
     };
-  }, [fn]);
+  }, [fn, filters.departamento]);
 
   const serie = useMemo(() => {
     if (!data?.seriesStart || !data.seriesEnd) return [];

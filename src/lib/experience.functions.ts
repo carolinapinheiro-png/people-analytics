@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { DeptFilterInput, selectedDept } from '@/lib/dept-filter';
 
 /**
  * Leitura da aba Experiencia: engajamento (deck do CEO), onboarding (agregados
@@ -72,12 +73,16 @@ export interface ExperienceData {
   drivers: EngagementDriver[];
   onboarding: OnboardingAggregate[];
   distributions: ExperienceDistribution[];
+  /** Blocos alcancados pelo filtro de departamento (os demais nao tem recorte por area). */
+  deptFilterApplied?: string[];
 }
 
 export const getExperienceData = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<ExperienceData> => {
+  .validator((input: unknown) => DeptFilterInput.parse(input))
+  .handler(async ({ context, data: input }): Promise<ExperienceData> => {
     await authorize(context.claims.email as string | undefined);
+    const sel = selectedDept(input);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -105,10 +110,27 @@ export const getExperienceData = createServerFn({ method: 'GET' })
     // segue funcionando sem a secao de drivers (aparece quando for semeada).
     if (drv.error) console.error('engagement_drivers indisponivel:', drv.error.message);
 
+    // FILTRO DE DEPARTAMENTO — alcance parcial, declarado de propósito.
+    //
+    // `engagement_scores` tem a coluna `scope` (empresa ou departamento), então
+    // o eNPS e as notas por área respondem ao filtro. Já `engagement_drivers`,
+    // `onboarding_survey_aggregates` e `experience_distributions` foram
+    // carregadas só no nível da empresa -- não existe recorte por área nelas.
+    //
+    // A escolha aqui é NÃO tocar no que não tem recorte, em vez de devolver
+    // vazio: uma seção some sem explicação parece defeito, e o número da
+    // empresa continua sendo verdadeiro (só não é o da área). A aba avisa que
+    // o filtro alcança só parte dela.
+    const engagement = ((eng.data ?? []) as EngagementScore[]).filter(
+      (r) => !sel || (r.scope ?? '').trim().toUpperCase() === sel,
+    );
+
     return {
-      engagement: (eng.data ?? []) as EngagementScore[],
+      engagement,
       drivers: (drv.error ? [] : drv.data ?? []) as EngagementDriver[],
       onboarding: (onb.data ?? []) as OnboardingAggregate[],
       distributions: (dist.data ?? []) as ExperienceDistribution[],
+      /** Quais blocos o filtro de departamento realmente alcança. */
+      deptFilterApplied: sel ? (['engagement'] as const).slice() : [],
     };
   });
