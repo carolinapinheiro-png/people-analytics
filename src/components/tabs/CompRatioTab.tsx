@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { DollarSign, TrendingUp, TrendingDown, Scale, ShieldAlert } from 'lucide-react';
 import { COLORS } from '@/lib/colors';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
+import { useDashboard } from '@/data/DashboardContext';
 
 /**
  * CompRatio individual (587 ativos). Dado sensivel: vem da server function
@@ -25,15 +26,24 @@ export default function CompRatioTab() {
   const [rows, setRows] = useState<CompRatioRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const { filters } = useDashboard();
   const fetchData = useServerFn(listCompRatio);
 
   useEffect(() => {
     let cancelled = false;
-    fetchData({ data: { context: 'aba compratio' } })
+    fetchData({
+      data: {
+        context: 'aba compratio',
+        department: filters.departamento,
+        level: filters.level,
+        contract: filters.tipoContrato,
+        jobFamily: filters.jobFamily,
+      },
+    })
       .then((d) => { if (!cancelled) setRows(d as CompRatioRow[]); })
       .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Falha ao carregar'); });
     return () => { cancelled = true; };
-  }, [fetchData]);
+  }, [fetchData, filters.departamento, filters.level, filters.tipoContrato, filters.jobFamily]);
 
   const stats = useMemo(() => {
     if (!rows || rows.length === 0) return null;

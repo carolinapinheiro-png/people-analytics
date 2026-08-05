@@ -58,8 +58,22 @@ async function authorize(userEmail: string | undefined) {
 }
 
 const ListInput = z
-  .object({ context: z.string().max(120).optional() })
+  .object({
+    context: z.string().max(120).optional(),
+    // Filtros de tela. Aplicados DEPOIS do escopo de permissao: estreitam o
+    // que a pessoa ja pode ver, nunca ampliam (ver dept-filter.ts).
+    department: z.string().trim().max(80).optional(),
+    level: z.string().trim().max(20).optional(),
+    contract: z.string().trim().max(60).optional(),
+    jobFamily: z.string().trim().max(120).optional(),
+  })
   .optional();
+
+/** 'Todos'/vazio = sem selecao. */
+const sel = (v?: string | null): string | null => {
+  const t = v?.trim();
+  return !t || t === 'Todos' ? null : t;
+};
 
 export const listCompRatio = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
@@ -78,9 +92,21 @@ export const listCompRatio = createServerFn({ method: 'GET' })
 
     // So a populacao do arquivo de comp (in_comp_scope). Os ativos carregados do
     // historico so para o Perfil Individual (People/diretoria) ficam de fora aqui.
+    const fDept = sel(data?.department);
+    const fLevel = sel(data?.level);
+    const fContract = sel(data?.contract);
+    const fFamily = sel(data?.jobFamily);
+
     const scoped = (rows ?? [])
       .filter((r) => r.in_comp_scope !== false)
-      .filter((r) => isInScope(scope, r.area, r.job_type_family));
+      .filter((r) => isInScope(scope, r.area, r.job_type_family))
+      // Filtros de tela: comp_ratio e person-level, entao aqui TODOS funcionam
+      // de verdade -- ao contrario da serie mensal, que so guarda a quebra por
+      // departamento.
+      .filter((r) => !fDept || (r.area ?? '').trim().toUpperCase() === fDept.toUpperCase())
+      .filter((r) => !fLevel || (r.level ?? '').trim() === fLevel)
+      .filter((r) => !fContract || (r.contract ?? '').trim() === fContract)
+      .filter((r) => !fFamily || (r.job_type_family ?? '').trim() === fFamily);
     const visible = canSeeIndividualData(scope.profile)
       ? scoped
       : scoped.map((r) => ({ ...r, name: 'Confidencial', salary: null }));

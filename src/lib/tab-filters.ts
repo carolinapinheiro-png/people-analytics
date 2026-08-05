@@ -59,14 +59,17 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   overview: ['departamento'],
   data: ['departamento'],
   // Compensação responde via a sub-aba de Salários (SalaryTab lê a série).
-  comp: ['departamento'],
+  // comp_ratio e person-level: level, contrato e familia funcionam de verdade.
+  // Tempo de casa e faixa salarial ficam de fora por enquanto -- existem como
+  // `hire` e `salary`, mas precisam ser derivados em faixa antes de virar filtro.
+  comp: ['departamento', 'level', 'tipoContrato', 'jobFamily'],
   // Agrupadores: o que vale é a sub-aba (ver SUBTAB abaixo). O valor aqui é o
   // que se aplica enquanto nenhuma sub-aba foi escolhida.
   quadro: ['departamento'],
   lifecycle: ['departamento'],
   // Meu Time agora aceita estreitar dentro do próprio escopo: um gestor de
   // duas áreas consegue olhar uma de cada vez.
-  team: ['departamento'],
+  team: ['departamento', 'level', 'tipoContrato', 'jobFamily'],
   // Tem busca própria por pessoa; filtro de área não acrescenta.
   individual: [],
 };
@@ -111,7 +114,7 @@ export function unavailableFilters(
 ): Array<{ key: FilterKey; reason: string }> {
   const ativos = new Set(filtersForTab(tab, subTab));
   const daSerie: FilterKey[] = ['tempoCasa', 'tipoContrato', 'faixaSalarial', 'level', 'jobFamily'];
-  const abasDeSerie: DashboardTab[] = ['overview', 'quadro', 'data', 'comp'];
+  const abasDeSerie: DashboardTab[] = ['overview', 'quadro', 'data'];
   const out: Array<{ key: FilterKey; reason: string }> = [];
   if (abasDeSerie.includes(tab)) {
     for (const k of daSerie) {

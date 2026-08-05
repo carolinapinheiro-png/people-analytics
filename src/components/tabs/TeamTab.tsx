@@ -24,12 +24,19 @@ export default function TeamTab() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    fetchTeam({ data: { department: filters.departamento } })
+    fetchTeam({
+      data: {
+        department: filters.departamento,
+        level: filters.level,
+        contract: filters.tipoContrato,
+        jobFamily: filters.jobFamily,
+      },
+    })
       .then((d) => { if (!cancelled) { setSnap(d as TeamSnapshot); setError(null); } })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Falha ao carregar'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [fetchTeam, filters.departamento]);
+  }, [fetchTeam, filters.departamento, filters.level, filters.tipoContrato, filters.jobFamily]);
 
   if (loading) {
     return <div className="flex items-center justify-center py-24"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;

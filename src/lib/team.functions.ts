@@ -2,7 +2,23 @@ import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isInScope, isGlobalProfile, type AccessProfile, type AccessScope } from '@/lib/permissions';
-import { DeptFilterInput, selectedDept } from '@/lib/dept-filter';
+import { selectedDept } from '@/lib/dept-filter';
+import { z } from 'zod';
+
+/** Filtros de tela do Meu Time. comp_ratio e person-level: todos funcionam. */
+const TeamInput = z
+  .object({
+    department: z.string().trim().max(80).optional(),
+    level: z.string().trim().max(20).optional(),
+    contract: z.string().trim().max(60).optional(),
+    jobFamily: z.string().trim().max(120).optional(),
+  })
+  .optional();
+
+const pick = (v?: string | null): string | null => {
+  const t = v?.trim();
+  return !t || t === 'Todos' ? null : t;
+};
 
 /**
  * Fase 1 do recorte por time: FOTO ATUAL do time do gestor, escopada por
@@ -61,7 +77,7 @@ const LEVEL_ORDER = ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9']
 
 export const getTeamSnapshot = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => DeptFilterInput.parse(input))
+  .validator((input: unknown) => TeamInput.parse(input))
   .handler(async ({ context, data: input }): Promise<TeamSnapshot> => {
     const scope = await authorize(context.claims.email as string | undefined);
     const sel = selectedDept(input);
@@ -79,7 +95,14 @@ export const getTeamSnapshot = createServerFn({ method: 'GET' })
     // permissao ja decidiu (ver dept-filter.ts).
     const team = (rows ?? [])
       .filter((r) => isInScope(scope, r.area, r.job_type_family))
-      .filter((r) => !sel || (r.area ?? '').trim().toUpperCase() === sel);
+      .filter((r) => !sel || (r.area ?? '').trim().toUpperCase() === sel)
+      .filter((r) => !pick(input?.level) || (r.level ?? '').trim() === pick(input?.level))
+      .filter((r) => !pick(input?.contract) || (r.contract ?? '').trim() === pick(input?.contract))
+      .filter(
+        (r) =>
+          !pick(input?.jobFamily) ||
+          (r.job_type_family ?? '').trim() === pick(input?.jobFamily),
+      );
 
     const level = new Map<string, number>();
     const contract = new Map<string, number>();
