@@ -4,6 +4,7 @@ import { MessageSquare, Gauge, Lock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getTaSatisfaction, type TaSatisfactionData } from '@/lib/ta-satisfaction.functions';
+import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 
 /**
  * Satisfacao do cliente interno (gestor contratante) com o servico de TA.
@@ -32,7 +33,29 @@ export default function TaSatisfactionSection() {
     };
   }, [fn]);
 
-  if (!d || d.responses === 0) return null;
+  // Como agora isto e uma sub-aba inteira, devolver null deixaria a aba em
+  // branco sem explicacao -- o usuario clica e nao entende se quebrou ou se nao
+  // ha dado. Estado vazio explicito.
+  if (d && d.responses === 0) {
+    return (
+      <Card>
+        <CardContent className="p-6 space-y-1">
+          <p className="text-sm font-medium">Nenhuma resposta no seu escopo</p>
+          <p className="text-sm text-muted-foreground">
+            A pesquisa é respondida pelo gestor contratante depois do aceite da oferta. Se a área
+            não teve contratação recente, é esperado que não haja resposta.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+  if (!d) {
+    return (
+      <Card>
+        <CardContent className="p-6 text-sm text-muted-foreground">Carregando…</CardContent>
+      </Card>
+    );
+  }
 
   const cobertura = d.closedJobs > 0 ? Math.round((d.responses / d.closedJobs) * 100) : null;
 
@@ -43,9 +66,12 @@ export default function TaSatisfactionSection() {
           <Gauge className="h-4 w-4" />
           Satisfação do gestor com o serviço de TA
         </CardTitle>
-        <CardDescription className="text-xs">
-          Pesquisa respondida pelo gestor contratante após o aceite da oferta. Chega automaticamente
-          a cada nova resposta do formulário.
+        <CardDescription className="text-xs flex flex-wrap items-center gap-2">
+          <span>
+            Pesquisa respondida pelo gestor contratante após o aceite da oferta. A planilha do
+            formulário é lida toda semana e as respostas novas entram sozinhas.
+          </span>
+          <FreshnessBadge dataset="ta_satisfaction" />
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

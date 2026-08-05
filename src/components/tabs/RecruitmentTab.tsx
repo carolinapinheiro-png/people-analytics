@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Briefcase, Clock, Users, AlertTriangle, Snowflake } from 'lucide-react';
+import { Briefcase, Clock, Users, AlertTriangle, Snowflake, GitBranch, Gauge } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getRecruitment, type RecruitmentData, type RecruitmentOpen } from '@/lib/recruitment.functions';
@@ -20,6 +20,7 @@ import { useDashboard } from '@/data/DashboardContext';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 import { COLORS } from '@/lib/colors';
 import TaSatisfactionSection from '@/components/dashboard/TaSatisfactionSection';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 /**
  * Aba de Recrutamento (InHire).
@@ -210,6 +211,18 @@ export default function RecruitmentTab() {
         )}
       </div>
 
+      <Tabs defaultValue="funil" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="funil" className="gap-2">
+            <GitBranch className="h-4 w-4" />Funil
+          </TabsTrigger>
+          <TabsTrigger value="satisfacao" className="gap-2">
+            <Gauge className="h-4 w-4" />Satisfação do gestor
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="funil" className="mt-0 space-y-4">
+
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         {[
           { label: 'Vagas abertas', value: abertas.jobs, icon: Briefcase, note: `${abertas.positions} posições` },
@@ -376,8 +389,6 @@ export default function RecruitmentTab() {
         </CardContent>
       </Card>
 
-      <TaSatisfactionSection />
-
       <p className="text-[11px] text-muted-foreground leading-relaxed">
         <strong>Como o TTH é calculado:</strong> dias corridos entre a abertura e o fechamento,
         descontados os períodos em que a vaga esteve congelada ou cancelada — a regra da aba
@@ -387,6 +398,12 @@ export default function RecruitmentTab() {
         desde {desde} — antes disso não há medição, e não é zero. Depois disso, mês sem barra é
         zero de verdade.
       </p>
+        </TabsContent>
+
+        <TabsContent value="satisfacao" className="mt-0">
+          <TaSatisfactionSection />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

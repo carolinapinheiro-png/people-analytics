@@ -114,6 +114,16 @@ const SPECS: Spec[] = [
     expectedDays: 30,
     note: 'O InHire é tempo real; aqui é a última carga.',
   },
+  {
+    key: 'ta_satisfaction',
+    table: 'ta_satisfaction',
+    column: 'loaded_at',
+    label: 'Satisfação de TA',
+    source: 'Google Forms — sincronização semanal',
+    // 10 dias: com carga semanal, passar disso significa que a sincronizacao
+    // parou de rodar, nao que ninguem respondeu.
+    expectedDays: 10,
+  },
 ];
 
 export const getDataFreshness = createServerFn({ method: 'GET' })
