@@ -57,25 +57,37 @@ const TODOS: FilterKey[] = [
 export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   // Consomem a série do contexto, que passa pelo applyDeptFilter.
   overview: ['departamento'],
-  dei: ['departamento'],
-  demographics: ['departamento'],
   data: ['departamento'],
   // Compensação responde via a sub-aba de Salários (SalaryTab lê a série).
   comp: ['departamento'],
-
-  // Única aba que lê os sete: LeaversTab e UnwantedTab filtram linha a linha.
-  attrition: TODOS,
-
+  // Agrupadores: o que vale é a sub-aba (ver SUBTAB abaixo). O valor aqui é o
+  // que se aplica enquanto nenhuma sub-aba foi escolhida.
+  quadro: ['departamento'],
+  lifecycle: [],
   // Escopo vem do servidor (perfil do usuário), não da barra.
   team: [],
   individual: [],
-  // Documentado na própria aba: não responde ao filtro de ano nem aos demais.
-  recruitment: [],
-  // Leem das próprias server functions, sem passar pela série filtrada.
-  engagement: [],
-  span: [],
 };
 
-export function filtersForTab(tab: DashboardTab): FilterKey[] {
+/**
+ * Dentro de um agrupador, quem manda é a sub-aba.
+ *
+ * Sem isto, "Ciclo de vida" herdaria os sete filtros de Atrição e voltaria a
+ * exibi-los em Recrutamento e Experiência, onde nenhum funciona -- exatamente
+ * o problema que a separação por aba resolveu.
+ */
+const FILTERS_BY_SUBTAB: Record<string, FilterKey[]> = {
+  // Quadro
+  demograficos: ['departamento'],
+  dei: ['departamento'],
+  span: [],                 // lê da própria server function
+  // Ciclo de vida
+  recrutamento: [],         // a aba declara que não responde a filtro
+  experiencia: [],          // server functions próprias
+  atricao: TODOS,           // LeaversTab e UnwantedTab filtram linha a linha
+};
+
+export function filtersForTab(tab: DashboardTab, subTab?: string | null): FilterKey[] {
+  if (subTab && subTab in FILTERS_BY_SUBTAB) return FILTERS_BY_SUBTAB[subTab];
   return FILTERS_BY_TAB[tab] ?? ['departamento'];
 }

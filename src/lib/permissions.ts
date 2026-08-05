@@ -32,26 +32,18 @@ export const PROFILE_DESCRIPTIONS: Record<AccessProfile, string> = {
 export type DashboardTab =
   | 'overview'
   | 'team'
-  | 'dei'
+  | 'quadro'      // Demograficos · DEI · Span
   | 'comp'
-  | 'demographics'
-  | 'engagement'
-  | 'span'
-  | 'attrition'
-  | 'recruitment'
+  | 'lifecycle'   // Recrutamento · Experiencia · Atricao
   | 'individual'
   | 'data';
 
 const ALL_TABS: DashboardTab[] = [
   'overview',
   'team',
-  'dei',
+  'quadro',
   'comp',
-  'demographics',
-  'engagement',
-  'span',
-  'attrition',
-  'recruitment',
+  'lifecycle',
   'individual',
   'data',
 ];

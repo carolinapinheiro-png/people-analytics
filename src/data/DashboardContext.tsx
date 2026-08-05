@@ -10,7 +10,7 @@ import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
 import { getMonthsOrder, getMonthData, getAllMonthsForBrand, aggregateMonthlyToQuarterly } from './helpers';
 
 export type BrandType = 'combined' | 'NSX' | 'Betfair BR' | 'Flutter International';
-export type TabType = 'overview' | 'team' | 'dei' | 'comp' | 'demographics' | 'engagement' | 'span' | 'attrition' | 'recruitment' | 'individual' | 'data';
+export type TabType = 'overview' | 'team' | 'quadro' | 'comp' | 'lifecycle' | 'individual' | 'data';
 export type ViewType = 'monthly' | 'quarterly';
 
 export interface Filters {
@@ -33,6 +33,12 @@ interface DashboardState {
   setCurrentMonthIdx: (i: number) => void;
   activeTab: TabType;
   setActiveTab: (t: TabType) => void;
+  /** Sub-aba ativa dentro de um agrupador (Quadro, Ciclo de vida). A barra de
+   *  filtros decide o que oferecer a partir dela: dentro de Ciclo de vida, so
+   *  Atricao aplica filtro. Sem isto o grupo herdaria os sete e a barra
+   *  voltaria a mostrar controle que nao faz nada. */
+  activeSubTab: string | null;
+  setActiveSubTab: (t: string | null) => void;
   view: ViewType;
   setView: (v: ViewType) => void;
   filters: Filters;
@@ -231,6 +237,15 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     () => [...new Set(monthsOrderAll.map((m) => m.slice(0, 4)))].sort(),
     [monthsOrderAll],
   );
+  const [activeSubTab, setActiveSubTab] = useState<string | null>(null);
+
+  // Trocar de aba principal ZERA a sub-aba. Sem isto, sair de
+  // "Ciclo de vida > Atricao" para "Quadro" levaria junto o subTab 'atricao',
+  // e a barra ofereceria os sete filtros numa aba que aplica um -- de volta ao
+  // problema de mostrar controle que nao faz nada.
+  useEffect(() => {
+    setActiveSubTab(null);
+  }, [activeTab]);
   const [yearFilter, setYearFilter] = useState<string>('atual');
   const activeYear =
     yearFilter === 'Todos'
@@ -310,7 +325,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   return (
     <DashboardContext.Provider value={{
       data, leavers, brand, setBrand, currentMonthIdx, setCurrentMonthIdx,
-      activeTab, setActiveTab, view, setView, filters, setFilters,
+      activeTab, setActiveTab, activeSubTab, setActiveSubTab, view, setView, filters, setFilters,
       yearFilter, setYearFilter, availableYears, activeYear,
       monthsOrder, currentMonth, currentData, prevData, allMonthsData,
       filteredDeptKey, dataLoading, dataError,

@@ -56,12 +56,12 @@ const VAZIO: Filters = {
 };
 
 export default function FilterBar() {
-  const { filters, setFilters, brand, activeTab } = useDashboard();
+  const { filters, setFilters, brand, activeTab, activeSubTab } = useDashboard();
   const { profile, departments } = useAuth();
   const [aberto, setAberto] = useState(false);
 
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
-  const disponiveis = filtersForTab(activeTab);
+  const disponiveis = filtersForTab(activeTab, activeSubTab);
 
   // Perfis com escopo só escolhem entre os departamentos que atendem.
   const scoped = !!profile && !isGlobalProfile(profile);

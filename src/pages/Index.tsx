@@ -6,47 +6,13 @@ import FilterBar from '@/components/layout/FilterBar';
 import TabNavigation from '@/components/layout/TabNavigation';
 import OverviewTab from '@/components/tabs/OverviewTab';
 import TeamTab from '@/components/tabs/TeamTab';
-import RecruitmentTab from '@/components/tabs/RecruitmentTab';
-import DEITab from '@/components/tabs/DEITab';
 import CompensationTab from '@/components/tabs/CompensationTab';
-import DemographicsTab from '@/components/tabs/DemographicsTab';
-import EngagementTab from '@/components/tabs/EngagementTab';
-import SpanTab from '@/components/tabs/SpanTab';
-import AttritionTab from '@/components/tabs/AttritionTab';
 import ProfileTab from '@/components/tabs/ProfileTab';
 import DataTab from '@/components/tabs/DataTab';
+import LeaversGate from '@/components/dashboard/LeaversGate';
+import QuadroTab from '@/components/tabs/QuadroTab';
+import LifecycleTab from '@/components/tabs/LifecycleTab';
 
-/**
- * As abas de desligados dependem de dado individual, que agora vem do servidor
- * em vez de estar no bundle. Tratar carga e erro aqui, no ponto de troca de
- * aba, evita espalhar early return dentro de cada aba -- o que quebraria a
- * ordem dos hooks, ja que ambas chamam useMemo depois do useDashboard.
- */
-function LeaversGate({ children }: { children: React.ReactNode }) {
-  const { leaversLoading, leaversError, reloadLeavers } = useDashboard();
-
-  if (leaversLoading) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
-      </div>
-    );
-  }
-
-  if (leaversError) {
-    return (
-      <div className="max-w-md mx-auto text-center py-24 space-y-4">
-        <h2 className="text-lg font-semibold text-foreground">
-          Não foi possível carregar os desligados
-        </h2>
-        <p className="text-sm text-muted-foreground">{leaversError}</p>
-        <Button onClick={() => reloadLeavers()}>Tentar novamente</Button>
-      </div>
-    );
-  }
-
-  return <>{children}</>;
-}
 
 function DashboardContent() {
   const { activeTab, dataLoading, dataError } = useDashboard();
@@ -86,13 +52,9 @@ function DashboardContent() {
       <main className="p-4 md:p-6 max-w-[1600px] mx-auto">
         {activeTab === 'overview' && <OverviewTab />}
         {activeTab === 'team' && <TeamTab />}
-        {activeTab === 'recruitment' && <RecruitmentTab />}
-        {activeTab === 'dei' && <DEITab />}
+        {activeTab === 'quadro' && <QuadroTab />}
         {activeTab === 'comp' && <CompensationTab />}
-        {activeTab === 'demographics' && <DemographicsTab />}
-        {activeTab === 'engagement' && <EngagementTab />}
-        {activeTab === 'span' && <SpanTab />}
-        {activeTab === 'attrition' && <LeaversGate><AttritionTab /></LeaversGate>}
+        {activeTab === 'lifecycle' && <LifecycleTab />}
         {activeTab === 'individual' && <ProfileTab />}
         {activeTab === 'data' && <DataTab />}
       </main>
