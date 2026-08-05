@@ -180,28 +180,41 @@
   --chart-grid: rgba(22, 33, 91, 0.10);
 }
 
+/**
+ * Tema escuro — superfícies neutras, cor reservada para o dado.
+ *
+ * A versão anterior usava azul-violeta com 50–60% de saturação nas superfícies
+ * (--card era #16215b, 61%). Duas consequências: cansa em sessão longa, porque
+ * área grande de cor saturada mantém o olho trabalhando onde deveria haver só
+ * fundo; e compete com as cores dos gráficos, então o dado aparecia menos.
+ *
+ * Aqui as superfícies ficam quase neutras (~10% de saturação, matiz 220 para
+ * não virar cinza morto) e a identidade passa a viver no azul de destaque
+ * (--primary) e nas séries dos gráficos. Regra ao mexer nisto: se um token de
+ * FUNDO passar de ~15% de saturação, o problema volta.
+ */
 .dark {
-  --background: #0b112e;
-  --foreground: #f2f6ff;
-  --card: #16215b;
-  --card-foreground: #f2f6ff;
-  --popover: #16215b;
-  --popover-foreground: #f2f6ff;
-  --primary: #0285ff;
-  --primary-foreground: #ffffff;
-  --secondary: #1c2b64;
-  --secondary-foreground: #f2f6ff;
-  --muted: #1c2b64;
-  --muted-foreground: #9fb0d9;
-  --accent: #1c2b64;
-  --accent-foreground: #f2f6ff;
-  --border: #29407f;
-  --input: #29407f;
-  --ring: #0285ff;
+  --background: #0d1017;
+  --foreground: #e8ebf0;      /* não é branco puro: reduz o halo em fundo escuro */
+  --card: #151a23;
+  --card-foreground: #e8ebf0;
+  --popover: #1a202a;         /* um degrau acima do card, para flutuar sobre ele */
+  --popover-foreground: #e8ebf0;
+  --primary: #3b9dff;         /* clareado: #0285ff não passava contraste em fundo escuro */
+  --primary-foreground: #06121f;
+  --secondary: #1c222d;
+  --secondary-foreground: #e8ebf0;
+  --muted: #1c222d;
+  --muted-foreground: #8e99ab;
+  --accent: #1c222d;
+  --accent-foreground: #e8ebf0;
+  --border: #2a323f;
+  --input: #2a323f;
+  --ring: #3b9dff;
   /* graficos */
-  --chart-tooltip-bg: #16215b;
-  --chart-tooltip-border: #29407f;
-  --chart-tooltip-fg: #e2e8f0;
-  --chart-tick: #9fb0d9;
-  --chart-grid: rgba(159, 176, 217, 0.16);
+  --chart-tooltip-bg: #1a202a;
+  --chart-tooltip-border: #2a323f;
+  --chart-tooltip-fg: #e8ebf0;
+  --chart-tick: #8e99ab;
+  --chart-grid: rgba(142, 153, 171, 0.14);
 }
