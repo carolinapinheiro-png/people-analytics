@@ -44,25 +44,33 @@ export default function TopBar() {
     yearFilter, setYearFilter, availableYears } = useDashboard();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const latestYear = availableYears[availableYears.length - 1] ?? '';
+  // "Ano atual (2026)" e "2026" eram dois botoes lado a lado fazendo a mesma
+  // coisa -- so divergiriam na virada do ano, o que ninguem deduz olhando.
+  // O ano mais recente sai da lista numerada: quem quer o atual clica em
+  // "Ano atual", que continua se movendo sozinho quando o ano vira.
   const yearOptions: { k: string; label: string }[] = [
     { k: 'atual', label: `Ano atual${latestYear ? ` (${latestYear})` : ''}` },
-    ...availableYears.map((y) => ({ k: y, label: y })),
+    ...availableYears.filter((y) => y !== latestYear).map((y) => ({ k: y, label: y })),
     { k: 'Todos', label: 'Todos' },
   ];
 
   return (
     <header className="bg-card border-b border-border px-4 md:px-7 py-3 flex items-center justify-between sticky top-0 z-50">
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-extrabold text-white" style={{ background: `linear-gradient(to bottom right, ${brandColor}, ${COLORS.nsx})` }}>
+      {/* shrink-0 e whitespace-nowrap: sem isto o titulo quebrava em duas
+          linhas e o subtitulo em tres, empurrando tema e usuario para baixo
+          dele -- um layout que ninguem desenhou, produzido pelo flex-wrap. */}
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-extrabold text-white shrink-0" style={{ background: `linear-gradient(to bottom right, ${brandColor}, ${COLORS.nsx})` }}>
           F
         </div>
-        <div>
-          <div className="text-sm font-bold tracking-tight">Flutter Brazil · People Analytics</div>
-          <div className="text-[11px] text-muted-foreground">NSX + Betfair · Dashboard mensal de RH</div>
+        <div className="min-w-0">
+          <div className="text-sm font-bold tracking-tight whitespace-nowrap">Flutter Brazil · People Analytics</div>
+          {/* Contexto, nao informacao critica: some antes de atrapalhar. */}
+          <div className="text-[11px] text-muted-foreground whitespace-nowrap hidden xl:block">NSX + Betfair · Dashboard mensal de RH</div>
         </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-3 min-w-0 overflow-x-auto">
         {/* Brand toggle */}
         <div className="flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden md:inline">Marca</span>

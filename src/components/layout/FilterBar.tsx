@@ -1,5 +1,30 @@
+import { useState } from 'react';
 import { useDashboard, Filters } from '@/data/DashboardContext';
 import { COLORS } from '@/lib/colors';
+import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
+import { filtersForTab, FILTER_LABELS, type FilterKey } from '@/lib/tab-filters';
+import { SlidersHorizontal, X } from 'lucide-react';
+
+/**
+ * Barra de filtros.
+ *
+ * Três decisões, todas vindas de problemas reais observados na tela:
+ *
+ * 1. MOSTRA SÓ O QUE A ABA APLICA (ver tab-filters.ts). Antes exibia os sete em
+ *    todas as abas, e seis deles só funcionam em Atrição & Desligamentos. A
+ *    pessoa filtrava, nada acontecia, e a tela não avisava.
+ *
+ * 2. FICA RECOLHIDA quando nada está selecionado. Uma linha inteira de
+ *    controles dizendo "Todos" ocupa espaço permanente para um estado que é o
+ *    padrão em quase todo acesso.
+ *
+ * 3. O QUE ESTÁ ATIVO VIRA ETIQUETA REMOVÍVEL, sempre visível. O problema
+ *    anterior: você filtrava um departamento, mudava de aba, e o filtro
+ *    continuava valendo sem nada gritar isso -- levando a ler o número de uma
+ *    área achando que era o da empresa.
+ */
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -8,12 +33,9 @@ const BRAND_COLORS: Record<string, string> = {
   'Flutter International': COLORS.flutter,
   Porto: COLORS.flutter,
 };
-import { cn } from '@/lib/utils';
-import { useAuth } from '@/contexts/AuthContext';
-import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
 
-const filterOptions = {
-  departamento: ['Todos', 'TECHNOLOGY', 'PRODUCT', 'MARKETING', 'COMMERCIAL', 'FINANCE', 'OPERATIONS', 'HR'],
+const filterOptions: Record<FilterKey, string[]> = {
+  departamento: ['Todos', 'TECHNOLOGY', 'PRODUCT', 'MARKETING', 'COMMERCIAL', 'FINANCE', 'OPERATION', 'HR', 'LEGAL & COMPLIANCE'],
   jobFamily: ['Todos', 'Commercial & Marketing', 'Customer Operations', 'Product & Technology', 'Finance', 'Legal', 'Leadership (Executive) SR and C-Levels (reporting to CEO or N-3)', 'Other (Property, Security, Cleaning)', 'HR'],
   tempoCasa: ['Todos', '0-3 meses', '3-6 meses', '6-12 meses', '1-2 anos', '2-5 anos', '5+ anos'],
   tipoContrato: ['Todos', 'CLT', 'Pessoa Jurídica', 'Sócio'],
@@ -22,138 +44,135 @@ const filterOptions = {
   level: ['Todos', 'L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L8'],
 };
 
+const VAZIO: Filters = {
+  jobFamily: 'Todos',
+  departamento: 'Todos',
+  tempoCasa: 'Todos',
+  centroCusto: 'Todos',
+  tipoContrato: 'Todos',
+  faixaSalarial: 'Todos',
+  tipoDesligamento: 'Todos',
+  level: 'Todos',
+};
+
 export default function FilterBar() {
-  const { filters, setFilters, filteredDeptKey, brand } = useDashboard();
+  const { filters, setFilters, brand, activeTab } = useDashboard();
   const { profile, departments } = useAuth();
-  // Perfis com escopo so escolhem entre os departamentos que atendem.
-  const scoped = !!profile && !isGlobalProfile(profile);
-  const deptOptions = scoped
-    ? departments.map(normalizeDept).filter(Boolean)
-    : filterOptions.departamento;
+  const [aberto, setAberto] = useState(false);
+
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
+  const disponiveis = filtersForTab(activeTab);
 
-  const handleChange = (key: keyof Filters, value: string) => {
-    setFilters({ ...filters, [key]: value });
-  };
+  // Perfis com escopo só escolhem entre os departamentos que atendem.
+  const scoped = !!profile && !isGlobalProfile(profile);
+  const opcoes = (k: FilterKey): string[] =>
+    k === 'departamento' && scoped
+      ? ['Todos', ...departments.map(normalizeDept).filter(Boolean)]
+      : filterOptions[k];
 
-  const hasActiveFilter =
-    filters.departamento !== 'Todos' ||
-    filters.jobFamily !== 'Todos' ||
-    filters.tempoCasa !== 'Todos' ||
-    filters.tipoContrato !== 'Todos' ||
-    filters.faixaSalarial !== 'Todos' ||
-    filters.tipoDesligamento !== 'Todos' ||
-    filters.level !== 'Todos';
+  // Ativos = só os que esta aba realmente aplica. Um filtro ligado numa aba e
+  // irrelevante em outra não deve aparecer como ativo onde não faz nada.
+  const ativos = disponiveis.filter((k) => filters[k] !== 'Todos');
 
-  const clearFilters = () => {
-    setFilters({
-      jobFamily: 'Todos',
-      departamento: 'Todos',
-      tempoCasa: 'Todos',
-      centroCusto: 'Todos',
-      tipoContrato: 'Todos',
-      faixaSalarial: 'Todos',
-      tipoDesligamento: 'Todos',
-      level: 'Todos',
-    });
-  };
+  const set = (key: FilterKey, value: string) => setFilters({ ...filters, [key]: value });
+  const limparUm = (key: FilterKey) => set(key, 'Todos');
+  const limparTudo = () => setFilters({ ...VAZIO });
+
+  // Aba sem nada filtrável: a barra some. Melhor que oferecer controle inerte.
+  if (disponiveis.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-4 px-4 md:px-7 py-2 bg-card border-b border-border overflow-x-auto">
-      <FilterSelect
-        label="DEPARTAMENTO"
-        value={filters.departamento}
-        options={deptOptions}
-        onChange={(v) => handleChange('departamento', v)}
-        active={!!filteredDeptKey}
-        brandColor={brandColor}
-      />
-      <FilterSelect
-        label="JOB FAMILY"
-        value={filters.jobFamily}
-        options={filterOptions.jobFamily}
-        onChange={(v) => handleChange('jobFamily', v)}
-        active={filters.jobFamily !== 'Todos'}
-        brandColor={brandColor}
-      />
-      <FilterSelect
-        label="TEMPO DE CASA"
-        value={filters.tempoCasa}
-        options={filterOptions.tempoCasa}
-        onChange={(v) => handleChange('tempoCasa', v)}
-        active={filters.tempoCasa !== 'Todos'}
-        brandColor={brandColor}
-      />
-      <FilterSelect
-        label="TIPO DE CONTRATO"
-        value={filters.tipoContrato}
-        options={filterOptions.tipoContrato}
-        onChange={(v) => handleChange('tipoContrato', v)}
-        active={filters.tipoContrato !== 'Todos'}
-        brandColor={brandColor}
-      />
-      <FilterSelect
-        label="FAIXA SALARIAL"
-        value={filters.faixaSalarial}
-        options={filterOptions.faixaSalarial}
-        onChange={(v) => handleChange('faixaSalarial', v)}
-        active={filters.faixaSalarial !== 'Todos'}
-        brandColor={brandColor}
-      />
-      <FilterSelect
-        label="TIPO DE DESLIGAMENTO"
-        value={filters.tipoDesligamento}
-        options={filterOptions.tipoDesligamento}
-        onChange={(v) => handleChange('tipoDesligamento', v)}
-        active={filters.tipoDesligamento !== 'Todos'}
-        brandColor={brandColor}
-      />
-      <FilterSelect
-        label="LEVEL"
-        value={filters.level}
-        options={filterOptions.level}
-        onChange={(v) => handleChange('level', v)}
-        active={filters.level !== 'Todos'}
-        brandColor={brandColor}
-      />
-      {hasActiveFilter && (
+    <div className="px-4 md:px-7 py-2 bg-card border-b border-border">
+      <div className="flex items-center gap-2 flex-wrap">
         <button
-          onClick={clearFilters}
-          className="text-[10px] hover:underline shrink-0 font-semibold"
-          style={{ color: brandColor }}
+          onClick={() => setAberto((v) => !v)}
+          className={cn(
+            'flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors shrink-0',
+            aberto || ativos.length
+              ? 'border-border text-foreground'
+              : 'border-border text-muted-foreground hover:text-foreground',
+          )}
         >
-          Limpar filtros
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          Filtros
+          {ativos.length > 0 && (
+            <span
+              className="rounded-full px-1.5 text-[10px] font-medium text-white"
+              style={{ backgroundColor: brandColor }}
+            >
+              {ativos.length}
+            </span>
+          )}
         </button>
-      )}
-    </div>
-  );
-}
 
-function FilterSelect({ label, value, options, onChange, disabled, active, brandColor }: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange: (v: string) => void;
-  disabled?: boolean;
-  active?: boolean;
-  brandColor?: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 shrink-0">
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className={cn(
-          'bg-secondary border rounded px-2 py-1 text-[11px] text-foreground min-w-[100px] focus:outline-none focus:ring-1',
-          active ? 'ring-1' : 'border-border',
-          disabled && 'opacity-50 cursor-not-allowed'
+        {/* Etiquetas do que está ativo: visíveis mesmo com a barra recolhida. */}
+        {ativos.map((k) => (
+          <span
+            key={k}
+            className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-[11px] shrink-0"
+          >
+            <span className="text-muted-foreground">{FILTER_LABELS[k]}:</span>
+            <span className="font-medium max-w-[180px] truncate">{filters[k]}</span>
+            <button
+              onClick={() => limparUm(k)}
+              aria-label={`Remover filtro ${FILTER_LABELS[k]}`}
+              className="rounded-full hover:bg-background/60 p-0.5"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+
+        {ativos.length > 1 && (
+          <button
+            onClick={limparTudo}
+            className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 shrink-0"
+          >
+            limpar todos
+          </button>
         )}
-        style={active ? { borderColor: brandColor, '--tw-ring-color': brandColor } as React.CSSProperties : undefined}
-      >
-        {options.map(o => <option key={o} value={o}>{o}</option>)}
-      </select>
+
+        {ativos.length === 0 && !aberto && (
+          <span className="text-[11px] text-muted-foreground">
+            Mostrando a empresa toda.
+          </span>
+        )}
+      </div>
+
+      {aberto && (
+        <div className="flex flex-wrap items-end gap-3 pt-2.5">
+          {disponiveis.map((k) => (
+            <div key={k} className="space-y-1">
+              <label className="block text-[10px] uppercase tracking-wider text-muted-foreground">
+                {FILTER_LABELS[k]}
+              </label>
+              <select
+                value={filters[k]}
+                onChange={(e) => set(k, e.target.value)}
+                className={cn(
+                  // max-w evita que "Leadership (Executive) SR and C-Levels..."
+                  // estique o seletor e empurre o resto para fora da tela --
+                  // era a causa direta da rolagem horizontal.
+                  'bg-secondary border rounded px-2 py-1 text-[11px] text-foreground',
+                  'min-w-[140px] max-w-[200px]',
+                  filters[k] !== 'Todos' ? 'ring-1' : 'border-border',
+                )}
+                style={
+                  filters[k] !== 'Todos'
+                    ? ({ borderColor: brandColor, '--tw-ring-color': brandColor } as React.CSSProperties)
+                    : undefined
+                }
+              >
+                {opcoes(k).map((o) => (
+                  <option key={o} value={o}>
+                    {o}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
