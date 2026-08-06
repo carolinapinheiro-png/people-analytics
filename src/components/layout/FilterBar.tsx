@@ -71,9 +71,21 @@ export default function FilterBar() {
       ? ['Todos', ...departments.map(normalizeDept).filter(Boolean)]
       : filterOptions[k];
 
-  // Ativos = só os que esta aba realmente aplica. Um filtro ligado numa aba e
-  // irrelevante em outra não deve aparecer como ativo onde não faz nada.
+  // Todo filtro ligado aparece, sempre -- mesmo quando esta aba não o aplica.
+  //
+  // A versão anterior mostrava só os da aba atual. Parecia mais limpo e criou um
+  // bug feio: o filtro continuava valendo invisível. Filtrar "contrato = CLT" em
+  // Atrição e voltar ao Overview jogava o Overview na visão reduzida, sem nada
+  // na tela explicando por quê -- lia-se como "os indicadores pararam de
+  // funcionar". Estado que muda o que você vê não pode ficar escondido.
+  const TODAS: FilterKey[] = [
+    'departamento', 'jobFamily', 'tempoCasa', 'tipoContrato',
+    'faixaSalarial', 'tipoDesligamento', 'level',
+  ];
   const ativos = disponiveis.filter((k) => filters[k] !== 'Todos');
+  const ativosForaDaAba = TODAS.filter(
+    (k) => filters[k] !== 'Todos' && !disponiveis.includes(k),
+  );
 
   const set = (key: FilterKey, value: string) => {
     const next = { ...filters, [key]: value };
@@ -100,19 +112,19 @@ export default function FilterBar() {
           onClick={() => setAberto((v) => !v)}
           className={cn(
             'flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors shrink-0',
-            aberto || ativos.length
+            aberto || ativos.length || ativosForaDaAba.length
               ? 'border-border text-foreground'
               : 'border-border text-muted-foreground hover:text-foreground',
           )}
         >
           <SlidersHorizontal className="h-3.5 w-3.5" />
           Filtros
-          {ativos.length > 0 && (
+          {ativos.length + ativosForaDaAba.length > 0 && (
             <span
               className="rounded-full px-1.5 text-[10px] font-medium text-white"
               style={{ backgroundColor: brandColor }}
             >
-              {ativos.length}
+              {ativos.length + ativosForaDaAba.length}
             </span>
           )}
         </button>
@@ -135,7 +147,26 @@ export default function FilterBar() {
           </span>
         ))}
 
-        {ativos.length > 1 && (
+        {ativosForaDaAba.map((k) => (
+          <span
+            key={k}
+            className="inline-flex items-center gap-1 rounded-md border border-dashed border-amber-500/50 px-2 py-1 text-[11px] shrink-0"
+            title="Ativo em outra aba. Não recorta esta, mas continua valendo onde se aplica."
+          >
+            <span className="text-amber-600 dark:text-amber-500">{FILTER_LABELS[k]}:</span>
+            <span className="max-w-[140px] truncate">{filters[k]}</span>
+            <span className="text-muted-foreground">· não aplicado aqui</span>
+            <button
+              onClick={() => limparUm(k)}
+              aria-label={`Remover filtro ${FILTER_LABELS[k]}`}
+              className="rounded-full hover:bg-background/60 p-0.5"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        ))}
+
+        {ativos.length + ativosForaDaAba.length > 1 && (
           <button
             onClick={limparTudo}
             className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 shrink-0"
@@ -144,7 +175,7 @@ export default function FilterBar() {
           </button>
         )}
 
-        {ativos.length === 0 && !aberto && (
+        {ativos.length + ativosForaDaAba.length === 0 && !aberto && (
           <span className="text-[11px] text-muted-foreground">
             Mostrando a empresa toda.
           </span>
