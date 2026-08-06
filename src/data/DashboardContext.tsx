@@ -90,6 +90,10 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
   const db = record.dept_breakdown?.[deptName];
   const base: MonthRecord = {
     ...record,
+    // Sem dept_breakdown (marca Combinada, meses antigos, Betfair/Flutter) as
+    // dimensoes ficam company-wide. Marcar aqui evita que um recorte posterior
+    // misture headcount de departamento com distribuicao de empresa.
+    dept_filter_exact: !!db,
     headcount: deptInfo.hc,
     joiners: Math.round((record.joiners || 0) * ratio),
     leavers: Math.round((record.leavers || 0) * ratio),

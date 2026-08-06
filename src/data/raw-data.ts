@@ -51,6 +51,11 @@ export interface MonthRecord {
    *  tenure_base, demographics{age,race,marital,origin}, race_cross } }. Permite
    *  o applyDeptFilter trocar os blocos de dimensao pela fatia do depto. */
   dept_breakdown?: Record<string, DeptBreakdownRecord>;
+  /** Marcado pelo applyDeptFilter: true quando o recorte por departamento usou a
+   *  quebra EXATA (dept_breakdown), false quando caiu no rateio proporcional.
+   *  Quem for recortar por outra dimensao em cima precisa saber a diferenca --
+   *  no rateio, level_base/tenure_base continuam sendo os da empresa. */
+  dept_filter_exact?: boolean;
 }
 
 export interface DeptBreakdownRecord {

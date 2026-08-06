@@ -58,22 +58,12 @@ export default function OverviewTab() {
   // "TECHNOLOGY + L4" funciona de graca: allMonthsData ja vem com o level_base
   // do departamento quando ha dept_breakdown.
   const cutKey: SeriesFilterKey | null =
-    filters.level !== 'Todos'
-      ? 'level'
-      : filters.tempoCasa !== 'Todos'
-        ? 'tempoCasa'
-        : filters.tipoContrato !== 'Todos'
-          ? 'tipoContrato'
-          : null;
-  const cutValue =
-    cutKey === 'level'
-      ? filters.level
-      : cutKey === 'tempoCasa'
-        ? filters.tempoCasa
-        : cutKey === 'tipoContrato'
-          ? filters.tipoContrato
-          : null;
-  const cut = applySeriesFilter(allMonthsData, leavers, cutKey, cutValue);
+    filters.level !== 'Todos' ? 'level' : filters.tempoCasa !== 'Todos' ? 'tempoCasa' : null;
+  const cutValue = cutKey === 'level' ? filters.level : cutKey === 'tempoCasa' ? filters.tempoCasa : null;
+  // O departamento entra aqui para as saidas serem contadas na MESMA populacao
+  // do headcount. Antes o numerador vinha da empresa toda e o denominador do
+  // departamento -- a atricao resultante nao correspondia a nada.
+  const cut = applySeriesFilter(allMonthsData, leavers, cutKey, cutValue, filters.departamento);
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
 
   const curr = currentData;
@@ -319,6 +309,7 @@ export default function OverviewTab() {
         label={cut.label}
         suppressed={cut.suppressed}
         brandColor={brandColor}
+        unreliable={cut.unreliable}
       />
     );
   }

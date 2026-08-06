@@ -598,6 +598,31 @@ test('applySeriesFilter: headcount vem da contagem por faixa, nao de rateio', as
   assert.equal(r.months[0].leavers, 0);
 });
 
+test('applySeriesFilter: saidas respeitam o departamento junto com o recorte', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter');
+  const meses = [
+    { month: '2026-01', headcount: 50, leavers: 9, level_base: { L4: 20 }, dept_filter_exact: true },
+  ] as never[];
+  const saidas = [
+    { data_desligamento: '2026-01-10', level: 'L4', departamento: 'TECHNOLOGY', tempo_casa_dias: 100 },
+    { data_desligamento: '2026-01-11', level: 'L4', departamento: 'MARKETING', tempo_casa_dias: 100 },
+  ] as never[];
+  // Sem o departamento o numerador vinha da empresa toda e o denominador do
+  // departamento -- a atricao resultante nao correspondia a populacao nenhuma.
+  const r = applySeriesFilter(meses, saidas, 'level', 'L4', 'TECHNOLOGY');
+  assert.equal(r.months[0].leavers, 1);
+  assert.equal(r.unreliable, false);
+});
+
+test('applySeriesFilter: marca como nao confiavel quando o depto caiu no rateio', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter');
+  const meses = [
+    { month: '2026-01', headcount: 50, level_base: { L4: 20 }, dept_filter_exact: false },
+  ] as never[];
+  const r = applySeriesFilter(meses, [], 'level', 'L4', 'TECHNOLOGY');
+  assert.equal(r.unreliable, true);
+});
+
 test('applySeriesFilter: saidas contadas pessoa a pessoa, no mes certo', async () => {
   const { applySeriesFilter } = await import('../../data/series-filter');
   const meses = [
@@ -605,9 +630,9 @@ test('applySeriesFilter: saidas contadas pessoa a pessoa, no mes certo', async (
     { month: '2026-02', headcount: 100, leavers: 9, level_base: { L4: 20 } },
   ] as never[];
   const saidas = [
-    { data_desligamento: '2026-01-15', level: 'L4', vinculo: 'CLT', tempo_casa_dias: 400 },
-    { data_desligamento: '2026-01-20', level: 'L4', vinculo: 'PJ', tempo_casa_dias: 40 },
-    { data_desligamento: '2026-02-03', level: 'L5', vinculo: 'CLT', tempo_casa_dias: 400 },
+    { data_desligamento: '2026-01-15', level: 'L4', departamento: 'TECH', tempo_casa_dias: 400 },
+    { data_desligamento: '2026-01-20', level: 'L4', departamento: 'TECH', tempo_casa_dias: 40 },
+    { data_desligamento: '2026-02-03', level: 'L5', departamento: 'TECH', tempo_casa_dias: 400 },
   ] as never[];
   const r = applySeriesFilter(meses, saidas, 'level', 'L4');
   assert.equal(r.months[0].leavers, 2);

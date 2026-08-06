@@ -36,13 +36,27 @@ import type { LeaverRecord } from './leaver-types';
  * promoções, salários, demográficos e raça.
  */
 
-export type SeriesFilterKey = 'level' | 'tempoCasa' | 'tipoContrato';
+/**
+ * `tipoContrato` foi REMOVIDO deste recorte. A contagem por vinculo vive em
+ * `contract_mix_monthly`, uma tabela separada que a serie do contexto nao
+ * carrega -- e que tambem nao tem quebra por departamento. Enquanto estava
+ * aqui, o headcount vinha sempre 0 e a tela mostrava "0 pessoas, 21 saidas,
+ * 0% de atricao", que e pior que nao oferecer o recorte.
+ */
+export type SeriesFilterKey = 'level' | 'tempoCasa';
 
 /** Métricas que sobrevivem a um recorte de dimensão única. */
 export const METRICAS_EXATAS = ['headcount', 'leavers', 'attrition_rate'] as const;
 
 export interface SeriesFilterResult {
   months: MonthRecord[];
+  /**
+   * true quando o recorte NAO pode ser combinado com o departamento escolhido.
+   * Acontece quando o filtro de area caiu no rateio proporcional (marca
+   * Combinada, por exemplo): ali level_base/tenure_base continuam sendo os da
+   * empresa, entao o headcount seria da empresa e as saidas do departamento.
+   */
+  unreliable: boolean;
   /** true quando algum recorte de dimensão está ativo. */
   active: boolean;
   /** Rótulo para a tela ("Nível: L4"). */
@@ -93,23 +107,31 @@ export function applySeriesFilter(
   leavers: LeaverRecord[],
   key: SeriesFilterKey | null,
   value: string | null,
-  contractByMonth?: Map<string, Record<string, number>>,
+  /** Departamento ativo, para contar as saidas dentro dele. Sem isto, o
+   *  numerador vinha da empresa toda e o denominador do departamento. */
+  department?: string | null,
 ): SeriesFilterResult {
   if (!key || !value || value === 'Todos') {
-    return { months, active: false, label: null, suppressed: [] };
+    return { months, active: false, label: null, suppressed: [], unreliable: false };
   }
 
-  const labelPrefix =
-    key === 'level' ? 'Nível' : key === 'tempoCasa' ? 'Tempo de casa' : 'Contrato';
+  // Se ha departamento selecionado, o recorte so e confiavel quando o filtro de
+  // area usou a quebra exata. Caso contrario headcount e saidas viriam de
+  // populacoes diferentes -- e a atricao entre elas seria um numero inventado.
+  const unreliable = !!department && months.some((m) => m.dept_filter_exact === false);
+
+  const labelPrefix = key === 'level' ? 'Nível' : 'Tempo de casa';
+  const dept = department && department !== 'Todos' ? department.trim().toUpperCase() : null;
 
   // Contagem de saídas por mês dentro do recorte. Person-level, então exata.
   const saidasPorMes = new Map<string, number>();
   for (const l of leavers) {
     const ym = (l.data_desligamento ?? '').slice(0, 7);
     if (!ym) continue;
+    // Mesma populacao do headcount: se ha departamento, a saida tem que ser dele.
+    if (dept && norm(l.departamento).toUpperCase() !== dept) continue;
     let bate = false;
     if (key === 'level') bate = norm(l.level) === norm(value);
-    else if (key === 'tipoContrato') bate = norm(l.vinculo) === norm(value);
     else if (key === 'tempoCasa') {
       const alvo = TENURE_LABEL_TO_KEY[value] ?? value;
       bate = tenureBucketFromDays(l.tempo_casa_dias ?? 0) === alvo;
@@ -119,13 +141,10 @@ export function applySeriesFilter(
 
   const out = months.map((m): MonthRecord => {
     let hc = 0;
-    if (key === 'level') {
-      hc = m.level_base?.[value] ?? 0;
-    } else if (key === 'tempoCasa') {
-      hc = m.tenure_base?.[TENURE_LABEL_TO_KEY[value] ?? value] ?? 0;
-    } else {
-      hc = contractByMonth?.get(m.month)?.[value] ?? 0;
-    }
+    hc =
+      key === 'level'
+        ? (m.level_base?.[value] ?? 0)
+        : (m.tenure_base?.[TENURE_LABEL_TO_KEY[value] ?? value] ?? 0);
     const saidas = saidasPorMes.get(m.month) ?? 0;
 
     return {
@@ -155,5 +174,6 @@ export function applySeriesFilter(
     active: true,
     label: `${labelPrefix}: ${value}`,
     suppressed: SUPRIMIDO,
+    unreliable,
   };
 }

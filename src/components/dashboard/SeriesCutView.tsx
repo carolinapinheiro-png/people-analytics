@@ -36,11 +36,14 @@ export default function SeriesCutView({
   label,
   suppressed,
   brandColor,
+  unreliable = false,
 }: {
   months: MonthRecord[];
   label: string;
   suppressed: string[];
   brandColor: string;
+  /** Recorte combinado com departamento sem quebra exata: nao da para confiar. */
+  unreliable?: boolean;
 }) {
   const serie = useMemo(
     () =>
@@ -61,11 +64,27 @@ export default function SeriesCutView({
     : 0;
   // Acumulado do período, mesma definição do resto do dashboard: total de
   // saídas sobre headcount médio -- não é a média das taxas mensais.
-  const atricaoAcum = hcMedio > 0 ? Math.round((totalSaidas / hcMedio) * 1000) / 10 : 0;
+  // Sem denominador nao existe taxa. Mostrar "0%" ao lado de saidas > 0 sugere
+  // que a atricao e nula, quando na verdade ela e indefinida.
+  const atricaoAcum = hcMedio > 0 ? Math.round((totalSaidas / hcMedio) * 1000) / 10 : null;
   const variacao = primeiro && ultimo ? ultimo.headcount - primeiro.headcount : 0;
 
   return (
     <div className="space-y-4">
+      {unreliable && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 space-y-1">
+          <p className="text-sm font-medium text-destructive">
+            Este recorte não vale junto com o departamento selecionado
+          </p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Para a marca escolhida não existe a quebra exata por área, então a distribuição por
+            faixa continua sendo a da empresa inteira enquanto as saídas seriam só do
+            departamento — números de populações diferentes. Escolha a marca <strong>NSX</strong>,
+            que tem a quebra por área, ou remova o filtro de departamento.
+          </p>
+        </div>
+      )}
+
       <div className="rounded-lg border border-border bg-muted/40 p-3 flex items-start gap-2.5">
         <Info className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
         <div className="space-y-1">
@@ -91,7 +110,11 @@ export default function SeriesCutView({
             note: `desde ${mLabel(primeiro?.month ?? '')}`,
           },
           { label: 'Saídas no período', value: totalSaidas, note: 'contagem individual' },
-          { label: 'Atrição acumulada', value: `${atricaoAcum}%`, note: `sobre HC médio de ${hcMedio}` },
+          {
+            label: 'Atrição acumulada',
+            value: atricaoAcum == null ? '—' : `${atricaoAcum}%`,
+            note: hcMedio > 0 ? `sobre HC médio de ${hcMedio}` : 'sem headcount neste recorte',
+          },
         ].map((k) => (
           <Card key={k.label}>
             <CardContent className="p-3">
