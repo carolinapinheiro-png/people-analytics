@@ -581,3 +581,57 @@ test('checkInvariants nao reclama de bloco vazio (Betfair/Flutter)', () => {
   };
   assert.deepEqual(checkInvariants(semDimensoes), []);
 });
+
+// ---------- recorte de dimensao unica sobre a serie ----------
+
+test('applySeriesFilter: headcount vem da contagem por faixa, nao de rateio', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter');
+  const meses = [
+    { month: '2026-01', headcount: 100, leavers: 5, level_base: { L4: 20, L5: 10 } },
+    { month: '2026-02', headcount: 110, leavers: 3, level_base: { L4: 25, L5: 12 } },
+  ] as never[];
+  const r = applySeriesFilter(meses, [], 'level', 'L4');
+  assert.equal(r.active, true);
+  assert.equal(r.months[0].headcount, 20);
+  assert.equal(r.months[1].headcount, 25);
+  // 20% do quadro nao vira 20% das saidas: sem desligado no recorte, e zero.
+  assert.equal(r.months[0].leavers, 0);
+});
+
+test('applySeriesFilter: saidas contadas pessoa a pessoa, no mes certo', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter');
+  const meses = [
+    { month: '2026-01', headcount: 100, leavers: 9, level_base: { L4: 20 } },
+    { month: '2026-02', headcount: 100, leavers: 9, level_base: { L4: 20 } },
+  ] as never[];
+  const saidas = [
+    { data_desligamento: '2026-01-15', level: 'L4', vinculo: 'CLT', tempo_casa_dias: 400 },
+    { data_desligamento: '2026-01-20', level: 'L4', vinculo: 'PJ', tempo_casa_dias: 40 },
+    { data_desligamento: '2026-02-03', level: 'L5', vinculo: 'CLT', tempo_casa_dias: 400 },
+  ] as never[];
+  const r = applySeriesFilter(meses, saidas, 'level', 'L4');
+  assert.equal(r.months[0].leavers, 2);
+  assert.equal(r.months[1].leavers, 0);            // a de fev e L5
+  assert.equal(r.months[0].attrition_rate, 10);     // 2/20
+});
+
+test('applySeriesFilter: dimensoes sem valor exato saem indefinidas, nao zeradas', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter');
+  const meses = [
+    { month: '2026-01', headcount: 100, gender_female: 40, level_base: { L4: 20 },
+      demographics: { age: { '25-34': 50 } }, race_cross: { Branca: { total: 60 } } },
+  ] as never[];
+  const r = applySeriesFilter(meses, [], 'level', 'L4');
+  // undefined obriga quem desenha a tratar; zero passaria por medicao.
+  assert.equal(r.months[0].demographics, undefined);
+  assert.equal(r.months[0].race_cross, undefined);
+  assert.equal(r.suppressed.length > 0, true);
+});
+
+test('applySeriesFilter: sem recorte devolve a serie intacta', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter');
+  const meses = [{ month: '2026-01', headcount: 100, gender_female: 40 }] as never[];
+  const r = applySeriesFilter(meses, [], null, null);
+  assert.equal(r.active, false);
+  assert.equal(r.months[0].gender_female, 40);
+});

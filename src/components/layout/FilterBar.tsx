@@ -4,7 +4,7 @@ import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
-import { filtersForTab, unavailableFilters, FILTER_LABELS, type FilterKey } from '@/lib/tab-filters';
+import { filtersForTab, unavailableFilters, FILTER_LABELS, RECORTES_EXCLUSIVOS, type FilterKey } from '@/lib/tab-filters';
 import { SlidersHorizontal, X } from 'lucide-react';
 
 /**
@@ -75,7 +75,18 @@ export default function FilterBar() {
   // irrelevante em outra não deve aparecer como ativo onde não faz nada.
   const ativos = disponiveis.filter((k) => filters[k] !== 'Todos');
 
-  const set = (key: FilterKey, value: string) => setFilters({ ...filters, [key]: value });
+  const set = (key: FilterKey, value: string) => {
+    const next = { ...filters, [key]: value };
+    // Exclusividade: escolher um recorte de dimensao limpa os outros dois. A
+    // serie nao guarda o cruzamento entre eles, entao manter dois ativos
+    // produziria um numero que parece filtrado pelos dois e nao e por nenhum.
+    if (RECORTES_EXCLUSIVOS.includes(key) && value !== 'Todos') {
+      for (const outro of RECORTES_EXCLUSIVOS) {
+        if (outro !== key) next[outro] = 'Todos';
+      }
+    }
+    setFilters(next);
+  };
   const limparUm = (key: FilterKey) => set(key, 'Todos');
   const limparTudo = () => setFilters({ ...VAZIO });
 
@@ -136,6 +147,12 @@ export default function FilterBar() {
         {ativos.length === 0 && !aberto && (
           <span className="text-[11px] text-muted-foreground">
             Mostrando a empresa toda.
+          </span>
+        )}
+
+        {RECORTES_EXCLUSIVOS.some((k) => disponiveis.includes(k) && filters[k] !== 'Todos') && (
+          <span className="text-[11px] text-amber-600 dark:text-amber-500">
+            recorte único — só headcount, saídas e atrição
           </span>
         )}
       </div>

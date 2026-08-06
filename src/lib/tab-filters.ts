@@ -56,7 +56,9 @@ const TODOS: FilterKey[] = [
 
 export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   // Consomem a série do contexto, que passa pelo applyDeptFilter.
-  overview: ['departamento'],
+  // Overview aceita UM recorte de dimensao alem do departamento (ver
+  // series-filter.ts). A exclusividade entre os tres e garantida na barra.
+  overview: ['departamento', 'level', 'tempoCasa', 'tipoContrato'],
   data: ['departamento'],
   // Compensação responde via a sub-aba de Salários (SalaryTab lê a série).
   // comp_ratio e person-level: level, contrato e familia funcionam de verdade.
@@ -128,3 +130,12 @@ export function filtersForTab(tab: DashboardTab, subTab?: string | null): Filter
   if (subTab && subTab in FILTERS_BY_SUBTAB) return FILTERS_BY_SUBTAB[subTab];
   return FILTERS_BY_TAB[tab] ?? ['departamento'];
 }
+
+/**
+ * Recortes de dimensão única sobre a série mensal. No máximo UM ativo por vez.
+ *
+ * Combinar dois exigiria o cruzamento pré-calculado ("L4 E PJ" mês a mês), que
+ * a série não guarda. Em vez de devolver número errado ou vazio silencioso, a
+ * barra troca a seleção: escolher um limpa o outro, e diz isso.
+ */
+export const RECORTES_EXCLUSIVOS: FilterKey[] = ['level', 'tempoCasa', 'tipoContrato'];

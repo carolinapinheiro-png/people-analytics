@@ -17,6 +17,8 @@ import KpiCard from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { StorySection, StoryInsight, StoryMetric, StoryAlert } from '@/components/dashboard/StorySection';
 import { COLORS } from '@/lib/colors';
+import SeriesCutView from '@/components/dashboard/SeriesCutView';
+import { applySeriesFilter, type SeriesFilterKey } from '@/data/series-filter';
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -48,8 +50,32 @@ import {
 } from 'lucide-react';
 
 export default function OverviewTab() {
-  const { currentData, prevData, allMonthsData, currentMonth, brand } = useDashboard();
+  const { currentData, prevData, allMonthsData, currentMonth, brand, filters, leavers } =
+    useDashboard();
+
+  // Recorte de dimensao unica (nivel, tempo de casa, vinculo). So um por vez --
+  // a barra garante isso. Aplicado DEPOIS do filtro de departamento, entao
+  // "TECHNOLOGY + L4" funciona de graca: allMonthsData ja vem com o level_base
+  // do departamento quando ha dept_breakdown.
+  const cutKey: SeriesFilterKey | null =
+    filters.level !== 'Todos'
+      ? 'level'
+      : filters.tempoCasa !== 'Todos'
+        ? 'tempoCasa'
+        : filters.tipoContrato !== 'Todos'
+          ? 'tipoContrato'
+          : null;
+  const cutValue =
+    cutKey === 'level'
+      ? filters.level
+      : cutKey === 'tempoCasa'
+        ? filters.tempoCasa
+        : cutKey === 'tipoContrato'
+          ? filters.tipoContrato
+          : null;
+  const cut = applySeriesFilter(allMonthsData, leavers, cutKey, cutValue);
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
+
   const curr = currentData;
   const prev = prevData;
   const tv = calcTurnover(curr, prev);
@@ -281,6 +307,21 @@ export default function OverviewTab() {
 
     return parts.join(', ');
   };
+
+  // Com recorte de dimensao ativo, a tela troca para a visao reduzida: sob esse
+  // corte a maior parte dos blocos nao tem valor exato, e desativa-los um a um
+  // deixaria a chance de algum cartao esquecido mostrar numero da empresa com
+  // rotulo do recorte -- o pior desfecho possivel aqui.
+  if (cut.active && cut.label) {
+    return (
+      <SeriesCutView
+        months={cut.months}
+        label={cut.label}
+        suppressed={cut.suppressed}
+        brandColor={brandColor}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
