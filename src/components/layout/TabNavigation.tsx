@@ -16,9 +16,13 @@ import { visibleTabs } from '@/lib/permissions';
 const tabs: { id: TabType; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'team', label: 'Meu Time' },
-  { id: 'quadro', label: 'Quadro' },
+  { id: 'dei', label: 'DEI Metrics' },
   { id: 'comp', label: 'Compensação' },
-  { id: 'lifecycle', label: 'Ciclo de vida' },
+  { id: 'demographics', label: 'Demográficos' },
+  { id: 'engagement', label: 'Experiência' },
+  { id: 'span', label: 'Span de Controle' },
+  { id: 'attrition', label: 'Atrição & Desligamentos' },
+  { id: 'recruitment', label: 'Recrutamento' },
   { id: 'individual', label: 'Perfil Individual' },
   { id: 'data', label: 'Dados' },
 ];

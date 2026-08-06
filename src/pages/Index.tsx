@@ -10,8 +10,12 @@ import CompensationTab from '@/components/tabs/CompensationTab';
 import ProfileTab from '@/components/tabs/ProfileTab';
 import DataTab from '@/components/tabs/DataTab';
 import LeaversGate from '@/components/dashboard/LeaversGate';
-import QuadroTab from '@/components/tabs/QuadroTab';
-import LifecycleTab from '@/components/tabs/LifecycleTab';
+import DEITab from '@/components/tabs/DEITab';
+import DemographicsTab from '@/components/tabs/DemographicsTab';
+import EngagementTab from '@/components/tabs/EngagementTab';
+import SpanTab from '@/components/tabs/SpanTab';
+import AttritionTab from '@/components/tabs/AttritionTab';
+import RecruitmentTab from '@/components/tabs/RecruitmentTab';
 
 
 function DashboardContent() {
@@ -52,9 +56,13 @@ function DashboardContent() {
       <main className="p-4 md:p-6 max-w-[1600px] mx-auto">
         {activeTab === 'overview' && <OverviewTab />}
         {activeTab === 'team' && <TeamTab />}
-        {activeTab === 'quadro' && <QuadroTab />}
+        {activeTab === 'recruitment' && <RecruitmentTab />}
+        {activeTab === 'dei' && <DEITab />}
         {activeTab === 'comp' && <CompensationTab />}
-        {activeTab === 'lifecycle' && <LifecycleTab />}
+        {activeTab === 'demographics' && <DemographicsTab />}
+        {activeTab === 'engagement' && <EngagementTab />}
+        {activeTab === 'span' && <SpanTab />}
+        {activeTab === 'attrition' && <LeaversGate><AttritionTab /></LeaversGate>}
         {activeTab === 'individual' && <ProfileTab />}
         {activeTab === 'data' && <DataTab />}
       </main>

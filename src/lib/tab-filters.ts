@@ -65,10 +65,15 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   // Tempo de casa e faixa salarial ficam de fora por enquanto -- existem como
   // `hire` e `salary`, mas precisam ser derivados em faixa antes de virar filtro.
   comp: ['departamento', 'level', 'tipoContrato', 'jobFamily'],
-  // Agrupadores: o que vale é a sub-aba (ver SUBTAB abaixo). O valor aqui é o
-  // que se aplica enquanto nenhuma sub-aba foi escolhida.
-  quadro: ['departamento'],
-  lifecycle: ['departamento'],
+  // Leem a série do contexto (já com applyDeptFilter).
+  dei: ['departamento'],
+  demographics: ['departamento'],
+  // Filtradas no servidor, cada uma na própria server function.
+  span: ['departamento'],
+  engagement: ['departamento'],   // alcança o engajamento; drivers/inclusão não têm recorte
+  recruitment: ['departamento'],
+  // Única que lê pessoa a pessoa com todas as dimensões.
+  attrition: TODOS,
   // Meu Time agora aceita estreitar dentro do próprio escopo: um gestor de
   // duas áreas consegue olhar uma de cada vez.
   team: ['departamento', 'level', 'tipoContrato', 'jobFamily'],
@@ -84,14 +89,12 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
  * o problema que a separação por aba resolveu.
  */
 const FILTERS_BY_SUBTAB: Record<string, FilterKey[]> = {
-  // Quadro
-  demograficos: ['departamento'],
-  dei: ['departamento'],
-  span: ['departamento'],   // filtrado no servidor, sobre span_snapshot
-  // Ciclo de vida
-  recrutamento: ['departamento'],
-  experiencia: ['departamento'],  // alcança o engajamento; ver nota abaixo
-  atricao: TODOS,           // LeaversTab e UnwantedTab filtram linha a linha
+  // Compensação: Salários lê a série (só departamento recorta); Comp Ratio lê
+  // o comp_ratio, que é por pessoa e aceita as quatro dimensões. Sem esta
+  // distinção, os filtros de pessoa apareceriam em Salários sem efeito.
+  custos: ['departamento'],
+  compratio: ['departamento', 'level', 'tipoContrato', 'jobFamily'],
+  movimentacoes: ['departamento'],
 };
 
 /**
@@ -116,7 +119,7 @@ export function unavailableFilters(
 ): Array<{ key: FilterKey; reason: string }> {
   const ativos = new Set(filtersForTab(tab, subTab));
   const daSerie: FilterKey[] = ['tempoCasa', 'tipoContrato', 'faixaSalarial', 'level', 'jobFamily'];
-  const abasDeSerie: DashboardTab[] = ['overview', 'quadro', 'data'];
+  const abasDeSerie: DashboardTab[] = ['dei', 'demographics', 'data'];
   const out: Array<{ key: FilterKey; reason: string }> = [];
   if (abasDeSerie.includes(tab)) {
     for (const k of daSerie) {

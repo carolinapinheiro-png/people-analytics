@@ -3,6 +3,8 @@ import { Wallet, Scale, Award } from 'lucide-react';
 import SalaryTab from './SalaryTab';
 import CompRatioTab from './CompRatioTab';
 import MovementTab from './MovementTab';
+import { useEffect } from 'react';
+import { useDashboard } from '@/data/DashboardContext';
 
 /**
  * Compensacao numa secao unica (decisao da area): Custos & Bandas, Comp Ratio
@@ -12,8 +14,17 @@ import MovementTab from './MovementTab';
  * so e registrado quando a pessoa realmente abre aquela visao.
  */
 export default function CompensationTab() {
+  // Publica a sub-aba para a barra de filtros: Salários lê a série (só
+  // departamento recorta), Comp Ratio lê pessoa a pessoa e aceita as quatro
+  // dimensões. Sem isto os filtros de pessoa apareceriam em Salários sem efeito.
+  const { activeSubTab, setActiveSubTab } = useDashboard();
+  const valor = activeSubTab ?? 'custos';
+  useEffect(() => {
+    if (!activeSubTab) setActiveSubTab('custos');
+  }, [activeSubTab, setActiveSubTab]);
+
   return (
-    <Tabs defaultValue="custos" className="space-y-4">
+    <Tabs value={valor} onValueChange={setActiveSubTab} className="space-y-4">
       <TabsList>
         <TabsTrigger value="custos" className="gap-2">
           <Wallet className="h-4 w-4" />
