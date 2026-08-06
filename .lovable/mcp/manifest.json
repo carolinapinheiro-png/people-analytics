@@ -1,0 +1,183 @@
+{
+  "version": 1,
+  "sdk_version": "0.26.1",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://jadxpfsoxjumqsiydgzo.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "people-analytics-flutter-br",
+      "version": "0.1.0",
+      "title": "People Analytics Flutter BR"
+    },
+    "tools": [
+      {
+        "name": "get_my_access",
+        "title": "Get my access profile",
+        "description": "Return the connected user's People Analytics access profile: email, role, visibility profile, and the department/job-family scope their data is limited to.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_departments",
+        "title": "List departments",
+        "description": "List the active departments in the People Analytics catalog (canonical names and aliases), limited to the connected user's scope.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_headcount_series",
+        "title": "Get headcount series",
+        "description": "Monthly company-level people metrics: headcount, joiners, leavers, attrition rate, promotions, leadership and diversity percentages. Company-wide aggregates; optionally filter by month range and brand.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "from_month": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}$",
+              "description": "First month to include (YYYY-MM)."
+            },
+            "to_month": {
+              "$ref": "#/properties/from_month",
+              "description": "Last month to include (YYYY-MM)."
+            },
+            "brand": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Filter by brand (exact match)."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 120,
+              "description": "Max rows, most recent first (default 36, max 120)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_engagement_by_department",
+        "title": "Get engagement by department",
+        "description": "Engagement survey results per department and wave: eNPS (and delta vs enterprise), retention risk, and satisfaction. Scoped profiles only see their own departments.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "wave": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}$",
+              "description": "Survey wave in YYYY-MM format. Omit for all waves."
+            },
+            "department": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Filter by department name (exact match)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_recruitment_monthly",
+        "title": "Get recruitment metrics",
+        "description": "Monthly recruitment funnel metrics per department: closed jobs, time-to-hire (average and median, in calendar days with inactivity discounted), and application volume. Scoped profiles only see their own departments.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "from_month": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}$",
+              "description": "First month to include (YYYY-MM)."
+            },
+            "to_month": {
+              "$ref": "#/properties/from_month",
+              "description": "Last month to include (YYYY-MM)."
+            },
+            "department": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Filter by department name (exact match)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_contract_mix",
+        "title": "Get contract mix",
+        "description": "Monthly evolution of the workforce by contract type (e.g. CLT vs PJ) and brand, reconstructed from contract history and anchored to official headcount. Company-wide aggregates.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "from_month": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}$",
+              "description": "First month to include (YYYY-MM)."
+            },
+            "to_month": {
+              "$ref": "#/properties/from_month",
+              "description": "Last month to include (YYYY-MM)."
+            },
+            "brand": {
+              "type": "string",
+              "minLength": 1,
+              "description": "Filter by brand (exact match)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
