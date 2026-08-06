@@ -513,6 +513,24 @@ export type Database = {
         }
         Relationships: []
       }
+      ingest_tokens: {
+        Row: {
+          created_at: string | null
+          name: string
+          token: string
+        }
+        Insert: {
+          created_at?: string | null
+          name: string
+          token: string
+        }
+        Update: {
+          created_at?: string | null
+          name?: string
+          token?: string
+        }
+        Relationships: []
+      }
       leavers: {
         Row: {
           ano_desligamento: string | null
@@ -765,6 +783,63 @@ export type Database = {
         }
         Relationships: []
       }
+      onboarding_survey: {
+        Row: {
+          answers: Json | null
+          comments: Json | null
+          contract: string | null
+          dedupe_key: string
+          department: string | null
+          department_raw: string | null
+          enps: number | null
+          entry_type: string | null
+          id: string
+          loaded_at: string | null
+          milestone: string
+          satisfaction: number | null
+          scores: Json | null
+          start_date: string | null
+          submitted_at: string
+          work_model: string | null
+        }
+        Insert: {
+          answers?: Json | null
+          comments?: Json | null
+          contract?: string | null
+          dedupe_key: string
+          department?: string | null
+          department_raw?: string | null
+          enps?: number | null
+          entry_type?: string | null
+          id?: string
+          loaded_at?: string | null
+          milestone: string
+          satisfaction?: number | null
+          scores?: Json | null
+          start_date?: string | null
+          submitted_at: string
+          work_model?: string | null
+        }
+        Update: {
+          answers?: Json | null
+          comments?: Json | null
+          contract?: string | null
+          dedupe_key?: string
+          department?: string | null
+          department_raw?: string | null
+          enps?: number | null
+          entry_type?: string | null
+          id?: string
+          loaded_at?: string | null
+          milestone?: string
+          satisfaction?: number | null
+          scores?: Json | null
+          start_date?: string | null
+          submitted_at?: string
+          work_model?: string | null
+        }
+        Relationships: []
+      }
       onboarding_survey_aggregates: {
         Row: {
           id: string
@@ -792,6 +867,75 @@ export type Database = {
           slice_type?: string
           slice_value?: string
           survey_stage?: string
+        }
+        Relationships: []
+      }
+      recruitment_monthly: {
+        Row: {
+          applications: number
+          closed_jobs: number
+          department: string
+          id: string
+          loaded_at: string | null
+          month: string
+          tth_avg: number | null
+          tth_median: number | null
+        }
+        Insert: {
+          applications?: number
+          closed_jobs?: number
+          department: string
+          id?: string
+          loaded_at?: string | null
+          month: string
+          tth_avg?: number | null
+          tth_median?: number | null
+        }
+        Update: {
+          applications?: number
+          closed_jobs?: number
+          department?: string
+          id?: string
+          loaded_at?: string | null
+          month?: string
+          tth_avg?: number | null
+          tth_median?: number | null
+        }
+        Relationships: []
+      }
+      recruitment_open_snapshot: {
+        Row: {
+          applications: number
+          as_of: string
+          avg_age_days: number | null
+          department: string
+          id: string
+          jobs: number
+          loaded_at: string | null
+          positions: number
+          status: string
+        }
+        Insert: {
+          applications?: number
+          as_of: string
+          avg_age_days?: number | null
+          department: string
+          id?: string
+          jobs?: number
+          loaded_at?: string | null
+          positions?: number
+          status: string
+        }
+        Update: {
+          applications?: number
+          as_of?: string
+          avg_age_days?: number | null
+          department?: string
+          id?: string
+          jobs?: number
+          loaded_at?: string | null
+          positions?: number
+          status?: string
         }
         Relationships: []
       }
@@ -885,6 +1029,60 @@ export type Database = {
         }
         Relationships: []
       }
+      ta_satisfaction: {
+        Row: {
+          area: string | null
+          area_raw: string | null
+          comment: string | null
+          communication: number | null
+          consultative: number | null
+          dedupe_key: string
+          id: string
+          loaded_at: string | null
+          organization: number | null
+          overall: number | null
+          period_raw: string | null
+          recruiter: string | null
+          respondent: string | null
+          submitted_at: string
+          understanding: number | null
+        }
+        Insert: {
+          area?: string | null
+          area_raw?: string | null
+          comment?: string | null
+          communication?: number | null
+          consultative?: number | null
+          dedupe_key: string
+          id?: string
+          loaded_at?: string | null
+          organization?: number | null
+          overall?: number | null
+          period_raw?: string | null
+          recruiter?: string | null
+          respondent?: string | null
+          submitted_at: string
+          understanding?: number | null
+        }
+        Update: {
+          area?: string | null
+          area_raw?: string | null
+          comment?: string | null
+          communication?: number | null
+          consultative?: number | null
+          dedupe_key?: string
+          id?: string
+          loaded_at?: string | null
+          organization?: number | null
+          overall?: number | null
+          period_raw?: string | null
+          recruiter?: string | null
+          respondent?: string | null
+          submitted_at?: string
+          understanding?: number | null
+        }
+        Relationships: []
+      }
       work_model_snapshot: {
         Row: {
           id: string
@@ -925,6 +1123,10 @@ export type Database = {
     Functions: {
       import_reconstruido: {
         Args: { p_rows: Json; p_user_email: string }
+        Returns: number
+      }
+      ingest_ta_satisfaction: {
+        Args: { p_rows: Json; p_secret: string }
         Returns: number
       }
       show_limit: { Args: never; Returns: number }
