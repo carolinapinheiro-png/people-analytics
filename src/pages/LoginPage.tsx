@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, Link } from '@tanstack/react-router';
+import { useNavigate, useSearch, Link } from '@tanstack/react-router';
 import {
   useAuth,
   ACCESS_DENIED_STORAGE_KEY,
@@ -123,14 +123,26 @@ export default function LoginPage() {
   const [accessError, setAccessError] = useState<string | null>(null);
   const { signIn, user, loading, googleSignIn } = useAuth();
   const navigate = useNavigate();
+  // In-app destination to return to after sign-in (e.g. the OAuth consent
+  // screen). Already validated as a same-origin relative path by the route.
+  const { next } = useSearch({ from: '/login' });
 
   const isBusy = isLoading || isGoogleLoading;
 
+  // A `next` return does a full navigation so the target (consent screen)
+  // re-runs its loaders against the fresh session.
+  const goAfterSignIn = () => {
+    if (next) window.location.assign(next);
+    else navigate({ to: '/dashboard', replace: true });
+  };
+
   useEffect(() => {
     if (!loading && user) {
-      navigate({ to: '/dashboard', replace: true });
+      if (next) window.location.assign(next);
+      else navigate({ to: '/dashboard', replace: true });
     }
-  }, [user, loading, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, loading, navigate, next]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -149,7 +161,7 @@ export default function LoginPage() {
     try {
       await signIn(email, password);
       toast.success('Login realizado com sucesso');
-      navigate({ to: '/dashboard', replace: true });
+      goAfterSignIn();
     } catch (error) {
       console.error('Login error details:', error);
       const message = describeLoginError(error);
@@ -164,7 +176,9 @@ export default function LoginPage() {
     setIsGoogleLoading(true);
     setAccessError(null);
     try {
-      await googleSignIn();
+      // On the consent flow, send the OAuth redirect back to /login with the
+      // preserved `next`, so the authed-useEffect above completes the return.
+      await googleSignIn(next ? `/login?next=${encodeURIComponent(next)}` : undefined);
       // On the redirect flow the browser navigates away, so the loading state is
       // intentionally left on. On the popup flow the auth state change redirects
       // to /dashboard. Either way there is nothing to reset on success.

@@ -32,7 +32,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  googleSignIn: () => Promise<void>;
+  /** `redirectPath` (same-origin, e.g. `/login?next=...`) overrides where the OAuth flow returns. */
+  googleSignIn: (redirectPath?: string) => Promise<void>;
   retryAccessCheck: () => Promise<AccessStatus>;
   isAdmin: boolean;
 }
@@ -189,9 +190,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (status === 'error') throw new Error(ACCESS_CHECK_FAILED_MESSAGE);
   };
 
-  const googleSignIn = async () => {
+  const googleSignIn = async (redirectPath?: string) => {
     const result = await lovable.auth.signInWithOAuth('google', {
-      redirect_uri: window.location.origin,
+      redirect_uri: redirectPath
+        ? `${window.location.origin}${redirectPath}`
+        : window.location.origin,
     });
     if (result.error) throw result.error;
     if (!result.redirected) {
