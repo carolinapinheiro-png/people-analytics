@@ -207,7 +207,8 @@ function median(nums: number[]): number | null {
  * Time e com os rotulos da barra de filtros. Reexportado aqui porque outros
  * pontos deste arquivo (perfil individual, agregado por faixa) ja o usavam.
  */
-export { salaryBand } from '@/lib/person-bands';
+export { salaryBand };
+
 
 
 /**
