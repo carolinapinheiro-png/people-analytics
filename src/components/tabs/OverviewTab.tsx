@@ -47,7 +47,14 @@ import {
   Building2,
   ArrowRightLeft,
   UserCheck
+  AlertTriangle,
 } from 'lucide-react';
+
+/** Rotulos das dimensoes de recorte, iguais aos da barra de filtros. */
+const CUT_LABELS: Record<SeriesFilterKey, string> = {
+  level: 'Nível',
+  tempoCasa: 'Tempo de casa',
+};
 
 export default function OverviewTab() {
   const { currentData, prevData, allMonthsData, currentMonth, brand, filters, leavers } =
