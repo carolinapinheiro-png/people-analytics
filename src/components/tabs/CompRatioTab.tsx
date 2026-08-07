@@ -38,12 +38,14 @@ export default function CompRatioTab() {
         level: filters.level,
         contract: filters.tipoContrato,
         jobFamily: filters.jobFamily,
+        tenureBand: filters.tempoCasa,
+        salaryBand: filters.faixaSalarial,
       },
     })
       .then((d) => { if (!cancelled) setRows(d as CompRatioRow[]); })
       .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Falha ao carregar'); });
     return () => { cancelled = true; };
-  }, [fetchData, filters.departamento, filters.level, filters.tipoContrato, filters.jobFamily]);
+  }, [fetchData, filters.departamento, filters.level, filters.tipoContrato, filters.jobFamily, filters.tempoCasa, filters.faixaSalarial]);
 
   const stats = useMemo(() => {
     if (!rows || rows.length === 0) return null;
