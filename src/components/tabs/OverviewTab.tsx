@@ -18,7 +18,7 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import { StorySection, StoryInsight, StoryMetric, StoryAlert } from '@/components/dashboard/StorySection';
 import { COLORS } from '@/lib/colors';
 import SeriesCutView from '@/components/dashboard/SeriesCutView';
-import { applySeriesFilter, type SeriesFilterKey } from '@/data/series-filter';
+import { applySeriesFilter, resolveSeriesCut, type SeriesFilterKey } from '@/data/series-filter';
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
