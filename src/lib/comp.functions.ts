@@ -8,6 +8,7 @@ import {
   type AccessProfile,
   type AccessScope,
 } from '@/lib/permissions';
+import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
 
 /**
  * Acesso ao salario individual + comp ratio dos ativos (587).
