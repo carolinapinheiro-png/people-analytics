@@ -46,7 +46,7 @@ import {
   Award,
   Building2,
   ArrowRightLeft,
-  UserCheck
+  UserCheck,
   AlertTriangle,
 } from 'lucide-react';
 
