@@ -98,7 +98,7 @@ const FILTERS_BY_SUBTAB: Record<string, FilterKey[]> = {
   // o comp_ratio, que é por pessoa e aceita as quatro dimensões. Sem esta
   // distinção, os filtros de pessoa apareceriam em Salários sem efeito.
   custos: ['departamento'],
-  compratio: ['departamento', 'level', 'tipoContrato', 'jobFamily'],
+  compratio: ['departamento', 'level', 'tipoContrato', 'jobFamily', 'tempoCasa', 'faixaSalarial'],
   movimentacoes: ['departamento'],
 };
 
