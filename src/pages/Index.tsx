@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import TopBar from '@/components/layout/TopBar';
 import FilterBar from '@/components/layout/FilterBar';
 import TabNavigation from '@/components/layout/TabNavigation';
+import SideNav from '@/components/layout/SideNav';
+
 import OverviewTab from '@/components/tabs/OverviewTab';
 import TeamTab from '@/components/tabs/TeamTab';
 import CompensationTab from '@/components/tabs/CompensationTab';
