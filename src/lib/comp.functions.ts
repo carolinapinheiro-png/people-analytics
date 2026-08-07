@@ -202,17 +202,13 @@ function median(nums: number[]): number | null {
   return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
 }
 
-/** Mesmos cortes de faixa salarial usados nos desligados (LeaverRecord). */
-export function salaryBand(salary: number | null): string {
-  if (salary == null) return 'Não informado';
-  if (salary < 3000) return 'Até 3k';
-  if (salary < 5000) return '3k-5k';
-  if (salary < 8000) return '5k-8k';
-  if (salary < 12000) return '8k-12k';
-  if (salary < 20000) return '12k-20k';
-  if (salary < 50000) return '20k-50k';
-  return '50k+';
-}
+/**
+ * Faixa salarial: os cortes vivem em person-bands.ts, compartilhados com Meu
+ * Time e com os rotulos da barra de filtros. Reexportado aqui porque outros
+ * pontos deste arquivo (perfil individual, agregado por faixa) ja o usavam.
+ */
+export { salaryBand } from '@/lib/person-bands';
+
 
 /**
  * Perfil individual do colaborador (pergunta da Marilia, decisoes 30/07):
