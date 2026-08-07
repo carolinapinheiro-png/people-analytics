@@ -93,8 +93,11 @@ export const getTeamSnapshot = createServerFn({ method: 'GET' })
     const db = supabaseAdmin as unknown as UntypedClient;
     const { data: rows, error } = await db
       .from('comp_ratio')
-      .select('area, job_type_family, level, contract, salary, comp_ratio, is_leader, is_people_manager');
+      .select('area, job_type_family, level, contract, salary, hire, comp_ratio, is_leader, is_people_manager');
     if (error) throw new Error(`Falha ao carregar foto do time: ${error.message}`);
+
+    const fTenure = pick(input?.tenureBand);
+    const fBand = pick(input?.salaryBand);
 
     // Escopo: global ve tudo; senao, uniao depto/familia (mesma trava do isInScope).
     // O filtro de tela entra DEPOIS e so estreita -- nunca amplia o que a
@@ -108,7 +111,14 @@ export const getTeamSnapshot = createServerFn({ method: 'GET' })
         (r) =>
           !pick(input?.jobFamily) ||
           (r.job_type_family ?? '').trim() === pick(input?.jobFamily),
+      )
+      // Faixas derivadas. O salario nao sai daqui (o snapshot ja e agregado);
+      // ele so serve para decidir a faixa dentro do servidor.
+      .filter((r) => !fTenure || tenureBandFromHire(r.hire) === fTenure)
+      .filter(
+        (r) => !fBand || salaryBand(r.salary == null ? null : Number(r.salary)) === fBand,
       );
+
 
     const level = new Map<string, number>();
     const contract = new Map<string, number>();
