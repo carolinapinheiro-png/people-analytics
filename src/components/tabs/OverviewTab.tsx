@@ -301,21 +301,41 @@ export default function OverviewTab() {
     return parts.join(', ');
   };
 
+  // Aviso de recorte ignorado. Fica FORA do `if` abaixo porque tambem precisa
+  // aparecer no Overview cheio -- se nenhum dos dois puder ser aplicado, o
+  // usuario ainda tem que saber que a selecao dele nao esta valendo aqui.
+  const cutWarning = seriesCut.ignored.length > 0 ? (
+    <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-foreground">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+      <p>
+        Esta visão aceita <strong>um</strong> recorte entre nível e tempo de casa: a série
+        mensal guarda as duas bases separadas, sem o cruzamento. Aplicado{' '}
+        <strong>{CUT_LABELS[seriesCut.key ?? 'level']}: {seriesCut.value}</strong>; ignorado{' '}
+        {seriesCut.ignored.map((i) => `${CUT_LABELS[i.key]}: ${i.value}`).join(', ')}. Para
+        cruzar as duas dimensões, use a aba Atrição &amp; Desligamentos.
+      </p>
+    </div>
+  ) : null;
+
   // Com recorte de dimensao ativo, a tela troca para a visao reduzida: sob esse
   // corte a maior parte dos blocos nao tem valor exato, e desativa-los um a um
   // deixaria a chance de algum cartao esquecido mostrar numero da empresa com
   // rotulo do recorte -- o pior desfecho possivel aqui.
   if (cut.active && cut.label) {
     return (
-      <SeriesCutView
-        months={cut.months}
-        label={cut.label}
-        suppressed={cut.suppressed}
-        brandColor={brandColor}
-        unreliable={cut.unreliable}
-      />
+      <div className="space-y-4">
+        {cutWarning}
+        <SeriesCutView
+          months={cut.months}
+          label={cut.label}
+          suppressed={cut.suppressed}
+          brandColor={brandColor}
+          unreliable={cut.unreliable}
+        />
+      </div>
     );
   }
+
 
   return (
     <div className="space-y-6">
