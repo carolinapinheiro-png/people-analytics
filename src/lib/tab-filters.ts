@@ -63,10 +63,11 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   overview: ['departamento', 'level', 'tempoCasa'],
   data: ['departamento'],
   // Compensação responde via a sub-aba de Salários (SalaryTab lê a série).
-  // comp_ratio e person-level: level, contrato e familia funcionam de verdade.
-  // Tempo de casa e faixa salarial ficam de fora por enquanto -- existem como
-  // `hire` e `salary`, mas precisam ser derivados em faixa antes de virar filtro.
-  comp: ['departamento', 'level', 'tipoContrato', 'jobFamily'],
+  // comp_ratio e person-level: level, contrato, familia, tempo de casa e faixa
+  // salarial funcionam de verdade. As duas ultimas nao existem como coluna --
+  // sao DERIVADAS de `hire` e `salary` no servidor (ver person-bands.ts), com os
+  // mesmos cortes usados nos desligados.
+  comp: ['departamento', 'level', 'tipoContrato', 'jobFamily', 'tempoCasa', 'faixaSalarial'],
   // Leem a série do contexto (já com applyDeptFilter).
   dei: ['departamento'],
   demographics: ['departamento'],
@@ -77,8 +78,10 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   // Única que lê pessoa a pessoa com todas as dimensões.
   attrition: TODOS,
   // Meu Time agora aceita estreitar dentro do próprio escopo: um gestor de
-  // duas áreas consegue olhar uma de cada vez.
-  team: ['departamento', 'level', 'tipoContrato', 'jobFamily'],
+  // duas áreas consegue olhar uma de cada vez. Mesma base do Comp Ratio, então
+  // aceita as mesmas seis dimensões.
+  team: ['departamento', 'level', 'tipoContrato', 'jobFamily', 'tempoCasa', 'faixaSalarial'],
+
   // Tem busca própria por pessoa; filtro de área não acrescenta.
   individual: [],
 };
