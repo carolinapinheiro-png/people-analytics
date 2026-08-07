@@ -67,8 +67,14 @@ const ListInput = z
     level: z.string().trim().max(20).optional(),
     contract: z.string().trim().max(60).optional(),
     jobFamily: z.string().trim().max(120).optional(),
+    // Faixas DERIVADAS de salary/hire (person-bands.ts). Nao existem como
+    // coluna em comp_ratio; sao calculadas aqui, no servidor, para que o
+    // recorte use o mesmo vocabulario dos desligados e da barra de filtros.
+    tenureBand: z.string().trim().max(40).optional(),
+    salaryBand: z.string().trim().max(40).optional(),
   })
   .optional();
+
 
 /** 'Todos'/vazio = sem selecao. */
 const sel = (v?: string | null): string | null => {
