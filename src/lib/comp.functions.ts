@@ -103,6 +103,8 @@ export const listCompRatio = createServerFn({ method: 'GET' })
     const fLevel = sel(data?.level);
     const fContract = sel(data?.contract);
     const fFamily = sel(data?.jobFamily);
+    const fTenure = sel(data?.tenureBand);
+    const fBand = sel(data?.salaryBand);
 
     const scoped = (rows ?? [])
       .filter((r) => r.in_comp_scope !== false)
@@ -113,7 +115,15 @@ export const listCompRatio = createServerFn({ method: 'GET' })
       .filter((r) => !fDept || (r.area ?? '').trim().toUpperCase() === fDept.toUpperCase())
       .filter((r) => !fLevel || (r.level ?? '').trim() === fLevel)
       .filter((r) => !fContract || (r.contract ?? '').trim() === fContract)
-      .filter((r) => !fFamily || (r.job_type_family ?? '').trim() === fFamily);
+      .filter((r) => !fFamily || (r.job_type_family ?? '').trim() === fFamily)
+      // As duas faixas derivadas. Quem nao tem admissao/salario no cadastro cai
+      // em 'Não informado' e sai do recorte -- e o comportamento honesto: nao
+      // sabemos a faixa dessa pessoa, entao ela nao entra na faixa escolhida.
+      .filter((r) => !fTenure || tenureBandFromHire(r.hire) === fTenure)
+      .filter(
+        (r) => !fBand || salaryBand(r.salary == null ? null : Number(r.salary)) === fBand,
+      );
+
     const visible = canSeeIndividualData(scope.profile)
       ? scoped
       : scoped.map((r) => ({ ...r, name: 'Confidencial', salary: null }));
