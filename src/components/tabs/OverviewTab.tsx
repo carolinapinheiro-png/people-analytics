@@ -53,17 +53,20 @@ export default function OverviewTab() {
   const { currentData, prevData, allMonthsData, currentMonth, brand, filters, leavers } =
     useDashboard();
 
-  // Recorte de dimensao unica (nivel, tempo de casa, vinculo). So um por vez --
-  // a barra garante isso. Aplicado DEPOIS do filtro de departamento, entao
-  // "TECHNOLOGY + L4" funciona de graca: allMonthsData ja vem com o level_base
-  // do departamento quando ha dept_breakdown.
-  const cutKey: SeriesFilterKey | null =
-    filters.level !== 'Todos' ? 'level' : filters.tempoCasa !== 'Todos' ? 'tempoCasa' : null;
-  const cutValue = cutKey === 'level' ? filters.level : cutKey === 'tempoCasa' ? filters.tempoCasa : null;
+  // Recorte de dimensao unica (nivel ou tempo de casa). A serie mensal guarda
+  // as bases separadas -- nao existe o cruzamento level x tempo de casa --, por
+  // isso aqui e um so. Quando os dois vem selecionados (o usuario pode te-los
+  // ativado na aba de Atricao, onde a leitura e pessoa a pessoa e o cruzamento
+  // existe), resolveSeriesCut escolhe um e devolve o outro em `ignored`, que a
+  // tela avisa em vez de ignorar em silencio.
+  const seriesCut = resolveSeriesCut({ level: filters.level, tempoCasa: filters.tempoCasa });
+  const cutKey: SeriesFilterKey | null = seriesCut.key;
+  const cutValue = seriesCut.value;
   // O departamento entra aqui para as saidas serem contadas na MESMA populacao
   // do headcount. Antes o numerador vinha da empresa toda e o denominador do
   // departamento -- a atricao resultante nao correspondia a nada.
   const cut = applySeriesFilter(allMonthsData, leavers, cutKey, cutValue, filters.departamento);
+
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
 
   const curr = currentData;
