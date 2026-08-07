@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isInScope, isGlobalProfile, type AccessProfile, type AccessScope } from '@/lib/permissions';
 import { selectedDept } from '@/lib/dept-filter';
+import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
 import { z } from 'zod';
 
 /** Filtros de tela do Meu Time. comp_ratio e person-level: todos funcionam. */
@@ -12,6 +13,10 @@ const TeamInput = z
     level: z.string().trim().max(20).optional(),
     contract: z.string().trim().max(60).optional(),
     jobFamily: z.string().trim().max(120).optional(),
+    // Derivadas de hire/salary no servidor (person-bands.ts). Ver comentario em
+    // comp.functions.ts: nao ha coluna de faixa em comp_ratio.
+    tenureBand: z.string().trim().max(40).optional(),
+    salaryBand: z.string().trim().max(40).optional(),
   })
   .optional();
 
@@ -19,6 +24,7 @@ const pick = (v?: string | null): string | null => {
   const t = v?.trim();
   return !t || t === 'Todos' ? null : t;
 };
+
 
 /**
  * Fase 1 do recorte por time: FOTO ATUAL do time do gestor, escopada por
