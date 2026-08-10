@@ -1,77 +1,38 @@
 import { useEffect, useState } from 'react';
 import {
-  LayoutDashboard,
-  Users,
-  UsersRound,
-  HeartHandshake,
-  Wallet,
-  UserSearch,
-  Network,
-  LogOut,
-  UserPlus,
-  Database,
   PanelLeftClose,
   PanelLeftOpen,
-  type LucideIcon,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useDashboard, TabType } from '@/data/DashboardContext';
+import { useDashboard } from '@/data/DashboardContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { visibleTabs } from '@/lib/permissions';
-
-interface NavItem {
-  id: TabType;
-  label: string;
-  icon: LucideIcon;
-}
-
-interface NavGroup {
-  title: string;
-  items: NavItem[];
-}
-
-/** Índice do dashboard agrupado por tema — a ordem conta a história dos dados. */
-const GROUPS: NavGroup[] = [
-  {
-    title: 'Visão geral',
-    items: [
-      { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-      { id: 'team', label: 'Meu Time', icon: Users },
-    ],
-  },
-  {
-    title: 'Pessoas',
-    items: [
-      { id: 'demographics', label: 'Demográficos', icon: UsersRound },
-      { id: 'dei', label: 'DEI Metrics', icon: HeartHandshake },
-      { id: 'engagement', label: 'Experiência', icon: HeartHandshake },
-    ],
-  },
-  {
-    title: 'Compensação',
-    items: [
-      { id: 'comp', label: 'Compensação', icon: Wallet },
-      { id: 'individual', label: 'Perfil Individual', icon: UserSearch },
-    ],
-  },
-  {
-    title: 'Movimentação',
-    items: [
-      { id: 'span', label: 'Span de Controle', icon: Network },
-      { id: 'attrition', label: 'Atrição & Desligamentos', icon: LogOut },
-      { id: 'recruitment', label: 'Recrutamento', icon: UserPlus },
-    ],
-  },
-  {
-    title: 'Ferramentas',
-    items: [{ id: 'data', label: 'Dados', icon: Database }],
-  },
-];
+import { GROUPS, type NavItem } from './nav-config';
+import { readNavState, writeNavState } from '@/lib/nav-state';
 
 export default function SideNav() {
-  const { activeTab, setActiveTab } = useDashboard();
+  const { activeTab, setActiveTab, activeSubTab, setActiveSubTab } = useDashboard();
   const { profile } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
+  // Quais seções com sub-abas estão abertas no índice. A seção ativa abre
+  // sozinha; as outras a pessoa expande para dar uma olhada sem sair de onde está.
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [restored, setRestored] = useState(false);
+
+  // Preferências de layout do índice (recolhido, seções abertas) voltam depois
+  // do recarregamento. Lido só no cliente para não divergir do HTML do servidor.
+  useEffect(() => {
+    const s = readNavState();
+    if (s?.collapsed !== undefined) setCollapsed(s.collapsed);
+    if (s?.open) setOpen(s.open);
+    setRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (restored) writeNavState({ collapsed, open });
+  }, [restored, collapsed, open]);
 
   const allowed = visibleTabs(profile ?? 'dept_leader');
   const groups = GROUPS.map((g) => ({
@@ -84,6 +45,9 @@ export default function SideNav() {
   useEffect(() => {
     if (firstAllowed && !allowed.includes(activeTab)) setActiveTab(firstAllowed);
   }, [activeTab, allowed, firstAllowed, setActiveTab]);
+
+  const isOpen = (item: NavItem) =>
+    activeTab === item.id ? open[item.id] !== false : open[item.id] === true;
 
   return (
     <aside
@@ -121,24 +85,80 @@ export default function SideNav() {
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = activeTab === item.id;
+                const expanded = !collapsed && !!item.subs && isOpen(item);
+                const currentSub = active ? activeSubTab ?? item.defaultSub : null;
                 return (
                   <li key={item.id}>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab(item.id)}
-                      title={collapsed ? item.label : undefined}
-                      aria-current={active ? 'page' : undefined}
-                      className={cn(
-                        'flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-medium transition-colors',
-                        active
-                          ? 'bg-accent text-accent-foreground'
-                          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
-                        collapsed && 'justify-center px-0',
+                    <div className="flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab(item.id);
+                          if (item.subs) setOpen((o) => ({ ...o, [item.id]: true }));
+                        }}
+                        title={collapsed ? item.label : undefined}
+                        aria-current={active ? 'page' : undefined}
+                        className={cn(
+                          'flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-medium transition-colors',
+                          active
+                            ? 'bg-accent text-accent-foreground'
+                            : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+                          collapsed && 'justify-center px-0',
+                        )}
+                      >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.label}</span>}
+                      </button>
+                      {!collapsed && item.subs && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpen((o) => ({ ...o, [item.id]: !isOpen(item) }))
+                          }
+                          aria-label={
+                            expanded
+                              ? `Recolher sub-abas de ${item.label}`
+                              : `Expandir sub-abas de ${item.label}`
+                          }
+                          aria-expanded={expanded}
+                          className="ml-0.5 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+                        >
+                          {expanded ? (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5" />
+                          )}
+                        </button>
                       )}
-                    >
-                      <Icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                    </button>
+                    </div>
+
+                    {expanded && (
+                      <ul className="ml-[22px] mt-0.5 space-y-0.5 border-l border-border pl-2">
+                        {item.subs!.map((sub) => {
+                          const subActive = active && currentSub === sub.id;
+                          return (
+                            <li key={sub.id}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveTab(item.id);
+                                  setActiveSubTab(sub.id);
+                                }}
+                                aria-current={subActive ? 'true' : undefined}
+                                className={cn(
+                                  'w-full rounded-md px-2 py-1.5 text-left text-[12px] transition-colors',
+                                  subActive
+                                    ? 'bg-accent/70 font-medium text-accent-foreground'
+                                    : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
+                                )}
+                              >
+                                <span className="block truncate">{sub.label}</span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
                   </li>
                 );
               })}

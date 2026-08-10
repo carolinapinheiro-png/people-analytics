@@ -5,6 +5,7 @@ import TopBar from '@/components/layout/TopBar';
 import FilterBar from '@/components/layout/FilterBar';
 import TabNavigation from '@/components/layout/TabNavigation';
 import SideNav from '@/components/layout/SideNav';
+import Breadcrumbs from '@/components/layout/Breadcrumbs';
 
 import OverviewTab from '@/components/tabs/OverviewTab';
 import TeamTab from '@/components/tabs/TeamTab';
@@ -57,6 +58,7 @@ function DashboardContent() {
       </div>
       <div className="min-w-0 flex-1">
         <TopBar />
+        <Breadcrumbs />
         <FilterBar />
         <div className="md:hidden">
           <TabNavigation />
