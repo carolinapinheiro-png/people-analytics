@@ -1,219 +1,181 @@
 import { useMemo } from 'react';
-import {
-  Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer,
-  Tooltip, XAxis, YAxis,
-} from 'recharts';
-import { EyeOff, Layers3, Users2 } from 'lucide-react';
+import { EyeOff } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
+import { cn } from '@/lib/utils';
 import type { SurveyCut } from '@/lib/survey.functions';
 
 /**
- * Recortes que só existem depois de ler o export bruto: gestor vs contribuidor,
- * marca e tempo de casa.
+ * Gestor/contribuidor, marca e tempo de casa -- recortes que só existem depois
+ * de ler o arquivo original da pesquisa.
  *
- * POR QUE CADA UM ESTÁ AQUI
+ * ------------------------------------------------------------------
+ * POR QUE ISTO DEIXOU DE SER GRÁFICO
+ * ------------------------------------------------------------------
+ * A versão anterior eram três gráficos de barra com uma linha por cima e dois
+ * eixos verticais -- eNPS de um lado, risco do outro. Eixo duplo é a forma mais
+ * fácil de fazer duas séries parecerem relacionadas quando a relação é só de
+ * escala: mexer no domínio de um dos eixos muda a "história" sem mudar um dado
+ * sequer. Além disso obriga a conferir de qual eixo cada série é antes de ler
+ * qualquer coisa.
  *
- * GESTOR vs CONTRIBUIDOR contradiz a expectativa: gestores costumam ser o grupo
- * mais engajado de qualquer empresa, porque têm mais contexto e mais autonomia.
- * Aqui é o contrário. Isso é um achado sobre a camada de liderança intermediária
- * e vale mais que qualquer média geral da tela.
- *
- * MARCA separa quem atua em uma marca de quem atua nas duas. É a única
- * dimensão do painel que fala sobre desenho organizacional em vez de área.
- *
- * TEMPO DE CASA é o único recorte que conecta esta aba à de onboarding: se o
- * risco sobe numa faixa específica de meses, a janela de intervenção é
- * conhecida e curta.
+ * O que importa aqui é uma comparação simples: este grupo está acima ou abaixo
+ * da empresa, e por quanto. Isso é uma barra com uma linha de referência, e a
+ * distância é o dado.
  *
  * ------------------------------------------------------------------
  * SIGILO
  * ------------------------------------------------------------------
- * O servidor esconde a NOTA de recortes com menos de 5 respostas antes de
- * mandar (ver survey.functions.ts) -- aqui só chega null. O n continua real e
- * continua na tela: sumir com a linha faria a pessoa concluir que o grupo não
- * respondeu, e perguntar o número por fora, que é justamente o caminho sem
- * controle nenhum.
+ * O servidor esconde a nota de recortes com menos de 5 respostas antes de
+ * enviar (survey.functions.ts) -- aqui já chega null. O n continua na tela:
+ * sumir com a linha faria a pessoa concluir que o grupo não respondeu e
+ * perguntar o número por fora, que é o caminho sem controle nenhum.
  */
 
-const fmt = (n: number | null | undefined) =>
+const fmt1 = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 
-interface Bloco {
-  tipo: string;
-  titulo: string;
-  subtitulo: string;
-  leitura?: (rows: SurveyCut[]) => React.ReactNode;
-}
-
-const BLOCOS: Bloco[] = [
-  {
-    tipo: 'funcao',
-    titulo: 'Gestores e contribuidores individuais',
-    subtitulo: 'quem lidera pessoas contra quem não lidera',
-    leitura: (rows) => {
-      const g = rows.find((r) => r.cutValue.startsWith('Gestor'));
-      const c = rows.find((r) => r.cutValue.startsWith('Contribuidor'));
-      if (!g?.enps || !c?.enps || g.risco == null || c.risco == null) return null;
-      const dEnps = g.enps - c.enps;
-      if (dEnps >= 0) {
-        return (
-          <>
-            Gestores estão {dEnps} pontos acima dos contribuidores em eNPS — o padrão esperado, já
-            que costumam ter mais contexto e mais autonomia.
-          </>
-        );
-      }
-      return (
-        <>
-          Gestores estão <strong>{Math.abs(dEnps)} pontos abaixo</strong> dos contribuidores
-          ({g.enps} contra {c.enps}) e declaram mais risco de sair ({fmt(g.risco)}% contra{' '}
-          {fmt(c.risco)}%). É o inverso do padrão: normalmente quem lidera tem mais contexto e
-          aparece mais engajado. Quando inverte, costuma ser carga de gestão sem apoio, ou clareza
-          de estratégia que não desce. Vale ouvir os {g.n} gestores antes de concluir qual dos dois.
-        </>
-      );
-    },
-  },
-  {
-    tipo: 'marca',
-    titulo: 'Por marca',
-    subtitulo: 'Betnacional, Betfair e quem atua nas duas',
-    leitura: (rows) => {
-      const ambas = rows.find((r) => r.cutValue === 'Ambas');
-      const outras = rows.filter((r) => r.cutValue !== 'Ambas' && r.enps != null);
-      if (!ambas?.enps || !outras.length) return null;
-      const melhor = outras.reduce((a, b) => ((b.enps ?? 0) > (a.enps ?? 0) ? b : a));
-      const dif = (melhor.enps ?? 0) - ambas.enps;
-      if (dif < 5) return null;
-      return (
-        <>
-          Quem atua <strong>nas duas marcas</strong> tem eNPS {ambas.enps}, {dif} pontos abaixo de{' '}
-          {melhor.cutValue} ({melhor.enps}), e é o maior grupo depois de Betnacional ({ambas.n}{' '}
-          pessoas). Papel cross-brand costuma significar dois conjuntos de prioridades e dois
-          fóruns de decisão — o custo aparece antes no engajamento do que na entrega.
-        </>
-      );
-    },
-  },
-  {
-    tipo: 'tempo',
-    titulo: 'Por tempo de casa',
-    subtitulo: 'a curva de quem entrou quando',
-    leitura: (rows) => {
-      const comRisco = rows.filter((r) => r.risco != null);
-      if (comRisco.length < 3) return null;
-      const pior = comRisco.reduce((a, b) => ((b.risco ?? 0) > (a.risco ?? 0) ? b : a));
-      return (
-        <>
-          O risco de saída pica em <strong>{pior.cutValue}</strong> ({fmt(pior.risco)}%, n={pior.n}).
-          Faixa de tempo é a única dimensão desta aba com janela de ação conhecida: dá para agir
-          antes de a pessoa chegar nela. Vale cruzar com a aba de Onboarding, que mede a mesma
-          população nas primeiras semanas.
-        </>
-      );
-    },
-  },
+const BLOCOS: Array<{ tipo: string; titulo: string }> = [
+  { tipo: 'funcao', titulo: 'Gestores e contribuidores' },
+  { tipo: 'marca', titulo: 'Por marca' },
+  { tipo: 'tempo', titulo: 'Por tempo de casa' },
 ];
 
-function BlocoRecorte({ bloco, rows }: { bloco: Bloco; rows: SurveyCut[] }) {
-  const dados = useMemo(
-    () => rows.map((r) => ({
-      nome: r.cutValue,
-      eNPS: r.enps,
-      risco: r.risco,
-      n: r.n,
-      suprimido: r.suprimido,
-    })),
-    [rows],
+/** Barra divergente: distância até a empresa, para a esquerda ou para a direita. */
+function Divergente({
+  valor, base, max, invertido = false,
+}: {
+  valor: number | null;
+  base: number;
+  max: number;
+  /** true quando MAIOR é pior (caso do risco de saída). */
+  invertido?: boolean;
+}) {
+  if (valor == null) {
+    return <div className="h-2 rounded-full bg-muted/60 w-full" />;
+  }
+  const d = valor - base;
+  const larguraPct = Math.min(Math.abs(d) / max, 1) * 50;
+  const bom = invertido ? d <= 0 : d >= 0;
+  return (
+    <div className="relative h-2 w-full">
+      <div className="absolute inset-0 rounded-full bg-muted/50" />
+      <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
+      <div
+        className="absolute inset-y-0 rounded-full"
+        style={{
+          background: bom ? COLORS.success : COLORS.warning,
+          opacity: 0.85,
+          ...(d >= 0
+            ? { left: '50%', width: `${larguraPct}%` }
+            : { right: '50%', width: `${larguraPct}%` }),
+        }}
+      />
+    </div>
   );
-  if (!dados.length) return null;
+}
 
-  const ocultos = dados.filter((d) => d.suprimido);
-  const leitura = bloco.leitura?.(rows);
+function Bloco({ titulo, rows, empresa }: { titulo: string; rows: SurveyCut[]; empresa: SurveyCut | undefined }) {
+  const baseEnps = empresa?.enps ?? 0;
+  const baseRisco = empresa?.risco ?? 0;
+  const maxEnps = useMemo(
+    () => Math.max(...rows.map((r) => Math.abs((r.enps ?? baseEnps) - baseEnps)), 5),
+    [rows, baseEnps],
+  );
+  const maxRisco = useMemo(
+    () => Math.max(...rows.map((r) => Math.abs((r.risco ?? baseRisco) - baseRisco)), 3),
+    [rows, baseRisco],
+  );
+  const ocultos = rows.filter((r) => r.suprimido);
 
   return (
-    <ChartCard title={bloco.titulo} subtitle={bloco.subtitulo} icon={Users2}>
-      <ResponsiveContainer width="100%" height={Math.max(190, dados.length * 34 + 60)}>
-        <ComposedChart data={dados} layout="vertical" margin={{ left: 8, right: 16, top: 4, bottom: 4 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" horizontal={false} />
-          <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
-          <YAxis type="category" dataKey="nome" width={135} tick={{ fontSize: 11 }} />
-          <Tooltip
-            contentStyle={{ fontSize: 12 }}
-            content={({ active, payload }) => {
-              if (!active || !payload?.length) return null;
-              const d = payload[0].payload as (typeof dados)[number];
-              return (
-                <div className="rounded-md border border-border bg-popover p-2.5 text-xs shadow-md max-w-[230px]">
-                  <div className="font-medium mb-1">{d.nome}</div>
-                  <div className="text-muted-foreground">{d.n} respostas</div>
-                  {d.suprimido ? (
-                    <div className="mt-1 text-[11px]" style={{ color: COLORS.warning }}>
-                      Nota não exibida: menos de 5 respostas.
-                    </div>
-                  ) : (
-                    <>
-                      <div className="text-muted-foreground">eNPS {fmt(d.eNPS)}</div>
-                      <div className="text-muted-foreground">Risco de saída {fmt(d.risco)}%</div>
-                    </>
-                  )}
-                </div>
-              );
-            }}
-          />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
-          <Bar dataKey="eNPS" name="eNPS" fill={COLORS.flutter} radius={[0, 3, 3, 0]} barSize={14} />
-          <Line
-            dataKey="risco" name="Risco de saída (%)" stroke={COLORS.warning}
-            strokeWidth={2} dot={{ r: 3 }} legendType="line"
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
-
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-        {dados.map((d) => (
-          <span key={d.nome} className="text-[11px] text-muted-foreground">
-            {d.nome}: <strong className="text-foreground">n={d.n}</strong>
-            {d.suprimido && ' · nota oculta'}
-          </span>
-        ))}
+    <div>
+      <div className="flex items-baseline justify-between mb-1.5">
+        <span className="text-xs font-medium">{titulo}</span>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          diferença para a empresa
+        </span>
       </div>
-
-      {leitura && (
-        <p className="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">{leitura}</p>
-      )}
-
+      <div className="space-y-1">
+        {rows.map((r) => {
+          const dEnps = r.enps == null ? null : r.enps - baseEnps;
+          const dRisco = r.risco == null ? null : r.risco - baseRisco;
+          return (
+            <div key={r.cutValue} className="flex items-center gap-2.5 text-[11px]">
+              <span className="w-[132px] shrink-0 truncate" title={r.cutValue}>{r.cutValue}</span>
+              <span className="text-muted-foreground tabular-nums w-9 shrink-0">n={r.n}</span>
+              <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                <Divergente valor={r.enps} base={baseEnps} max={maxEnps} />
+                <span className={cn(
+                  'tabular-nums w-14 shrink-0 text-right',
+                  dEnps == null ? 'text-muted-foreground'
+                  : dEnps >= 0 ? 'text-emerald-600 dark:text-emerald-500'
+                  : 'text-amber-600 dark:text-amber-500',
+                )}>
+                  {dEnps == null ? 'oculto' : `${dEnps > 0 ? '+' : ''}${dEnps} eNPS`}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                <Divergente valor={r.risco} base={baseRisco} max={maxRisco} invertido />
+                <span className={cn(
+                  'tabular-nums w-16 shrink-0 text-right',
+                  dRisco == null ? 'text-muted-foreground'
+                  : dRisco <= 0 ? 'text-emerald-600 dark:text-emerald-500'
+                  : 'text-amber-600 dark:text-amber-500',
+                )}>
+                  {dRisco == null ? '—' : `${dRisco > 0 ? '+' : ''}${fmt1(dRisco)}% risco`}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
       {ocultos.length > 0 && (
-        <p className="text-[11px] mt-2 flex items-start gap-1.5" style={{ color: COLORS.warning }}>
-          <EyeOff className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-          <span>
-            {ocultos.length === 1 ? 'Um recorte tem' : `${ocultos.length} recortes têm`} menos de 5
-            respostas e {ocultos.length === 1 ? 'está' : 'estão'} com a nota oculta. Em grupo desse
-            tamanho, o resultado apontaria para pessoas específicas — e uma pesquisa anônima que
-            deixa de ser anônima deixa de ser respondida com honestidade na onda seguinte.
-          </span>
+        <p className="text-[10px] mt-1 flex items-start gap-1" style={{ color: COLORS.warning }}>
+          <EyeOff className="h-3 w-3 mt-px shrink-0" />
+          {ocultos.length === 1 ? 'Um grupo tem' : `${ocultos.length} grupos têm`} menos de 5
+          respostas — nota oculta para não apontar para pessoas.
         </p>
       )}
-    </ChartCard>
+    </div>
   );
 }
 
 export default function SurveyCuts({ cuts }: { cuts: SurveyCut[] }) {
+  const empresa = cuts.find((c) => c.cutType === 'company');
+  const blocos = BLOCOS
+    .map((b) => ({ ...b, rows: cuts.filter((c) => c.cutType === b.tipo) }))
+    .filter((b) => b.rows.length > 0);
+
+  if (!blocos.length || !empresa) return null;
+
+  // A frase de leitura sai do próprio dado: o maior afastamento entre grupos
+  // grandes o bastante para o afastamento significar alguma coisa.
+  const destaque = cuts
+    .filter((c) => c.cutType !== 'company' && c.cutType !== 'area' && !c.suprimido && c.enps != null && c.n >= 20)
+    .sort((a, b) => (a.enps as number) - (b.enps as number))[0];
+
   return (
-    <div className="space-y-4">
-      <div className="rounded-lg border border-border bg-muted/40 p-3 flex items-start gap-2.5">
-        <Layers3 className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          Estes recortes vêm da leitura do arquivo original da pesquisa, não do deck — por isso cada
-          um traz o <strong>n</strong>. Ler eNPS sem saber quantas pessoas responderam é o erro mais
-          comum aqui: numa área de 15, uma pessoa move o número em 7 pontos.
+    <ChartCard
+      title="Quem está mais distante da média"
+      subtitle={`comparado com a empresa: eNPS ${empresa.enps}, risco ${fmt1(empresa.risco)}%`}
+    >
+      {destaque && (empresa.enps as number) - (destaque.enps as number) >= 8 && (
+        <p className="text-sm leading-relaxed mb-3">
+          <strong>{destaque.cutValue}</strong> está{' '}
+          {(empresa.enps as number) - (destaque.enps as number)} pontos de eNPS abaixo da empresa,
+          e são {destaque.n} pessoas. É um recorte que a leitura por área não mostra.
         </p>
+      )}
+      <div className="space-y-4">
+        {blocos.map((b) => (
+          <Bloco key={b.tipo} titulo={b.titulo} rows={b.rows} empresa={empresa} />
+        ))}
       </div>
-      {BLOCOS.map((b) => {
-        const rows = cuts.filter((c) => c.cutType === b.tipo);
-        return rows.length ? <BlocoRecorte key={b.tipo} bloco={b} rows={rows} /> : null;
-      })}
-    </div>
+      <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
+        A linha do meio de cada barra é a empresa. Verde é melhor que a média, âmbar é pior — vale
+        para os dois lados, já que em risco de saída menor é melhor.
+      </p>
+    </ChartCard>
   );
 }

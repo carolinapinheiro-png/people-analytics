@@ -2,11 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import {
   getExperienceData, getEngagementCross,
-  type ExperienceData, type EngagementDriver, type EngagementCrossData,
+  type ExperienceData, type EngagementCrossData,
 } from '@/lib/experience.functions';
 import { getSurveyWave, type SurveyWaveData } from '@/lib/survey.functions';
 import SurveyCuts from '@/components/dashboard/SurveyCuts';
+import DriverPriority from '@/components/dashboard/DriverPriority';
 import DriverImportance from '@/components/dashboard/DriverImportance';
+import EngagementReading from '@/components/dashboard/EngagementReading';
+import AreaPriority from '@/components/dashboard/AreaPriority';
+import Detalhe from '@/components/dashboard/Detalhe';
 import EngagementMatrix from '@/components/dashboard/EngagementMatrix';
 import EnpsSlope from '@/components/dashboard/EnpsSlope';
 import RiskVsAttrition from '@/components/dashboard/RiskVsAttrition';
@@ -15,28 +19,30 @@ import KpiCard from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend,
 } from 'recharts';
-import {
-  Heart, Users, Sparkles, TrendingUp, TrendingDown, HandHeart, ChevronDown, ChevronRight,
-} from 'lucide-react';
+import { Heart, Users, Sparkles, TrendingUp, TrendingDown, HandHeart } from 'lucide-react';
 import { COLORS } from '@/lib/colors';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 import { useDashboard } from '@/data/DashboardContext';
 
 /**
- * Aba Experiencia (profunda): engajamento (KPIs + 8 drivers com perguntas +
- * por departamento), onboarding (etapas + tendencia mensal + por departamento)
- * e inclusao & pertencimento (Polly 2026: demografia, pertencimento, DEI + FNY).
+ * Aba Experiencia: engajamento, jornada de entrada e inclusao.
+ *
+ * A sub-aba de engajamento foi reorganizada em 10/08/2026 depois de um retorno
+ * direto -- "achei bem confuso, queria algo profundo mas simples de ler". Ela
+ * tinha 11 graficos abertos ao mesmo tempo, o eNPS por area repetido em tres
+ * lugares e ~20 paragrafos de ressalva. Cada peca estava certa; o conjunto nao
+ * respondia "e dai".
+ *
+ * A regra agora: fica aberto o que responde O QUE FAZER; o que responde COMO
+ * CHEGAMOS NESSE NUMERO vai para o bloco de detalhe, recolhido.
  * Tudo agregado; nenhuma resposta individual.
  */
 
 const fmt1 = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-
-const scoreColor = (s: number | null) =>
-  s == null ? COLORS.info : s >= 4.5 ? COLORS.success : s >= 4.0 ? COLORS.nsx : s >= 3.8 ? COLORS.warning : COLORS.danger;
 
 function Delta({ v }: { v: number | null }) {
   if (v == null) return <span className="text-muted-foreground text-[11px]">—</span>;
@@ -55,40 +61,6 @@ function Loading() {
 
 // ---------------------------------------------------------------- Engajamento
 
-function DriverBlock({ driver, rows }: { driver: string; rows: EngagementDriver[] }) {
-  const [open, setOpen] = useState(false);
-  const scores = rows.map((r) => r.score_current ?? 0).filter((s) => s > 0);
-  const avg = scores.reduce((a, b) => a + b, 0) / (scores.length || 1);
-  const desc = rows.find((r) => r.driver_desc)?.driver_desc;
-  return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <button onClick={() => setOpen((o) => !o)} className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted/40 transition-colors">
-        {open ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-        <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate">{driver}</div>
-          {desc && <div className="text-[11px] text-muted-foreground truncate">{desc}</div>}
-        </div>
-        <div className="w-28 hidden sm:block">
-          <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-            <div className="h-full rounded-full" style={{ width: `${(avg / 5) * 100}%`, background: scoreColor(avg) }} />
-          </div>
-        </div>
-        <span className="text-sm font-bold tabular-nums w-10 text-right" style={{ color: scoreColor(avg) }}>{fmt1(avg)}</span>
-      </button>
-      {open && (
-        <div className="border-t border-border divide-y divide-border/50">
-          {rows.map((q) => (
-            <div key={q.question} className="flex items-center gap-3 px-3 py-2 pl-10">
-              <span className="flex-1 text-xs text-muted-foreground">{q.question}</span>
-              <Delta v={q.score_prev != null && q.score_current != null ? Math.round((q.score_current - q.score_prev) * 10) / 10 : null} />
-              <span className="text-xs tabular-nums w-8 text-right font-semibold" style={{ color: scoreColor(q.score_current) }}>{fmt1(q.score_current)}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /** "2026-02" + "2026-07" → "fev–jul/2026". Duas datas ISO na tela cansam. */
 function janelaLabel(inicio: string, fim: string): string {
@@ -109,8 +81,6 @@ function EngagementSection({
 }) {
   const company = data.engagement.find((e) => e.scope === 'company');
   const depts = data.engagement.filter((e) => e.scope !== 'company');
-  const statusColor = (rr: number | null) => rr == null ? COLORS.info : rr >= 20 ? COLORS.danger : rr >= 15 ? COLORS.warning : COLORS.success;
-
   // Saídas observadas, indexadas pelo nome da área da pesquisa, para enriquecer
   // a tabela de detalhe sem uma segunda tabela ao lado.
   const saidasPorScope = useMemo(() => {
@@ -123,150 +93,126 @@ function EngagementSection({
 
   const janela = cross ? janelaLabel(cross.janelaInicio, cross.janelaFim) : '';
 
-  const driverGroups = useMemo(() => {
-    const map = new Map<string, EngagementDriver[]>();
-    for (const d of [...data.drivers].sort((a, b) => a.driver_pos - b.driver_pos || a.q_pos - b.q_pos)) {
-      if (!map.has(d.driver)) map.set(d.driver, []);
-      map.get(d.driver)!.push(d);
-    }
-    return [...map.entries()].map(([driver, rows]) => {
-      const scores = rows.map((r) => r.score_current ?? 0).filter((s) => s > 0);
-      return { driver, rows, avg: scores.reduce((a, b) => a + b, 0) / (scores.length || 1) };
-    });
-  }, [data.drivers]);
-
   return (
     <div className="space-y-4">
       <div className="flex justify-end"><FreshnessBadge dataset="engagement" /></div>
+
+      {/* ------------------------------------------------------------------
+          A ORDEM DESTA ABA
+          ------------------------------------------------------------------
+          A versão anterior tinha onze gráficos e nenhuma conclusão: cada painel
+          respondia bem a uma pergunta, e o conjunto não respondia "e daí".
+          Quando tudo tem o mesmo peso, nada tem destaque.
+
+          Agora são quatro perguntas, nesta ordem, um bloco cada:
+
+            1. Como estamos      -> os números
+            2. E daí             -> a leitura, calculada dos próprios dados
+            3. Onde agir         -> por área, em fila de prioridade
+            4. O que mudou       -> movimento entre as ondas
+            5. Por onde começar  -> quais perguntas rendem mais
+            6. Quem está longe   -> recortes que a leitura por área não mostra
+
+          Tudo que responde "como vocês chegaram nesse número" foi para o bloco
+          de detalhe, recolhido. Não sumiu -- alguém sempre duvida do número, e
+          a resposta precisa estar no painel, não num print no Slack.
+      ------------------------------------------------------------------ */}
+
       {company && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiCard label="eNPS (jan/26)" value={fmt1(company.enps)} color={COLORS.flutter} icon={Heart} />
+          <KpiCard label="eNPS" value={fmt1(company.enps)} color={COLORS.flutter} icon={Heart} />
           <KpiCard label="Satisfação" value={`${fmt1(company.satisfaction)}/10`} color={COLORS.nsx} icon={Sparkles} />
-          <KpiCard label="Risco de retenção" value={`${fmt1(company.retention_risk)}%`} color={COLORS.warning} icon={TrendingUp} />
-          <KpiCard label="Participação" value={`${fmt1(company.participation)}%`} color={COLORS.info} icon={Users} />
+          <KpiCard label="Risco de saída" value={`${fmt1(company.retention_risk)}%`} color={COLORS.warning} icon={TrendingUp} />
+          <KpiCard
+            label="Responderam"
+            value={survey ? String(survey.respondentes) : `${fmt1(company.participation)}%`}
+            color={COLORS.info}
+            icon={Users}
+          />
         </div>
       )}
-      {company && (
-        <p className="text-xs text-muted-foreground -mt-1 leading-relaxed">
-          <strong>Participação (jan/2026): {fmt1(company.participation)}%</strong>
-          {survey && ` — ${survey.respondentes} pessoas responderam`}
-          {survey?.elegiveis ? ` de ${survey.elegiveis} elegíveis` : ''}.
-          {survey && (
-            <>
-              {' '}O <strong>n de cada área</strong> aparece nos recortes mais abaixo. Vale olhar
-              antes de comparar áreas: as menores têm menos de 20 respostas, e ali uma pessoa move
-              o eNPS em vários pontos.
-            </>
-          )}
-        </p>
-      )}
 
-      {/* Ordem deliberada: primeiro ONDE agir, depois O QUE mudou, depois SE a
-          pesquisa se confirmou. É a sequência em que a conversa acontece na
-          reunião -- e evita que o detalhe por área apareça antes de haver um
-          critério para lê-lo. */}
-      {cross && <EngagementMatrix rows={cross.rows} />}
+      <EngagementReading
+        enpsEmpresa={company?.enps ?? null}
+        respondentes={survey?.respondentes ?? null}
+        participacao={company?.participation ?? null}
+        areas={cross?.rows ?? []}
+        cuts={survey?.cuts ?? []}
+        importancia={survey?.importancia ?? []}
+      />
+
+      {cross && <AreaPriority areas={cross.rows} cuts={survey?.cuts ?? []} />}
+
       {cross && <EnpsSlope rows={cross.rows} />}
-      {cross && (
-        <RiskVsAttrition
-          rows={cross.rows}
-          janela={janela}
-          meses={cross.mesesObservados}
-          ressalvas={cross.ressalvas}
-        />
-      )}
 
-      <ChartCard title="eNPS por departamento" subtitle="jan/2026 · cor = risco de retenção" icon={Users}>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={depts} layout="vertical" margin={{ left: 24, right: 24 }}>
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} className="opacity-30" />
-            <XAxis type="number" domain={[0, 100]} tick={{ fontSize: 11 }} />
-            <YAxis type="category" dataKey="scope" width={110} tick={{ fontSize: 11 }} />
-            <Tooltip formatter={(v: number) => [v, 'eNPS']} />
-            <Bar dataKey="enps" radius={[0, 4, 4, 0]}>
-              {depts.map((d) => <Cell key={d.scope} fill={statusColor(d.retention_risk)} />)}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartCard>
+      {survey && survey.importancia.length > 0 && <DriverPriority rows={survey.importancia} />}
 
-      <ChartCard
-        title="Detalhe por departamento"
-        subtitle={cross ? `o que a pesquisa disse × o que aconteceu em ${janela}` : undefined}
-        icon={Users}
-      >
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th className="p-2">Departamento</th><th className="p-2 text-right">eNPS</th><th className="p-2 text-right">Δ</th>
-                <th className="p-2 text-right">Risco ret.</th><th className="p-2 text-right">Satisfação</th>
-                {cross && <th className="p-2 text-right">Pediram demissão</th>}
-                {cross && <th className="p-2 text-right">Taxa a.a.</th>}
-                <th className="p-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {depts.map((d) => {
-                const s = saidasPorScope.get(d.scope);
-                return (
-                  <tr key={d.scope} className="border-b border-border/50">
-                    <td className="p-2 font-medium">{d.scope}</td>
-                    <td className="p-2 text-right tabular-nums">{fmt1(d.enps)}</td>
-                    <td className="p-2 text-right"><Delta v={d.enps_delta} /></td>
-                    <td className="p-2 text-right tabular-nums">{fmt1(d.retention_risk)}%</td>
-                    <td className="p-2 text-right tabular-nums">{fmt1(d.satisfaction)}</td>
-                    {cross && (
-                      <td className="p-2 text-right tabular-nums">
-                        {s?.vol == null ? (
-                          // Traço, não zero: a área não tem correspondência no
-                          // dashboard (Betfair é marca). Zero diria "ninguém
-                          // saiu", que é afirmação diferente de "não sabemos".
-                          <span className="text-muted-foreground" title="Área sem correspondência na base de desligados">—</span>
-                        ) : (
-                          <>{s.vol}{s.total != null && s.total !== s.vol && <span className="text-muted-foreground"> de {s.total}</span>}</>
-                        )}
-                      </td>
-                    )}
-                    {cross && (
-                      <td className="p-2 text-right tabular-nums">
-                        {s?.taxa == null ? <span className="text-muted-foreground">—</span> : `${fmt1(s.taxa)}%`}
-                      </td>
-                    )}
-                    <td className="p-2 text-xs text-muted-foreground">{d.status}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {cross && (
-          <p className="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
-            &quot;Pediram demissão&quot; conta só saída voluntária no período, com o total entre as
-            duas quando houve desligamento pela empresa também. A taxa é anualizada sobre o
-            headcount médio da janela, para ficar comparável com a atrição do resto do painel.
-          </p>
-        )}
-      </ChartCard>
-
-      {/* Recortes e importância vêm do arquivo original da pesquisa, não do
-          deck. Entram depois do detalhe por área porque respondem "por que",
-          e só faz sentido perguntar por que depois de saber onde. */}
       {survey && <SurveyCuts cuts={survey.cuts} />}
-      {survey && survey.importancia.length > 0 && <DriverImportance rows={survey.importancia} />}
 
-      {driverGroups.length > 0 && (
-        <ChartCard title="Drivers de engajamento" subtitle="média das perguntas (1–5) · clique para abrir" icon={Sparkles}>
-          <div className="space-y-2">
-            {driverGroups.map((g) => <DriverBlock key={g.driver} driver={g.driver} rows={g.rows} />)}
+      <Detalhe
+        titulo="Detalhe e metodologia"
+        resumo="tabela por área, drivers pergunta a pergunta, e se a pesquisa antecipou as saídas"
+      >
+        <ChartCard title="Detalhe por departamento" subtitle={cross ? `pesquisa × saídas em ${janela}` : undefined} icon={Users}>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                  <th className="p-2">Departamento</th><th className="p-2 text-right">eNPS</th><th className="p-2 text-right">Δ</th>
+                  <th className="p-2 text-right">Risco</th><th className="p-2 text-right">Satisfação</th>
+                  {cross && <th className="p-2 text-right">Pediram demissão</th>}
+                  {cross && <th className="p-2 text-right">Taxa a.a.</th>}
+                  <th className="p-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {depts.map((d) => {
+                  const s = saidasPorScope.get(d.scope);
+                  return (
+                    <tr key={d.scope} className="border-b border-border/50">
+                      <td className="p-2 font-medium">{d.scope}</td>
+                      <td className="p-2 text-right tabular-nums">{fmt1(d.enps)}</td>
+                      <td className="p-2 text-right"><Delta v={d.enps_delta} /></td>
+                      <td className="p-2 text-right tabular-nums">{fmt1(d.retention_risk)}%</td>
+                      <td className="p-2 text-right tabular-nums">{fmt1(d.satisfaction)}</td>
+                      {cross && (
+                        <td className="p-2 text-right tabular-nums">
+                          {s?.vol == null ? (
+                            <span className="text-muted-foreground" title="Área sem correspondência na base de desligados">—</span>
+                          ) : (
+                            <>{s.vol}{s.total != null && s.total !== s.vol && <span className="text-muted-foreground"> de {s.total}</span>}</>
+                          )}
+                        </td>
+                      )}
+                      {cross && (
+                        <td className="p-2 text-right tabular-nums">
+                          {s?.taxa == null ? <span className="text-muted-foreground">—</span> : `${fmt1(s.taxa)}%`}
+                        </td>
+                      )}
+                      <td className="p-2 text-xs text-muted-foreground">{d.status}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-          <p className="text-[11px] text-muted-foreground mt-3">
-            Δ compara jan/26 com jul/25 (quando a pergunta existia).
-          </p>
         </ChartCard>
-      )}
 
-      <DriversDeepDive drivers={data.drivers} />
+        {cross && <EngagementMatrix rows={cross.rows} />}
+
+        {survey && survey.importancia.length > 0 && <DriverImportance rows={survey.importancia} />}
+
+        <DriversDeepDive drivers={data.drivers} />
+
+        {cross && (
+          <RiskVsAttrition
+            rows={cross.rows}
+            janela={janela}
+            meses={cross.mesesObservados}
+            ressalvas={cross.ressalvas}
+          />
+        )}
+      </Detalhe>
     </div>
   );
 }

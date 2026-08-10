@@ -113,18 +113,17 @@ export default function EnpsSlope({
         </svg>
       </div>
 
-      <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
-        {caiu.length} de {dados.length} áreas caíram entre as duas ondas
+      <p className="text-sm mt-2 leading-relaxed">
+        <strong>{caiu.length} de {dados.length} áreas caíram.</strong>
         {subiu.length === 1
-          ? `; a única que subiu foi ${subiu[0].scope}, que também é a de menor eNPS absoluto (${subiu[0].enps})`
-          : subiu.length ? `; subiram ${subiu.map((s) => s.scope).join(', ')}` : ''}.
-        A maior queda foi em {maiorQueda.scope} ({maiorQueda.enps - maiorQueda.enpsPrev} pontos).
-        Quando quase todo o feixe se inclina para o mesmo lado, a causa provável é da empresa, não
-        de cada área — vale procurar o que mudou no período antes de cobrar gestor por gestor.
+          ? ` A única que subiu foi ${subiu[0].scope}, que também tem o menor eNPS absoluto (${subiu[0].enps}).`
+          : subiu.length ? ` Subiram ${subiu.map((s) => s.scope).join(', ')}.` : ''}
+        {' '}Quando quase todas se movem para o mesmo lado, a causa costuma ser da empresa, não de
+        cada gestor.
       </p>
-      <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
-        Áreas sem onda anterior não aparecem aqui: Betfair participou pela primeira vez, então não
-        há de onde medir variação.
+      <p className="text-[11px] text-muted-foreground mt-1.5">
+        Maior queda: {maiorQueda.scope} ({maiorQueda.enps - maiorQueda.enpsPrev} pontos). Quem
+        participou pela primeira vez não aparece — não há de onde medir variação.
       </p>
     </ChartCard>
   );

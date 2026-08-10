@@ -1,0 +1,209 @@
+import { useMemo, type ReactNode } from 'react';
+import { ArrowRight } from 'lucide-react';
+import { COLORS } from '@/lib/colors';
+import { median } from '@/lib/stats';
+import { classifyAreas } from '@/lib/area-priority';
+import type { EngagementContextRow } from '@/lib/engagement-context';
+import type { SurveyCut, SurveyImportance } from '@/lib/survey.functions';
+
+/**
+ * A leitura da onda, em quatro frases, calculada dos próprios números.
+ *
+ * ------------------------------------------------------------------
+ * POR QUE ISTO É O PRIMEIRO BLOCO DA ABA
+ * ------------------------------------------------------------------
+ * A versão anterior tinha onze gráficos e nenhuma conclusão. Quem abria via
+ * muito número e saía sem saber o que fazer -- que é o pior resultado possível
+ * para um painel de gente, porque o custo não é confusão, é a pessoa deixar de
+ * voltar.
+ *
+ * Um gráfico responde "qual é o número". Ele não responde "e daí". A ponte
+ * entre as duas coisas normalmente é feita por quem apresenta, de cabeça, e por
+ * isso muda a cada apresentação. Aqui ela é calculada, sempre igual, e fica
+ * antes de qualquer gráfico.
+ *
+ * ------------------------------------------------------------------
+ * POR QUE CALCULADO E NÃO ESCRITO À MÃO
+ * ------------------------------------------------------------------
+ * Texto fixo envelhece calado. Se alguém escrevesse "Marketing é a prioridade"
+ * hoje, a frase continuaria lá na onda de julho, com a mesma cara de verdade,
+ * mesmo depois de Marketing melhorar. Cada frase abaixo é derivada dos dados
+ * que estão na tela logo em seguida -- e some quando o dado não sustenta.
+ *
+ * A regra: nenhuma frase afirma o que os dados não mostram. Onde a evidência é
+ * fraca (n pequeno, correlação sem força), a frase muda de "é" para "vale
+ * olhar" -- ver os retornos condicionais em cada bloco.
+ */
+
+interface Linha {
+  rotulo: string;
+  texto: ReactNode;
+  cor: string;
+}
+
+const fmt1 = (n: number | null | undefined) =>
+  n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+
+export default function EngagementReading({
+  enpsEmpresa,
+  respondentes,
+  participacao,
+  areas,
+  cuts,
+  importancia,
+}: {
+  enpsEmpresa: number | null;
+  respondentes: number | null;
+  participacao: number | null;
+  areas: EngagementContextRow[];
+  cuts: SurveyCut[];
+  importancia: SurveyImportance[];
+}) {
+  const linhas = useMemo<Linha[]>(() => {
+    const out: Linha[] = [];
+    // Só departamentos de verdade: "Betfair" aparece na pesquisa ao lado das
+    // áreas, mas é marca -- entra em todas elas. Ver AreaPriority.
+    const comArea = areas.filter((a) => a.dept != null && a.enps != null);
+
+    // 1. ONDE ESTAMOS -------------------------------------------------------
+    if (enpsEmpresa != null) {
+      const qualidade = enpsEmpresa >= 70 ? 'alto' : enpsEmpresa >= 50 ? 'saudável' : 'baixo';
+      out.push({
+        rotulo: 'Onde estamos',
+        cor: COLORS.flutter,
+        texto: (
+          <>
+            eNPS <strong>{enpsEmpresa}</strong>, patamar {qualidade}
+            {respondentes ? `, com ${respondentes} respostas` : ''}
+            {participacao ? ` (${fmt1(participacao)}% dos elegíveis)` : ''}. A média esconde
+            diferença grande entre áreas — é onde a conversa começa.
+          </>
+        ),
+      });
+    }
+
+    // 2. O QUE MUDOU --------------------------------------------------------
+    const comPrev = comArea.filter((a) => a.enpsPrev != null);
+    if (comPrev.length >= 3) {
+      const caiu = comPrev.filter((a) => (a.enps as number) < (a.enpsPrev as number));
+      const subiu = comPrev.filter((a) => (a.enps as number) > (a.enpsPrev as number));
+      const maioria = caiu.length >= comPrev.length * 0.7;
+      out.push({
+        rotulo: 'O que mudou',
+        cor: caiu.length > subiu.length ? COLORS.warning : COLORS.success,
+        texto: maioria ? (
+          <>
+            <strong>{caiu.length} de {comPrev.length} áreas caíram</strong> desde a onda anterior.
+            Quando quase todas se movem para o mesmo lado, a causa costuma ser da empresa, não de
+            cada gestor — vale procurar o que mudou no período antes de cobrar área por área.
+          </>
+        ) : (
+          <>
+            {caiu.length} áreas caíram e {subiu.length} subiram desde a onda anterior. Movimento
+            misto: aqui a explicação tende a ser local, de cada área.
+          </>
+        ),
+      });
+    }
+
+    // 3. ONDE AGIR ----------------------------------------------------------
+    // Mesma classificação da fila por área (lib/area-priority.ts). Compartilhar
+    // é obrigatório: se esta frase e a lista logo abaixo usassem regras
+    // separadas, elas divergiriam no primeiro ajuste -- e a tela passaria a
+    // apontar duas prioridades diferentes na mesma rolagem.
+    const criticas = classifyAreas(areas).itens.filter((i) => i.veredito === 'agir');
+    const alvo = criticas[0];
+    if (alvo) {
+      out.push({
+        rotulo: 'Onde agir primeiro',
+        cor: COLORS.danger,
+        texto: (
+          <>
+            <strong>{alvo.scope}</strong> junta as duas coisas: engajamento abaixo do grupo
+            (eNPS {alvo.enps}) e risco de saída acima ({fmt1(alvo.risco)}%)
+            {criticas.length > 1 && `, junto com ${criticas.slice(1).map((c) => c.scope).join(' e ')}`}.
+            É a combinação que mais costuma virar saída nos meses seguintes.
+          </>
+        ),
+      });
+    }
+
+    // 4. POR ONDE COMEÇAR ---------------------------------------------------
+    // Tema dominante entre as perguntas de nota baixa e associação alta.
+    if (importancia.length >= 8) {
+      const cr = median(importancia.map((i) => i.r)) ?? 0;
+      const cn = median(importancia.map((i) => i.score)) ?? 0;
+      const prioridade = importancia.filter((i) => i.r >= cr && i.score < cn);
+      const porTema = new Map<string, number>();
+      for (const p of prioridade) porTema.set(p.driver, (porTema.get(p.driver) ?? 0) + 1);
+      const [tema, qtd] = [...porTema.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
+      if (tema && qtd >= 2) {
+        out.push({
+          rotulo: 'Por onde começar',
+          cor: COLORS.nsx,
+          texto: (
+            <>
+              Das {prioridade.length} perguntas com nota baixa que mais acompanham o engajamento,{' '}
+              <strong>{qtd} são de {tema.toLowerCase()}</strong>. É onde o mesmo esforço tende a
+              render mais — mais que remuneração, que tem as piores notas mas acompanha menos.
+            </>
+          ),
+        });
+      }
+    }
+
+    // 5. O QUE OBSERVAR -----------------------------------------------------
+    // Recorte com maior distância do total da empresa, entre os grandes o
+    // bastante para a distância significar algo.
+    const empresa = cuts.find((c) => c.cutType === 'company');
+    if (empresa?.enps != null) {
+      const candidatos = cuts.filter(
+        (c) => c.cutType !== 'company' && c.cutType !== 'area' && !c.suprimido && c.enps != null && c.n >= 20,
+      );
+      const pior = candidatos.sort(
+        (a, b) => (a.enps as number) - (b.enps as number),
+      )[0];
+      if (pior && (empresa.enps as number) - (pior.enps as number) >= 8) {
+        const nome = { funcao: '', marca: 'quem atua em ', tempo: 'quem está há ' }[pior.cutType] ?? '';
+        out.push({
+          rotulo: 'O que observar',
+          cor: COLORS.info,
+          texto: (
+            <>
+              <strong>{nome}{pior.cutValue}</strong> tem eNPS {pior.enps},{' '}
+              {(empresa.enps as number) - (pior.enps as number)} pontos abaixo da empresa, e são{' '}
+              {pior.n} pessoas. Recorte que não aparece na leitura por área.
+            </>
+          ),
+        });
+      }
+    }
+
+    return out;
+  }, [enpsEmpresa, respondentes, participacao, areas, cuts, importancia]);
+
+  if (!linhas.length) return null;
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4">
+      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+        A leitura desta onda
+      </p>
+      <div className="space-y-2.5">
+        {linhas.map((l) => (
+          <div key={l.rotulo} className="flex gap-3">
+            <div className="w-[3px] rounded-full shrink-0" style={{ background: l.cor }} />
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{l.rotulo}</p>
+              <p className="text-sm leading-relaxed">{l.texto}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-3 flex items-center gap-1.5">
+        <ArrowRight className="h-3 w-3 shrink-0" />
+        Cada frase acima sai dos gráficos abaixo, e muda sozinha quando o dado mudar.
+      </p>
+    </div>
+  );
+}

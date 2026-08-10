@@ -62,8 +62,11 @@ const QUADRANTES = {
 
 export default function EngagementMatrix({ rows }: { rows: EngagementContextRow[] }) {
   const { pontos, corteX, corteY } = useMemo(() => {
+    // Só departamentos: "Betfair" é marca e entra em todas as áreas, então
+    // posicioná-la ao lado delas compara populações que se sobrepõem. O recorte
+    // por marca vive em SurveyCuts.
     const validas = rows.filter(
-      (r) => r.scope.toLowerCase() !== 'company' && r.enps != null && r.retentionRisk != null,
+      (r) => r.dept != null && r.enps != null && r.retentionRisk != null,
     );
     const cx = median(validas.map((r) => r.enps)) ?? 0;
     const cy = median(validas.map((r) => r.retentionRisk)) ?? 0;
