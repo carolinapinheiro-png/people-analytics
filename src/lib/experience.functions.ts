@@ -46,6 +46,8 @@ async function authorize(userEmail: string | undefined): Promise<AccessScope> {
 
 export interface EngagementScore {
   wave: string;
+  /** Diferenca de eNPS para a Flutter International (informada no deck). */
+  gap_ent_enps?: number | null;
   scope: string;
   enps: number | null;
   enps_delta: number | null;
@@ -188,7 +190,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     const [eng, mm, lv] = await Promise.all([
       db
         .from('engagement_scores')
-        .select('scope, enps, enps_delta, retention_risk, satisfaction, participation, status')
+        .select('scope, enps, enps_delta, retention_risk, satisfaction, participation, status, gap_ent_enps')
         .order('position', { ascending: true }),
       // Só NSX/reconstruido tem dept_breakdown. Ver ressalva abaixo: a pesquisa
       // cobre a Flutter Brazil inteira, a quebra por área só existe para NSX.

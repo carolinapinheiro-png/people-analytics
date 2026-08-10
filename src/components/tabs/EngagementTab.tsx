@@ -11,6 +11,7 @@ import DriverImportance from '@/components/dashboard/DriverImportance';
 import EngagementReading from '@/components/dashboard/EngagementReading';
 import AreaPriority from '@/components/dashboard/AreaPriority';
 import Detalhe from '@/components/dashboard/Detalhe';
+import SurveyTimeline from '@/components/dashboard/SurveyTimeline';
 import EngagementMatrix from '@/components/dashboard/EngagementMatrix';
 import EnpsSlope from '@/components/dashboard/EnpsSlope';
 import RiskVsAttrition from '@/components/dashboard/RiskVsAttrition';
@@ -151,8 +152,13 @@ function EngagementSection({
 
       <Detalhe
         titulo="Detalhe e metodologia"
-        resumo="tabela por área, drivers pergunta a pergunta, e se a pesquisa antecipou as saídas"
+        resumo="como a pesquisa evoluiu, tabela por área, e se ela antecipou as saídas"
       >
+        {/* A história vem primeiro: ela explica metade das ressalvas que
+            apareceriam depois, e responde a pergunta que sempre abre a conversa
+            quando alguém desconfia de um número. */}
+        <SurveyTimeline />
+
         <ChartCard title="Detalhe por departamento" subtitle={cross ? `pesquisa × saídas em ${janela}` : undefined} icon={Users}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

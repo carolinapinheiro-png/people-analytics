@@ -237,6 +237,27 @@ export function computeCuts(rs: PollyResponse[], tipos: CutType[] = ['company', 
 
 // ---------------------------------------------------------------- drivers
 
+/**
+ * Percentual de respostas favoráveis: notas 4 e 5 numa escala de 1 a 5.
+ *
+ * É como o deck do CEO lê os drivers, e por dois bons motivos.
+ *
+ * Primeiro, legibilidade: "78% concordam" cabe numa frase falada; "4,27 de 5"
+ * exige que quem ouve reconstrua a escala de cabeça antes de sentir se é bom.
+ *
+ * Segundo, a escala de 1 a 5 é ordinal, não métrica. A distância entre 4 e 5
+ * não é a mesma entre 2 e 3 -- concordar plenamente em vez de concordar é um
+ * salto menor que sair de discordar para neutro. Média trata os dois como 1
+ * ponto igual. Contar quem está do lado favorável não faz essa suposição.
+ *
+ * A média continua sendo calculada e exibida ao lado: ela usa a escala inteira
+ * e capta movimento pequeno entre ondas que o corte binário não vê.
+ */
+export function pctFavoravel(notas: number[]): number | null {
+  if (!notas.length) return null;
+  return Math.round((notas.filter((n) => n >= 4).length / notas.length) * 1000) / 10;
+}
+
 export interface DriverScore {
   driver: string;
   question: string;
@@ -244,6 +265,8 @@ export interface DriverScore {
   cutValue: string;
   n: number;
   score: number | null;
+  /** % que respondeu 4 ou 5. Leitura principal; `score` é o detalhe. */
+  favoravel: number | null;
 }
 
 export function computeDriverScores(
@@ -268,6 +291,7 @@ export function computeDriverScores(
           driver, question, cutType: t, cutValue,
           n: v.length,
           score: v.length ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 100) / 100 : null,
+          favoravel: pctFavoravel(v),
         });
       }
     }
@@ -334,6 +358,8 @@ export interface DriverImportance {
   r: number;
   /** Nota média da pergunta. */
   score: number;
+  /** % que respondeu 4 ou 5 -- a leitura principal na tela. */
+  favoravel: number;
   /** Pares completos usados. */
   n: number;
 }
@@ -366,6 +392,7 @@ export function computeDriverImportance(rs: PollyResponse[], minN = 30): DriverI
       driver, question,
       r: Math.round(r * 1000) / 1000,
       score: Math.round((pares.reduce((s, p) => s + p[0], 0) / pares.length) * 100) / 100,
+      favoravel: pctFavoravel(pares.map((p) => p[0])) ?? 0,
       n: pares.length,
     });
   }

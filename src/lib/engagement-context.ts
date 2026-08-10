@@ -51,6 +51,13 @@ export interface EngagementScoreLike {
   satisfaction: number | null;
   participation: number | null;
   status: string | null;
+  /**
+   * Diferenca de eNPS para a Flutter International, transcrita do deck de
+   * jan/2026. INFORMADA, nao calculada: nao temos a base da entidade global.
+   * Por isso nao se atualiza sozinha e nao vale para as proximas ondas -- a
+   * tela precisa dizer isso, senao o numero envelhece parecendo vivo.
+   */
+  gap_ent_enps?: number | null;
 }
 
 export interface LeaverLike {
@@ -101,6 +108,8 @@ export interface EngagementContextRow {
   retentionRisk: number | null;
   satisfaction: number | null;
   status: string | null;
+  /** Diferenca de eNPS para a Flutter International. Informada no deck, nao recalculavel. */
+  gapEntEnps: number | null;
   /** Headcount médio da janela observada. null quando a área não bate no de-para. */
   headcountMedio: number | null;
   /** Saídas totais na janela (voluntárias + involuntárias + demais). */
@@ -193,6 +202,7 @@ export function buildEngagementContext(
       retentionRisk: s.retention_risk,
       satisfaction: s.satisfaction,
       status: s.status,
+      gapEntEnps: s.gap_ent_enps ?? null,
       headcountMedio: hc == null ? null : Math.round(hc),
       saidasTotais: sd?.total ?? (dept ? 0 : null),
       saidasVoluntarias: sd?.voluntarias ?? (dept ? 0 : null),

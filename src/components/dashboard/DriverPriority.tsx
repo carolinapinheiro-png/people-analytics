@@ -41,6 +41,20 @@ import type { SurveyImportance } from '@/lib/survey.functions';
 const fmt2 = (n: number) =>
   n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const fmt0 = (n: number | null) => (n == null ? '—' : Math.round(n).toString());
+
+/**
+ * A cor sai do % FAVORÁVEL, não da média. Os cortes vêm da linguagem que o deck
+ * da diretoria já usa: "mid-90%" é forte, "low-60%" é o problema. Colorir pela
+ * média obrigaria a manter duas escalas mentais para o mesmo dado.
+ */
+const corFav = (f: number | null) =>
+  f == null ? COLORS.gray400
+  : f >= 90 ? COLORS.success
+  : f >= 80 ? COLORS.nsx
+  : f >= 70 ? COLORS.warning
+  : COLORS.danger;
+
 /** Força da associação em palavra. O número exato fica no tooltip. */
 function forca(r: number, cortes: { alto: number; medio: number }): string {
   return r >= cortes.alto ? 'puxa muito' : r >= cortes.medio ? 'puxa' : 'puxa pouco';
@@ -51,10 +65,14 @@ export default function DriverPriority({ rows }: { rows: SurveyImportance[] }) {
 
   const { prioridade, sustentar, cortes, temaDominante } = useMemo(() => {
     const cr = median(rows.map((i) => i.r)) ?? 0;
-    const cn = median(rows.map((i) => i.score)) ?? 0;
+    // O corte de "nota baixa" passa a ser em % favorável: é a leitura principal,
+    // e a mediana da média daria um recorte ligeiramente diferente para a mesma
+    // pergunta -- duas verdades para o mesmo dado na mesma tela.
+    const cn = median(rows.map((i) => i.favoravel ?? i.score * 20)) ?? 0;
     const ordenado = [...rows].sort((a, b) => b.r - a.r);
-    const prioridade = ordenado.filter((i) => i.r >= cr && i.score < cn);
-    const sustentar = ordenado.filter((i) => i.r >= cr && i.score >= cn).slice(0, 4);
+    const fav = (i: SurveyImportance) => i.favoravel ?? i.score * 20;
+    const prioridade = ordenado.filter((i) => i.r >= cr && fav(i) < cn);
+    const sustentar = ordenado.filter((i) => i.r >= cr && fav(i) >= cn).slice(0, 4);
 
     const porTema = new Map<string, number>();
     for (const p of prioridade) porTema.set(p.driver, (porTema.get(p.driver) ?? 0) + 1);
@@ -75,11 +93,12 @@ export default function DriverPriority({ rows }: { rows: SurveyImportance[] }) {
   return (
     <ChartCard
       title="Por onde começar, pergunta por pergunta"
-      subtitle={`${rows.length} perguntas · ${rows[0]?.n ?? 0} respostas`}
+      subtitle={`% que concorda · ${rows.length} perguntas · ${rows[0]?.n ?? 0} respostas`}
     >
       {temaDominante && (
         <p className="text-sm leading-relaxed mb-3">
-          Das {prioridade.length} perguntas com nota baixa que mais acompanham o engajamento,{' '}
+          Das {prioridade.length} perguntas com menor concordância que mais acompanham o
+          engajamento,{' '}
           <strong>{temaDominante.qtd} são de {temaDominante.tema.toLowerCase()}</strong>. Remuneração
           tem as piores notas da empresa, mas acompanha menos — é problema real, e não é o que
           separa quem está engajado de quem não está.
@@ -91,10 +110,14 @@ export default function DriverPriority({ rows }: { rows: SurveyImportance[] }) {
           const alta = p.r >= cortes.alto;
           return (
             <div key={p.question} className="flex items-start gap-3 py-1.5 border-b border-border/40 last:border-0">
-              <span className="text-xs tabular-nums w-8 shrink-0 font-semibold" style={{
-                color: p.score < 4 ? COLORS.danger : p.score < 4.3 ? COLORS.warning : COLORS.nsx,
-              }}>
-                {fmt2(p.score)}
+              <span
+                className="tabular-nums w-[62px] shrink-0 text-right"
+                title={`média ${fmt2(p.score)} de 5`}
+              >
+                <span className="text-sm font-semibold" style={{ color: corFav(p.favoravel) }}>
+                  {fmt0(p.favoravel)}%
+                </span>
+                <span className="text-[10px] text-muted-foreground ml-1">{fmt2(p.score)}</span>
               </span>
               <span className="flex-1 text-xs leading-snug min-w-0">
                 {p.question}
@@ -134,6 +157,11 @@ export default function DriverPriority({ rows }: { rows: SurveyImportance[] }) {
               <p>
                 Mede o quanto a resposta da pergunta acompanha o eNPS <strong>da mesma pessoa</strong>,
                 entre as {rows[0]?.n ?? 0} que responderam.
+              </p>
+              <p>
+                O número grande é o <strong>% que respondeu 4 ou 5</strong> — a mesma leitura do
+                deck da diretoria. O número pequeno ao lado é a média de 1 a 5, que capta movimento
+                menor entre ondas.
               </p>
               <p>
                 <strong>Não é relação de causa.</strong> Todas as respostas vêm da mesma pessoa no

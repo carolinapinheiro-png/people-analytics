@@ -76,14 +76,16 @@ export default function AreaPriority({
   /** Recortes por área da carga bruta, só para saber o n de respondentes. */
   cuts: SurveyCut[];
 }) {
-  const { itens, nPorArea, medianas } = useMemo(() => {
+  const { itens, nPorArea, gapPorArea, medianas } = useMemo(() => {
     const nPorArea = new Map(
       cuts.filter((c) => c.cutType === 'area').map((c) => [c.cutValue, c.n]),
     );
     const c = classifyAreas(areas);
+    const gapPorArea = new Map(areas.map((a) => [a.scope, a.gapEntEnps]));
     return {
       itens: c.itens,
       nPorArea,
+      gapPorArea,
       medianas: {
         enps: c.medianaEnps, risco: c.medianaRisco,
         margemEnps: c.margemEnps, margemRisco: c.margemRisco,
@@ -143,6 +145,22 @@ export default function AreaPriority({
                 <span className="text-[11px] text-muted-foreground tabular-nums w-12 text-right">
                   n={nPorArea.get(i.scope) ?? '—'}
                 </span>
+                {/* Segunda régua: como a área está contra a Flutter International.
+                    Legal é a de pior eNPS aqui E a mais distante da entidade
+                    global (-29) -- as duas leituras concordam, e isso muda a
+                    conversa. Onde elas discordam é ainda mais interessante. */}
+                <span
+                  className={cn(
+                    'text-[11px] tabular-nums w-[54px] text-right shrink-0',
+                    (gapPorArea.get(i.scope) ?? 0) < 0
+                      ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground',
+                  )}
+                  title="Diferença de eNPS para a Flutter International, informada no deck de jan/26"
+                >
+                  {gapPorArea.get(i.scope) == null
+                    ? '—'
+                    : `${(gapPorArea.get(i.scope) as number) > 0 ? '+' : ''}${gapPorArea.get(i.scope)} glob.`}
+                </span>
               </div>
             </div>
           );
@@ -153,6 +171,7 @@ export default function AreaPriority({
         <span>barra e número = <strong className="text-foreground">eNPS</strong></span>
         <span>coluna do meio = <strong className="text-foreground">risco de saída</strong></span>
         <span>n = respostas</span>
+        <span>glob. = <strong className="text-foreground">vs Flutter International</strong></span>
       </div>
 
       <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">

@@ -149,11 +149,12 @@ export const importSurveyWave = createServerFn({ method: 'POST' })
     await up('survey_driver_scores', driverScores.filter((d) => d.score != null).map((d) => ({
       wave: data.wave, driver: d.driver, question: d.question,
       cut_type: d.cutType, cut_value: d.cutValue, n: d.n, score: d.score,
+      favoravel: d.favoravel,
     })), 'wave,driver,question,cut_type,cut_value');
 
     await up('survey_driver_importance', importance.map((i) => ({
       wave: data.wave, driver: i.driver, question: i.question,
-      r: i.r, score: i.score, n: i.n,
+      r: i.r, score: i.score, favoravel: i.favoravel, n: i.n,
     })), 'wave,driver,question');
 
     return { ...preview, gravado: true };
@@ -179,7 +180,10 @@ export interface SurveyImportance {
   driver: string;
   question: string;
   r: number;
+  /** Media 1-5. Detalhe; `favoravel` e a leitura principal. */
   score: number;
+  /** % que respondeu 4 ou 5 -- mesma leitura do deck da diretoria. */
+  favoravel: number | null;
   n: number;
 }
 
@@ -256,7 +260,9 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       cuts,
       importancia: (impRes.error ? [] : impRes.data ?? []).map((i: Record<string, unknown>) => ({
         driver: String(i.driver), question: String(i.question),
-        r: Number(i.r), score: Number(i.score), n: Number(i.n),
+        r: Number(i.r), score: Number(i.score),
+        favoravel: i.favoravel == null ? null : Number(i.favoravel),
+        n: Number(i.n),
       })),
       suprimidos: cuts.filter((c) => c.suprimido).length,
       minimoExibicao: N_MINIMO_EXIBICAO,
