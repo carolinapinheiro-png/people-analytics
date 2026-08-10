@@ -29,9 +29,15 @@ const PAD_TOP = 22;
 const PAD_BOTTOM = 30;
 const LABEL_W = 118;
 
+/**
+ * A onda anterior foi aplicada em duas partes, com um mês de diferença: o eNPS
+ * saiu em junho/25 e os drivers em julho/25. É uma pesquisa só, e a área trata
+ * como "Julho/25" -- é assim que ela é chamada nas reuniões. Rotular "jun/25"
+ * aqui e "jul/25" na conversa criaria duas ondas onde existe uma.
+ */
 export default function EnpsSlope({
   rows,
-  ondaAnterior = 'jun/2025',
+  ondaAnterior = 'jul/2025',
   ondaAtual = 'jan/2026',
 }: {
   rows: EngagementContextRow[];

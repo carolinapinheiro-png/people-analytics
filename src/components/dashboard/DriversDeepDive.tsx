@@ -203,7 +203,7 @@ export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver
               {comHistorico.map((p) => <Linha key={p.question} p={p} />)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
-              Só {comHistorico.length} das {perguntas.length} perguntas existiam na onda anterior —
+              Só {comHistorico.length} das {perguntas.length} perguntas existiam na onda de jul/25 —
               as outras {novas} entraram agora e por isso não têm variação. Elas não estão estáveis,
               estão sem comparação: é a primeira medição delas.
             </p>

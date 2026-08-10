@@ -4,6 +4,9 @@ import {
   getExperienceData, getEngagementCross,
   type ExperienceData, type EngagementDriver, type EngagementCrossData,
 } from '@/lib/experience.functions';
+import { getSurveyWave, type SurveyWaveData } from '@/lib/survey.functions';
+import SurveyCuts from '@/components/dashboard/SurveyCuts';
+import DriverImportance from '@/components/dashboard/DriverImportance';
 import EngagementMatrix from '@/components/dashboard/EngagementMatrix';
 import EnpsSlope from '@/components/dashboard/EnpsSlope';
 import RiskVsAttrition from '@/components/dashboard/RiskVsAttrition';
@@ -97,7 +100,13 @@ function janelaLabel(inicio: string, fim: string): string {
   return ai === af ? `${a}–${b}/${ai}` : `${a}/${ai}–${b}/${af}`;
 }
 
-function EngagementSection({ data, cross }: { data: ExperienceData; cross: EngagementCrossData | null }) {
+function EngagementSection({
+  data, cross, survey,
+}: {
+  data: ExperienceData;
+  cross: EngagementCrossData | null;
+  survey: SurveyWaveData | null;
+}) {
   const company = data.engagement.find((e) => e.scope === 'company');
   const depts = data.engagement.filter((e) => e.scope !== 'company');
   const statusColor = (rr: number | null) => rr == null ? COLORS.info : rr >= 20 ? COLORS.danger : rr >= 15 ? COLORS.warning : COLORS.success;
@@ -138,10 +147,17 @@ function EngagementSection({ data, cross }: { data: ExperienceData; cross: Engag
         </div>
       )}
       {company && (
-        <p className="text-xs text-muted-foreground -mt-1">
-          <strong>Participação da pesquisa (jan/2026): {fmt1(company.participation)}%</strong> dos elegíveis
-          responderam. Departamentos com participação baixa devem ser lidos com cautela — veja a coluna
-          &quot;Participação&quot; no detalhe abaixo.
+        <p className="text-xs text-muted-foreground -mt-1 leading-relaxed">
+          <strong>Participação (jan/2026): {fmt1(company.participation)}%</strong>
+          {survey && ` — ${survey.respondentes} pessoas responderam`}
+          {survey?.elegiveis ? ` de ${survey.elegiveis} elegíveis` : ''}.
+          {survey && (
+            <>
+              {' '}O <strong>n de cada área</strong> aparece nos recortes mais abaixo. Vale olhar
+              antes de comparar áreas: as menores têm menos de 20 respostas, e ali uma pessoa move
+              o eNPS em vários pontos.
+            </>
+          )}
         </p>
       )}
 
@@ -233,13 +249,19 @@ function EngagementSection({ data, cross }: { data: ExperienceData; cross: Engag
         )}
       </ChartCard>
 
+      {/* Recortes e importância vêm do arquivo original da pesquisa, não do
+          deck. Entram depois do detalhe por área porque respondem "por que",
+          e só faz sentido perguntar por que depois de saber onde. */}
+      {survey && <SurveyCuts cuts={survey.cuts} />}
+      {survey && survey.importancia.length > 0 && <DriverImportance rows={survey.importancia} />}
+
       {driverGroups.length > 0 && (
         <ChartCard title="Drivers de engajamento" subtitle="média das perguntas (1–5) · clique para abrir" icon={Sparkles}>
           <div className="space-y-2">
             {driverGroups.map((g) => <DriverBlock key={g.driver} driver={g.driver} rows={g.rows} />)}
           </div>
           <p className="text-[11px] text-muted-foreground mt-3">
-            Δ compara jan/26 com jun/25 (quando a pergunta existia).
+            Δ compara jan/26 com jul/25 (quando a pergunta existia).
           </p>
         </ChartCard>
       )}
@@ -478,9 +500,11 @@ export default function EngagementTab() {
   const { filters } = useDashboard();
   const [data, setData] = useState<ExperienceData | null>(null);
   const [cross, setCross] = useState<EngagementCrossData | null>(null);
+  const [survey, setSurvey] = useState<SurveyWaveData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fetchData = useServerFn(getExperienceData);
   const fetchCross = useServerFn(getEngagementCross);
+  const fetchSurvey = useServerFn(getSurveyWave);
 
   useEffect(() => {
     let cancelled = false;
@@ -502,6 +526,17 @@ export default function EngagementTab() {
     return () => { cancelled = true; };
   }, [fetchCross]);
 
+  // Recortes da onda mais recente. Como o cruzamento, não depende do filtro de
+  // área -- e a supressão por n baixo já vem aplicada do servidor, então o que
+  // chega aqui nunca contém nota de grupo pequeno para quem não pode vê-la.
+  useEffect(() => {
+    let cancelled = false;
+    fetchSurvey({ data: {} })
+      .then((d) => { if (!cancelled) setSurvey(d as SurveyWaveData | null); })
+      .catch((e: unknown) => { console.error('recortes da pesquisa indisponíveis:', e); });
+    return () => { cancelled = true; };
+  }, [fetchSurvey]);
+
   if (error) return <p className="text-sm text-muted-foreground text-center py-24">Não foi possível carregar a Experiência: {error}</p>;
   if (!data) return <Loading />;
 
@@ -521,7 +556,9 @@ export default function EngagementTab() {
           <TabsTrigger value="onboarding" className="gap-2"><Sparkles className="h-4 w-4" />Onboarding</TabsTrigger>
           <TabsTrigger value="inclusao" className="gap-2"><HandHeart className="h-4 w-4" />Inclusão &amp; Pertencimento</TabsTrigger>
         </TabsList>
-        <TabsContent value="engajamento" className="mt-0"><EngagementSection data={data} cross={cross} /></TabsContent>
+        <TabsContent value="engajamento" className="mt-0">
+          <EngagementSection data={data} cross={cross} survey={survey} />
+        </TabsContent>
         <TabsContent value="onboarding" className="mt-0"><OnboardingSection data={data} /></TabsContent>
         <TabsContent value="inclusao" className="mt-0"><InclusionSection data={data} /></TabsContent>
       </Tabs>
