@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import type { MonthRecord } from './raw-data';
 import type { LeaverRecord } from './leaver-types';
@@ -7,6 +7,7 @@ import { getMonthlyMetrics } from '@/lib/metrics.functions';
 import { composeMonthlyMetrics } from './compose-metrics';
 import { useAuth } from '@/contexts/AuthContext';
 import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
+import { readNavState, writeNavState } from '@/lib/nav-state';
 import { getMonthsOrder, getMonthData, getAllMonthsForBrand, aggregateMonthlyToQuarterly } from './helpers';
 
 export type BrandType = 'combined' | 'NSX' | 'Betfair BR' | 'Flutter International';
@@ -243,11 +244,33 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
   const [activeSubTab, setActiveSubTab] = useState<string | null>(null);
 
+  // Restaura aba/sub-aba do ultimo acesso. Feito em efeito (nao no init do
+  // useState) porque no SSR nao existe localStorage e o HTML divergiria.
+  const lastTab = useRef<TabType>(activeTab);
+  const [navRestored, setNavRestored] = useState(false);
+  useEffect(() => {
+    const s = readNavState();
+    if (s?.tab) {
+      // Marcado ANTES de mudar a aba para o efeito de reset abaixo nao apagar
+      // a sub-aba que acabamos de restaurar.
+      lastTab.current = s.tab as TabType;
+      setActiveTab(s.tab as TabType);
+      if (s.sub !== undefined) setActiveSubTab(s.sub);
+    }
+    setNavRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (navRestored) writeNavState({ tab: activeTab, sub: activeSubTab });
+  }, [navRestored, activeTab, activeSubTab]);
+
   // Trocar de aba principal ZERA a sub-aba. Sem isto, sair de
   // "Ciclo de vida > Atricao" para "Quadro" levaria junto o subTab 'atricao',
   // e a barra ofereceria os sete filtros numa aba que aplica um -- de volta ao
   // problema de mostrar controle que nao faz nada.
   useEffect(() => {
+    if (lastTab.current === activeTab) return;
+    lastTab.current = activeTab;
     setActiveSubTab(null);
   }, [activeTab]);
   const [yearFilter, setYearFilter] = useState<string>('atual');
