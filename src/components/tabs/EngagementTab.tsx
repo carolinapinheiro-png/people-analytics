@@ -475,7 +475,7 @@ function InclusionSection({ data }: { data: ExperienceData }) {
 // ---------------------------------------------------------------- Tab
 
 export default function EngagementTab() {
-  const { filters } = useDashboard();
+  const { filters, activeSubTab, setActiveSubTab } = useDashboard();
   const [data, setData] = useState<ExperienceData | null>(null);
   const [cross, setCross] = useState<EngagementCrossData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -515,7 +515,12 @@ export default function EngagementTab() {
         <p className="text-sm text-muted-foreground">Engajamento, jornada de entrada e inclusão &amp; pertencimento.</p>
       </div>
 
-      <Tabs defaultValue="engajamento" className="space-y-4">
+      <Tabs
+        value={activeSubTab ?? 'engajamento'}
+        onValueChange={setActiveSubTab}
+        className="space-y-4"
+      >
+
         <TabsList>
           <TabsTrigger value="engajamento" className="gap-2"><Heart className="h-4 w-4" />Engajamento</TabsTrigger>
           <TabsTrigger value="onboarding" className="gap-2"><Sparkles className="h-4 w-4" />Onboarding</TabsTrigger>
