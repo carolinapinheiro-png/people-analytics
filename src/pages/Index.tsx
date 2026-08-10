@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import TopBar from '@/components/layout/TopBar';
 import FilterBar from '@/components/layout/FilterBar';
 import TabNavigation from '@/components/layout/TabNavigation';
+import SideNav from '@/components/layout/SideNav';
+
 import OverviewTab from '@/components/tabs/OverviewTab';
 import TeamTab from '@/components/tabs/TeamTab';
 import CompensationTab from '@/components/tabs/CompensationTab';
@@ -49,26 +51,34 @@ function DashboardContent() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <TopBar />
-      <FilterBar />
-      <TabNavigation />
-      <main className="p-4 md:p-6 max-w-[1600px] mx-auto">
-        {activeTab === 'overview' && <OverviewTab />}
-        {activeTab === 'team' && <TeamTab />}
-        {activeTab === 'recruitment' && <RecruitmentTab />}
-        {activeTab === 'dei' && <DEITab />}
-        {activeTab === 'comp' && <CompensationTab />}
-        {activeTab === 'demographics' && <DemographicsTab />}
-        {activeTab === 'engagement' && <EngagementTab />}
-        {activeTab === 'span' && <SpanTab />}
-        {activeTab === 'attrition' && <LeaversGate><AttritionTab /></LeaversGate>}
-        {activeTab === 'individual' && <ProfileTab />}
-        {activeTab === 'data' && <DataTab />}
-      </main>
+    <div className="min-h-screen bg-background flex">
+      <div className="hidden md:block">
+        <SideNav />
+      </div>
+      <div className="min-w-0 flex-1">
+        <TopBar />
+        <FilterBar />
+        <div className="md:hidden">
+          <TabNavigation />
+        </div>
+        <main className="p-4 md:p-6 max-w-[1600px] mx-auto">
+          {activeTab === 'overview' && <OverviewTab />}
+          {activeTab === 'team' && <TeamTab />}
+          {activeTab === 'recruitment' && <RecruitmentTab />}
+          {activeTab === 'dei' && <DEITab />}
+          {activeTab === 'comp' && <CompensationTab />}
+          {activeTab === 'demographics' && <DemographicsTab />}
+          {activeTab === 'engagement' && <EngagementTab />}
+          {activeTab === 'span' && <SpanTab />}
+          {activeTab === 'attrition' && <LeaversGate><AttritionTab /></LeaversGate>}
+          {activeTab === 'individual' && <ProfileTab />}
+          {activeTab === 'data' && <DataTab />}
+        </main>
+      </div>
     </div>
   );
 }
+
 
 export default function Index() {
   return (

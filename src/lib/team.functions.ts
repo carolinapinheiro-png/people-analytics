@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isInScope, isGlobalProfile, type AccessProfile, type AccessScope } from '@/lib/permissions';
 import { selectedDept } from '@/lib/dept-filter';
+import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
 import { z } from 'zod';
 
 /** Filtros de tela do Meu Time. comp_ratio e person-level: todos funcionam. */
@@ -12,6 +13,10 @@ const TeamInput = z
     level: z.string().trim().max(20).optional(),
     contract: z.string().trim().max(60).optional(),
     jobFamily: z.string().trim().max(120).optional(),
+    // Derivadas de hire/salary no servidor (person-bands.ts). Ver comentario em
+    // comp.functions.ts: nao ha coluna de faixa em comp_ratio.
+    tenureBand: z.string().trim().max(40).optional(),
+    salaryBand: z.string().trim().max(40).optional(),
   })
   .optional();
 
@@ -19,6 +24,7 @@ const pick = (v?: string | null): string | null => {
   const t = v?.trim();
   return !t || t === 'Todos' ? null : t;
 };
+
 
 /**
  * Fase 1 do recorte por time: FOTO ATUAL do time do gestor, escopada por
@@ -87,8 +93,11 @@ export const getTeamSnapshot = createServerFn({ method: 'GET' })
     const db = supabaseAdmin as unknown as UntypedClient;
     const { data: rows, error } = await db
       .from('comp_ratio')
-      .select('area, job_type_family, level, contract, salary, comp_ratio, is_leader, is_people_manager');
+      .select('area, job_type_family, level, contract, salary, hire, comp_ratio, is_leader, is_people_manager');
     if (error) throw new Error(`Falha ao carregar foto do time: ${error.message}`);
+
+    const fTenure = pick(input?.tenureBand);
+    const fBand = pick(input?.salaryBand);
 
     // Escopo: global ve tudo; senao, uniao depto/familia (mesma trava do isInScope).
     // O filtro de tela entra DEPOIS e so estreita -- nunca amplia o que a
@@ -102,7 +111,14 @@ export const getTeamSnapshot = createServerFn({ method: 'GET' })
         (r) =>
           !pick(input?.jobFamily) ||
           (r.job_type_family ?? '').trim() === pick(input?.jobFamily),
+      )
+      // Faixas derivadas. O salario nao sai daqui (o snapshot ja e agregado);
+      // ele so serve para decidir a faixa dentro do servidor.
+      .filter((r) => !fTenure || tenureBandFromHire(r.hire) === fTenure)
+      .filter(
+        (r) => !fBand || salaryBand(r.salary == null ? null : Number(r.salary)) === fBand,
       );
+
 
     const level = new Map<string, number>();
     const contract = new Map<string, number>();

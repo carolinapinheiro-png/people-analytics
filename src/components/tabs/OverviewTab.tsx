@@ -18,7 +18,7 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import { StorySection, StoryInsight, StoryMetric, StoryAlert } from '@/components/dashboard/StorySection';
 import { COLORS } from '@/lib/colors';
 import SeriesCutView from '@/components/dashboard/SeriesCutView';
-import { applySeriesFilter, type SeriesFilterKey } from '@/data/series-filter';
+import { applySeriesFilter, resolveSeriesCut, type SeriesFilterKey } from '@/data/series-filter';
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -46,24 +46,34 @@ import {
   Award,
   Building2,
   ArrowRightLeft,
-  UserCheck
+  UserCheck,
+  AlertTriangle,
 } from 'lucide-react';
+
+/** Rotulos das dimensoes de recorte, iguais aos da barra de filtros. */
+const CUT_LABELS: Record<SeriesFilterKey, string> = {
+  level: 'Nível',
+  tempoCasa: 'Tempo de casa',
+};
 
 export default function OverviewTab() {
   const { currentData, prevData, allMonthsData, currentMonth, brand, filters, leavers } =
     useDashboard();
 
-  // Recorte de dimensao unica (nivel, tempo de casa, vinculo). So um por vez --
-  // a barra garante isso. Aplicado DEPOIS do filtro de departamento, entao
-  // "TECHNOLOGY + L4" funciona de graca: allMonthsData ja vem com o level_base
-  // do departamento quando ha dept_breakdown.
-  const cutKey: SeriesFilterKey | null =
-    filters.level !== 'Todos' ? 'level' : filters.tempoCasa !== 'Todos' ? 'tempoCasa' : null;
-  const cutValue = cutKey === 'level' ? filters.level : cutKey === 'tempoCasa' ? filters.tempoCasa : null;
+  // Recorte de dimensao unica (nivel ou tempo de casa). A serie mensal guarda
+  // as bases separadas -- nao existe o cruzamento level x tempo de casa --, por
+  // isso aqui e um so. Quando os dois vem selecionados (o usuario pode te-los
+  // ativado na aba de Atricao, onde a leitura e pessoa a pessoa e o cruzamento
+  // existe), resolveSeriesCut escolhe um e devolve o outro em `ignored`, que a
+  // tela avisa em vez de ignorar em silencio.
+  const seriesCut = resolveSeriesCut({ level: filters.level, tempoCasa: filters.tempoCasa });
+  const cutKey: SeriesFilterKey | null = seriesCut.key;
+  const cutValue = seriesCut.value;
   // O departamento entra aqui para as saidas serem contadas na MESMA populacao
   // do headcount. Antes o numerador vinha da empresa toda e o denominador do
   // departamento -- a atricao resultante nao correspondia a nada.
   const cut = applySeriesFilter(allMonthsData, leavers, cutKey, cutValue, filters.departamento);
+
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
 
   const curr = currentData;
@@ -298,21 +308,41 @@ export default function OverviewTab() {
     return parts.join(', ');
   };
 
+  // Aviso de recorte ignorado. Fica FORA do `if` abaixo porque tambem precisa
+  // aparecer no Overview cheio -- se nenhum dos dois puder ser aplicado, o
+  // usuario ainda tem que saber que a selecao dele nao esta valendo aqui.
+  const cutWarning = seriesCut.ignored.length > 0 ? (
+    <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-foreground">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+      <p>
+        Esta visão aceita <strong>um</strong> recorte entre nível e tempo de casa: a série
+        mensal guarda as duas bases separadas, sem o cruzamento. Aplicado{' '}
+        <strong>{CUT_LABELS[seriesCut.key ?? 'level']}: {seriesCut.value}</strong>; ignorado{' '}
+        {seriesCut.ignored.map((i) => `${CUT_LABELS[i.key]}: ${i.value}`).join(', ')}. Para
+        cruzar as duas dimensões, use a aba Atrição &amp; Desligamentos.
+      </p>
+    </div>
+  ) : null;
+
   // Com recorte de dimensao ativo, a tela troca para a visao reduzida: sob esse
   // corte a maior parte dos blocos nao tem valor exato, e desativa-los um a um
   // deixaria a chance de algum cartao esquecido mostrar numero da empresa com
   // rotulo do recorte -- o pior desfecho possivel aqui.
   if (cut.active && cut.label) {
     return (
-      <SeriesCutView
-        months={cut.months}
-        label={cut.label}
-        suppressed={cut.suppressed}
-        brandColor={brandColor}
-        unreliable={cut.unreliable}
-      />
+      <div className="space-y-4">
+        {cutWarning}
+        <SeriesCutView
+          months={cut.months}
+          label={cut.label}
+          suppressed={cut.suppressed}
+          brandColor={brandColor}
+          unreliable={cut.unreliable}
+        />
+      </div>
     );
   }
+
 
   return (
     <div className="space-y-6">

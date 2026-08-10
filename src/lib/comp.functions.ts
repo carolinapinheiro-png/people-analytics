@@ -8,6 +8,7 @@ import {
   type AccessProfile,
   type AccessScope,
 } from '@/lib/permissions';
+import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
 
 /**
  * Acesso ao salario individual + comp ratio dos ativos (587).
@@ -66,8 +67,14 @@ const ListInput = z
     level: z.string().trim().max(20).optional(),
     contract: z.string().trim().max(60).optional(),
     jobFamily: z.string().trim().max(120).optional(),
+    // Faixas DERIVADAS de salary/hire (person-bands.ts). Nao existem como
+    // coluna em comp_ratio; sao calculadas aqui, no servidor, para que o
+    // recorte use o mesmo vocabulario dos desligados e da barra de filtros.
+    tenureBand: z.string().trim().max(40).optional(),
+    salaryBand: z.string().trim().max(40).optional(),
   })
   .optional();
+
 
 /** 'Todos'/vazio = sem selecao. */
 const sel = (v?: string | null): string | null => {
@@ -96,6 +103,8 @@ export const listCompRatio = createServerFn({ method: 'GET' })
     const fLevel = sel(data?.level);
     const fContract = sel(data?.contract);
     const fFamily = sel(data?.jobFamily);
+    const fTenure = sel(data?.tenureBand);
+    const fBand = sel(data?.salaryBand);
 
     const scoped = (rows ?? [])
       .filter((r) => r.in_comp_scope !== false)
@@ -106,7 +115,15 @@ export const listCompRatio = createServerFn({ method: 'GET' })
       .filter((r) => !fDept || (r.area ?? '').trim().toUpperCase() === fDept.toUpperCase())
       .filter((r) => !fLevel || (r.level ?? '').trim() === fLevel)
       .filter((r) => !fContract || (r.contract ?? '').trim() === fContract)
-      .filter((r) => !fFamily || (r.job_type_family ?? '').trim() === fFamily);
+      .filter((r) => !fFamily || (r.job_type_family ?? '').trim() === fFamily)
+      // As duas faixas derivadas. Quem nao tem admissao/salario no cadastro cai
+      // em 'Não informado' e sai do recorte -- e o comportamento honesto: nao
+      // sabemos a faixa dessa pessoa, entao ela nao entra na faixa escolhida.
+      .filter((r) => !fTenure || tenureBandFromHire(r.hire) === fTenure)
+      .filter(
+        (r) => !fBand || salaryBand(r.salary == null ? null : Number(r.salary)) === fBand,
+      );
+
     const visible = canSeeIndividualData(scope.profile)
       ? scoped
       : scoped.map((r) => ({ ...r, name: 'Confidencial', salary: null }));
@@ -202,17 +219,14 @@ function median(nums: number[]): number | null {
   return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2);
 }
 
-/** Mesmos cortes de faixa salarial usados nos desligados (LeaverRecord). */
-export function salaryBand(salary: number | null): string {
-  if (salary == null) return 'Não informado';
-  if (salary < 3000) return 'Até 3k';
-  if (salary < 5000) return '3k-5k';
-  if (salary < 8000) return '5k-8k';
-  if (salary < 12000) return '8k-12k';
-  if (salary < 20000) return '12k-20k';
-  if (salary < 50000) return '20k-50k';
-  return '50k+';
-}
+/**
+ * Faixa salarial: os cortes vivem em person-bands.ts, compartilhados com Meu
+ * Time e com os rotulos da barra de filtros. Reexportado aqui porque outros
+ * pontos deste arquivo (perfil individual, agregado por faixa) ja o usavam.
+ */
+export { salaryBand };
+
+
 
 /**
  * Perfil individual do colaborador (pergunta da Marilia, decisoes 30/07):

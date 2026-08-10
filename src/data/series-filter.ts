@@ -177,3 +177,42 @@ export function applySeriesFilter(
     unreliable,
   };
 }
+
+/**
+ * Escolhe QUAL recorte de dimensão vale, quando mais de um está selecionado.
+ *
+ * POR QUE ISTO EXISTE
+ * A barra de filtros já limpa o recorte anterior ao escolher um novo -- mas só
+ * dentro das abas onde os dois são oferecidos como exclusivos. Em Atrição &
+ * Desligamentos level e tempo de casa convivem legitimamente (lá a leitura é
+ * pessoa a pessoa, o cruzamento existe). Voltando ao Overview com os dois
+ * ativos, o código antigo pegava `level` por ordem de escrita e IGNORAVA tempo
+ * de casa sem dizer nada: a etiqueta na barra afirmava "Tempo de casa: 1-2
+ * anos" e o gráfico não estava recortado por isso.
+ *
+ * Aqui a escolha passa a ser explícita e, sobretudo, DECLARADA: quem consome
+ * recebe também o que foi ignorado, para avisar na tela.
+ */
+export interface SeriesCut {
+  key: SeriesFilterKey | null;
+  value: string | null;
+  /** Recortes selecionados que NÃO foram aplicados, com o rótulo do valor. */
+  ignored: Array<{ key: SeriesFilterKey; value: string }>;
+}
+
+/** Precedência: nível primeiro (recorte mais usado na leitura executiva). */
+const CUT_PRECEDENCE: SeriesFilterKey[] = ['level', 'tempoCasa'];
+
+export function resolveSeriesCut(
+  filters: Partial<Record<SeriesFilterKey, string>>,
+): SeriesCut {
+  const selecionados = CUT_PRECEDENCE.filter(
+    (k) => (filters[k] ?? 'Todos') !== 'Todos',
+  );
+  const [vencedor, ...resto] = selecionados;
+  return {
+    key: vencedor ?? null,
+    value: vencedor ? (filters[vencedor] as string) : null,
+    ignored: resto.map((k) => ({ key: k, value: filters[k] as string })),
+  };
+}
