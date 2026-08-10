@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import type { MonthRecord } from './raw-data';
 import type { LeaverRecord } from './leaver-types';
@@ -7,6 +7,7 @@ import { getMonthlyMetrics } from '@/lib/metrics.functions';
 import { composeMonthlyMetrics } from './compose-metrics';
 import { useAuth } from '@/contexts/AuthContext';
 import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
+import { readNavState, writeNavState } from '@/lib/nav-state';
 import { getMonthsOrder, getMonthData, getAllMonthsForBrand, aggregateMonthlyToQuarterly } from './helpers';
 
 export type BrandType = 'combined' | 'NSX' | 'Betfair BR' | 'Flutter International';
