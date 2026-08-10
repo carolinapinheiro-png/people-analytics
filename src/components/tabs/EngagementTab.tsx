@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useServerFn } from '@tanstack/react-start';
-import { getExperienceData, type ExperienceData, type EngagementDriver } from '@/lib/experience.functions';
+import {
+  getExperienceData, getEngagementCross,
+  type ExperienceData, type EngagementDriver, type EngagementCrossData,
+} from '@/lib/experience.functions';
+import EngagementMatrix from '@/components/dashboard/EngagementMatrix';
+import EnpsSlope from '@/components/dashboard/EnpsSlope';
+import RiskVsAttrition from '@/components/dashboard/RiskVsAttrition';
+import DriversDeepDive from '@/components/dashboard/DriversDeepDive';
 import KpiCard from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -80,10 +87,32 @@ function DriverBlock({ driver, rows }: { driver: string; rows: EngagementDriver[
   );
 }
 
-function EngagementSection({ data }: { data: ExperienceData }) {
+/** "2026-02" + "2026-07" → "fev–jul/2026". Duas datas ISO na tela cansam. */
+function janelaLabel(inicio: string, fim: string): string {
+  const M = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const [ai, mi] = inicio.split('-');
+  const [af, mf] = fim.split('-');
+  const a = M[Number(mi) - 1] ?? mi;
+  const b = M[Number(mf) - 1] ?? mf;
+  return ai === af ? `${a}–${b}/${ai}` : `${a}/${ai}–${b}/${af}`;
+}
+
+function EngagementSection({ data, cross }: { data: ExperienceData; cross: EngagementCrossData | null }) {
   const company = data.engagement.find((e) => e.scope === 'company');
   const depts = data.engagement.filter((e) => e.scope !== 'company');
   const statusColor = (rr: number | null) => rr == null ? COLORS.info : rr >= 20 ? COLORS.danger : rr >= 15 ? COLORS.warning : COLORS.success;
+
+  // Saídas observadas, indexadas pelo nome da área da pesquisa, para enriquecer
+  // a tabela de detalhe sem uma segunda tabela ao lado.
+  const saidasPorScope = useMemo(() => {
+    const m = new Map<string, { vol: number | null; total: number | null; taxa: number | null }>();
+    for (const r of cross?.rows ?? []) {
+      m.set(r.scope, { vol: r.saidasVoluntarias, total: r.saidasTotais, taxa: r.atricaoVoluntariaAnual });
+    }
+    return m;
+  }, [cross]);
+
+  const janela = cross ? janelaLabel(cross.janelaInicio, cross.janelaFim) : '';
 
   const driverGroups = useMemo(() => {
     const map = new Map<string, EngagementDriver[]>();
@@ -116,16 +145,19 @@ function EngagementSection({ data }: { data: ExperienceData }) {
         </p>
       )}
 
-      {driverGroups.length > 0 && (
-        <ChartCard title="Drivers de engajamento" subtitle="média das perguntas (1–5) · clique para abrir" icon={Sparkles}>
-          <div className="space-y-2">
-            {driverGroups.map((g) => <DriverBlock key={g.driver} driver={g.driver} rows={g.rows} />)}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-3">
-            Δ compara jan/26 com jun/25 (quando a pergunta existia). Pontos mais baixos concentram-se em
-            remuneração e reconhecimento (3,7–3,9).
-          </p>
-        </ChartCard>
+      {/* Ordem deliberada: primeiro ONDE agir, depois O QUE mudou, depois SE a
+          pesquisa se confirmou. É a sequência em que a conversa acontece na
+          reunião -- e evita que o detalhe por área apareça antes de haver um
+          critério para lê-lo. */}
+      {cross && <EngagementMatrix rows={cross.rows} />}
+      {cross && <EnpsSlope rows={cross.rows} />}
+      {cross && (
+        <RiskVsAttrition
+          rows={cross.rows}
+          janela={janela}
+          meses={cross.mesesObservados}
+          ressalvas={cross.ressalvas}
+        />
       )}
 
       <ChartCard title="eNPS por departamento" subtitle="jan/2026 · cor = risco de retenção" icon={Users}>
@@ -142,31 +174,77 @@ function EngagementSection({ data }: { data: ExperienceData }) {
         </ResponsiveContainer>
       </ChartCard>
 
-      <ChartCard title="Detalhe por departamento" icon={Users}>
+      <ChartCard
+        title="Detalhe por departamento"
+        subtitle={cross ? `o que a pesquisa disse × o que aconteceu em ${janela}` : undefined}
+        icon={Users}
+      >
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="p-2">Departamento</th><th className="p-2 text-right">eNPS</th><th className="p-2 text-right">Δ</th>
-                <th className="p-2 text-right">Risco ret.</th><th className="p-2 text-right">Satisfação</th><th className="p-2 text-right">Participação</th><th className="p-2">Status</th>
+                <th className="p-2 text-right">Risco ret.</th><th className="p-2 text-right">Satisfação</th>
+                {cross && <th className="p-2 text-right">Pediram demissão</th>}
+                {cross && <th className="p-2 text-right">Taxa a.a.</th>}
+                <th className="p-2">Status</th>
               </tr>
             </thead>
             <tbody>
-              {depts.map((d) => (
-                <tr key={d.scope} className="border-b border-border/50">
-                  <td className="p-2 font-medium">{d.scope}</td>
-                  <td className="p-2 text-right tabular-nums">{fmt1(d.enps)}</td>
-                  <td className="p-2 text-right"><Delta v={d.enps_delta} /></td>
-                  <td className="p-2 text-right tabular-nums">{fmt1(d.retention_risk)}%</td>
-                  <td className="p-2 text-right tabular-nums">{fmt1(d.satisfaction)}</td>
-                  <td className="p-2 text-right tabular-nums">{d.participation != null ? `${fmt1(d.participation)}%` : '—'}</td>
-                  <td className="p-2 text-xs text-muted-foreground">{d.status}</td>
-                </tr>
-              ))}
+              {depts.map((d) => {
+                const s = saidasPorScope.get(d.scope);
+                return (
+                  <tr key={d.scope} className="border-b border-border/50">
+                    <td className="p-2 font-medium">{d.scope}</td>
+                    <td className="p-2 text-right tabular-nums">{fmt1(d.enps)}</td>
+                    <td className="p-2 text-right"><Delta v={d.enps_delta} /></td>
+                    <td className="p-2 text-right tabular-nums">{fmt1(d.retention_risk)}%</td>
+                    <td className="p-2 text-right tabular-nums">{fmt1(d.satisfaction)}</td>
+                    {cross && (
+                      <td className="p-2 text-right tabular-nums">
+                        {s?.vol == null ? (
+                          // Traço, não zero: a área não tem correspondência no
+                          // dashboard (Betfair é marca). Zero diria "ninguém
+                          // saiu", que é afirmação diferente de "não sabemos".
+                          <span className="text-muted-foreground" title="Área sem correspondência na base de desligados">—</span>
+                        ) : (
+                          <>{s.vol}{s.total != null && s.total !== s.vol && <span className="text-muted-foreground"> de {s.total}</span>}</>
+                        )}
+                      </td>
+                    )}
+                    {cross && (
+                      <td className="p-2 text-right tabular-nums">
+                        {s?.taxa == null ? <span className="text-muted-foreground">—</span> : `${fmt1(s.taxa)}%`}
+                      </td>
+                    )}
+                    <td className="p-2 text-xs text-muted-foreground">{d.status}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
+        {cross && (
+          <p className="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
+            &quot;Pediram demissão&quot; conta só saída voluntária no período, com o total entre as
+            duas quando houve desligamento pela empresa também. A taxa é anualizada sobre o
+            headcount médio da janela, para ficar comparável com a atrição do resto do painel.
+          </p>
+        )}
       </ChartCard>
+
+      {driverGroups.length > 0 && (
+        <ChartCard title="Drivers de engajamento" subtitle="média das perguntas (1–5) · clique para abrir" icon={Sparkles}>
+          <div className="space-y-2">
+            {driverGroups.map((g) => <DriverBlock key={g.driver} driver={g.driver} rows={g.rows} />)}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-3">
+            Δ compara jan/26 com jun/25 (quando a pergunta existia).
+          </p>
+        </ChartCard>
+      )}
+
+      <DriversDeepDive drivers={data.drivers} />
     </div>
   );
 }
@@ -399,8 +477,10 @@ function InclusionSection({ data }: { data: ExperienceData }) {
 export default function EngagementTab() {
   const { filters } = useDashboard();
   const [data, setData] = useState<ExperienceData | null>(null);
+  const [cross, setCross] = useState<EngagementCrossData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fetchData = useServerFn(getExperienceData);
+  const fetchCross = useServerFn(getEngagementCross);
 
   useEffect(() => {
     let cancelled = false;
@@ -409,6 +489,18 @@ export default function EngagementTab() {
       .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Falha ao carregar'); });
     return () => { cancelled = true; };
   }, [fetchData, filters.departamento]);
+
+  // O cruzamento com saídas não depende do filtro de área: ele é justamente a
+  // comparação ENTRE áreas, e filtrar deixaria um ponto só no gráfico. Por isso
+  // busca uma vez e fica. Falha aqui não derruba a aba -- as visões da pesquisa
+  // continuam válidas sem o cruzamento, então o erro só some com os gráficos.
+  useEffect(() => {
+    let cancelled = false;
+    fetchCross()
+      .then((d) => { if (!cancelled) setCross(d as EngagementCrossData); })
+      .catch((e: unknown) => { console.error('cruzamento engajamento × saídas indisponível:', e); });
+    return () => { cancelled = true; };
+  }, [fetchCross]);
 
   if (error) return <p className="text-sm text-muted-foreground text-center py-24">Não foi possível carregar a Experiência: {error}</p>;
   if (!data) return <Loading />;
@@ -429,7 +521,7 @@ export default function EngagementTab() {
           <TabsTrigger value="onboarding" className="gap-2"><Sparkles className="h-4 w-4" />Onboarding</TabsTrigger>
           <TabsTrigger value="inclusao" className="gap-2"><HandHeart className="h-4 w-4" />Inclusão &amp; Pertencimento</TabsTrigger>
         </TabsList>
-        <TabsContent value="engajamento" className="mt-0"><EngagementSection data={data} /></TabsContent>
+        <TabsContent value="engajamento" className="mt-0"><EngagementSection data={data} cross={cross} /></TabsContent>
         <TabsContent value="onboarding" className="mt-0"><OnboardingSection data={data} /></TabsContent>
         <TabsContent value="inclusao" className="mt-0"><InclusionSection data={data} /></TabsContent>
       </Tabs>
