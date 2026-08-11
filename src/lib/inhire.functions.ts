@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { aggregateJobs, type InhireJob } from '@/lib/inhire/jobs';
+import { aggregateJobs, deptOf, type InhireJob } from '@/lib/inhire/jobs';
 import { extrairPagina, JOBS_PAGINATED } from '@/lib/inhire/paths';
 
 /**
@@ -113,18 +113,40 @@ export const syncInhire = createServerFn({ method: 'POST' })
         { limit: 100, aoAvisar: (a) => avisos.push(a) },
       );
 
-      // "lean" no nome do endpoint sugere payload reduzido, e os dois campos de
-      // que dependemos podem não vir: `customFields_map`, que carrega o
-      // departamento, e `statusHistory`, de onde sai o tempo de fechamento.
-      // Se faltarem, os números saem plausíveis e errados -- tudo em SEM DEPTO,
-      // tempo nenhum calculado. Melhor dizer alto.
-      const comDept = jobs.filter((j) => j.customFields_map != null).length;
-      const comHist = jobs.filter((j) => (j.statusHistory ?? []).length > 0).length;
-      if (jobs.length && comDept === 0) {
-        avisos.push('Nenhuma vaga veio com campos personalizados — o departamento sai de lá. Tudo cairia em "SEM DEPTO". A listagem "lean" provavelmente não traz esse campo; é preciso buscar cada vaga individualmente.');
+      // A LISTAGEM "lean" NÃO TRAZ O DEPARTAMENTO. Confirmado na primeira
+      // execução real: 159 vagas, 153 sem departamento. O campo existe só no
+      // detalhe de cada vaga, e sem ele TUDO cai em "SEM DEPTO" -- um painel
+      // inteiro de uma coluna só, tecnicamente correto e completamente inútil.
+      //
+      // Buscar o detalhe custa uma requisição por vaga. Com ~160 vagas cabe no
+      // burst de 400, e o ritmo de 150ms mantém a taxa em ~7/s, bem abaixo dos
+      // 20/s sustentados -- o MCP do time continua respondendo normalmente.
+      const semDeptNaListagem = jobs.filter((j) => deptOf(j) == null).length;
+      let detalhados = 0;
+      if (semDeptNaListagem > jobs.length * 0.5 && jobs.length <= 400) {
+        for (let i = 0; i < jobs.length; i++) {
+          try {
+            const det = await client.get<InhireJob>(`/jobs/${jobs[i].id}`);
+            // Mescla em vez de substituir: a listagem pode trazer campos que o
+            // detalhe não traz, e perder um deles seria uma regressão silenciosa.
+            jobs[i] = { ...jobs[i], ...det };
+            detalhados++;
+          } catch {
+            // Uma vaga que falha não derruba a carga inteira; ela só fica sem
+            // departamento, e o resumo mostra quantas ficaram.
+          }
+          if (i < jobs.length - 1) await new Promise((r) => setTimeout(r, 150));
+        }
+        avisos.push(`A listagem resumida não traz o departamento — busquei o detalhe de ${detalhados} de ${jobs.length} vagas para recuperá-lo.`);
       }
+
+      // O HISTÓRICO DE STATUS NÃO EXISTE NA API REST -- nem na listagem nem no
+      // detalhe. Sem ele não dá para descontar congelamento, e sem o desconto o
+      // tempo sairia maior que o do InHire. O volume mensal é publicado; o
+      // tempo fica nulo, visivelmente ausente em vez de presente e errado.
+      const comHist = jobs.filter((j) => (j.statusHistory ?? []).length > 0).length;
       if (jobs.length && comHist === 0) {
-        avisos.push('Nenhuma vaga veio com histórico de status — o tempo de fechamento sai de lá. Nenhum TTH seria calculado.');
+        avisos.push('A API REST não expõe histórico de status, então o tempo de fechamento (TTH) não é calculável por aqui — sem histórico não dá para descontar os períodos congelados, e publicar sem o desconto daria um número maior que o do InHire. O volume por mês continua exato.');
       }
 
       const asOf = new Date().toISOString().slice(0, 10);
@@ -134,7 +156,7 @@ export const syncInhire = createServerFn({ method: 'POST' })
       if (resumo.semDepartamento > 0) {
         avisos.push(`${resumo.semDepartamento} vagas sem o campo Departamento preenchido — entram como "SEM DEPTO". É lacuna de cadastro no InHire, não zero.`);
       }
-      if (resumo.fechadasSemTempo > 0) {
+      if (resumo.fechadasSemTempo > 0 && comHist > 0) {
         avisos.push(`${resumo.fechadasSemTempo} vagas fechadas sem histórico suficiente para calcular o tempo — contam no volume, ficam fora da média.`);
       }
       if (client.stats.minRemaining != null && client.stats.minRemaining < 100) {

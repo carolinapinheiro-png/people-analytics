@@ -150,16 +150,38 @@ A paginação usa *pagination token* porque o banco por trás é NoSQL: não exi
 pedir "página 3", só caminhar. O critério de parada é **lista vazia**, como
 manda a documentação, e não a ausência de chave — o código checa os dois.
 
-### Sobre o sufixo "lean"
+### O que a primeira execução real ensinou (11/08/2026)
 
-O endpoint de listagem tem `lean` no nome, o que sugere payload reduzido. Se
-ele não trouxer `customFields_map` (de onde sai o departamento) ou
-`statusHistory` (de onde sai o tempo de fechamento), os números saem plausíveis
-e errados: tudo em "SEM DEPTO", nenhum tempo calculado.
+A prévia trouxe **159 vagas em 2 requisições** — paginação funcionando, saldo do
+limite mal arranhado (399 de 400). E revelou duas coisas sobre o endpoint `lean`:
 
-A prévia avisa explicitamente se isso acontecer. Se acontecer, o caminho é
-buscar cada vaga em `GET /jobs/{id}` — são ~150 chamadas, o que cabe no burst
-de 400, mas precisa de ritmo.
+**1. Ele não traz o departamento.** 153 das 159 vagas caíram em "SEM DEPTO". O
+campo vive no detalhe de cada vaga, e a integração agora busca `GET /jobs/{id}`
+uma por uma quando percebe que a maioria veio sem área — ~160 chamadas, a 150ms
+cada, o que mantém a taxa em ~7 req/s contra os 20/s sustentados.
+
+Detalhe que muda o código: a API REST devolve `customFields` como **array de
+objetos**; a camada analítica (MCP) devolve como **mapa** em `customFields_map`.
+Os dois formatos são aceitos, porque as duas fontes convivem.
+
+**2. Não existe histórico de status em lugar nenhum da API REST.** Nem na
+listagem, nem no detalhe — conferido no schema de `GET /jobs/:id`.
+
+Isso tem consequência direta: **o tempo de fechamento (TTH) não é calculável por
+esta via**. A regra de negócio manda descontar períodos congelados, e sem
+histórico não há como saber quando a vaga congelou.
+
+A decisão tomada: publicar o **volume mensal** (exato, usando `updatedAt` como
+data de fechamento) e deixar o **tempo nulo**. Um tempo sem o desconto sairia
+sistematicamente maior que o que o InHire mostra na tela dele — e dois painéis
+com tempos diferentes para a mesma vaga é pior que um painel sem o tempo.
+
+Para ter o TTH de volta, dois caminhos, os dois decisão de vocês:
+
+- **Camada analítica.** O MCP/ClickHouse tem `statusHistory` completo em 156 de
+  156 vagas. Dá para manter o TTH vindo de lá e o resto da API.
+- **Pedir ao InHire.** Um endpoint de histórico de status resolveria de vez, e é
+  um pedido razoável — eles já calculam o `sla` internamente.
 
 ---
 

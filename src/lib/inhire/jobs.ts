@@ -28,17 +28,30 @@
  * áreas. Entra como null, não como uma área a mais.
  *
  * ------------------------------------------------------------------
- * ARMADILHA 3: O SLA VEM VAZIO
+ * ARMADILHA 3: A API REST NÃO TEM HISTÓRICO DE STATUS
  * ------------------------------------------------------------------
- * O campo `sla` -- que daria o tempo de fechamento já calculado pelo InHire,
- * com o congelamento descontado -- está preenchido em 0 de 156 vagas. A
- * documentação promete; a base não entrega.
+ * Descoberto na primeira execução real, em 11/08/2026, contra a base de vocês:
+ * NENHUMA das 159 vagas veio com `statusHistory`. Não é lacuna de cadastro --
+ * o campo simplesmente não existe na API REST, nem na listagem nem no detalhe
+ * (conferido no schema de `GET /jobs/:id`).
  *
- * Então o tempo é calculado aqui, a partir de `statusHistory`, que está
- * completo. Congelado e cancelado são descontados, como manda a regra de
- * negócio. Se um dia o `sla` passar a vir preenchido, ele deve ser preferido --
- * é o número que o InHire mostra na tela dele, e dois painéis com TTH diferente
- * para a mesma vaga é o pior resultado possível.
+ * A consequência é séria e precisa estar clara: **o tempo de fechamento com
+ * desconto de congelamento não é calculável por esta via**. A regra de negócio
+ * de vocês manda descontar períodos congelados; sem histórico, não há como
+ * saber quando a vaga congelou.
+ *
+ * O que existe é `updatedAt`. Numa vaga fechada ele é, na prática, a data em
+ * que ela foi fechada -- aproximação boa o suficiente para saber em QUE MÊS
+ * fechou, que é o que a série mensal precisa.
+ *
+ * Por isso: o volume mensal é publicado (é exato), e o TTH fica NULO. Publicar
+ * um tempo sem o desconto daria um número sistematicamente MAIOR que o que o
+ * InHire mostra na tela dele -- e dois painéis com tempos diferentes para a
+ * mesma vaga é pior que um painel sem o tempo.
+ *
+ * Para ter o TTH de volta há dois caminhos, e os dois são decisão de vocês:
+ * usar a camada analítica (o MCP tem `statusHistory` completo), ou pedir ao
+ * InHire um endpoint de histórico.
  */
 
 export interface InhireJob {
@@ -46,12 +59,30 @@ export interface InhireJob {
   name?: string | null;
   status?: string | null;
   createdAt?: string | null;
+  /** Última alteração. Numa vaga fechada, é na prática a data do fechamento. */
+  updatedAt?: string | null;
   openPositions?: number | null;
   applications?: number | null;
+  talentsCount?: number | null;
+  activeTalents?: number | null;
   isTalentPool?: boolean | null;
-  sla?: number | null;
+  /** Área customizada do ATS. Alternativa ao custom field de departamento. */
+  areaATS?: string | null;
+  /**
+   * A API REST devolve os campos personalizados como ARRAY de objetos; a
+   * camada analítica (MCP/ClickHouse) devolve como MAPA em `customFields_map`.
+   * Os dois formatos são aceitos porque as duas fontes convivem hoje.
+   */
+  customFields?: Array<{ name?: string | null; label?: string | null; value?: unknown }> | null;
   customFields_map?: Record<string, string | null> | null;
+  /**
+   * Histórico de status. NÃO existe na API REST -- só na camada analítica
+   * (MCP/ClickHouse). Continua tipado porque o agregador serve às duas fontes,
+   * e é dele que sai o desconto de congelamento quando ele existe.
+   */
   statusHistory?: Array<{ status?: string | null; createdAt?: string | null }> | null;
+  /** Tempo já calculado pelo InHire. Veio vazio em 156 de 156 vagas. */
+  sla?: number | null;
 }
 
 /** De-para InHire → canônico do dashboard. Ver docs/inhire-regras-de-negocio.md. */
@@ -84,8 +115,33 @@ export function canonDept(v: string | null | undefined): string | null {
   return DEPT_CANON[k] ?? s.toUpperCase();
 }
 
+/**
+ * Departamento da vaga, procurado em três lugares na ordem de confiabilidade.
+ *
+ * 1. `customFields_map['Departamento']` -- formato da camada analítica.
+ * 2. `customFields` como array -- formato da API REST. É o que vale hoje.
+ * 3. `areaATS` -- área customizada do ATS, último recurso.
+ *
+ * O campo `area` da API NÃO entra: é um enum fixo do produto (engineering,
+ * product, sales...), não o departamento que vocês usam. Cairia num de-para
+ * plausível e errado.
+ */
 export function deptOf(job: InhireJob): string | null {
-  return canonDept(job.customFields_map?.['Departamento']);
+  const doMapa = job.customFields_map?.['Departamento'];
+  if (limpa(doMapa)) return canonDept(doMapa);
+
+  for (const cf of job.customFields ?? []) {
+    const nome = limpa(cf?.name ?? cf?.label).toLowerCase();
+    if (nome === 'departamento' || nome === 'department') {
+      const v = typeof cf?.value === 'string' ? cf.value
+        : cf?.value != null && typeof cf.value === 'object'
+          ? limpa((cf.value as { value?: string; name?: string }).value ?? (cf.value as { name?: string }).name)
+          : null;
+      if (limpa(v)) return canonDept(v);
+    }
+  }
+
+  return canonDept(job.areaATS);
 }
 
 /**
@@ -97,7 +153,11 @@ export function deptOf(job: InhireJob): string | null {
  */
 export function isTalentPool(job: InhireJob): boolean {
   if (job.isTalentPool === true) return true;
-  const dept = limpa(job.customFields_map?.['Departamento']).toLowerCase();
+  // Departamento em qualquer um dos dois formatos, já que a marcação de talent
+  // pool vive nele e as duas fontes convivem.
+  const cru = job.customFields_map?.['Departamento']
+    ?? (job.customFields ?? []).find((c) => limpa(c?.name ?? c?.label).toLowerCase().startsWith('depart'))?.value;
+  const dept = limpa(typeof cru === 'string' ? cru : null).toLowerCase();
   if (dept.includes('talent pool')) return true;
   return limpa(job.name).toLowerCase().includes('talent pool');
 }
@@ -133,6 +193,21 @@ export function statusBucket(status: string | null | undefined): StatusBucket {
  * como fechamento no mesmo dia.
  */
 export function tempoDeFechamento(job: InhireJob): { dias: number | null; fechadaEm: string | null } {
+  // SEM HISTÓRICO: a API REST não expõe `statusHistory`. Dá para saber em que
+  // mês a vaga fechou (via `updatedAt`), mas não por quanto tempo ela ficou
+  // congelada -- e sem isso o tempo sairia maior que o do InHire.
+  //
+  // Devolver o mês e NÃO devolver os dias é a escolha certa aqui: o volume
+  // mensal fica exato e o tempo fica visivelmente ausente, em vez de presente
+  // e errado.
+  if (!(job.statusHistory ?? []).length) {
+    if (statusBucket(job.status) !== 'fechada') return { dias: null, fechadaEm: null };
+    const quando = job.updatedAt ?? job.createdAt;
+    const t = quando ? new Date(quando).getTime() : NaN;
+    if (!Number.isFinite(t)) return { dias: null, fechadaEm: null };
+    return { dias: null, fechadaEm: new Date(t).toISOString().slice(0, 10) };
+  }
+
   const hist = (job.statusHistory ?? [])
     .filter((h) => h?.createdAt)
     .map((h) => ({ status: statusBucket(h.status), em: new Date(h.createdAt as string).getTime() }))

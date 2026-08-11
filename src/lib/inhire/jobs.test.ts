@@ -125,9 +125,77 @@ test('vaga sem fechamento no histórico não vira tempo zero', () => {
   assert.equal(fechadaEm, null);
 });
 
-test('histórico vazio devolve null, não quebra', () => {
-  assert.deepEqual(tempoDeFechamento(job({ statusHistory: [] })), { dias: null, fechadaEm: null });
-  assert.deepEqual(tempoDeFechamento(job({ statusHistory: null })), { dias: null, fechadaEm: null });
+test('sem histórico, vaga fechada rende o MÊS mas não o tempo', () => {
+  // A API REST não expõe `statusHistory` (confirmado na primeira execução real
+  // e no schema de GET /jobs/:id). Sem ele não dá para descontar congelamento,
+  // e um tempo sem desconto sairia maior que o do InHire.
+  //
+  // A escolha: publicar o mês (exato, via updatedAt) e deixar o tempo NULO --
+  // visivelmente ausente em vez de presente e errado.
+  const r = tempoDeFechamento(job({
+    statusHistory: null,
+    status: 'closed',
+    createdAt: '2026-01-05T00:00:00Z',
+    updatedAt: '2026-03-20T00:00:00Z',
+  }));
+  assert.equal(r.dias, null, 'o tempo NÃO pode ser publicado sem o desconto de congelamento');
+  assert.equal(r.fechadaEm, '2026-03-20', 'mas o mês de fechamento é conhecido');
+});
+
+test('sem histórico, vaga aberta não inventa fechamento', () => {
+  const r = tempoDeFechamento(job({ statusHistory: null, status: 'open' }));
+  assert.deepEqual(r, { dias: null, fechadaEm: null });
+});
+
+test('sem histórico e sem updatedAt, cai no createdAt', () => {
+  const r = tempoDeFechamento(job({
+    statusHistory: [], status: 'closed',
+    createdAt: '2026-02-10T00:00:00Z', updatedAt: null,
+  }));
+  assert.equal(r.fechadaEm, '2026-02-10');
+});
+
+test('com histórico, o desconto de congelamento volta a valer', () => {
+  // Caminho da camada analítica, que TEM o histórico. Os dois convivem.
+  const r = tempoDeFechamento(job({
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-06-01T00:00:00Z',
+    statusHistory: [
+      { status: 'open', createdAt: '2026-01-01T00:00:00Z' },
+      { status: 'frozen', createdAt: '2026-01-11T00:00:00Z' },
+      { status: 'open', createdAt: '2026-01-21T00:00:00Z' },
+      { status: 'closed', createdAt: '2026-01-31T00:00:00Z' },
+    ],
+  }));
+  assert.equal(r.dias, 20);
+  assert.equal(r.fechadaEm, '2026-01-31', 'a data vem do histórico, não do updatedAt');
+});
+
+test('departamento é lido do array de custom fields da API REST', () => {
+  // A listagem "lean" não traz; o detalhe traz, e como ARRAY -- não como o
+  // mapa que a camada analítica devolve.
+  assert.equal(deptOf(job({
+    customFields_map: undefined,
+    customFields: [{ name: 'Centro de Custo', value: 'X' }, { name: 'Departamento', value: 'Tecnologia' }],
+  })), 'TECHNOLOGY');
+});
+
+test('departamento aceita o formato de mapa e o de array', () => {
+  assert.equal(deptOf(job({ customFields_map: { Departamento: 'RH' }, customFields: undefined })), 'HR');
+  assert.equal(deptOf(job({ customFields_map: undefined, customFields: [{ label: 'Department', value: 'Marketing' }] })), 'MARKETING');
+});
+
+test('sem custom field, cai no areaATS antes de desistir', () => {
+  assert.equal(deptOf(job({ customFields_map: undefined, customFields: [], areaATS: 'Comercial' })), 'COMMERCIAL');
+  assert.equal(deptOf(job({ customFields_map: undefined, customFields: [], areaATS: null })), null);
+});
+
+test('talent pool é detectado também no formato de array', () => {
+  assert.equal(isTalentPool(job({
+    customFields_map: undefined,
+    customFields: [{ name: 'Departamento', value: 'N/A - Talent Pool' }],
+    name: 'Analista', isTalentPool: false,
+  })), true);
 });
 
 // ------------------------------------------------------------- agregação

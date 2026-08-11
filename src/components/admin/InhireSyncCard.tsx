@@ -44,7 +44,10 @@ export default function InhireSyncCard() {
     try {
       const r = (await runSync({ data: { confirm } })) as InhireSyncResult;
       setResultado(r);
-      if (confirm) carregar();
+      // Recarrega SEMPRE, não só ao gravar. A prévia também registra execução,
+      // e sem isto o cartão continuava exibindo o erro da tentativa anterior
+      // ao lado de uma prévia bem-sucedida -- duas verdades na mesma tela.
+      carregar();
     } catch (e) {
       setErro(e instanceof Error ? e.message : 'Falha ao sincronizar');
       setResultado(null);
@@ -136,6 +139,7 @@ export default function InhireSyncCard() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
             {[
               ['Vagas recebidas', resultado.vagasRecebidas],
+              ['Com departamento', resultado.vagasRecebidas - resultado.talentPoolExcluidas - resultado.semDepartamento],
               ['Talent pool excluídas', resultado.talentPoolExcluidas],
               ['Linhas de série mensal', resultado.linhasMensais],
               ['Linhas de foto', resultado.linhasAbertas],
