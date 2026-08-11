@@ -101,12 +101,17 @@ export default function EnpsSlope({
                   stroke={cor} strokeWidth={1.8} strokeOpacity={0.75} />
                 <circle cx={LABEL_W} cy={y1} r={3} fill={cor} />
                 <circle cx={520 - LABEL_W} cy={y2} r={3.5} fill={cor} />
-                <text x={LABEL_W - 8} y={y1 + 3.5} textAnchor="end" fontSize={10.5} fill="var(--muted-foreground)">
+                {/* Halo na cor do cartão atrás do rótulo: em áreas com eNPS
+                    próximo os textos encostavam nas linhas e um no outro. */}
+                <text x={LABEL_W - 8} y={y1 + 3.5} textAnchor="end" fontSize={11} fill="var(--muted-foreground)"
+                  stroke="var(--card)" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">
                   {d.scope} {d.enpsPrev}
                 </text>
-                <text x={520 - LABEL_W + 8} y={y2 + 3.5} fontSize={10.5} fill="var(--foreground)">
-                  {d.enps} <tspan fill={cor}>({d.enps - d.enpsPrev > 0 ? '+' : ''}{d.enps - d.enpsPrev})</tspan>
+                <text x={520 - LABEL_W + 8} y={y2 + 3.5} fontSize={11} fill="var(--foreground)"
+                  stroke="var(--card)" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">
+                  {d.enps} <tspan fill={cor} stroke="none">({d.enps - d.enpsPrev > 0 ? '+' : ''}{d.enps - d.enpsPrev})</tspan>
                 </text>
+
               </g>
             );
           })}
