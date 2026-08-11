@@ -329,13 +329,17 @@ function OnboardingSection({ data }: { data: ExperienceData }) {
                   <div key={k} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">{METRIC_LABEL[k] ?? k}</span>
-                      <span className="font-semibold tabular-nums">{fmt1(v)}</span>
+                      <span className={`font-semibold tabular-nums ${notaClass(v)}`}>{fmt1(v)}</span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${(v / 10) * 100}%`, background: COLORS.nsx }} />
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${(v / 10) * 100}%`, background: notaCor(v) }}
+                      />
                     </div>
                   </div>
                 ))}
+
               </div>
             </ChartCard>
           );
