@@ -191,12 +191,12 @@ export default function SurveyCuts({ cuts }: { cuts: SurveyCut[] }) {
           e são {destaque.n} pessoas. É um recorte que a leitura por área não mostra.
         </p>
       )}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {blocos.map((b) => (
           <Bloco key={b.tipo} titulo={b.titulo} rows={b.rows} empresa={empresa} />
         ))}
       </div>
-      <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
+      <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
         A linha do meio de cada barra é a empresa. Verde é melhor que a média, âmbar é pior — vale
         para os dois lados, já que em risco de saída menor é melhor.
       </p>

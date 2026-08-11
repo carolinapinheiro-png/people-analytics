@@ -126,7 +126,7 @@ export default function EnpsSlope({
         {' '}Quando quase todas se movem para o mesmo lado, a causa costuma ser da empresa, não de
         cada gestor.
       </p>
-      <p className="text-[11px] text-muted-foreground mt-1.5">
+      <p className="text-xs text-muted-foreground mt-1.5">
         Maior queda: {maiorQueda.scope} ({maiorQueda.enps - maiorQueda.enpsPrev} pontos). Quem
         participou pela primeira vez não aparece — não há de onde medir variação.
       </p>
