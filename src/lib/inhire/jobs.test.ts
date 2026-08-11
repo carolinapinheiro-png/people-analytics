@@ -242,6 +242,22 @@ test('fechamentos de meses diferentes viram linhas diferentes', () => {
   assert.deepEqual(r.monthly.map((m) => m.month), ['2026-03-01', '2026-05-01']);
 });
 
+test('mediana de número PAR de vagas cai em .5 — e isso é o valor certo', () => {
+  // Este teste existe por causa de uma falha real de gravação:
+  //   invalid input syntax for type integer: "44.5"
+  // A coluna era `integer`; o valor é que estava certo. Se alguém voltar a
+  // arredondar aqui para "resolver", este teste quebra e explica por quê.
+  const mk = (dias: number) => job({
+    createdAt: '2026-03-01T00:00:00Z',
+    statusHistory: [
+      { status: 'open', createdAt: '2026-03-01T00:00:00Z' },
+      { status: 'closed', createdAt: new Date(Date.UTC(2026, 2, 1 + dias)).toISOString() },
+    ],
+  });
+  const r = aggregateJobs([mk(4), mk(5)], '2026-08-10');
+  assert.equal(r.monthly[0].tth_median, 4.5);
+});
+
 test('vaga sem departamento vira SEM DEPTO e é contada no resumo', () => {
   const r = aggregateJobs([job({ customFields_map: {} })], '2026-08-10');
   assert.equal(r.monthly[0].department, 'SEM DEPTO');
