@@ -199,6 +199,53 @@ As 6 sem departamento são lacuna de cadastro no InHire, não erro da integraç�
 
 ---
 
+## O agendamento semanal
+
+Roda **toda segunda, 06:00 de Brasília**, sem ninguém precisar clicar.
+
+O caminho natural seria `pg_cron` no Supabase. Conferi: este projeto não tem
+`pg_cron`, `pg_net` nem `http` instalados, então o Postgres não consegue
+disparar nada sozinho. O agendador é o **GitHub Actions**
+(`.github/workflows/sync-inhire.yml`), que chama uma rota do próprio app
+(`POST /api/cron/inhire-sync`).
+
+Um cron não tem sessão de usuário, então a rota se autentica por um segredo
+compartilhado no cabeçalho `X-Cron-Secret`. **Nunca na URL** — URLs vão parar em
+log de acesso, histórico de navegador e cabeçalho `Referer`; um segredo em query
+string é um segredo publicado em três lugares que ninguém audita.
+
+A rota falha **fechada**: sem `CRON_SECRET` configurado ela devolve 503 em vez
+de rodar. O oposto — rodar sem exigir segredo quando o secret sumisse — deixaria
+a sincronização aberta para qualquer pessoa da internet.
+
+### Ligar (uma vez)
+
+1. Gere um segredo no seu terminal:
+   ```
+   openssl rand -hex 32
+   ```
+2. **No Lovable → Secrets:** `CRON_SECRET` = o valor gerado.
+3. **No GitHub → Settings → Secrets and variables → Actions:**
+   - `CRON_SECRET` = o mesmo valor
+   - `APP_URL` = a URL publicada do painel (sem barra no fim)
+4. **Actions → Sincronizar InHire → Run workflow** para testar sem esperar
+   a segunda-feira.
+
+> Como a senha do InHire: **não mande esse segredo por chat, e-mail ou Slack.**
+> Ele existe em dois cofres e em nenhum outro lugar.
+
+### Por que semanal
+
+Cada execução gasta ~161 requisições do balde do InHire, que é **por conta** e
+compartilhado com o conector MCP do time. Vaga não muda tanto ao longo de um dia
+a ponto de pagar esse custo diariamente. Se a frequência precisar subir, o
+caminho é webhook — não encurtar o intervalo.
+
+O `workflow_dispatch` dá um botão de "rodar agora" no GitHub, útil quando alguém
+corrige um departamento no InHire e quer ver refletido na hora.
+
+---
+
 ## Depois: webhook em vez de varredura
 
 Hoje a sincronização varre a lista inteira a cada execução. Funciona, é
