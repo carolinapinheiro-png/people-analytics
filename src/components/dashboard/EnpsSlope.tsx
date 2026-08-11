@@ -65,9 +65,30 @@ export default function EnpsSlope({
 
   const y = (v: number) => PAD_TOP + ((max - v) / (max - min)) * (H - PAD_TOP - PAD_BOTTOM);
 
+  /**
+   * Rótulos com afastamento mínimo. Áreas com eNPS próximo escreviam uma sobre
+   * a outra (Product 90 / Human Resources 90 / Technology 86). O ponto continua
+   * na posição exata do dado; só o texto desliza o mínimo necessário.
+   */
+  const deColide = (valores: number[]) => {
+    const GAP = 12;
+    const ordenado = valores.map((v, i) => ({ i, y: y(v) })).sort((a, b) => a.y - b.y);
+    let anterior = -Infinity;
+    for (const o of ordenado) {
+      o.y = Math.max(o.y, anterior + GAP);
+      anterior = o.y;
+    }
+    const out: number[] = new Array(valores.length).fill(0);
+    for (const o of ordenado) out[o.i] = o.y;
+    return out;
+  };
+  const yRotEsq = deColide(dados.map((d) => d.enpsPrev));
+  const yRotDir = deColide(dados.map((d) => d.enps));
+
   const caiu = dados.filter((d) => d.enps < d.enpsPrev);
   const subiu = dados.filter((d) => d.enps > d.enpsPrev);
   const maiorQueda = [...dados].sort((a, b) => (a.enps - a.enpsPrev) - (b.enps - b.enpsPrev))[0];
+
 
   return (
     <ChartCard
