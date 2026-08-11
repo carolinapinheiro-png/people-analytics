@@ -12,6 +12,7 @@ import UsersAccessSection, {
 } from '@/components/admin/UsersAccessSection';
 import DepartmentsSection from '@/components/admin/DepartmentsSection';
 import AuditSection, { type AccessLog } from '@/components/admin/AuditSection';
+import InhireSyncCard from '@/components/admin/InhireSyncCard';
 import ImportReconstruidoCard from '@/components/admin/ImportReconstruidoCard';
 import SeriesComparisonCard from '@/components/admin/SeriesComparisonCard';
 
@@ -190,6 +191,7 @@ export default function AdminPage() {
           {isAdmin && (
             <TabsContent value="data" className="space-y-6 mt-0">
               <ImportReconstruidoCard />
+              <InhireSyncCard />
               <SeriesComparisonCard />
             </TabsContent>
           )}
