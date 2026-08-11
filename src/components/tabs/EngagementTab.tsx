@@ -147,7 +147,7 @@ function EngagementSection({
             value={fmt1(company.enps)}
             color={COLORS.flutter}
             icon={Heart}
-            delta={<Delta v={company.enps_delta} />}
+            delta={company.enps_delta == null ? undefined : <Delta v={company.enps_delta} />}
             tone={enpsTone(company.enps)}
             hint={enpsHint(company.enps)}
           />
@@ -164,7 +164,7 @@ function EngagementSection({
             value={`${fmt1(company.retention_risk)}%`}
             color={COLORS.warning}
             icon={TrendingUp}
-            delta={<Delta v={company.rr_delta} invertido />}
+            delta={company.rr_delta == null ? undefined : <Delta v={company.rr_delta} invertido />}
             tone={riscoTone(company.retention_risk)}
             hint={company.retention_risk == null ? undefined : company.retention_risk >= 20 ? 'acima do confortável' : company.retention_risk >= 12 ? 'atenção' : 'sob controle'}
           />
