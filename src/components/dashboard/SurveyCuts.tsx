@@ -52,25 +52,75 @@ function Divergente({
   invertido?: boolean;
 }) {
   if (valor == null) {
-    return <div className="h-2 rounded-full bg-muted/60 w-full" />;
+    return <div className="h-3 rounded-full bg-muted/60 w-full" />;
   }
   const d = valor - base;
   const larguraPct = Math.min(Math.abs(d) / max, 1) * 50;
   const bom = invertido ? d <= 0 : d >= 0;
+  const cor = bom ? COLORS.success : COLORS.warning;
   return (
-    <div className="relative h-2 w-full">
+    <div className="relative h-3 w-full">
       <div className="absolute inset-0 rounded-full bg-muted/50" />
       <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
       <div
-        className="absolute inset-y-0 rounded-full"
+        className="absolute inset-y-0 rounded-full transition-all"
         style={{
-          background: bom ? COLORS.success : COLORS.warning,
-          opacity: 0.85,
+          // Intensidade acompanha a distância: perto da empresa quase apaga,
+          // longe fica cheio. Sem isso, todo desvio parecia igual.
+          background: `color-mix(in oklab, ${cor} ${55 + (larguraPct / 50) * 40}%, transparent)`,
           ...(d >= 0
             ? { left: '50%', width: `${larguraPct}%` }
             : { right: '50%', width: `${larguraPct}%` }),
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * Um painel por métrica (eNPS e risco), em vez das duas barras divergentes na
+ * mesma linha. Duas escalas lado a lado numa linha de 11px obrigavam leitura
+ * linha-a-linha; separadas, "quem está longe" salta antes da leitura consciente.
+ */
+function Painel({
+  rotulo, rows, base, max, invertido = false, sufixo,
+}: {
+  rotulo: string;
+  rows: SurveyCut[];
+  base: number;
+  max: number;
+  invertido?: boolean;
+  sufixo: string;
+}) {
+  const valorDe = (r: SurveyCut) => (invertido ? r.risco : r.enps);
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">{rotulo}</p>
+      <div className="space-y-1.5">
+        {rows.map((r) => {
+          const v = valorDe(r);
+          const d = v == null ? null : v - base;
+          const bom = d == null ? false : invertido ? d <= 0 : d >= 0;
+          return (
+            <div key={r.cutValue} className="flex items-center gap-2 text-xs">
+              <span className="w-[120px] shrink-0 truncate text-muted-foreground" title={r.cutValue}>
+                {r.cutValue}
+              </span>
+              <div className="flex-1 min-w-0">
+                <Divergente valor={v} base={base} max={max} invertido={invertido} />
+              </div>
+              <span className={cn(
+                'tabular-nums w-[62px] shrink-0 text-right font-medium',
+                d == null ? 'text-muted-foreground'
+                : bom ? 'text-emerald-600 dark:text-emerald-500'
+                : 'text-amber-600 dark:text-amber-500',
+              )}>
+                {d == null ? 'oculto' : `${d > 0 ? '+' : ''}${fmt1(d)}${sufixo}`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -89,57 +139,31 @@ function Bloco({ titulo, rows, empresa }: { titulo: string; rows: SurveyCut[]; e
   const ocultos = rows.filter((r) => r.suprimido);
 
   return (
-    <div>
-      <div className="flex items-baseline justify-between mb-1.5">
-        <span className="text-xs font-medium">{titulo}</span>
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+    <div className="rounded-lg border border-border/60 bg-muted/15 p-3">
+      <div className="flex items-baseline justify-between mb-2.5">
+        <span className="text-sm font-medium">{titulo}</span>
+        <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
           diferença para a empresa
         </span>
       </div>
-      <div className="space-y-1">
-        {rows.map((r) => {
-          const dEnps = r.enps == null ? null : r.enps - baseEnps;
-          const dRisco = r.risco == null ? null : r.risco - baseRisco;
-          return (
-            <div key={r.cutValue} className="flex items-center gap-2.5 text-[11px]">
-              <span className="w-[132px] shrink-0 truncate" title={r.cutValue}>{r.cutValue}</span>
-              <span className="text-muted-foreground tabular-nums w-9 shrink-0">n={r.n}</span>
-              <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                <Divergente valor={r.enps} base={baseEnps} max={maxEnps} />
-                <span className={cn(
-                  'tabular-nums w-14 shrink-0 text-right',
-                  dEnps == null ? 'text-muted-foreground'
-                  : dEnps >= 0 ? 'text-emerald-600 dark:text-emerald-500'
-                  : 'text-amber-600 dark:text-amber-500',
-                )}>
-                  {dEnps == null ? 'oculto' : `${dEnps > 0 ? '+' : ''}${dEnps} eNPS`}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                <Divergente valor={r.risco} base={baseRisco} max={maxRisco} invertido />
-                <span className={cn(
-                  'tabular-nums w-16 shrink-0 text-right',
-                  dRisco == null ? 'text-muted-foreground'
-                  : dRisco <= 0 ? 'text-emerald-600 dark:text-emerald-500'
-                  : 'text-amber-600 dark:text-amber-500',
-                )}>
-                  {dRisco == null ? '—' : `${dRisco > 0 ? '+' : ''}${fmt1(dRisco)}% risco`}
-                </span>
-              </div>
-            </div>
-          );
-        })}
+      <div className="grid lg:grid-cols-2 gap-x-6 gap-y-4">
+        <Painel rotulo="eNPS" rows={rows} base={baseEnps} max={maxEnps} sufixo=" pts" />
+        <Painel rotulo="Risco de saída" rows={rows} base={baseRisco} max={maxRisco} invertido sufixo=" p.p." />
       </div>
       {ocultos.length > 0 && (
-        <p className="text-[10px] mt-1 flex items-start gap-1" style={{ color: COLORS.warning }}>
-          <EyeOff className="h-3 w-3 mt-px shrink-0" />
+        <p className="text-xs mt-2 flex items-start gap-1" style={{ color: COLORS.warning }}>
+          <EyeOff className="h-3 w-3 mt-0.5 shrink-0" />
           {ocultos.length === 1 ? 'Um grupo tem' : `${ocultos.length} grupos têm`} menos de 5
           respostas — nota oculta para não apontar para pessoas.
         </p>
       )}
+      <p className="text-[11px] text-muted-foreground mt-2">
+        n por grupo: {rows.map((r) => `${r.cutValue} ${r.n}`).join(' · ')}
+      </p>
     </div>
   );
 }
+
 
 export default function SurveyCuts({ cuts }: { cuts: SurveyCut[] }) {
   const empresa = cuts.find((c) => c.cutType === 'company');
@@ -167,12 +191,12 @@ export default function SurveyCuts({ cuts }: { cuts: SurveyCut[] }) {
           e são {destaque.n} pessoas. É um recorte que a leitura por área não mostra.
         </p>
       )}
-      <div className="space-y-4">
+      <div className="space-y-3">
         {blocos.map((b) => (
           <Bloco key={b.tipo} titulo={b.titulo} rows={b.rows} empresa={empresa} />
         ))}
       </div>
-      <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
+      <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
         A linha do meio de cada barra é a empresa. Verde é melhor que a média, âmbar é pior — vale
         para os dois lados, já que em risco de saída menor é melhor.
       </p>

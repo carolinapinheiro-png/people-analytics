@@ -129,12 +129,19 @@ export default function AreaPriority({
               <div className="flex items-center gap-3 py-1">
                 <span className="w-[118px] shrink-0 text-xs truncate" title={i.scope}>{i.scope}</span>
                 <div className="flex-1 min-w-0 h-5 flex items-center">
+                  {/* Cor = o que fazer (veredito); intensidade = magnitude do
+                      eNPS. A opacidade fixa de antes achatava a percepção de
+                      grandeza, já que a largura era o único sinal. */}
                   <div
-                    className="h-2 rounded-full transition-all"
-                    style={{ width: `${(i.enps / maxEnps) * 100}%`, background: v.cor, opacity: 0.85 }}
+                    className="h-2.5 rounded-full transition-all"
+                    style={{
+                      width: `${(i.enps / maxEnps) * 100}%`,
+                      background: `linear-gradient(90deg, color-mix(in oklab, ${v.cor} ${45 + (i.enps / maxEnps) * 25}%, transparent), ${v.cor})`,
+                    }}
                   />
                 </div>
-                <span className="text-xs font-semibold tabular-nums w-8 text-right">{i.enps}</span>
+                <span className="text-sm font-semibold tabular-nums w-8 text-right">{i.enps}</span>
+
                 <span className={cn(
                   'text-[11px] tabular-nums w-14 text-right',
                   (i.risco ?? 0) > medianas.risco + medianas.margemRisco
@@ -167,14 +174,14 @@ export default function AreaPriority({
         })}
       </div>
 
-      <div className="flex items-center gap-4 mt-3 pt-2.5 border-t border-border/60 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-2.5 border-t border-border/60 text-xs text-muted-foreground">
         <span>barra e número = <strong className="text-foreground">eNPS</strong></span>
         <span>coluna do meio = <strong className="text-foreground">risco de saída</strong></span>
         <span>n = respostas</span>
         <span>glob. = <strong className="text-foreground">vs Flutter International</strong></span>
       </div>
 
-      <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
+      <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
         A ordem não é por eNPS: a área de pior eNPS é também a de menor risco de saída, e agir ali
         primeiro seria gastar esforço onde ninguém está saindo. A fila combina engajamento baixo,
         risco alto e tamanho da área — e só chama de &quot;abaixo&quot; quem está mais distante do

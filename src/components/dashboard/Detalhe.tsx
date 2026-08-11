@@ -34,11 +34,11 @@ export default function Detalhe({
 }) {
   const [aberto, setAberto] = useState(defaultOpen);
   return (
-    <div className="rounded-lg border border-border">
+    <div className="rounded-lg border border-dashed border-border bg-muted/25">
       <button
         onClick={() => setAberto((v) => !v)}
         className={cn(
-          'w-full flex items-center gap-2.5 p-3 text-left transition-colors hover:bg-muted/40',
+          'w-full flex items-center gap-2.5 p-3 text-left transition-colors hover:bg-muted/50',
           aberto && 'border-b border-border',
         )}
         aria-expanded={aberto}
@@ -46,8 +46,8 @@ export default function Detalhe({
         {aberto
           ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
           : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-        <span className="text-sm font-medium">{titulo}</span>
-        {resumo && <span className="text-[11px] text-muted-foreground truncate">{resumo}</span>}
+        <span className="text-sm font-medium text-muted-foreground">{titulo}</span>
+        {resumo && <span className="text-xs text-muted-foreground/80 truncate">{resumo}</span>}
       </button>
       {aberto && <div className="p-3 space-y-4">{children}</div>}
     </div>

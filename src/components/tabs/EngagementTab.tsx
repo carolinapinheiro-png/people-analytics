@@ -16,7 +16,7 @@ import EngagementMatrix from '@/components/dashboard/EngagementMatrix';
 import EnpsSlope from '@/components/dashboard/EnpsSlope';
 import RiskVsAttrition from '@/components/dashboard/RiskVsAttrition';
 import DriversDeepDive from '@/components/dashboard/DriversDeepDive';
-import KpiCard from '@/components/dashboard/KpiCard';
+import KpiCard, { type KpiTone } from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -45,16 +45,37 @@ import { useDashboard } from '@/data/DashboardContext';
 const fmt1 = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 
-function Delta({ v }: { v: number | null }) {
+/**
+ * Variação vs. onda anterior. `invertido` para métricas onde subir é ruim
+ * (risco de saída): a seta continua apontando o movimento real, mas a cor
+ * passa a dizer se o movimento é bom.
+ */
+function Delta({ v, invertido = false }: { v: number | null; invertido?: boolean }) {
   if (v == null) return <span className="text-muted-foreground text-[11px]">—</span>;
   const Icon = v > 0 ? TrendingUp : TrendingDown;
-  const color = v === 0 ? 'text-muted-foreground' : v > 0 ? 'text-emerald-500' : 'text-amber-500';
+  const bom = invertido ? v < 0 : v > 0;
+  const color = v === 0
+    ? 'text-muted-foreground'
+    : bom ? 'text-emerald-600 dark:text-emerald-500' : 'text-amber-600 dark:text-amber-500';
   return (
     <span className={`inline-flex items-center gap-0.5 text-[11px] ${color}`}>
       {v !== 0 && <Icon className="h-3 w-3" />}{v > 0 ? '+' : ''}{fmt1(v)}
     </span>
   );
 }
+
+/* Patamares dos KPIs. Faixas fixas, para o cartão dar veredito e não só número. */
+const enpsTone = (v: number | null | undefined): KpiTone =>
+  v == null ? 'neutral' : v >= 70 ? 'good' : v >= 50 ? 'neutral' : v >= 30 ? 'warn' : 'bad';
+const enpsHint = (v: number | null | undefined) =>
+  v == null ? undefined : v >= 70 ? 'patamar alto' : v >= 50 ? 'patamar saudável' : v >= 30 ? 'patamar baixo' : 'patamar crítico';
+const satTone = (v: number | null | undefined): KpiTone =>
+  v == null ? 'neutral' : v >= 8 ? 'good' : v >= 7 ? 'neutral' : 'warn';
+const riscoTone = (v: number | null | undefined): KpiTone =>
+  v == null ? 'neutral' : v >= 20 ? 'bad' : v >= 12 ? 'warn' : 'good';
+const participacaoTone = (v: number | null | undefined): KpiTone =>
+  v == null ? 'neutral' : v >= 70 ? 'good' : v >= 50 ? 'neutral' : 'warn';
+
 
 function Loading() {
   return <div className="flex items-center justify-center py-24"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
@@ -121,17 +142,43 @@ function EngagementSection({
 
       {company && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiCard label="eNPS" value={fmt1(company.enps)} color={COLORS.flutter} icon={Heart} />
-          <KpiCard label="Satisfação" value={`${fmt1(company.satisfaction)}/10`} color={COLORS.nsx} icon={Sparkles} />
-          <KpiCard label="Risco de saída" value={`${fmt1(company.retention_risk)}%`} color={COLORS.warning} icon={TrendingUp} />
+          <KpiCard
+            label="eNPS"
+            value={fmt1(company.enps)}
+            color={COLORS.flutter}
+            icon={Heart}
+            delta={company.enps_delta == null ? undefined : <Delta v={company.enps_delta} />}
+            tone={enpsTone(company.enps)}
+            hint={enpsHint(company.enps)}
+          />
+          <KpiCard
+            label="Satisfação"
+            value={`${fmt1(company.satisfaction)}/10`}
+            color={COLORS.nsx}
+            icon={Sparkles}
+            tone={satTone(company.satisfaction)}
+            hint={company.satisfaction == null ? undefined : company.satisfaction >= 8 ? 'patamar alto' : company.satisfaction >= 7 ? 'patamar ok' : 'abaixo do esperado'}
+          />
+          <KpiCard
+            label="Risco de saída"
+            value={`${fmt1(company.retention_risk)}%`}
+            color={COLORS.warning}
+            icon={TrendingUp}
+            delta={company.rr_delta == null ? undefined : <Delta v={company.rr_delta} invertido />}
+            tone={riscoTone(company.retention_risk)}
+            hint={company.retention_risk == null ? undefined : company.retention_risk >= 20 ? 'acima do confortável' : company.retention_risk >= 12 ? 'atenção' : 'sob controle'}
+          />
           <KpiCard
             label="Responderam"
             value={survey ? String(survey.respondentes) : `${fmt1(company.participation)}%`}
             color={COLORS.info}
             icon={Users}
+            tone={participacaoTone(company.participation)}
+            hint={company.participation == null ? undefined : `${fmt1(company.participation)}% dos elegíveis`}
           />
         </div>
       )}
+
 
       <EngagementReading
         enpsEmpresa={company?.enps ?? null}
@@ -237,6 +284,19 @@ const monthLabel = (m: string) => {
   return map[mm] ? `${map[mm]}/${yy}` : m;
 };
 
+/**
+ * Cor por patamar da nota de 0 a 10. Todas as barras na mesma cor achatavam a
+ * leitura: um 7,4 e um 9,6 pareciam a mesma coisa, e a queda só aparecia depois
+ * de ler os números um a um.
+ */
+const notaCor = (v: number) => (v >= 9 ? COLORS.success : v >= 8 ? COLORS.nsx : v >= 7 ? COLORS.warning : COLORS.danger);
+const notaClass = (v: number) =>
+  v >= 9 ? 'text-emerald-600 dark:text-emerald-500'
+  : v >= 8 ? 'text-foreground'
+  : v >= 7 ? 'text-amber-600 dark:text-amber-500'
+  : 'text-red-600 dark:text-red-500';
+
+
 function OnboardingSection({ data }: { data: ExperienceData }) {
   const overall = data.onboarding.filter((o) => o.slice_type === 'overall');
   const stages = ['1_semana', '45_dias', '90_dias'];
@@ -282,13 +342,17 @@ function OnboardingSection({ data }: { data: ExperienceData }) {
                   <div key={k} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">{METRIC_LABEL[k] ?? k}</span>
-                      <span className="font-semibold tabular-nums">{fmt1(v)}</span>
+                      <span className={`font-semibold tabular-nums ${notaClass(v)}`}>{fmt1(v)}</span>
                     </div>
-                    <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full rounded-full" style={{ width: `${(v / 10) * 100}%`, background: COLORS.nsx }} />
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all"
+                        style={{ width: `${(v / 10) * 100}%`, background: notaCor(v) }}
+                      />
                     </div>
                   </div>
                 ))}
+
               </div>
             </ChartCard>
           );
