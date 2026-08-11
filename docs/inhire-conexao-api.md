@@ -95,6 +95,17 @@ abaixo de 100 com frequência, vale espaçar mais a sincronização.
 **"Integração não configurada"** — falta alguma das três variáveis. A tela diz
 qual.
 
+**HTTP 400 no login** — é requisição malformada, **não** senha errada. O InHire
+valida o e-mail com formato de e-mail e a senha entre 6 e 64 caracteres; um
+espaço ou quebra de linha colado junto reprova as duas coisas. O código agora
+limpa espaços e aspas antes de usar, e checa formato e tamanho **antes** de
+chamar a API — o erro passa a dizer qual campo está errado em vez de devolver um
+400 mudo. Se ainda assim aparecer, a mensagem agora traz a resposta do próprio
+InHire (com a senha apagada).
+
+**HTTP 401 no login** — aí sim é credencial recusada: usuário desativado, ou
+senha rotacionada sem atualizar o secret.
+
 **"Verifique se o usuário de API está ativo e se a senha nos secrets é a
 atual"** — três causas possíveis, nesta ordem de probabilidade: alguém
 rotacionou a senha no InHire e não atualizou o secret; o usuário foi desativado;
