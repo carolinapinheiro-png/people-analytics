@@ -185,25 +185,32 @@ export default function EngagementReading({
   if (!linhas.length) return null;
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+    <div
+      className="rounded-xl border border-border/80 p-5 md:p-6 shadow-sm ring-1 ring-border/40"
+      style={{
+        background:
+          'linear-gradient(160deg, color-mix(in oklab, var(--card) 92%, var(--primary) 8%), var(--card) 60%)',
+      }}
+    >
+      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground mb-4">
         A leitura desta onda
       </p>
-      <div className="space-y-2.5">
+      <div className="space-y-4">
         {linhas.map((l) => (
-          <div key={l.rotulo} className="flex gap-3">
+          <div key={l.rotulo} className="flex gap-3.5">
             <div className="w-[3px] rounded-full shrink-0" style={{ background: l.cor }} />
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground">{l.rotulo}</p>
-              <p className="text-sm leading-relaxed">{l.texto}</p>
+              <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: l.cor }}>{l.rotulo}</p>
+              <p className="text-sm leading-relaxed mt-0.5">{l.texto}</p>
             </div>
           </div>
         ))}
       </div>
-      <p className="text-[11px] text-muted-foreground mt-3 flex items-center gap-1.5">
+      <p className="text-xs text-muted-foreground mt-4 pt-3 border-t border-border/50 flex items-center gap-1.5">
         <ArrowRight className="h-3 w-3 shrink-0" />
         Cada frase acima sai dos gráficos abaixo, e muda sozinha quando o dado mudar.
       </p>
     </div>
   );
 }
+
