@@ -4,16 +4,33 @@ import { createFileRoute } from '@tanstack/react-router';
  * A porta do AGENDADOR para a sincronização com o InHire.
  *
  * ------------------------------------------------------------------
- * POR QUE UMA ROTA, E NÃO UM CRON NO BANCO
+ * QUEM CHAMA ESTA ROTA
  * ------------------------------------------------------------------
- * O caminho natural seria `pg_cron` chamando a API pelo `pg_net`. Conferi as
- * extensões instaladas neste projeto Supabase: nenhuma das duas existe, nem
- * `http`. Sem elas, o Postgres não tem como disparar nada sozinho.
+ * O `pg_cron` do próprio Supabase, toda segunda de manhã, via `pg_net`.
  *
- * A alternativa é um agendador externo bater numa rota. O GitHub Actions faz
- * isso de graça, roda no servidor deles, e o histórico de execuções fica
- * visível para qualquer pessoa do time -- não depende de máquina ligada nem de
- * ninguém em particular estar por perto.
+ * Eu quase montei isto no GitHub Actions. Consultei `pg_extension` -- as
+ * extensões INSTALADAS -- não achei `pg_cron` nem `pg_net`, e concluí que o
+ * Postgres não tinha como se agendar. A consulta certa era
+ * `pg_available_extensions`: as duas estavam disponíveis o tempo todo, só não
+ * instaladas. Instalar é uma linha.
+ *
+ * Fica a lição, que é a mesma do `statusHistory` do InHire: **ausente de onde
+ * eu olhei não é ausente.** Vale conferir se a pergunta que fiz é a pergunta
+ * que eu queria fazer.
+ *
+ * ------------------------------------------------------------------
+ * POR QUE O SEGREDO VEM DO BANCO, E NÃO DE UMA VARIÁVEL DE AMBIENTE
+ * ------------------------------------------------------------------
+ * Um segredo em variável de ambiente teria que ser cadastrado à mão em dois
+ * lugares -- aqui e no agendador -- e os dois teriam que continuar iguais para
+ * sempre. Toda rotação viraria uma operação manual coordenada, e o modo de
+ * falha é péssimo: a sincronização para de rodar em silêncio, e ninguém
+ * percebe até alguém reparar que o painel está velho.
+ *
+ * Com o segredo numa tabela protegida, existe **uma única cópia**. Quem chama e
+ * quem confere leem a mesma linha; não há como divergirem. A tabela não tem
+ * política de RLS nenhuma, então só a chave de serviço a enxerga -- é o mesmo
+ * padrão já usado para os dados sensíveis deste projeto.
  *
  * ------------------------------------------------------------------
  * POR QUE SEGREDO NO CABEÇALHO, E NUNCA NA URL
@@ -61,35 +78,58 @@ async function handler({ request }: { request: Request }): Promise<Response> {
     return json({ erro: 'Use POST. O segredo vai no cabeçalho X-Cron-Secret, nunca na URL.' }, 405);
   }
 
-  const esperado = process.env.CRON_SECRET?.trim();
-  if (!esperado || esperado.length < 32) {
-    // Falha FECHADA. Se o segredo não estiver configurado, a rota não roda --
-    // o oposto (rodar sem exigir segredo) deixaria a sincronização aberta a
-    // qualquer pessoa da internet no dia em que alguém esquecesse o secret.
-    return json({ erro: 'CRON_SECRET ausente ou curto demais nos secrets do servidor.' }, 503);
-  }
-
+  // Lê o cabeçalho ANTES de ir ao banco: sem ele, nem vale a viagem.
   const recebido = request.headers.get('x-cron-secret')?.trim() ?? '';
-  if (!iguaisEmTempoConstante(recebido, esperado)) {
-    return json({ erro: 'Segredo inválido.' }, 401);
+  if (!recebido) {
+    return json({ erro: 'Falta o cabeçalho X-Cron-Secret.' }, 401);
   }
 
   try {
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+
+    const { data: linha } = await (supabaseAdmin as never as {
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (c: string, v: string) => {
+            maybeSingle: () => Promise<{ data: { value?: string } | null }>;
+          };
+        };
+      };
+    })
+      .from('service_secrets')
+      .select('value')
+      .eq('name', 'cron_secret')
+      .maybeSingle();
+
+    const esperado = linha?.value?.trim();
+
+    // Falha FECHADA. Sem segredo cadastrado a rota não roda -- o oposto (rodar
+    // sem exigir nada quando o segredo sumisse) deixaria a sincronização aberta
+    // para qualquer pessoa da internet, que é o pior desfecho possível aqui.
+    if (!esperado || esperado.length < 32) {
+      return json({ erro: 'Segredo do cron ausente ou curto demais no banco.' }, 503);
+    }
+
+    if (!iguaisEmTempoConstante(recebido, esperado)) {
+      return json({ erro: 'Segredo inválido.' }, 401);
+    }
+
     const { executarSyncInhire } = await import('@/lib/inhire/sync.server');
 
     const resumo = await executarSyncInhire(supabaseAdmin as never, {
       confirm: true,
       // Marca a origem no log. Quando um número parecer estranho numa
-      // segunda-feira, dá para saber na hora se veio do agendador ou de alguém.
-      origem: 'cron:github-actions',
+      // segunda, dá para saber na hora se veio do agendador ou de alguém.
+      origem: 'cron:pg_cron',
     });
 
     return json({ ok: true, ...resumo }, 200);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    // 500 de propósito: o GitHub Actions marca a execução como falha e manda
-    // e-mail. Um 200 com `{ok:false}` falharia em silêncio por semanas.
+    // 500 de propósito: o `pg_net` guarda o status em `net._http_response`, e a
+    // falha também fica em `integration_sync_log` com a mensagem. Um 200 com
+    // `{ok:false}` passaria por sucesso nos dois lugares e falharia em silêncio
+    // por semanas -- exatamente o modo de falha que este painel não pode ter.
     return json({ ok: false, erro: msg.slice(0, 500) }, 500);
   }
 }

@@ -203,36 +203,32 @@ As 6 sem departamento são lacuna de cadastro no InHire, não erro da integraç�
 
 Roda **toda segunda, 06:00 de Brasília**, sem ninguém precisar clicar.
 
-O caminho natural seria `pg_cron` no Supabase. Conferi: este projeto não tem
-`pg_cron`, `pg_net` nem `http` instalados, então o Postgres não consegue
-disparar nada sozinho. O agendador é o **GitHub Actions**
-(`.github/workflows/sync-inhire.yml`), que chama uma rota do próprio app
-(`POST /api/cron/inhire-sync`).
+Quem dispara é o **`pg_cron` do próprio Supabase**, que chama uma rota do app
+(`POST /api/cron/inhire-sync`) via `pg_net`. Não depende de máquina ligada, de
+login em lugar nenhum, nem de ninguém em particular estar por perto.
 
-Um cron não tem sessão de usuário, então a rota se autentica por um segredo
-compartilhado no cabeçalho `X-Cron-Secret`. **Nunca na URL** — URLs vão parar em
-log de acesso, histórico de navegador e cabeçalho `Referer`; um segredo em query
-string é um segredo publicado em três lugares que ninguém audita.
+**Eu quase montei isso no GitHub Actions por engano.** Consultei `pg_extension`
+— que lista as extensões *instaladas* —, não achei `pg_cron` nem `pg_net`, e
+concluí que o Postgres não conseguia se agendar. A consulta certa era
+`pg_available_extensions`: as duas estavam disponíveis o tempo todo. É a mesma
+lição do `statusHistory`: **ausente de onde eu olhei não é ausente.**
 
-A rota falha **fechada**: sem `CRON_SECRET` configurado ela devolve 503 em vez
-de rodar. O oposto — rodar sem exigir segredo quando o secret sumisse — deixaria
-a sincronização aberta para qualquer pessoa da internet.
+### O segredo mora numa tabela, não em variável de ambiente
 
-### Ligar (uma vez)
+Um cron não tem sessão de usuário, então a rota se autentica por um segredo no
+cabeçalho `X-Cron-Secret` — **nunca na URL**, que vaza para log de acesso,
+histórico de navegador e cabeçalho `Referer`.
 
-1. Gere um segredo no seu terminal:
-   ```
-   openssl rand -hex 32
-   ```
-2. **No Lovable → Secrets:** `CRON_SECRET` = o valor gerado.
-3. **No GitHub → Settings → Secrets and variables → Actions:**
-   - `CRON_SECRET` = o mesmo valor
-   - `APP_URL` = a URL publicada do painel (sem barra no fim)
-4. **Actions → Sincronizar InHire → Run workflow** para testar sem esperar
-   a segunda-feira.
+Esse segredo vive em `public.service_secrets`, uma tabela **sem nenhuma política
+de RLS**: só a chave de serviço a enxerga. Quem envia e quem confere leem a
+mesma linha, então não há duas cópias para saírem de sincronia.
 
-> Como a senha do InHire: **não mande esse segredo por chat, e-mail ou Slack.**
-> Ele existe em dois cofres e em nenhum outro lugar.
+O valor foi gerado pelo próprio Postgres (`gen_random_bytes`) e inserido **sem
+`returning`** — nunca apareceu em tela, chat ou arquivo. Ninguém precisa vê-lo,
+inclusive eu.
+
+A rota falha **fechada**: sem segredo cadastrado ela devolve 503 em vez de
+rodar. O oposto deixaria a sincronização aberta para a internet inteira.
 
 ### Por que semanal
 
@@ -241,8 +237,26 @@ compartilhado com o conector MCP do time. Vaga não muda tanto ao longo de um di
 a ponto de pagar esse custo diariamente. Se a frequência precisar subir, o
 caminho é webhook — não encurtar o intervalo.
 
-O `workflow_dispatch` dá um botão de "rodar agora" no GitHub, útil quando alguém
-corrige um departamento no InHire e quer ver refletido na hora.
+Para rodar fora de hora, o botão **Gravar** em Admin → Dados → Recrutamento faz
+exatamente a mesma coisa: as duas portas chamam o mesmo código
+(`src/lib/inhire/sync.server.ts`).
+
+### Conferir execuções
+
+```sql
+select * from cron.job_run_details where jobname = 'sync-inhire-semanal'
+  order by start_time desc limit 10;
+select * from integration_sync_log where provider = 'inhire'
+  order by started_at desc limit 10;
+```
+
+No log, `triggered_by` distingue `cron:pg_cron` de um e-mail — quando um número
+parecer estranho numa segunda, dá para saber na hora de onde veio.
+
+Se a chamada estourar o tempo, a sincronização **não se perde**: ela já está
+rodando no servidor e termina sozinha; o `pg_net` só deixa de ver a resposta. E
+a carga é idempotente, então a semana seguinte corrige qualquer gravação
+parcial.
 
 ---
 
