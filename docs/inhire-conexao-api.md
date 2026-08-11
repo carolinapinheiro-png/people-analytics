@@ -164,24 +164,38 @@ Detalhe que muda o código: a API REST devolve `customFields` como **array de
 objetos**; a camada analítica (MCP) devolve como **mapa** em `customFields_map`.
 Os dois formatos são aceitos, porque as duas fontes convivem.
 
-**2. Não existe histórico de status em lugar nenhum da API REST.** Nem na
-listagem, nem no detalhe — conferido no schema de `GET /jobs/:id`.
+**2. O histórico de status está no detalhe — e eu errei o diagnóstico aqui.**
 
-Isso tem consequência direta: **o tempo de fechamento (TTH) não é calculável por
-esta via**. A regra de negócio manda descontar períodos congelados, e sem
-histórico não há como saber quando a vaga congelou.
+Ao ver a listagem voltar sem `statusHistory`, fui conferir o schema publicado de
+`GET /jobs/:id`, não encontrei o campo, e concluí que ele não existia na API
+REST. Cheguei a documentar que o tempo de fechamento era incalculável por essa
+via, e a pedir um endpoint de histórico ao suporte.
 
-A decisão tomada: publicar o **volume mensal** (exato, usando `updatedAt` como
-data de fechamento) e deixar o **tempo nulo**. Um tempo sem o desconto sairia
-sistematicamente maior que o que o InHire mostra na tela dele — e dois painéis
-com tempos diferentes para a mesma vaga é pior que um painel sem o tempo.
+**Estava errado.** A resposta real do detalhe traz o histórico; o schema da
+documentação é que está incompleto. Com a busca de detalhe ligada, a execução de
+11/08/2026 calculou o tempo — com desconto de congelamento — em **121 vagas**.
 
-Para ter o TTH de volta, dois caminhos, os dois decisão de vocês:
+A lição vale mais que o caso: **schema publicado é indício, resposta real é
+evidência.** Quando os dois discordam, quem manda é o corpo que voltou.
 
-- **Camada analítica.** O MCP/ClickHouse tem `statusHistory` completo em 156 de
-  156 vagas. Dá para manter o TTH vindo de lá e o resto da API.
-- **Pedir ao InHire.** Um endpoint de histórico de status resolveria de vez, e é
-  um pedido razoável — eles já calculam o `sla` internamente.
+O `updatedAt` continua no código como rede de segurança: se o histórico faltar
+em alguma vaga, ela ainda rende o mês de fechamento e o tempo fica nulo.
+
+### Resultado da execução completa (11/08/2026, 19:56)
+
+| | |
+|---|---|
+| Vagas recebidas | 159 |
+| Com departamento | 145 |
+| Talent pool excluídas | 8 |
+| Linhas de série mensal | 48 |
+| Linhas de foto | 7 |
+| Fechadas com tempo | 121 |
+| Sem departamento | 6 |
+| Requisições usadas | 161 |
+| Menor saldo do limite | 399 de 400 |
+
+As 6 sem departamento são lacuna de cadastro no InHire, não erro da integração.
 
 ---
 

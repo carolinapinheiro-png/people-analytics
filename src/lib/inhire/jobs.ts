@@ -28,30 +28,29 @@
  * áreas. Entra como null, não como uma área a mais.
  *
  * ------------------------------------------------------------------
- * ARMADILHA 3: A API REST NÃO TEM HISTÓRICO DE STATUS
+ * ARMADILHA 3: O HISTÓRICO DE STATUS ESTÁ NO DETALHE, NÃO NA LISTAGEM
  * ------------------------------------------------------------------
- * Descoberto na primeira execução real, em 11/08/2026, contra a base de vocês:
- * NENHUMA das 159 vagas veio com `statusHistory`. Não é lacuna de cadastro --
- * o campo simplesmente não existe na API REST, nem na listagem nem no detalhe
- * (conferido no schema de `GET /jobs/:id`).
+ * A listagem `POST /jobs/paginated/lean` não traz `statusHistory` nem
+ * `customFields`. O DETALHE (`GET /jobs/:id`) traz os dois.
  *
- * A consequência é séria e precisa estar clara: **o tempo de fechamento com
- * desconto de congelamento não é calculável por esta via**. A regra de negócio
- * de vocês manda descontar períodos congelados; sem histórico, não há como
- * saber quando a vaga congelou.
+ * Vale registrar o erro de método que quase congelou uma funcionalidade: ao ver
+ * a listagem voltar sem histórico, fui conferir o schema publicado de
+ * `GET /jobs/:id`, `statusHistory` não estava lá, e concluí que o campo não
+ * existia na API REST -- chegando a documentar que o tempo de fechamento era
+ * incalculável por essa via.
  *
- * O que existe é `updatedAt`. Numa vaga fechada ele é, na prática, a data em
- * que ela foi fechada -- aproximação boa o suficiente para saber em QUE MÊS
- * fechou, que é o que a série mensal precisa.
+ * Estava errado. A resposta real do detalhe TRAZ o histórico; o schema da
+ * documentação é que está incompleto. Na execução de 11/08/2026 o tempo foi
+ * calculado, com desconto de congelamento, em 121 vagas.
  *
- * Por isso: o volume mensal é publicado (é exato), e o TTH fica NULO. Publicar
- * um tempo sem o desconto daria um número sistematicamente MAIOR que o que o
- * InHire mostra na tela dele -- e dois painéis com tempos diferentes para a
- * mesma vaga é pior que um painel sem o tempo.
+ * A lição: schema publicado é indício, resposta real é evidência. Quando os
+ * dois discordam, quem manda é o que voltou no corpo.
  *
- * Para ter o TTH de volta há dois caminhos, e os dois são decisão de vocês:
- * usar a camada analítica (o MCP tem `statusHistory` completo), ou pedir ao
- * InHire um endpoint de histórico.
+ * O `updatedAt` continua servindo de rede de segurança: se um dia o histórico
+ * faltar, a vaga fechada ainda rende o MÊS de fechamento (via updatedAt) e o
+ * tempo fica nulo -- porque publicar tempo sem o desconto daria um número
+ * maior que o que o InHire mostra, e dois painéis discordando sobre a mesma
+ * vaga é pior que um painel sem o número.
  */
 
 export interface InhireJob {
