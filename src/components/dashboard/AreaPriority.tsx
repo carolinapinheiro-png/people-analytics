@@ -174,14 +174,14 @@ export default function AreaPriority({
         })}
       </div>
 
-      <div className="flex items-center gap-4 mt-3 pt-2.5 border-t border-border/60 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-2.5 border-t border-border/60 text-xs text-muted-foreground">
         <span>barra e número = <strong className="text-foreground">eNPS</strong></span>
         <span>coluna do meio = <strong className="text-foreground">risco de saída</strong></span>
         <span>n = respostas</span>
         <span>glob. = <strong className="text-foreground">vs Flutter International</strong></span>
       </div>
 
-      <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
+      <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
         A ordem não é por eNPS: a área de pior eNPS é também a de menor risco de saída, e agir ali
         primeiro seria gastar esforço onde ninguém está saindo. A fila combina engajamento baixo,
         risco alto e tamanho da área — e só chama de &quot;abaixo&quot; quem está mais distante do
