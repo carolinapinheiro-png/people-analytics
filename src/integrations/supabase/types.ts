@@ -319,6 +319,8 @@ export type Database = {
           driver_desc: string | null
           driver_pos: number | null
           evaluation: string | null
+          favoravel: number | null
+          favoravel_prev: number | null
           id: string
           loaded_at: string | null
           q_pos: number | null
@@ -332,6 +334,8 @@ export type Database = {
           driver_desc?: string | null
           driver_pos?: number | null
           evaluation?: string | null
+          favoravel?: number | null
+          favoravel_prev?: number | null
           id?: string
           loaded_at?: string | null
           q_pos?: number | null
@@ -345,6 +349,8 @@ export type Database = {
           driver_desc?: string | null
           driver_pos?: number | null
           evaluation?: string | null
+          favoravel?: number | null
+          favoravel_prev?: number | null
           id?: string
           loaded_at?: string | null
           q_pos?: number | null
@@ -352,6 +358,54 @@ export type Database = {
           score_current?: number | null
           score_prev?: number | null
           wave?: string
+        }
+        Relationships: []
+      }
+      engagement_drivers_backup_20260810: {
+        Row: {
+          driver: string | null
+          driver_desc: string | null
+          driver_pos: number | null
+          evaluation: string | null
+          favoravel: number | null
+          favoravel_prev: number | null
+          id: string | null
+          loaded_at: string | null
+          q_pos: number | null
+          question: string | null
+          score_current: number | null
+          score_prev: number | null
+          wave: string | null
+        }
+        Insert: {
+          driver?: string | null
+          driver_desc?: string | null
+          driver_pos?: number | null
+          evaluation?: string | null
+          favoravel?: number | null
+          favoravel_prev?: number | null
+          id?: string | null
+          loaded_at?: string | null
+          q_pos?: number | null
+          question?: string | null
+          score_current?: number | null
+          score_prev?: number | null
+          wave?: string | null
+        }
+        Update: {
+          driver?: string | null
+          driver_desc?: string | null
+          driver_pos?: number | null
+          evaluation?: string | null
+          favoravel?: number | null
+          favoravel_prev?: number | null
+          id?: string | null
+          loaded_at?: string | null
+          q_pos?: number | null
+          question?: string | null
+          score_current?: number | null
+          score_prev?: number | null
+          wave?: string | null
         }
         Relationships: []
       }
@@ -397,6 +451,9 @@ export type Database = {
         Row: {
           enps: number | null
           enps_delta: number | null
+          gap_ent_enps: number | null
+          gap_ent_risco: number | null
+          gap_ent_sat: number | null
           id: string
           loaded_at: string | null
           participation: number | null
@@ -412,6 +469,9 @@ export type Database = {
         Insert: {
           enps?: number | null
           enps_delta?: number | null
+          gap_ent_enps?: number | null
+          gap_ent_risco?: number | null
+          gap_ent_sat?: number | null
           id?: string
           loaded_at?: string | null
           participation?: number | null
@@ -427,6 +487,9 @@ export type Database = {
         Update: {
           enps?: number | null
           enps_delta?: number | null
+          gap_ent_enps?: number | null
+          gap_ent_risco?: number | null
+          gap_ent_sat?: number | null
           id?: string
           loaded_at?: string | null
           participation?: number | null
@@ -1026,6 +1089,165 @@ export type Database = {
           scope?: string
           scope_type?: string
           snapshot_month?: string
+        }
+        Relationships: []
+      }
+      survey_cut_scores: {
+        Row: {
+          cut_type: string
+          cut_value: string
+          detratores: number | null
+          enps: number | null
+          n: number
+          passivos: number | null
+          promotores: number | null
+          risco: number | null
+          satisfacao: number | null
+          wave: string
+        }
+        Insert: {
+          cut_type: string
+          cut_value: string
+          detratores?: number | null
+          enps?: number | null
+          n: number
+          passivos?: number | null
+          promotores?: number | null
+          risco?: number | null
+          satisfacao?: number | null
+          wave: string
+        }
+        Update: {
+          cut_type?: string
+          cut_value?: string
+          detratores?: number | null
+          enps?: number | null
+          n?: number
+          passivos?: number | null
+          promotores?: number | null
+          risco?: number | null
+          satisfacao?: number | null
+          wave?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_cut_scores_wave_fkey"
+            columns: ["wave"]
+            isOneToOne: false
+            referencedRelation: "survey_waves"
+            referencedColumns: ["wave"]
+          },
+        ]
+      }
+      survey_driver_importance: {
+        Row: {
+          driver: string
+          favoravel: number | null
+          n: number
+          question: string
+          r: number
+          score: number
+          wave: string
+        }
+        Insert: {
+          driver: string
+          favoravel?: number | null
+          n: number
+          question: string
+          r: number
+          score: number
+          wave: string
+        }
+        Update: {
+          driver?: string
+          favoravel?: number | null
+          n?: number
+          question?: string
+          r?: number
+          score?: number
+          wave?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_driver_importance_wave_fkey"
+            columns: ["wave"]
+            isOneToOne: false
+            referencedRelation: "survey_waves"
+            referencedColumns: ["wave"]
+          },
+        ]
+      }
+      survey_driver_scores: {
+        Row: {
+          cut_type: string
+          cut_value: string
+          driver: string
+          favoravel: number | null
+          n: number
+          question: string
+          score: number | null
+          wave: string
+        }
+        Insert: {
+          cut_type: string
+          cut_value: string
+          driver: string
+          favoravel?: number | null
+          n: number
+          question: string
+          score?: number | null
+          wave: string
+        }
+        Update: {
+          cut_type?: string
+          cut_value?: string
+          driver?: string
+          favoravel?: number | null
+          n?: number
+          question?: string
+          score?: number | null
+          wave?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_driver_scores_wave_fkey"
+            columns: ["wave"]
+            isOneToOne: false
+            referencedRelation: "survey_waves"
+            referencedColumns: ["wave"]
+          },
+        ]
+      }
+      survey_waves: {
+        Row: {
+          eligible: number | null
+          label: string
+          loaded_at: string
+          loaded_by: string | null
+          notes: string | null
+          reference_date: string
+          respondents: number
+          wave: string
+        }
+        Insert: {
+          eligible?: number | null
+          label: string
+          loaded_at?: string
+          loaded_by?: string | null
+          notes?: string | null
+          reference_date: string
+          respondents?: number
+          wave: string
+        }
+        Update: {
+          eligible?: number | null
+          label?: string
+          loaded_at?: string
+          loaded_by?: string | null
+          notes?: string | null
+          reference_date?: string
+          respondents?: number
+          wave?: string
         }
         Relationships: []
       }
