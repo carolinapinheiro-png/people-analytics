@@ -119,6 +119,39 @@ para a mesma vaga é o pior desfecho possível.
 
 ---
 
+## O contrato real da API (conferido em 10/08/2026)
+
+Quatro coisas que eu tinha suposto errado antes de ler a referência. Ficam
+registradas porque as quatro falhariam, e uma delas de um jeito enganoso.
+
+| | Suposição | Real |
+|---|---|---|
+| Listagem | `GET /jobs?limit=100` | **`POST /jobs/paginated/lean`** |
+| Paginação | `cursor` / `nextCursor` | **`startKey` → `exclusiveStartKey`** |
+| Autorização | token puro no header | **`Authorization: Bearer <token>`** |
+| Login | só `Content-Type` | **`X-Tenant` também é obrigatório** |
+
+O `Bearer` é o pior dos quatro: sem ele a API devolve **401**, que se parece
+exatamente com senha errada — e manda quem for investigar procurar no lugar
+errado, mexendo em credencial que estava certa.
+
+A paginação usa *pagination token* porque o banco por trás é NoSQL: não existe
+pedir "página 3", só caminhar. O critério de parada é **lista vazia**, como
+manda a documentação, e não a ausência de chave — o código checa os dois.
+
+### Sobre o sufixo "lean"
+
+O endpoint de listagem tem `lean` no nome, o que sugere payload reduzido. Se
+ele não trouxer `customFields_map` (de onde sai o departamento) ou
+`statusHistory` (de onde sai o tempo de fechamento), os números saem plausíveis
+e errados: tudo em "SEM DEPTO", nenhum tempo calculado.
+
+A prévia avisa explicitamente se isso acontecer. Se acontecer, o caminho é
+buscar cada vaga em `GET /jobs/{id}` — são ~150 chamadas, o que cabe no burst
+de 400, mas precisa de ritmo.
+
+---
+
 ## Depois: webhook em vez de varredura
 
 Hoje a sincronização varre a lista inteira a cada execução. Funciona, é

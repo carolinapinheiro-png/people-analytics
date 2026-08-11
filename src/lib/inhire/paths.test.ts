@@ -13,17 +13,20 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isPathPermitido, extrairPagina } from './paths';
+import { isPathPermitido, extrairPagina, JOBS_PAGINATED } from './paths';
 
 // ------------------------------------------------------- lista de caminhos
 
-test('permite o que o painel precisa: vagas e campos personalizados', () => {
-  assert.equal(isPathPermitido('/jobs'), true);
-  assert.equal(isPathPermitido('/jobs?limit=100'), true);
-  assert.equal(isPathPermitido('/jobs?cursor=abc123&limit=100'), true);
+test('permite o que o painel precisa: listagem de vagas, vaga e campos personalizados', () => {
+  assert.equal(isPathPermitido(JOBS_PAGINATED), true);
   assert.equal(isPathPermitido('/jobs/abc-123'), true);
-  assert.equal(isPathPermitido('/jobs/abc-123/positions'), true);
   assert.equal(isPathPermitido('/custom-fields'), true);
+});
+
+test('o caminho de listagem é o da referência, não o que eu tinha suposto', () => {
+  // A suposição inicial era GET /jobs. O real é POST /jobs/paginated/lean.
+  assert.equal(JOBS_PAGINATED, '/jobs/paginated/lean');
+  assert.equal(isPathPermitido('/jobs'), false);
 });
 
 test('recusa qualquer caminho de candidato', () => {
@@ -43,6 +46,7 @@ test('recusa qualquer caminho de candidato', () => {
 test('recusa escrita disfarçada de caminho', () => {
   assert.equal(isPathPermitido('/jobs/abc/hire'), false);
   assert.equal(isPathPermitido('/jobs/abc/reject'), false);
+  assert.equal(isPathPermitido('/jobs/paginated/full'), false);
 });
 
 test('não dá para escapar da lista com barra ou fragmento', () => {
@@ -66,7 +70,7 @@ test('lê os formatos comuns de lista', () => {
 test('array puro na raiz também vale', () => {
   const r = extrairPagina([{ id: '1' }]);
   assert.equal(r.itens.length, 1);
-  assert.equal(r.proximo, null);
+  assert.equal(r.startKey, null);
   assert.equal(r.reconhecido, true);
 });
 
@@ -78,28 +82,29 @@ test('formato desconhecido avisa em vez de fingir lista vazia', () => {
   assert.deepEqual(r.itens, []);
 });
 
-test('cursor vira a próxima página, com o limite máximo', () => {
-  const r = extrairPagina({ data: [{ id: '1' }], nextCursor: 'xyz' });
-  assert.equal(r.proximo, '/jobs?cursor=xyz&limit=100');
+test('startKey da resposta vira a chave da próxima página', () => {
+  // A API usa pagination token: o `startKey` que volta é enviado de novo como
+  // `exclusiveStartKey`. Pode ser objeto composto, não só string.
+  const r = extrairPagina({ data: [{ id: '1' }], startKey: { id: 'abc', sk: 'x#1' } });
+  assert.deepEqual(r.startKey, { id: 'abc', sk: 'x#1' });
 });
 
-test('cursor com caractere especial é escapado', () => {
-  const r = extrairPagina({ data: [], nextCursor: 'a b&c=d' });
-  assert.equal(r.proximo, '/jobs?cursor=a%20b%26c%3Dd&limit=100');
-  assert.equal(isPathPermitido(r.proximo!), true, 'o caminho gerado precisa passar na lista');
+test('aceita os nomes alternativos da chave de paginação', () => {
+  assert.equal(extrairPagina({ data: [], lastEvaluatedKey: 'k' }).startKey, 'k');
+  assert.equal(extrairPagina({ data: [], nextStartKey: 'k' }).startKey, 'k');
 });
 
-test('fim da lista em qualquer das formas devolve cursor nulo', () => {
-  // null, string vazia e false já apareceram como "acabou" em APIs diferentes.
-  // Tratar qualquer uma como cursor faria a paginação girar até o teto,
-  // gastando o limite que é compartilhado com o MCP do time.
-  for (const fim of [null, undefined, '', false]) {
-    const r = extrairPagina({ data: [{ id: '1' }], nextCursor: fim });
-    assert.equal(r.proximo, null, `nextCursor=${JSON.stringify(fim)} deveria encerrar`);
+test('fim da lista em qualquer das formas devolve chave nula', () => {
+  // null, string vazia, false e objeto vazio já apareceram como "acabou".
+  // Tratar qualquer um como chave faria a paginação girar até o teto, gastando
+  // o limite que é compartilhado com o MCP do time.
+  for (const fim of [null, undefined, '', false, {}]) {
+    const r = extrairPagina({ data: [{ id: '1' }], startKey: fim });
+    assert.equal(r.startKey, null, `startKey=${JSON.stringify(fim)} deveria encerrar`);
   }
 });
 
 test('resposta nula não quebra', () => {
-  assert.deepEqual(extrairPagina(null), { itens: [], proximo: null, reconhecido: false });
+  assert.deepEqual(extrairPagina(null), { itens: [], startKey: null, reconhecido: false });
   assert.equal(extrairPagina('texto').reconhecido, false);
 });

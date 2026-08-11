@@ -75,25 +75,40 @@ export class InhireClient {
     return c;
   }
 
-  /**
-   * GET num caminho permitido.
-   *
-   * @param path caminho a partir de api.inhire.app, começando com "/"
-   */
+  /** GET num caminho permitido. */
   async get<T>(path: string): Promise<T> {
     if (!isPathPermitido(path)) throw new InhireForbiddenPathError(path);
-    return this.request<T>(path, 0);
+    return this.request<T>(path, undefined, 0);
   }
 
-  private async request<T>(path: string, tentativa: number): Promise<T> {
+  /**
+   * POST num caminho permitido.
+   *
+   * A listagem de vagas é POST, não GET -- `/jobs/paginated/lean` recebe
+   * `limit` e `exclusiveStartKey` no corpo. Só leitura: o método HTTP aqui é
+   * detalhe de protocolo, e a lista de caminhos continua sendo o que garante
+   * que nada de escrita passe.
+   */
+  async post<T>(path: string, body: unknown): Promise<T> {
+    if (!isPathPermitido(path)) throw new InhireForbiddenPathError(path);
+    return this.request<T>(path, body, 0);
+  }
+
+  private async request<T>(path: string, body: unknown, tentativa: number): Promise<T> {
     if (!this.token) this.token = await getAccessToken(this.db, this.creds);
 
     const res = await fetch(`${INHIRE_API_BASE}${path}`, {
+      method: body === undefined ? 'GET' : 'POST',
       headers: {
-        Authorization: this.token,
+        // O prefixo `Bearer` é obrigatório. Sem ele a API devolve 401, que se
+        // parece exatamente com senha errada -- e manda quem for investigar
+        // procurar no lugar errado.
+        Authorization: `Bearer ${this.token}`,
         'X-Tenant': this.creds.tenant,
         Accept: 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     this.stats.requests++;
 
@@ -116,7 +131,7 @@ export class InhireClient {
       const espera = base * 2 ** tentativa;
       const jitter = Math.random() * espera * 0.3;
       await dormir((espera + jitter) * 1000);
-      return this.request<T>(path, tentativa + 1);
+      return this.request<T>(path, body, tentativa + 1);
     }
 
     if (res.status === 401) {
@@ -125,7 +140,7 @@ export class InhireClient {
       // e tenta uma vez; se falhar de novo, é problema de credencial.
       await invalidateToken(this.db, 'HTTP 401 na API');
       this.token = null;
-      return this.request<T>(path, tentativa + 1);
+      return this.request<T>(path, body, tentativa + 1);
     }
 
     if (!res.ok) {
@@ -136,31 +151,51 @@ export class InhireClient {
   }
 
   /**
-   * Percorre uma lista paginada até o fim.
+   * Percorre a lista paginada até o fim.
+   *
+   * A API roda sobre NoSQL e usa pagination token: a resposta traz `startKey`,
+   * que volta na próxima requisição como `exclusiveStartKey`. Não existe pedir
+   * "página 3" -- só caminhar.
+   *
+   * O CRITÉRIO DE PARADA É A LISTA VAZIA, como manda a documentação, e não a
+   * ausência de chave. Os dois sinais são checados: sem itens, para; sem chave,
+   * para. Confiar só num deles quebraria em silêncio se a API devolvesse a
+   * última página com chave presente, ou uma página vazia com chave.
    *
    * Página grande de propósito: cada requisição custa uma ficha do balde
-   * compartilhado, então trazer 100 registros por chamada em vez de 20 reduz o
-   * consumo em cinco vezes para o mesmo resultado.
-   *
-   * O teto de páginas existe para que um bug de paginação do outro lado -- um
-   * cursor que nunca avança -- não vire um laço infinito consumindo o limite
-   * até o time inteiro perder o MCP.
+   * compartilhado com o MCP do time. O teto de páginas existe para que um
+   * cursor que não avança do outro lado não vire laço infinito.
    */
-  async getAll<T>(
+  async listarPaginado<T>(
     path: string,
-    extrair: (resposta: unknown) => { itens: T[]; proximo: string | null },
-    maxPaginas = 100,
+    extrair: (resposta: unknown) => { itens: T[]; startKey: unknown; reconhecido: boolean },
+    opcoes: { limit?: number; maxPaginas?: number; aoAvisar?: (aviso: string) => void } = {},
   ): Promise<T[]> {
+    const { limit = 100, maxPaginas = 60, aoAvisar } = opcoes;
     const out: T[] = [];
-    let atual: string | null = path;
-    for (let p = 0; p < maxPaginas && atual; p++) {
-      const resposta: unknown = await this.get<unknown>(atual);
-      const { itens, proximo } = extrair(resposta);
+    let startKey: unknown = null;
+
+    for (let p = 0; p < maxPaginas; p++) {
+      const corpo: Record<string, unknown> = { limit };
+      if (startKey != null) corpo.exclusiveStartKey = startKey;
+
+      const resposta = await this.post<unknown>(path, corpo);
+      const { itens, startKey: proxima, reconhecido } = extrair(resposta);
+
+      if (!reconhecido) {
+        aoAvisar?.('A resposta da listagem de vagas não veio num formato reconhecido — os dados podem estar incompletos.');
+        break;
+      }
       out.push(...itens);
-      atual = proximo;
-      // Pausa entre páginas: mantém o ritmo abaixo da taxa sustentada mesmo
-      // quando a rede está rápida, em vez de esvaziar o burst num piscar.
-      if (atual) await dormir(120);
+      if (!itens.length || proxima == null) break;
+      startKey = proxima;
+
+      if (p === maxPaginas - 1) {
+        aoAvisar?.(`A paginação chegou ao teto de ${maxPaginas} páginas e parou. Pode haver vagas não lidas.`);
+      }
+      // Pausa entre páginas: mantém o ritmo abaixo da taxa sustentada mesmo com
+      // rede rápida, em vez de esvaziar o burst num piscar.
+      await dormir(150);
     }
     return out;
   }

@@ -103,10 +103,16 @@ export class InhireAuthError extends Error {
   }
 }
 
-async function postAuth(path: string, body: unknown): Promise<ParDeTokens> {
+/**
+ * O header `X-Tenant` é obrigatório TAMBÉM no login -- o guia de autenticação
+ * não menciona, mas o exemplo de código da referência passa. Sem ele o login
+ * falha, e a mensagem de erro aponta para credencial, mandando quem for
+ * investigar procurar no lugar errado.
+ */
+async function postAuth(path: string, tenant: string, body: unknown): Promise<ParDeTokens> {
   const res = await fetch(`${INHIRE_AUTH_BASE}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Tenant': tenant },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
@@ -125,11 +131,11 @@ async function postAuth(path: string, body: unknown): Promise<ParDeTokens> {
 }
 
 export async function login(creds: InhireCreds): Promise<ParDeTokens> {
-  return postAuth('/login', { email: creds.email, password: creds.password });
+  return postAuth('/login', creds.tenant, { email: creds.email, password: creds.password });
 }
 
-export async function refresh(refreshToken: string): Promise<ParDeTokens> {
-  return postAuth('/refresh', { refreshToken });
+export async function refresh(tenant: string, refreshToken: string): Promise<ParDeTokens> {
+  return postAuth('/refresh', tenant, { refreshToken });
 }
 
 type Db = SupabaseClient<any, 'public', any>;
@@ -171,7 +177,7 @@ export async function getAccessToken(db: Db, creds: InhireCreds): Promise<string
   if (row?.refresh_token && row.refresh_expires_at) {
     if (new Date(row.refresh_expires_at).getTime() > agora) {
       try {
-        const par = await refresh(row.refresh_token);
+        const par = await refresh(creds.tenant, row.refresh_token);
         await gravar(db, par);
         return par.accessToken;
       } catch {

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { aggregateJobs, type InhireJob } from '@/lib/inhire/jobs';
-import { extrairPagina } from '@/lib/inhire/paths';
+import { extrairPagina, JOBS_PAGINATED } from '@/lib/inhire/paths';
 
 /**
  * Sincronização do painel de recrutamento com a API do InHire.
@@ -107,15 +107,25 @@ export const syncInhire = createServerFn({ method: 'POST' })
       const client = await InhireClient.create(db);
 
       const avisos: string[] = [];
-      const jobs = await client.getAll<InhireJob>('/jobs?limit=100', (resp) => {
-        const p = extrairPagina(resp);
-        // Formato não reconhecido para em silêncio na primeira página. O aviso
-        // é o que transforma "trouxe um terço dos dados" em algo perceptível.
-        if (!p.reconhecido) {
-          avisos.push('A resposta de /jobs não veio num formato de paginação reconhecido — os dados podem estar incompletos. Confira antes de gravar.');
-        }
-        return { itens: p.itens, proximo: p.proximo };
-      });
+      const jobs = await client.listarPaginado<InhireJob>(
+        JOBS_PAGINATED,
+        extrairPagina,
+        { limit: 100, aoAvisar: (a) => avisos.push(a) },
+      );
+
+      // "lean" no nome do endpoint sugere payload reduzido, e os dois campos de
+      // que dependemos podem não vir: `customFields_map`, que carrega o
+      // departamento, e `statusHistory`, de onde sai o tempo de fechamento.
+      // Se faltarem, os números saem plausíveis e errados -- tudo em SEM DEPTO,
+      // tempo nenhum calculado. Melhor dizer alto.
+      const comDept = jobs.filter((j) => j.customFields_map != null).length;
+      const comHist = jobs.filter((j) => (j.statusHistory ?? []).length > 0).length;
+      if (jobs.length && comDept === 0) {
+        avisos.push('Nenhuma vaga veio com campos personalizados — o departamento sai de lá. Tudo cairia em "SEM DEPTO". A listagem "lean" provavelmente não traz esse campo; é preciso buscar cada vaga individualmente.');
+      }
+      if (jobs.length && comHist === 0) {
+        avisos.push('Nenhuma vaga veio com histórico de status — o tempo de fechamento sai de lá. Nenhum TTH seria calculado.');
+      }
 
       const asOf = new Date().toISOString().slice(0, 10);
       const { monthly, open, resumo } = aggregateJobs(jobs, asOf);

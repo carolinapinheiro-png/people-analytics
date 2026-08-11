@@ -25,10 +25,21 @@ import type { InhireJob } from './jobs';
  * de um efeito colateral.
  */
 
+/**
+ * Endpoint de listagem, conferido na referência da API em 10/08/2026.
+ *
+ * Vale registrar o que eu tinha SUPOSTO antes de ler: `GET /jobs?limit=100`,
+ * com paginação por `cursor`. Estava errado nos três pontos -- é POST, o
+ * caminho tem sufixo, e o cursor tem outro nome. As três coisas falhariam na
+ * primeira execução, o que pelo menos é barulhento; o perigoso era o quarto
+ * erro, o `Bearer` faltando no header, que devolveria 401 e pareceria problema
+ * de credencial.
+ */
+export const JOBS_PAGINATED = '/jobs/paginated/lean';
+
 const PERMITIDOS: RegExp[] = [
-  /^\/jobs(\?[^#]*)?$/,
+  /^\/jobs\/paginated\/lean$/,
   /^\/jobs\/[\w-]+$/,
-  /^\/jobs\/[\w-]+\/positions(\?[^#]*)?$/,
   /^\/custom-fields(\?[^#]*)?$/,
 ];
 
@@ -37,42 +48,44 @@ export function isPathPermitido(path: string): boolean {
 }
 
 /**
- * Extrai itens e cursor de uma resposta paginada de /jobs.
+ * Extrai as vagas e a chave da próxima página.
  *
- * O formato exato da paginação não está fixado na documentação pública. Uma
- * suposição errada aqui pararia na primeira página EM SILÊNCIO -- trazendo 20
- * vagas de 156 e desenhando um gráfico perfeitamente plausível com um terço dos
- * dados.
+ * A API roda sobre banco NoSQL e usa "pagination token": a resposta traz
+ * `startKey`, que volta na requisição seguinte como `exclusiveStartKey`. Não
+ * existe "página 3" -- só dá para caminhar.
  *
- * Por isso a leitura aceita os formatos comuns e, quando não reconhece nada,
- * devolve `reconhecido: false` para o chamador avisar. Parar avisando é melhor
- * que continuar pela metade.
+ * ATENÇÃO AO CRITÉRIO DE PARADA. A documentação diz para repetir "até que a
+ * resposta não contenha mais vagas" -- ou seja, quem manda é a LISTA VAZIA, não
+ * a ausência de `startKey`. Parar quando `startKey` some traria dados
+ * incompletos se a API devolvesse a última página com chave; continuar com
+ * lista vazia mas chave presente giraria à toa. Por isso os dois sinais são
+ * devolvidos separados, e quem chama decide com os dois.
  */
 export function extrairPagina(resposta: unknown): {
   itens: InhireJob[];
-  proximo: string | null;
+  startKey: unknown;
   reconhecido: boolean;
 } {
   if (Array.isArray(resposta)) {
-    return { itens: resposta as InhireJob[], proximo: null, reconhecido: true };
+    return { itens: resposta as InhireJob[], startKey: null, reconhecido: true };
   }
   const r = resposta as Record<string, unknown> | null;
-  if (!r || typeof r !== 'object') return { itens: [], proximo: null, reconhecido: false };
+  if (!r || typeof r !== 'object') return { itens: [], startKey: null, reconhecido: false };
 
   const chaveLista = ['data', 'items', 'results', 'jobs'].find((k) => Array.isArray(r[k]));
-  if (!chaveLista) return { itens: [], proximo: null, reconhecido: false };
-  const itens = r[chaveLista] as InhireJob[];
+  if (!chaveLista) return { itens: [], startKey: null, reconhecido: false };
 
-  const cursor = (r.nextCursor ?? r.next ?? r.nextPage ?? null) as unknown;
-  // Fim da lista chega de várias formas: null, string vazia, ou `false`. Tratar
-  // qualquer uma delas como cursor faria a paginação pedir "/jobs?cursor=false"
-  // e girar até o teto de páginas, gastando o limite compartilhado à toa.
-  const temProximo =
-    cursor != null && cursor !== '' && cursor !== false &&
-    (typeof cursor === 'string' || typeof cursor === 'number');
+  const bruta = (r.startKey ?? r.lastEvaluatedKey ?? r.nextStartKey ?? null) as unknown;
+  // Fim de lista chega como null, string vazia, false ou objeto vazio. Tratar
+  // qualquer um deles como chave faria a paginação girar até o teto de páginas,
+  // gastando o limite que é compartilhado com o MCP do time.
+  const vazia =
+    bruta == null || bruta === '' || bruta === false ||
+    (typeof bruta === 'object' && Object.keys(bruta as object).length === 0);
+
   return {
-    itens,
-    proximo: temProximo ? `/jobs?cursor=${encodeURIComponent(String(cursor))}&limit=100` : null,
+    itens: r[chaveLista] as InhireJob[],
+    startKey: vazia ? null : bruta,
     reconhecido: true,
   };
 }
