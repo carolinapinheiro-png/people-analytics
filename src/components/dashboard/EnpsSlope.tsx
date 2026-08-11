@@ -65,9 +65,30 @@ export default function EnpsSlope({
 
   const y = (v: number) => PAD_TOP + ((max - v) / (max - min)) * (H - PAD_TOP - PAD_BOTTOM);
 
+  /**
+   * Rótulos com afastamento mínimo. Áreas com eNPS próximo escreviam uma sobre
+   * a outra (Product 90 / Human Resources 90 / Technology 86). O ponto continua
+   * na posição exata do dado; só o texto desliza o mínimo necessário.
+   */
+  const deColide = (valores: number[]) => {
+    const GAP = 12;
+    const ordenado = valores.map((v, i) => ({ i, y: y(v) })).sort((a, b) => a.y - b.y);
+    let anterior = -Infinity;
+    for (const o of ordenado) {
+      o.y = Math.max(o.y, anterior + GAP);
+      anterior = o.y;
+    }
+    const out: number[] = new Array(valores.length).fill(0);
+    for (const o of ordenado) out[o.i] = o.y;
+    return out;
+  };
+  const yRotEsq = deColide(dados.map((d) => d.enpsPrev));
+  const yRotDir = deColide(dados.map((d) => d.enps));
+
   const caiu = dados.filter((d) => d.enps < d.enpsPrev);
   const subiu = dados.filter((d) => d.enps > d.enpsPrev);
   const maiorQueda = [...dados].sort((a, b) => (a.enps - a.enpsPrev) - (b.enps - b.enpsPrev))[0];
+
 
   return (
     <ChartCard
@@ -90,9 +111,11 @@ export default function EnpsSlope({
             {ondaAtual}
           </text>
 
-          {dados.map((d) => {
+          {dados.map((d, idx) => {
             const y1 = y(d.enpsPrev);
             const y2 = y(d.enps);
+            const ry1 = yRotEsq[idx];
+            const ry2 = yRotDir[idx];
             const desceu = d.enps < d.enpsPrev;
             const cor = desceu ? COLORS.warning : COLORS.success;
             return (
@@ -101,12 +124,21 @@ export default function EnpsSlope({
                   stroke={cor} strokeWidth={1.8} strokeOpacity={0.75} />
                 <circle cx={LABEL_W} cy={y1} r={3} fill={cor} />
                 <circle cx={520 - LABEL_W} cy={y2} r={3.5} fill={cor} />
-                <text x={LABEL_W - 8} y={y1 + 3.5} textAnchor="end" fontSize={10.5} fill="var(--muted-foreground)">
+                {/* Ligação fina do rótulo deslocado até o ponto real. */}
+                <line x1={LABEL_W - 5} y1={ry1} x2={LABEL_W} y2={y1} stroke="var(--border)" strokeWidth={0.8} />
+                <line x1={520 - LABEL_W} y1={y2} x2={520 - LABEL_W + 5} y2={ry2} stroke="var(--border)" strokeWidth={0.8} />
+                {/* Halo na cor do cartão atrás do rótulo: em áreas com eNPS
+                    próximo os textos encostavam nas linhas e um no outro. */}
+                <text x={LABEL_W - 8} y={ry1 + 3.5} textAnchor="end" fontSize={11} fill="var(--muted-foreground)"
+                  stroke="var(--card)" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">
                   {d.scope} {d.enpsPrev}
                 </text>
-                <text x={520 - LABEL_W + 8} y={y2 + 3.5} fontSize={10.5} fill="var(--foreground)">
-                  {d.enps} <tspan fill={cor}>({d.enps - d.enpsPrev > 0 ? '+' : ''}{d.enps - d.enpsPrev})</tspan>
+                <text x={520 - LABEL_W + 8} y={ry2 + 3.5} fontSize={11} fill="var(--foreground)"
+                  stroke="var(--card)" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">
+                  {d.enps} <tspan fill={cor} stroke="none">({d.enps - d.enpsPrev > 0 ? '+' : ''}{d.enps - d.enpsPrev})</tspan>
                 </text>
+
+
               </g>
             );
           })}
@@ -121,7 +153,7 @@ export default function EnpsSlope({
         {' '}Quando quase todas se movem para o mesmo lado, a causa costuma ser da empresa, não de
         cada gestor.
       </p>
-      <p className="text-[11px] text-muted-foreground mt-1.5">
+      <p className="text-xs text-muted-foreground mt-1.5">
         Maior queda: {maiorQueda.scope} ({maiorQueda.enps - maiorQueda.enpsPrev} pontos). Quem
         participou pela primeira vez não aparece — não há de onde medir variação.
       </p>
