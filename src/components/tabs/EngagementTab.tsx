@@ -284,6 +284,19 @@ const monthLabel = (m: string) => {
   return map[mm] ? `${map[mm]}/${yy}` : m;
 };
 
+/**
+ * Cor por patamar da nota de 0 a 10. Todas as barras na mesma cor achatavam a
+ * leitura: um 7,4 e um 9,6 pareciam a mesma coisa, e a queda só aparecia depois
+ * de ler os números um a um.
+ */
+const notaCor = (v: number) => (v >= 9 ? COLORS.success : v >= 8 ? COLORS.nsx : v >= 7 ? COLORS.warning : COLORS.danger);
+const notaClass = (v: number) =>
+  v >= 9 ? 'text-emerald-600 dark:text-emerald-500'
+  : v >= 8 ? 'text-foreground'
+  : v >= 7 ? 'text-amber-600 dark:text-amber-500'
+  : 'text-red-600 dark:text-red-500';
+
+
 function OnboardingSection({ data }: { data: ExperienceData }) {
   const overall = data.onboarding.filter((o) => o.slice_type === 'overall');
   const stages = ['1_semana', '45_dias', '90_dias'];
