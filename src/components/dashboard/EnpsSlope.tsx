@@ -111,9 +111,11 @@ export default function EnpsSlope({
             {ondaAtual}
           </text>
 
-          {dados.map((d) => {
+          {dados.map((d, idx) => {
             const y1 = y(d.enpsPrev);
             const y2 = y(d.enps);
+            const ry1 = yRotEsq[idx];
+            const ry2 = yRotDir[idx];
             const desceu = d.enps < d.enpsPrev;
             const cor = desceu ? COLORS.warning : COLORS.success;
             return (
@@ -122,16 +124,20 @@ export default function EnpsSlope({
                   stroke={cor} strokeWidth={1.8} strokeOpacity={0.75} />
                 <circle cx={LABEL_W} cy={y1} r={3} fill={cor} />
                 <circle cx={520 - LABEL_W} cy={y2} r={3.5} fill={cor} />
+                {/* Ligação fina do rótulo deslocado até o ponto real. */}
+                <line x1={LABEL_W - 5} y1={ry1} x2={LABEL_W} y2={y1} stroke="var(--border)" strokeWidth={0.8} />
+                <line x1={520 - LABEL_W} y1={y2} x2={520 - LABEL_W + 5} y2={ry2} stroke="var(--border)" strokeWidth={0.8} />
                 {/* Halo na cor do cartão atrás do rótulo: em áreas com eNPS
                     próximo os textos encostavam nas linhas e um no outro. */}
-                <text x={LABEL_W - 8} y={y1 + 3.5} textAnchor="end" fontSize={11} fill="var(--muted-foreground)"
+                <text x={LABEL_W - 8} y={ry1 + 3.5} textAnchor="end" fontSize={11} fill="var(--muted-foreground)"
                   stroke="var(--card)" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">
                   {d.scope} {d.enpsPrev}
                 </text>
-                <text x={520 - LABEL_W + 8} y={y2 + 3.5} fontSize={11} fill="var(--foreground)"
+                <text x={520 - LABEL_W + 8} y={ry2 + 3.5} fontSize={11} fill="var(--foreground)"
                   stroke="var(--card)" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">
                   {d.enps} <tspan fill={cor} stroke="none">({d.enps - d.enpsPrev > 0 ? '+' : ''}{d.enps - d.enpsPrev})</tspan>
                 </text>
+
 
               </g>
             );
