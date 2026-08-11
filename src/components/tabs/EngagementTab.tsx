@@ -121,17 +121,43 @@ function EngagementSection({
 
       {company && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiCard label="eNPS" value={fmt1(company.enps)} color={COLORS.flutter} icon={Heart} />
-          <KpiCard label="Satisfação" value={`${fmt1(company.satisfaction)}/10`} color={COLORS.nsx} icon={Sparkles} />
-          <KpiCard label="Risco de saída" value={`${fmt1(company.retention_risk)}%`} color={COLORS.warning} icon={TrendingUp} />
+          <KpiCard
+            label="eNPS"
+            value={fmt1(company.enps)}
+            color={COLORS.flutter}
+            icon={Heart}
+            delta={<Delta v={company.enps_delta} />}
+            tone={enpsTone(company.enps)}
+            hint={enpsHint(company.enps)}
+          />
+          <KpiCard
+            label="Satisfação"
+            value={`${fmt1(company.satisfaction)}/10`}
+            color={COLORS.nsx}
+            icon={Sparkles}
+            tone={satTone(company.satisfaction)}
+            hint={company.satisfaction == null ? undefined : company.satisfaction >= 8 ? 'patamar alto' : company.satisfaction >= 7 ? 'patamar ok' : 'abaixo do esperado'}
+          />
+          <KpiCard
+            label="Risco de saída"
+            value={`${fmt1(company.retention_risk)}%`}
+            color={COLORS.warning}
+            icon={TrendingUp}
+            delta={<Delta v={company.rr_delta} invertido />}
+            tone={riscoTone(company.retention_risk)}
+            hint={company.retention_risk == null ? undefined : company.retention_risk >= 20 ? 'acima do confortável' : company.retention_risk >= 12 ? 'atenção' : 'sob controle'}
+          />
           <KpiCard
             label="Responderam"
             value={survey ? String(survey.respondentes) : `${fmt1(company.participation)}%`}
             color={COLORS.info}
             icon={Users}
+            tone={participacaoTone(company.participation)}
+            hint={company.participation == null ? undefined : `${fmt1(company.participation)}% dos elegíveis`}
           />
         </div>
       )}
+
 
       <EngagementReading
         enpsEmpresa={company?.enps ?? null}
