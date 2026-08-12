@@ -136,7 +136,6 @@ export async function executarSyncConvenia(
           return { id: String(b.id ?? ''), data: d.date ?? null, tipo: d.type?.title ?? null };
         });
 
-        requisicoes += client.stats.requests;
         linha.ativos = pessoas.length;
         linha.desligados = saidas.length;
 
@@ -162,14 +161,37 @@ export async function executarSyncConvenia(
             let dados = cache.get(s.id);
             if (!dados) {
               try {
-                const det = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(s.id));
+                const envelope = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(s.id));
+
+                // DESEMBRULHAR O ENVELOPE. O Convenia responde
+                // `{ message, data, success }` em tudo. As listagens passam por
+                // `extrairPagina`, que já faz isso; aqui eu li o envelope
+                // direto e `hiring_date` era sempre undefined.
+                //
+                // O erro não deu erro: gravou 164 caches com admissão nula, e
+                // o cache os devolveria assim para sempre. Um bug que se
+                // disfarça de resposta é pior que um que estoura.
+                const det = (envelope?.data ?? envelope) as Record<string, unknown>;
+
                 // A REDUÇÃO, na linha seguinte à chegada. Dos 123 campos que
-                // vieram, quatro seguem adiante; os outros 119 -- CPF, RG,
-                // endereço, conta bancária -- morrem aqui.
-                dados = {
-                  hiring_month: mesDe(det.hiring_date as string),
-                  department: ((det.department as { name?: string })?.name ?? null),
-                };
+                // vieram, dois seguem adiante; os outros -- CPF, RG, endereço,
+                // conta bancária -- morrem aqui.
+                const mesAdmissao = mesDe(det.hiring_date as string);
+                const area = ((det.department as { name?: string })?.name ?? null);
+
+                // SÓ GUARDA O QUE SERVE. Cachear um nulo transformaria uma
+                // falha temporária em permanente: a pessoa nunca mais seria
+                // buscada, e a série carregaria o buraco para sempre.
+                if (!mesAdmissao) {
+                  naoResolvidos++;
+                  registros.push({
+                    id: s.id, hiring_date: null, department: area ? { name: area } : null,
+                    dataSaida: s.data, tipoSaida: s.tipo,
+                  });
+                  continue;
+                }
+
+                dados = { hiring_month: mesAdmissao, department: area };
                 cache.set(s.id, dados);
                 buscadosAgora++;
 
@@ -177,9 +199,9 @@ export async function executarSyncConvenia(
                   convenia_id: s.id,
                   empresa: f.empresa,
                   marca: f.marca,
-                  hiring_month: dados.hiring_month,
+                  hiring_month: mesAdmissao,
                   dismissal_month: mesDe(s.data),
-                  department: dados.department,
+                  department: area,
                   dismissal_type: s.tipo,
                   voluntary: ehVoluntaria(s.tipo),
                 }, { onConflict: 'convenia_id' });
@@ -205,6 +227,10 @@ export async function executarSyncConvenia(
         const lista = porMarca.get(f.marca) ?? [];
         lista.push(...registros);
         porMarca.set(f.marca, lista);
+        // Contado DEPOIS do laço de detalhes: antes, as ~164 buscas
+        // individuais não entravam na conta e o número parecia baixo demais
+        // para o que a carga realmente fez.
+        requisicoes += client.stats.requests;
       } catch (e) {
         linha.erro = e instanceof Error ? e.message : String(e);
         avisos.push(`${f.empresa} falhou: ${linha.erro}. As outras empresas continuam, mas a série desta marca fica incompleta.`);
@@ -241,7 +267,7 @@ export async function executarSyncConvenia(
       avisos.push(`${buscadosAgora} desligados foram buscados um a um para recuperar admissão e área. Eles ficam guardados, então a próxima execução não repete a busca.`);
     }
     if (naoResolvidos > 0) {
-      avisos.push(`${naoResolvidos} desligados não foram resolvidos nem pelo detalhe — continuam fora do headcount dos meses em que estavam lá.`);
+      avisos.push(`${naoResolvidos} desligados não foram resolvidos nem pelo detalhe — continuam fora do headcount dos meses em que estavam lá. Não ficam em cache, então a próxima execução tenta de novo.`);
     }
     if (marcadosNoStatus && Math.abs(marcadosNoStatus - comSaida) > comSaida * 0.1) {
       avisos.push(`O campo status marca ${marcadosNoStatus} pessoas como desligadas, mas a listagem de desligados traz ${comSaida}. A diferença merece um olhar antes de promover esta série a oficial.`);
