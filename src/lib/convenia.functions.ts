@@ -262,14 +262,13 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
         }
       };
 
+      const { EMPLOYEES_DISMISSED: DESL } = await import('@/lib/convenia/paths');
       const sondaAtivos = await sondar('Colaboradores', EMPLOYEES);
-      const sondas = [sondaAtivos, {
-        recurso: 'Colaboradores desligados',
-        camposVistos: amostra?.camposVistos ?? [],
-        total: null,
-        quantidade: amostra?.quantidade ?? 0,
-        erro: amostra?.erro ?? null,
-      }];
+      // Uma requisição a mais para pegar o TOTAL de desligados. Comparar os
+      // dois totais responde se a listagem de ativos já inclui quem saiu --
+      // e isso decide o desenho inteiro da carga.
+      const sondaDesl = await sondar('Colaboradores desligados', DESL);
+      const sondas = [sondaAtivos, sondaDesl];
 
       // Um campo é "achado" se aparecer no caminho de chave, em qualquer nível.
       const tem = (s: Sonda, frags: string[]) =>

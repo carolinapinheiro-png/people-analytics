@@ -144,10 +144,25 @@ export function ConveniaCard() {
                 <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
                   <div className="font-medium">Dá para reconstruir a série mensal?</div>
                   <p className="mt-1 text-muted-foreground">{d.veredito}</p>
-                  {d.sondas.filter((s) => s.total != null).map((s) => (
-                    <p key={s.recurso} className="mt-1 text-xs text-muted-foreground">
-                      {s.recurso}: {s.total} registros no total.
-                    </p>
+                  {d.sondas.map((s) => (
+                    <div key={s.recurso} className="mt-2">
+                      <div className="text-xs font-medium">
+                        {s.recurso}
+                        {s.total != null && ` — ${s.total} registros no total`}
+                      </div>
+                      {s.erro ? (
+                        <p className="text-xs text-muted-foreground">Erro: {s.erro}</p>
+                      ) : (
+                        <details>
+                          <summary className="cursor-pointer text-xs text-muted-foreground">
+                            {s.camposVistos.length} campos na resposta — ver nomes
+                          </summary>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {s.camposVistos.join(', ') || '(nenhum)'}
+                          </p>
+                        </details>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
