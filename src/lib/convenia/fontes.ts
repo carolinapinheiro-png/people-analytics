@@ -44,7 +44,13 @@ export interface FonteConvenia {
   /** Como aparece na tela. */
   empresa: string;
   /** Casa com a dimensão de marca que o painel já usa. */
-  marca: 'NSX' | 'Betfair' | 'Flutter International';
+  /**
+   * Tem que ser IDÊNTICO ao `brand` que já existe em `monthly_metrics`, senão
+   * a comparação entre séries trata a mesma marca como duas. Conferido contra
+   * o banco: os valores em uso são 'NSX', 'Betfair BR', 'Flutter International'
+   * e 'Porto'.
+   */
+  marca: 'NSX' | 'Betfair BR' | 'Flutter International';
   /** Cidade. `null` quando a empresa não é de uma praça só. */
   local: string | null;
   token: string | null;
@@ -85,7 +91,7 @@ export function fontes(): FonteConvenia[] {
     {
       env: 'CONVENIA_TOKEN_BETFAIR',
       empresa: 'Betfair',
-      marca: 'Betfair',
+      marca: 'Betfair BR',
       local: null,
       token: limpar(process.env.CONVENIA_TOKEN_BETFAIR),
     },
