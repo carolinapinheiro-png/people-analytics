@@ -38,6 +38,12 @@ export interface PessoaConvenia {
   hiring_date?: string | null;
   department?: { name?: string | null } | null;
   status?: string | null;
+  /** Quem esta pessoa reporta. Usado para DERIVAR quem é gestor. */
+  supervisorId?: string | null;
+  salary?: number | null;
+  birth_date?: string | null;
+  /** UF, de `address.state`. */
+  uf?: string | null;
   /** Preenchidos pelo cruzamento com a listagem de desligados. */
   dataSaida?: string | null;
   tipoSaida?: string | null;
@@ -51,7 +57,88 @@ export interface LinhaMensal {
   leavers: number;
   attrition_rate: number | null;
   dept_breakdown: Record<string, { headcount: number; joiners: number; leavers: number }>;
+  /** Quantas das pessoas presentes no mês são gestoras. */
+  leaders: number;
+  leaders_pct: number | null;
+  avg_salary_leaders: number | null;
+  avg_salary_non_leaders: number | null;
+  /** { 'SP': 120, 'PE': 380, ... } entre quem estava presente. */
+  state_mix: Record<string, number>;
+  /** Faixas de tempo de casa. */
+  tenure_base: Record<string, number>;
+  /** Faixas etárias. */
+  demographics: Record<string, number>;
 }
+
+/**
+ * ATRIBUTOS DE HOJE APLICADOS AO PASSADO
+ * ---------------------------------------------------------------------------
+ * Liderança, salário, estado e área vêm do cadastro ATUAL. Aplicá-los a meses
+ * antigos assume que a pessoa sempre foi gestora, sempre ganhou o mesmo e
+ * sempre esteve na mesma área -- o que é falso para quem foi promovido, mudou
+ * de time ou recebeu aumento.
+ *
+ * O erro cresce quanto mais para trás se olha, e ele é sistemático numa
+ * direção: infla o passado com a senioridade do presente.
+ *
+ * Não é evitável com o que a API entrega numa chamada -- o histórico salarial
+ * e o de alterações de perfil existem, mas custam uma requisição por pessoa
+ * cada. A alternativa honesta é registrar a limitação onde ela aparece, e é o
+ * que este comentário faz.
+ */
+
+/** Gestor é quem aparece como supervisor de alguém. Derivado, não declarado. */
+export function idsDeGestores(pessoas: PessoaConvenia[]): Set<string> {
+  const s = new Set<string>();
+  for (const p of pessoas) if (p.supervisorId) s.add(String(p.supervisorId));
+  return s;
+}
+
+/** Faixas de tempo de casa, em meses completos até o mês de referência. */
+export function faixaTempoDeCasa(entrada: string, mes: string): string {
+  const [ay, am] = entrada.split('-').map(Number);
+  const [by, bm] = mes.split('-').map(Number);
+  const meses = (by - ay) * 12 + (bm - am);
+  if (meses < 6) return '0-6 meses';
+  if (meses < 12) return '6-12 meses';
+  if (meses < 24) return '1-2 anos';
+  if (meses < 48) return '2-4 anos';
+  return '4+ anos';
+}
+
+/** Faixa etária no mês de referência. */
+export function faixaEtaria(nascimento: string | null | undefined, mes: string): string | null {
+  const nm = mesDe(nascimento);
+  if (!nm) return null;
+  const [ay, am] = nm.split('-').map(Number);
+  const [by, bm] = mes.split('-').map(Number);
+  const anos = Math.floor(((by - ay) * 12 + (bm - am)) / 12);
+  if (anos < 18 || anos > 90) return null; // data implausível: fora em vez de errada
+  if (anos < 25) return '18-24';
+  if (anos < 35) return '25-34';
+  if (anos < 45) return '35-44';
+  if (anos < 55) return '45-54';
+  return '55+';
+}
+
+/**
+ * Mínimo de pessoas para publicar uma média salarial.
+ *
+ * Descoberto por um teste que eu tinha escrito para outra coisa: ele afirmava
+ * que nenhum valor individual sobrevive à agregação, e passou a falhar quando
+ * o salário virou média. Com UMA pessoa no grupo, a média é o salário dela --
+ * agregar não anonimiza, só disfarça.
+ *
+ * Cinco é o mesmo piso que a pesquisa de engajamento já usa. Manter o número
+ * igual importa: dois limiares diferentes no mesmo painel viram uma discussão
+ * sobre qual está certo, em vez de uma regra que todo mundo conhece.
+ */
+export const MIN_GRUPO_SALARIO = 5;
+
+const media = (v: number[]) =>
+  v.length >= MIN_GRUPO_SALARIO
+    ? Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 100) / 100
+    : null;
 
 export interface ResumoReconstrucao {
   pessoas: number;
@@ -181,6 +268,11 @@ export function reconstruirSerie(
     };
   }
 
+  // Gestores derivados de quem aparece como supervisor de alguém. Note que a
+  // fonte são TODAS as pessoas, inclusive as que já saíram: quem era gestor de
+  // alguém continua tendo sido gestor no passado.
+  const gestores = idsDeGestores(pessoas);
+
   const linhas: LinhaMensal[] = [];
 
   for (const mes of mesesEntre(primeiroMes, ateMes)) {
@@ -190,14 +282,40 @@ export function reconstruirSerie(
       dept[area][campo]++;
     };
 
-    let headcount = 0, joiners = 0, leavers = 0;
+    let headcount = 0, joiners = 0, leavers = 0, leaders = 0;
+    const salLideres: number[] = [];
+    const salDemais: number[] = [];
+    const state_mix: Record<string, number> = {};
+    const tenure_base: Record<string, number> = {};
+    const demographics: Record<string, number> = {};
 
     for (const x of comMes) {
       // Presente no mês: entrou até o fim dele e não tinha saído ainda.
       // A comparação de strings "YYYY-MM" funciona porque o formato é
       // lexicograficamente ordenável -- é o motivo de guardar assim.
       const presente = x.entrada != null && x.entrada <= mes && (x.saida == null || x.saida > mes);
-      if (presente) { headcount++; bump(x.area, 'headcount'); }
+
+      if (presente) {
+        headcount++;
+        bump(x.area, 'headcount');
+
+        const ehGestor = gestores.has(x.p.id);
+        if (ehGestor) leaders++;
+
+        if (typeof x.p.salary === 'number' && x.p.salary > 0) {
+          (ehGestor ? salLideres : salDemais).push(x.p.salary);
+        }
+
+        const uf = x.p.uf?.trim();
+        if (uf) state_mix[uf] = (state_mix[uf] ?? 0) + 1;
+
+        const faixa = faixaTempoDeCasa(x.entrada!, mes);
+        tenure_base[faixa] = (tenure_base[faixa] ?? 0) + 1;
+
+        const idade = faixaEtaria(x.p.birth_date, mes);
+        if (idade) demographics[idade] = (demographics[idade] ?? 0) + 1;
+      }
+
       if (x.entrada === mes) { joiners++; bump(x.area, 'joiners'); }
       if (x.saida === mes) { leavers++; bump(x.area, 'leavers'); }
     }
@@ -212,6 +330,13 @@ export function reconstruirSerie(
       headcount, joiners, leavers,
       attrition_rate: expostos > 0 ? Math.round((leavers / expostos) * 1000) / 10 : null,
       dept_breakdown: dept,
+      leaders,
+      leaders_pct: headcount > 0 ? Math.round((leaders / headcount) * 1000) / 10 : null,
+      avg_salary_leaders: media(salLideres),
+      avg_salary_non_leaders: media(salDemais),
+      state_mix,
+      tenure_base,
+      demographics,
     });
   }
 

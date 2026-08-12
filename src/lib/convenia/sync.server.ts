@@ -39,6 +39,10 @@ interface Minimo {
   hiring_date: string | null;
   department: { name: string | null } | null;
   status: string | null;
+  supervisorId: string | null;
+  salary: number | null;
+  birth_date: string | null;
+  uf: string | null;
 }
 
 export interface ResumoSyncConvenia {
@@ -61,6 +65,20 @@ export interface ResumoSyncConvenia {
   totalLinhas: number;
   requisicoes: number;
   avisos: string[];
+}
+
+/**
+ * O Convenia devolve salário ora como número, ora como string no formato
+ * brasileiro ("3.218,00"). `Number("3.218,00")` é `NaN`, e um NaN entrando na
+ * média a transformaria em NaN inteira -- um campo que some do gráfico sem dar
+ * erro. Por isso a conversão é explícita e devolve `null` no que não entender.
+ */
+function normalizarSalario(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) && v > 0 ? v : null;
+  if (typeof v !== 'string') return null;
+  const limpo = v.trim().replace(/\./g, '').replace(',', '.');
+  const n = Number(limpo);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 const ehDesligadoPeloStatus = (s: string | null) => {
@@ -121,12 +139,24 @@ export async function executarSyncConvenia(
         });
 
         // A REDUÇÃO. Daqui para baixo os outros 119 campos não existem mais.
-        const pessoas: Minimo[] = brutos.map((b) => ({
-          id: String(b.id ?? ''),
-          hiring_date: (b.hiring_date as string) ?? null,
-          department: (b.department as { name: string | null }) ?? null,
-          status: (b.status as string) ?? null,
-        }));
+        const pessoas: Minimo[] = brutos.map((b) => {
+          const sup = b.supervisor as { id?: string } | null;
+          const end = b.address as { state?: string } | null;
+          const sal = b.salary;
+          return {
+            id: String(b.id ?? ''),
+            hiring_date: (b.hiring_date as string) ?? null,
+            department: (b.department as { name: string | null }) ?? null,
+            status: (b.status as string) ?? null,
+            supervisorId: sup?.id ? String(sup.id) : null,
+            // O Convenia manda salário ora número, ora string ("3.218,00").
+            // Number() em "3.218,00" dá NaN, que viraria média silenciosamente
+            // errada -- por isso a normalização explícita.
+            salary: normalizarSalario(sal),
+            birth_date: (b.birth_date as string) ?? null,
+            uf: end?.state?.trim() || null,
+          };
+        });
 
         const deslBrutos = await client.listarTudo<Record<string, unknown>>(EMPLOYEES_DISMISSED, {
           porPagina: 100, aoAvisar: (a) => avisos.push(`${f.empresa}: ${a}`),
@@ -142,6 +172,7 @@ export async function executarSyncConvenia(
         const porId = new Map(pessoas.map((p) => [p.id, p]));
         const registros: PessoaConvenia[] = pessoas.map((p) => ({
           id: p.id, hiring_date: p.hiring_date, department: p.department, status: p.status,
+          supervisorId: p.supervisorId, salary: p.salary, birth_date: p.birth_date, uf: p.uf,
         }));
 
         for (const s of saidas) {
@@ -263,6 +294,12 @@ export async function executarSyncConvenia(
     const pessoasTodas = [...porMarca.values()].flat();
     const marcadosNoStatus = pessoasTodas.filter((p) => ehDesligadoPeloStatus(p.status ?? null)).length;
     const comSaida = pessoasTodas.filter((p) => p.dataSaida != null).length;
+    // Gênero e raça NÃO vêm na listagem -- só no detalhe individual, uma
+    // requisição por pessoa. Com 638 ativos seriam ~13 minutos, o que estoura o
+    // tempo do agendador. Ficam de fora por ora, e o aviso existe para que a
+    // ausência seja uma decisão visível e não um esquecimento.
+    avisos.push('Gênero e raça não entram nesta série: a listagem do Convenia não os traz, e buscá-los pessoa a pessoa levaria ~13 minutos. Os gráficos que dependem deles continuam na série antiga.');
+
     if (buscadosAgora > 0) {
       avisos.push(`${buscadosAgora} desligados foram buscados um a um para recuperar admissão e área. Eles ficam guardados, então a próxima execução não repete a busca.`);
     }
@@ -301,6 +338,13 @@ export async function executarSyncConvenia(
         leavers: l.leavers,
         attrition_rate: l.attrition_rate,
         dept_breakdown: l.dept_breakdown,
+        leaders: l.leaders,
+        leaders_pct: l.leaders_pct,
+        avg_salary_leaders: l.avg_salary_leaders,
+        avg_salary_non_leaders: l.avg_salary_non_leaders,
+        state_mix: l.state_mix,
+        tenure_base: l.tenure_base,
+        demographics: l.demographics,
         quality_flag: desligadosSemCadastro > 0 ? 'parcial' : null,
       }));
       const { error } = await db.from('monthly_metrics')

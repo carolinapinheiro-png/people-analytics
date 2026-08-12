@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mesDe, mesesEntre, ehVoluntaria, areaDe, reconstruirSerie, type PessoaConvenia } from './pessoas';
+import {
+  mesDe, mesesEntre, ehVoluntaria, areaDe, reconstruirSerie,
+  idsDeGestores, faixaTempoDeCasa, faixaEtaria, type PessoaConvenia,
+} from './pessoas';
 
 const p = (o: Partial<PessoaConvenia> & { id: string }): PessoaConvenia => ({ ...o });
 
@@ -183,6 +186,112 @@ test('nenhum campo pessoal sobrevive à agregação', () => {
   const texto = JSON.stringify(linhas);
   assert.ok(!texto.includes('000.000.000-00'));
   assert.ok(!texto.includes('Fulana'));
-  assert.ok(!texto.includes('9999'));
   assert.ok(!texto.includes('abc'));
+  // O salário também não: com uma pessoa no grupo, a média SERIA o salário
+  // dela. O piso de 5 impede que agregar vire disfarce.
+  assert.ok(!texto.includes('9999'));
+  assert.equal(linhas[0].avg_salary_non_leaders, null);
+});
+
+
+// ---------------------------------------------------------------------------
+// Liderança derivada, faixas e médias
+// ---------------------------------------------------------------------------
+
+test('gestor é quem aparece como supervisor de alguém, não quem se declara', () => {
+  const pessoas = [
+    p({ id: 'chefe' }),
+    p({ id: 'a', supervisorId: 'chefe' }),
+    p({ id: 'b', supervisorId: 'chefe' }),
+    p({ id: 'sozinho' }),
+  ];
+  const g = idsDeGestores(pessoas);
+  assert.ok(g.has('chefe'));
+  assert.ok(!g.has('a'));
+  assert.ok(!g.has('sozinho'));
+  assert.equal(g.size, 1);
+});
+
+test('quem já saiu continua contando como gestor no passado', () => {
+  // Se a derivação usasse só quem está ativo, um time inteiro cujo gestor saiu
+  // apareceria sem liderança em TODOS os meses passados -- inclusive naqueles
+  // em que ele estava lá.
+  const g = idsDeGestores([p({ id: 'x', supervisorId: 'exchefe', dataSaida: '2026-01-10' })]);
+  assert.ok(g.has('exchefe'));
+});
+
+test('faixas de tempo de casa contam meses completos', () => {
+  assert.equal(faixaTempoDeCasa('2026-01', '2026-03'), '0-6 meses');
+  assert.equal(faixaTempoDeCasa('2025-09', '2026-03'), '6-12 meses');
+  assert.equal(faixaTempoDeCasa('2025-01', '2026-03'), '1-2 anos');
+  assert.equal(faixaTempoDeCasa('2023-01', '2026-03'), '2-4 anos');
+  assert.equal(faixaTempoDeCasa('2015-01', '2026-03'), '4+ anos');
+});
+
+test('idade implausível fica de fora em vez de virar faixa errada', () => {
+  // Data de nascimento com erro de digitação existe em qualquer cadastro.
+  // Uma pessoa de 300 anos numa faixa "55+" contamina a distribuição sem
+  // parecer defeito.
+  assert.equal(faixaEtaria('1700-01-01', '2026-03'), null);
+  assert.equal(faixaEtaria('2020-01-01', '2026-03'), null);
+  assert.equal(faixaEtaria(null, '2026-03'), null);
+  assert.equal(faixaEtaria('1996-05-01', '2026-03'), '25-34');
+});
+
+test('liderança, salários, estado, tempo e idade entram na linha mensal', () => {
+  const pessoas = [
+    p({ id: 'chefe', hiring_date: '2025-01-01', salary: 20000, uf: 'Pernambuco', birth_date: '1985-01-01' }),
+    ...[1, 2, 3, 4, 5].map((n) => p({
+      id: `a${n}`, hiring_date: '2025-01-01', supervisorId: 'chefe',
+      salary: 6000, uf: n === 5 ? 'São Paulo' : 'Pernambuco', birth_date: '1996-01-01',
+    })),
+  ];
+  const { linhas } = reconstruirSerie(pessoas, 'NSX', '2025-01');
+  const m = linhas[0];
+  assert.equal(m.headcount, 6);
+  assert.equal(m.leaders, 1);
+  assert.equal(m.leaders_pct, 16.7);
+  // Um gestor só: abaixo do piso, então a média não é publicada.
+  assert.equal(m.avg_salary_leaders, null);
+  assert.equal(m.avg_salary_non_leaders, 6000);
+  assert.equal(m.state_mix['Pernambuco'], 5);
+  assert.equal(m.state_mix['São Paulo'], 1);
+  assert.equal(m.tenure_base['0-6 meses'], 6);
+  assert.equal(m.demographics['25-34'], 5);
+  assert.equal(m.demographics['35-44'], 1);
+});
+
+test('quem saiu deixa de contar como gestor a partir do mês da saída', () => {
+  // A pessoa sai em fevereiro: conta como gestora em janeiro, não em fevereiro.
+  // Sair EM fevereiro já a tira do headcount de fevereiro -- mesma regra do
+  // headcount, e é bom que seja a mesma, senão liderança e headcount contariam
+  // populações diferentes.
+  const pessoas = [
+    p({ id: 'chefe', hiring_date: '2025-01-01', dataSaida: '2025-02-20' }),
+    p({ id: 'a', hiring_date: '2025-01-01', supervisorId: 'chefe' }),
+  ];
+  const { linhas } = reconstruirSerie(pessoas, 'NSX', '2025-02');
+  assert.equal(linhas[0].leaders, 1);
+  assert.equal(linhas[0].headcount, 2);
+  assert.equal(linhas[1].leaders, 0);
+  assert.equal(linhas[1].headcount, 1);
+});
+
+test('salário ausente não vira zero na média', () => {
+  // Tratar ausência como zero puxaria a média para baixo silenciosamente.
+  const pessoas = [
+    ...[1, 2, 3, 4, 5].map((n) => p({ id: `a${n}`, hiring_date: '2025-01-01', salary: 6000 })),
+    p({ id: 'sem', hiring_date: '2025-01-01', salary: null }),
+  ];
+  const { linhas } = reconstruirSerie(pessoas, 'NSX', '2025-01');
+  assert.equal(linhas[0].headcount, 6);
+  assert.equal(linhas[0].avg_salary_non_leaders, 6000);
+});
+
+test('média salarial exige pelo menos 5 pessoas no grupo', () => {
+  const quatro = [1, 2, 3, 4].map((n) => p({ id: `a${n}`, hiring_date: '2025-01-01', salary: 6000 }));
+  assert.equal(reconstruirSerie(quatro, 'NSX', '2025-01').linhas[0].avg_salary_non_leaders, null);
+
+  const cinco = [...quatro, p({ id: 'a5', hiring_date: '2025-01-01', salary: 6000 })];
+  assert.equal(reconstruirSerie(cinco, 'NSX', '2025-01').linhas[0].avg_salary_non_leaders, 6000);
 });
