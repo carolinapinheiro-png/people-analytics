@@ -20,6 +20,7 @@ import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as ApiCronInhireSyncRouteImport } from './routes/api/cron/inhire-sync'
+import { Route as ApiCronConveniaSyncRouteImport } from './routes/api/cron/convenia-sync'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 
@@ -79,6 +80,11 @@ const ApiCronInhireSyncRoute = ApiCronInhireSyncRouteImport.update({
   path: '/api/cron/inhire-sync',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronConveniaSyncRoute = ApiCronConveniaSyncRouteImport.update({
+  id: '/api/cron/convenia-sync',
+  path: '/api/cron/convenia-sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const Char91DotmcpChar93InvokeToolToolRoute =
   Char91DotmcpChar93InvokeToolToolRouteImport.update({
     id: '/.mcp/invoke-tool/$tool',
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/api/cron/convenia-sync': typeof ApiCronConveniaSyncRoute
   '/api/cron/inhire-sync': typeof ApiCronInhireSyncRoute
 }
 export interface FileRoutesByTo {
@@ -117,6 +124,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/api/cron/convenia-sync': typeof ApiCronConveniaSyncRoute
   '/api/cron/inhire-sync': typeof ApiCronInhireSyncRoute
 }
 export interface FileRoutesById {
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
+  '/api/cron/convenia-sync': typeof ApiCronConveniaSyncRoute
   '/api/cron/inhire-sync': typeof ApiCronInhireSyncRoute
 }
 export interface FileRouteTypes {
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/api/cron/convenia-sync'
     | '/api/cron/inhire-sync'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -163,6 +173,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/api/cron/convenia-sync'
     | '/api/cron/inhire-sync'
   id:
     | '__root__'
@@ -178,6 +189,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
+    | '/api/cron/convenia-sync'
     | '/api/cron/inhire-sync'
   fileRoutesById: FileRoutesById
 }
@@ -192,6 +204,7 @@ export interface RootRouteChildren {
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
+  ApiCronConveniaSyncRoute: typeof ApiCronConveniaSyncRoute
   ApiCronInhireSyncRoute: typeof ApiCronInhireSyncRoute
 }
 
@@ -274,6 +287,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronInhireSyncRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/convenia-sync': {
+      id: '/api/cron/convenia-sync'
+      path: '/api/cron/convenia-sync'
+      fullPath: '/api/cron/convenia-sync'
+      preLoaderRoute: typeof ApiCronConveniaSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/.mcp/invoke-tool/$tool': {
       id: '/.mcp/invoke-tool/$tool'
       path: '/.mcp/invoke-tool/$tool'
@@ -317,6 +337,7 @@ const rootRouteChildren: RootRouteChildren = {
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
+  ApiCronConveniaSyncRoute: ApiCronConveniaSyncRoute,
   ApiCronInhireSyncRoute: ApiCronInhireSyncRoute,
 }
 export const routeTree = rootRouteImport

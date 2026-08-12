@@ -57,16 +57,6 @@ import { createFileRoute } from '@tanstack/react-router';
  * linhas, então não há razão para não evitar.
  */
 
-/** Compara sem revelar, pelo tempo gasto, quantos caracteres bateram. */
-function iguaisEmTempoConstante(a: string, b: string): boolean {
-  // Comprimentos diferentes já vazam pelo tamanho; o que não pode vazar é
-  // ONDE a diferença está.
-  if (a.length !== b.length) return false;
-  let dif = 0;
-  for (let i = 0; i < a.length; i++) dif |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return dif === 0;
-}
-
 async function handler({ request }: { request: Request }): Promise<Response> {
   const json = (corpo: unknown, status: number) =>
     new Response(JSON.stringify(corpo), {
@@ -74,46 +64,15 @@ async function handler({ request }: { request: Request }): Promise<Response> {
       headers: { 'content-type': 'application/json' },
     });
 
-  if (request.method !== 'POST') {
-    return json({ erro: 'Use POST. O segredo vai no cabeçalho X-Cron-Secret, nunca na URL.' }, 405);
-  }
-
-  // Lê o cabeçalho ANTES de ir ao banco: sem ele, nem vale a viagem.
-  const recebido = request.headers.get('x-cron-secret')?.trim() ?? '';
-  if (!recebido) {
-    return json({ erro: 'Falta o cabeçalho X-Cron-Secret.' }, 401);
-  }
+  // A conferência mora em cron-auth.server.ts, compartilhada com a rota do
+  // Convenia. Duas cópias divergiriam no primeiro ajuste, e uma ficaria para
+  // trás em silêncio -- péssimo jeito de uma verificação de segurança envelhecer.
+  const { conferirSegredoCron } = await import('@/lib/cron-auth.server');
+  const negado = await conferirSegredoCron(request);
+  if (negado) return negado;
 
   try {
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-
-    const { data: linha } = await (supabaseAdmin as never as {
-      from: (t: string) => {
-        select: (c: string) => {
-          eq: (c: string, v: string) => {
-            maybeSingle: () => Promise<{ data: { value?: string } | null }>;
-          };
-        };
-      };
-    })
-      .from('service_secrets')
-      .select('value')
-      .eq('name', 'cron_secret')
-      .maybeSingle();
-
-    const esperado = linha?.value?.trim();
-
-    // Falha FECHADA. Sem segredo cadastrado a rota não roda -- o oposto (rodar
-    // sem exigir nada quando o segredo sumisse) deixaria a sincronização aberta
-    // para qualquer pessoa da internet, que é o pior desfecho possível aqui.
-    if (!esperado || esperado.length < 32) {
-      return json({ erro: 'Segredo do cron ausente ou curto demais no banco.' }, 503);
-    }
-
-    if (!iguaisEmTempoConstante(recebido, esperado)) {
-      return json({ erro: 'Segredo inválido.' }, 401);
-    }
-
     const { executarSyncInhire } = await import('@/lib/inhire/sync.server');
 
     const resumo = await executarSyncInhire(supabaseAdmin as never, {
