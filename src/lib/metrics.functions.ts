@@ -131,37 +131,27 @@ const ImportInput = z.object({
   rows: z.array(MetricRowSchema).min(1).max(200),
 });
 
-export const importReconstruido = createServerFn({ method: 'POST' })
-  .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => ImportInput.parse(input))
-  .handler(async ({ context, data }) => {
-    const { email, role } = await authorize(context.claims.email as string | undefined);
-    if (role !== 'admin') throw new Error('Forbidden: apenas admin pode importar');
-
-    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-    const db = supabaseAdmin as unknown as UntypedClient;
-
-    // Upsert das metricas + log de importacao numa TRANSACAO unica (funcao
-    // Postgres import_reconstruido). Antes eram duas chamadas soltas: se o log
-    // falhava, as metricas ja tinham entrado e a tela mentia "nada registrado".
-    // Agora ou os dois entram ou nenhum. A funcao ja aplica source='reconstruido'
-    // e faz upsert por (month, brand, source) -- a serie congelada nunca e tocada.
-    const { data: imported, error } = await db.rpc('import_reconstruido', {
-      p_rows: data.rows,
-      p_user_email: email,
-    });
-
-    if (error) throw new Error(`Falha na importacao (nada gravado): ${error.message}`);
-
-    return { imported: (imported as number | null) ?? data.rows.length };
-  });
+/**
+ * A importação manual da série reconstruída foi removida em 12/08/2026.
+ *
+ * Ela lia Talent_Mobility.xlsx e o CSV do Workday para produzir
+ * `source = 'reconstruido'`. A integração com o Convenia passou a produzir a
+ * mesma coisa direto da folha, com histórico maior e sem ninguém exportar nada
+ * -- e a comparação entre as séries mostrou que a versão por planilha somava o
+ * Porto dentro de Betfair BR, quase dobrando aquela marca por 19 meses.
+ *
+ * Os DADOS de `reconstruido` continuam no banco: o card de comparação precisa
+ * deles, e apagar história para limpar tela seria um mau negócio. O que saiu
+ * foi a forma de produzir mais.
+ *
+ * O código está no histórico do git, caso a importação precise voltar.
+ */
 
 const ListInput = z
   .object({
     sources: z.array(z.string()).max(5).optional(),
   })
   .optional();
-
 export interface MetricSeriesRow {
   month: string;
   brand: string;
