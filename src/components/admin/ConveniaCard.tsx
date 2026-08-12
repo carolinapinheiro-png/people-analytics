@@ -4,8 +4,8 @@ import { AlertTriangle, CheckCircle2, KeyRound, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { COLORS } from '@/lib/colors';
 import {
-  getConveniaDiagnostico, testarCruzamento,
-  type ConveniaDiagnostico, type Cruzamento,
+  getConveniaDiagnostico, testarCruzamento, syncConvenia,
+  type ConveniaDiagnostico, type Cruzamento, type ResumoSyncConvenia,
 } from '@/lib/convenia.functions';
 
 /**
@@ -31,6 +31,24 @@ export function ConveniaCard() {
       setC({ empresas: [], veredito: '', headcountReal: null, erro: e instanceof Error ? e.message : String(e) });
     } finally {
       setCruzando(false);
+    }
+  };
+
+  const sincronizar = useServerFn(syncConvenia);
+  const [r, setR] = useState<ResumoSyncConvenia | null>(null);
+  const [erroSync, setErroSync] = useState<string | null>(null);
+  const [sincronizando, setSincronizando] = useState(false);
+
+  const rodarSync = async (confirm: boolean) => {
+    setSincronizando(true);
+    setErroSync(null);
+    try {
+      setR(await sincronizar({ data: { confirm } }));
+    } catch (e) {
+      setErroSync(e instanceof Error ? e.message : String(e));
+      setR(null);
+    } finally {
+      setSincronizando(false);
     }
   };
 
@@ -212,8 +230,74 @@ export function ConveniaCard() {
             <p key={a} className="mt-3 text-sm text-muted-foreground">⚠ {a}</p>
           ))}
 
+          <div className="mt-4 rounded-lg border border-border/60 p-3">
+            <div className="text-sm font-medium">Reconstruir a série mensal</div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Calcula headcount, entradas, saídas e atrição de cada mês a partir das datas
+              de admissão e desligamento. Grava como uma <strong>terceira série</strong>
+              {' '}(<code>convenia</code>), ao lado da congelada e da reconstruída — nada é
+              sobrescrito. A comparação entre elas fica no card abaixo.
+            </p>
+
+            <div className="mt-3 flex gap-2">
+              <Button onClick={() => rodarSync(false)} disabled={sincronizando} variant="outline" size="sm">
+                <RefreshCw className={`mr-2 h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} />
+                {sincronizando ? 'Calculando…' : 'Simular sem gravar'}
+              </Button>
+              {r && !r.gravado && r.totalLinhas > 0 && (
+                <Button onClick={() => rodarSync(true)} disabled={sincronizando} size="sm">
+                  Gravar {r.totalLinhas} linhas
+                </Button>
+              )}
+            </div>
+
+            {erroSync && <p className="mt-2 text-sm" style={{ color: COLORS.danger }}>{erroSync}</p>}
+
+            {r && (
+              <div className="mt-3 text-sm">
+                <div className="flex items-center gap-2 font-medium">
+                  {r.gravado ? (
+                    <><CheckCircle2 className="h-4 w-4" style={{ color: COLORS.success }} /> Gravado</>
+                  ) : (
+                    <>Prévia — nada foi gravado</>
+                  )}
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                  <div><div className="text-muted-foreground">Pessoas</div><div className="font-medium">{r.pessoasUnicas}</div></div>
+                  <div><div className="text-muted-foreground">Linhas</div><div className="font-medium">{r.totalLinhas}</div></div>
+                  <div><div className="text-muted-foreground">Sem cadastro</div><div className="font-medium">{r.desligadosSemCadastro}</div></div>
+                  <div><div className="text-muted-foreground">Requisições</div><div className="font-medium">{r.requisicoes}</div></div>
+                </div>
+
+                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {r.empresas.map((e) => (
+                    <div key={e.empresa}>
+                      <span className="font-medium">{e.empresa}</span>:{' '}
+                      {e.erro ? e.erro : `${e.ativos} no cadastro · ${e.desligados} saídas · ${e.cruzaram} cruzaram`}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                  {r.linhasPorMarca.map((m) => (
+                    <div key={m.marca}>
+                      <span className="font-medium">{m.marca}</span>: {m.linhas} meses
+                      {m.de && ` (${m.de.slice(0, 7)} a ${m.ate?.slice(0, 7)})`}
+                    </div>
+                  ))}
+                </div>
+
+                {r.avisos.map((a) => (
+                  <p key={a} className="mt-2 text-xs" style={{ color: COLORS.warning }}>⚠ {a}</p>
+                ))}
+              </div>
+            )}
+          </div>
+
           <p className="mt-3 text-xs text-muted-foreground">
-            Só os nomes dos campos saem daqui. Nenhum valor de colaborador é lido nem guardado.
+            O diagnóstico devolve só nomes de campo. A carga lê o cadastro, reduz a
+            quatro campos na chegada e grava apenas contagens por área e mês.
           </p>
         </div>
       </div>

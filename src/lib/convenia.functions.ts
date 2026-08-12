@@ -369,3 +369,32 @@ export const testarCruzamento = createServerFn({ method: 'POST' })
 
     return { empresas, veredito, headcountReal, erro: null };
   });
+
+// ===========================================================================
+// A CARGA
+// ===========================================================================
+// Prévia antes de gravar, sempre -- mesmo desenho do InHire e do importador da
+// pesquisa, e pela mesma razão: os erros desta integração são silenciosos. Uma
+// área renomeada no Convenia não dá erro, só reparte a linha em duas. A prévia
+// é o único momento em que isso fica visível antes de virar número na tela.
+// ===========================================================================
+
+import { z } from 'zod';
+import type { ResumoSyncConvenia } from '@/lib/convenia/sync.server';
+
+export type { ResumoSyncConvenia };
+
+const SyncInput = z.object({ confirm: z.boolean().default(false) }).optional();
+
+export const syncConvenia = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => SyncInput.parse(input))
+  .handler(async ({ context, data }): Promise<ResumoSyncConvenia> => {
+    const email = await authorizeAdmin(context.claims.email as string | undefined);
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const { executarSyncConvenia } = await import('@/lib/convenia/sync.server');
+    return executarSyncConvenia(supabaseAdmin as never, {
+      confirm: data?.confirm ?? false,
+      origem: email,
+    });
+  });
