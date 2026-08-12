@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mesDe, mesesEntre, ehVoluntaria, areaDe, reconstruirSerie,
-  idsDeGestores, faixaTempoDeCasa, faixaEtaria, type PessoaConvenia,
+  idsDeGestores, faixaTempoDeCasa, faixaEtaria, normalizarGenero, type PessoaConvenia,
 } from './pessoas';
 
 const p = (o: Partial<PessoaConvenia> & { id: string }): PessoaConvenia => ({ ...o });
@@ -294,4 +294,64 @@ test('média salarial exige pelo menos 5 pessoas no grupo', () => {
 
   const cinco = [...quatro, p({ id: 'a5', hiring_date: '2025-01-01', salary: 6000 })];
   assert.equal(reconstruirSerie(cinco, 'NSX', '2025-01').linhas[0].avg_salary_non_leaders, 6000);
+});
+
+
+// ---------------------------------------------------------------------------
+// Gênero
+// ---------------------------------------------------------------------------
+
+test('normaliza os rótulos que o Convenia usa', () => {
+  assert.equal(normalizarGenero('Mulher'), 'F');
+  assert.equal(normalizarGenero('Feminino'), 'F');
+  assert.equal(normalizarGenero('Homem'), 'M');
+  assert.equal(normalizarGenero('Masculino'), 'M');
+});
+
+test('identidade fora do binário fica null em vez de ser forçada', () => {
+  // Contar como F ou M para fechar a conta seria classificar errado uma
+  // pessoa real. Fora do recorte é melhor que dentro do lugar errado.
+  assert.equal(normalizarGenero('Não-binário'), null);
+  assert.equal(normalizarGenero('Prefiro não informar'), null);
+  assert.equal(normalizarGenero(null), null);
+  assert.equal(normalizarGenero(''), null);
+});
+
+test('percentual de gênero fica nulo enquanto a cobertura for baixa', () => {
+  // Este é o ponto: a CONTAGEM aparece, o PERCENTUAL não. Com 2 de 10
+  // resolvidas, "100% mulheres" seria uma afirmação sobre as 10 a partir de 2.
+  const pessoas = [
+    p({ id: 'a', hiring_date: '2025-01-01', genero: 'F' }),
+    p({ id: 'b', hiring_date: '2025-01-01', genero: 'F' }),
+    ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => p({ id: `x${n}`, hiring_date: '2025-01-01' })),
+  ];
+  const m = reconstruirSerie(pessoas, 'NSX', '2025-01').linhas[0];
+  assert.equal(m.headcount, 10);
+  assert.equal(m.gender_female, 2);
+  assert.equal(m.genero_conhecido, 2);
+  assert.equal(m.gender_female_pct, null);
+});
+
+test('com cobertura completa o percentual aparece', () => {
+  const pessoas = [
+    p({ id: 'a', hiring_date: '2025-01-01', genero: 'F' }),
+    p({ id: 'b', hiring_date: '2025-01-01', genero: 'M' }),
+    p({ id: 'c', hiring_date: '2025-01-01', genero: 'M' }),
+    p({ id: 'd', hiring_date: '2025-01-01', genero: 'M' }),
+  ];
+  const m = reconstruirSerie(pessoas, 'NSX', '2025-01').linhas[0];
+  assert.equal(m.gender_female, 1);
+  assert.equal(m.gender_male, 3);
+  assert.equal(m.gender_female_pct, 25);
+});
+
+test('mulheres em liderança usa a mesma regra de cobertura', () => {
+  const pessoas = [
+    p({ id: 'chefe', hiring_date: '2025-01-01', genero: 'F' }),
+    p({ id: 'a', hiring_date: '2025-01-01', genero: 'M', supervisorId: 'chefe' }),
+  ];
+  const m = reconstruirSerie(pessoas, 'NSX', '2025-01').linhas[0];
+  assert.equal(m.leaders, 1);
+  assert.equal(m.leader_female, 1);
+  assert.equal(m.leader_female_pct, 100);
 });

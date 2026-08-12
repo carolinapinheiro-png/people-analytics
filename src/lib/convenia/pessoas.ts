@@ -44,6 +44,8 @@ export interface PessoaConvenia {
   birth_date?: string | null;
   /** UF, de `address.state`. */
   uf?: string | null;
+  /** 'F' | 'M' | null. Vem do cache, não da listagem. */
+  genero?: 'F' | 'M' | null;
   /** Preenchidos pelo cruzamento com a listagem de desligados. */
   dataSaida?: string | null;
   tipoSaida?: string | null;
@@ -68,6 +70,41 @@ export interface LinhaMensal {
   tenure_base: Record<string, number>;
   /** Faixas etárias. */
   demographics: Record<string, number>;
+  gender_female: number;
+  gender_male: number;
+  /** `null` enquanto a cobertura de gênero for baixa demais para ser honesta. */
+  gender_female_pct: number | null;
+  leader_female: number;
+  leader_female_pct: number | null;
+  /** Quantas das pessoas presentes têm gênero conhecido. */
+  genero_conhecido: number;
+}
+
+/**
+ * Cobertura mínima de gênero para publicar percentuais.
+ *
+ * O risco aqui não é o número faltar -- é ele existir e estar errado. Com 120
+ * de 638 pessoas resolvidas, "38% de mulheres" seria 38% DAQUELAS 120, e a
+ * ordem em que a API devolve as pessoas não é aleatória: é por cadastro, que
+ * correlaciona com data de entrada, que correlaciona com área. Um recorte
+ * enviesado apresentado como total.
+ *
+ * Abaixo do piso as CONTAGENS continuam sendo gravadas -- elas são fatos sobre
+ * quem já foi resolvido -- mas o PERCENTUAL fica nulo, porque percentual sobre
+ * amostra enviesada é afirmação sobre o todo.
+ */
+export const COBERTURA_MINIMA_GENERO = 0.9;
+
+/** 'Mulher', 'Feminino', 'F' -> 'F'. Devolve null no que não reconhecer. */
+export function normalizarGenero(v: string | null | undefined): 'F' | 'M' | null {
+  if (!v) return null;
+  const t = v.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  if (t.startsWith('mulher') || t.startsWith('femin') || t === 'f') return 'F';
+  if (t.startsWith('homem') || t.startsWith('masc') || t === 'm') return 'M';
+  // Identidades fora do binário, ou rótulo novo: null em vez de forçar num
+  // dos dois. Elas contam no headcount e ficam fora do recorte de gênero, que
+  // é melhor que serem classificadas erradas para fechar uma conta.
+  return null;
 }
 
 /**
@@ -283,6 +320,7 @@ export function reconstruirSerie(
     };
 
     let headcount = 0, joiners = 0, leavers = 0, leaders = 0;
+    let gF = 0, gM = 0, lidF = 0, generoConhecido = 0;
     const salLideres: number[] = [];
     const salDemais: number[] = [];
     const state_mix: Record<string, number> = {};
@@ -301,6 +339,12 @@ export function reconstruirSerie(
 
         const ehGestor = gestores.has(x.p.id);
         if (ehGestor) leaders++;
+
+        if (x.p.genero) {
+          generoConhecido++;
+          if (x.p.genero === 'F') { gF++; if (ehGestor) lidF++; }
+          else gM++;
+        }
 
         if (typeof x.p.salary === 'number' && x.p.salary > 0) {
           (ehGestor ? salLideres : salDemais).push(x.p.salary);
@@ -337,6 +381,17 @@ export function reconstruirSerie(
       state_mix,
       tenure_base,
       demographics,
+      gender_female: gF,
+      gender_male: gM,
+      // Percentual só quando a cobertura sustenta. Ver COBERTURA_MINIMA_GENERO.
+      gender_female_pct: headcount > 0 && generoConhecido / headcount >= COBERTURA_MINIMA_GENERO
+        ? Math.round((gF / generoConhecido) * 1000) / 10
+        : null,
+      leader_female: lidF,
+      leader_female_pct: leaders > 0 && generoConhecido / headcount >= COBERTURA_MINIMA_GENERO
+        ? Math.round((lidF / leaders) * 1000) / 10
+        : null,
+      genero_conhecido: generoConhecido,
     });
   }
 

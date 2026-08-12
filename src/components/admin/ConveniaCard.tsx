@@ -280,6 +280,30 @@ export function ConveniaCard() {
                   ))}
                 </div>
 
+                {r.genero.total > 0 && (
+                  <div className="mt-3 rounded border border-border/60 p-2 text-xs">
+                    <div className="font-medium">
+                      Gênero: {r.genero.conhecidos} de {r.genero.total} resolvidos
+                      {r.genero.pendentes > 0 && ` · ${r.genero.pendentes} pendentes`}
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded bg-muted">
+                      <div
+                        className="h-full"
+                        style={{
+                          width: `${Math.min(100, (r.genero.conhecidos / r.genero.total) * 100)}%`,
+                          backgroundColor: r.genero.pendentes === 0 ? COLORS.success : COLORS.warning,
+                        }}
+                      />
+                    </div>
+                    {r.genero.buscadosAgora > 0 && (
+                      <div className="mt-1 text-muted-foreground">
+                        {r.genero.buscadosAgora} buscados nesta execução.
+                        {r.genero.pendentes > 0 && ' Rode de novo para avançar.'}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                   {r.linhasPorMarca.map((m) => (
                     <div key={m.marca}>

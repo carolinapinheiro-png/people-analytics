@@ -61,6 +61,8 @@ export interface ResumoSyncConvenia {
   detalhesBuscados: number;
   /** Desligados que nem o detalhe resolveu. Estes ainda subestimam a série. */
   naoResolvidos: number;
+  /** Progresso da resolução de gênero, que é feita em lotes. */
+  genero: { conhecidos: number; total: number; buscadosAgora: number; pendentes: number };
   linhasPorMarca: { marca: string; linhas: number; de: string | null; ate: string | null }[];
   totalLinhas: number;
   requisicoes: number;
@@ -107,7 +109,7 @@ export async function executarSyncConvenia(
     const { fontesConfiguradas } = await import('./fontes');
     const { ConveniaClient } = await import('./client.server');
     const { EMPLOYEES, EMPLOYEES_DISMISSED, EMPLOYEE_DETAIL } = await import('./paths');
-    const { mesDe, ehVoluntaria } = await import('./pessoas');
+    const { mesDe, ehVoluntaria, normalizarGenero } = await import('./pessoas');
 
     // O cache do que já foi resolvido. Uma pessoa desligada não muda de data
     // de admissão nem de área, então buscar de novo seria expor cadastro
@@ -121,6 +123,29 @@ export async function executarSyncConvenia(
     );
     let buscadosAgora = 0;
     let naoResolvidos = 0;
+
+    // ------------------------------------------------------------------
+    // GÊNERO, EM LOTES
+    // ------------------------------------------------------------------
+    // Só existe no detalhe individual: 638 pessoas a 1,3s são ~14 minutos, o
+    // que estoura o tempo do agendador. Então cada execução resolve um lote e
+    // guarda; a seguinte continua de onde parou.
+    //
+    // Converge sozinho em algumas semanas, ou na hora se alguém clicar algumas
+    // vezes seguidas. O importante é que o progresso seja VISÍVEL -- daí o
+    // contador de pendentes no resumo -- em vez de a série ficar
+    // silenciosamente incompleta.
+    const LOTE_GENERO = 200;
+    const { data: pessoasCache } = await db
+      .from('convenia_pessoas')
+      .select('convenia_id, gender');
+    const cacheGenero = new Map<string, 'F' | 'M' | null>(
+      ((pessoasCache ?? []) as { convenia_id: string; gender: string | null }[])
+        .map((r) => [r.convenia_id, (r.gender as 'F' | 'M' | null) ?? null]),
+    );
+    // Quem já foi buscado e voltou sem gênero não é buscado de novo: a linha
+    // existe no cache com valor nulo, e isso é a resposta, não uma falha.
+    let generoBuscadosAgora = 0;
 
     const avisos: string[] = [];
     const porMarca = new Map<string, PessoaConvenia[]>();
@@ -173,7 +198,40 @@ export async function executarSyncConvenia(
         const registros: PessoaConvenia[] = pessoas.map((p) => ({
           id: p.id, hiring_date: p.hiring_date, department: p.department, status: p.status,
           supervisorId: p.supervisorId, salary: p.salary, birth_date: p.birth_date, uf: p.uf,
+          genero: cacheGenero.get(p.id) ?? null,
         }));
+
+        // Resolve um lote de gênero para quem ainda não está no cache.
+        const semGenero = pessoas.filter((x) => !cacheGenero.has(x.id));
+        for (const alvo of semGenero) {
+          if (generoBuscadosAgora >= LOTE_GENERO) break;
+          try {
+            const env2 = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(alvo.id));
+            const det2 = (env2?.data ?? env2) as Record<string, unknown>;
+            // Dos 123 campos, três seguem adiante. `gender` é a identidade de
+            // gênero; `gender_document` seria o do documento, e usar aquele é
+            // deliberado -- o painel fala de pessoas, não de cartórios.
+            const g = normalizarGenero(
+              (det2.gender as { name?: string } | string | null) &&
+              (typeof det2.gender === 'string' ? det2.gender : (det2.gender as { name?: string })?.name),
+            );
+            const raca = (det2.ethnicity as { name?: string } | null)?.name ?? null;
+            cacheGenero.set(alvo.id, g);
+            generoBuscadosAgora++;
+            await db.from('convenia_pessoas').upsert({
+              convenia_id: alvo.id,
+              gender: g,
+              race: raca,
+              birth_month: mesDe(alvo.birth_date),
+            }, { onConflict: 'convenia_id' });
+          } catch {
+            // Falhou: NÃO entra no cache, para a próxima execução tentar de novo.
+            break;
+          }
+        }
+
+        // Reaplica o que acabou de ser resolvido.
+        for (const r of registros) r.genero = cacheGenero.get(r.id) ?? null;
 
         for (const s of saidas) {
           const achado = porId.get(s.id);
@@ -298,7 +356,13 @@ export async function executarSyncConvenia(
     // requisição por pessoa. Com 638 ativos seriam ~13 minutos, o que estoura o
     // tempo do agendador. Ficam de fora por ora, e o aviso existe para que a
     // ausência seja uma decisão visível e não um esquecimento.
-    avisos.push('Gênero e raça não entram nesta série: a listagem do Convenia não os traz, e buscá-los pessoa a pessoa levaria ~13 minutos. Os gráficos que dependem deles continuam na série antiga.');
+    const totalAtivos = [...porMarca.values()].flat().filter((x) => x.dataSaida == null).length;
+    const comGenero = [...porMarca.values()].flat().filter((x) => x.genero != null).length;
+    const pendentes = Math.max(0, totalAtivos - [...cacheGenero.keys()].length);
+
+    if (pendentes > 0) {
+      avisos.push(`Gênero: ${comGenero} de ${totalAtivos} pessoas resolvidas, ${pendentes} pendentes. A resolução é em lotes de ${LOTE_GENERO} por execução — rode de novo para avançar, ou deixe o agendamento semanal convergir. Enquanto a cobertura estiver abaixo de 90%, as CONTAGENS aparecem mas os PERCENTUAIS ficam nulos, porque percentual sobre amostra parcial é afirmação sobre o todo.`);
+    }
 
     if (buscadosAgora > 0) {
       avisos.push(`${buscadosAgora} desligados foram buscados um a um para recuperar admissão e área. Eles ficam guardados, então a próxima execução não repete a busca.`);
@@ -312,6 +376,12 @@ export async function executarSyncConvenia(
 
     const out: ResumoSyncConvenia = {
       gravado: false,
+      genero: {
+        conhecidos: comGenero,
+        total: totalAtivos,
+        buscadosAgora: generoBuscadosAgora,
+        pendentes,
+      },
       empresas,
       pessoasUnicas: pessoasTodas.length,
       desligadosSemCadastro,
@@ -338,6 +408,11 @@ export async function executarSyncConvenia(
         leavers: l.leavers,
         attrition_rate: l.attrition_rate,
         dept_breakdown: l.dept_breakdown,
+        gender_female: l.gender_female,
+        gender_male: l.gender_male,
+        gender_female_pct: l.gender_female_pct,
+        leader_female: l.leader_female,
+        leader_female_pct: l.leader_female_pct,
         leaders: l.leaders,
         leaders_pct: l.leaders_pct,
         avg_salary_leaders: l.avg_salary_leaders,
