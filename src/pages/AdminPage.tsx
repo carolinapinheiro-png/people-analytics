@@ -14,7 +14,6 @@ import DepartmentsSection from '@/components/admin/DepartmentsSection';
 import AuditSection, { type AccessLog } from '@/components/admin/AuditSection';
 import InhireSyncCard from '@/components/admin/InhireSyncCard';
 import ConveniaCard from '@/components/admin/ConveniaCard';
-import SeriesComparisonCard from '@/components/admin/SeriesComparisonCard';
 
 interface UserPaginationState {
   items: AllowedEmail[];
@@ -192,7 +191,6 @@ export default function AdminPage() {
             <TabsContent value="data" className="space-y-6 mt-0">
               <InhireSyncCard />
               <ConveniaCard />
-              <SeriesComparisonCard />
             </TabsContent>
           )}
         </Tabs>
