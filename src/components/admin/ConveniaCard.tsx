@@ -25,7 +25,7 @@ export function ConveniaCard() {
     } catch (e) {
       setD({
         configurado: false, nomeDoToken: null, permissoes: [], faltando: [],
-        excessos: [], amostra: null, avisos: [],
+        excessos: [], amostra: null, sondas: [], veredito: null, avisos: [],
         erro: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -137,6 +137,18 @@ export function ConveniaCard() {
                       </p>
                     </>
                   )}
+                </div>
+              )}
+
+              {d.veredito && (
+                <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
+                  <div className="font-medium">Dá para reconstruir a série mensal?</div>
+                  <p className="mt-1 text-muted-foreground">{d.veredito}</p>
+                  {d.sondas.filter((s) => s.total != null).map((s) => (
+                    <p key={s.recurso} className="mt-1 text-xs text-muted-foreground">
+                      {s.recurso}: {s.total} registros no total.
+                    </p>
+                  ))}
                 </div>
               )}
 

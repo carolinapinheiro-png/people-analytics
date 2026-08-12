@@ -66,11 +66,12 @@ export function extrairPagina<T>(corpo: unknown): {
   itens: T[];
   ultimaPagina: number | null;
   paginaAtual: number | null;
+  total: number | null;
   reconhecido: boolean;
 } {
   const c = corpo as Record<string, unknown> | null;
   if (!c || typeof c !== 'object') {
-    return { itens: [], ultimaPagina: null, paginaAtual: null, reconhecido: false };
+    return { itens: [], ultimaPagina: null, paginaAtual: null, total: null, reconhecido: false };
   }
   const data = c.data;
   if (!Array.isArray(data)) {
@@ -79,6 +80,7 @@ export function extrairPagina<T>(corpo: unknown): {
       itens: data ? ([data] as T[]) : [],
       ultimaPagina: null,
       paginaAtual: null,
+      total: null,
       reconhecido: data != null,
     };
   }
@@ -87,6 +89,8 @@ export function extrairPagina<T>(corpo: unknown): {
     itens: data as T[],
     ultimaPagina: num(c.last_page),
     paginaAtual: num(c.current_page),
+    /** Total de registros do recurso inteiro, não da página. */
+    total: num(c.total),
     reconhecido: true,
   };
 }

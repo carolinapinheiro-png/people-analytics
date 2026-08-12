@@ -43,6 +43,15 @@ export interface PermissaoConvenia {
   campos: string[];
 }
 
+export interface Sonda {
+  recurso: string;
+  camposVistos: string[];
+  /** Total do recurso inteiro, não da página. Compara ativos com desligados. */
+  total: number | null;
+  quantidade: number;
+  erro: string | null;
+}
+
 export interface AmostraDesligados {
   /**
    * Apenas os NOMES dos campos que voltaram, nunca os valores.
@@ -67,6 +76,10 @@ export interface ConveniaDiagnostico {
   /** Escrita e dados pessoais que o token carrega mas o painel não usa. */
   excessos: string[];
   amostra: AmostraDesligados | null;
+  /** Sondas de forma nos dois recursos que a reconstrução usa. */
+  sondas: Sonda[];
+  /** Veredito sobre a reconstrução da série mensal, em português. */
+  veredito: string | null;
   avisos: string[];
   erro: string | null;
 }
@@ -128,6 +141,8 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
       faltando: [],
       excessos: [],
       amostra: null,
+      sondas: [],
+      veredito: null,
       avisos: [],
       erro: null,
     };
@@ -156,7 +171,11 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
       const tudo = semAcento(
         permissoes.map((p) => `${p.recurso} ${p.campos.join(' ')}`).join(' '),
       );
-      const faltando = NECESSARIOS
+      // NOTA: isto olha o NOME das permissões, que é indício fraco. A prova
+      // vem das sondas mais abaixo -- e já me deu um falso alarme aqui: o tipo
+      // de desligamento não aparece como campo nomeado, mas VEM na resposta,
+      // dentro do campo composto "Informações do desligamento".
+      const faltandoPeloNome = NECESSARIOS
         .filter((n) => !n.procurar.some((frag) => tudo.includes(semAcento(frag))))
         .map((n) => n.rotulo);
 
@@ -215,7 +234,76 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
         };
       }
 
+      // ------------------------------------------------------------------
+      // AS SONDAS DE FORMA
+      // ------------------------------------------------------------------
+      // A listagem de desligados devolve só `id`, `corporate_email` e o bloco
+      // `dismissal` -- sem data de admissão nem departamento. Sem esses dois,
+      // quem saiu some da contagem dos meses em que ESTAVA lá, e a série
+      // histórica fica errada para baixo.
+      //
+      // A pista: a listagem de ativos tem um campo `Status`. Se ela incluir os
+      // desligados, resolve tudo numa chamada só. Comparar os TOTAIS dos dois
+      // recursos responde isso sem precisar baixar nada.
+      const { EMPLOYEES, extrairPagina: extrair } = await import('@/lib/convenia/paths');
+      const sondar = async (recurso: string, path: string): Promise<Sonda> => {
+        try {
+          const bruto = await client.get<unknown>(path, { per_page: 1, page: 1 });
+          const p = extrair<Record<string, unknown>>(bruto);
+          return {
+            recurso,
+            camposVistos: p.itens.length ? chavesDe(p.itens[0]) : [],
+            total: p.total ?? null,
+            quantidade: p.itens.length,
+            erro: null,
+          };
+        } catch (e) {
+          return { recurso, camposVistos: [], total: null, quantidade: 0, erro: e instanceof Error ? e.message : String(e) };
+        }
+      };
+
+      const sondaAtivos = await sondar('Colaboradores', EMPLOYEES);
+      const sondas = [sondaAtivos, {
+        recurso: 'Colaboradores desligados',
+        camposVistos: amostra?.camposVistos ?? [],
+        total: null,
+        quantidade: amostra?.quantidade ?? 0,
+        erro: amostra?.erro ?? null,
+      }];
+
+      // Um campo é "achado" se aparecer no caminho de chave, em qualquer nível.
+      const tem = (s: Sonda, frags: string[]) =>
+        s.camposVistos.some((c) => frags.some((f) => semAcento(c).includes(f)));
+
+      const ativosTemAdmissao = tem(sondaAtivos, ['admiss', 'hired', 'hire_date']);
+      const ativosTemDept = tem(sondaAtivos, ['department', 'departamento']);
+      const ativosTemStatus = tem(sondaAtivos, ['status']);
+
+      let veredito: string | null = null;
+      if (sondaAtivos.erro) {
+        veredito = `Não deu para sondar a listagem de ativos: ${sondaAtivos.erro}`;
+      } else if (!ativosTemAdmissao || !ativosTemDept) {
+        veredito = `A listagem de ativos ${!ativosTemAdmissao ? 'não traz data de admissão' : 'não traz departamento'} — sem isso não dá para reconstruir a série mensal por área.`;
+      } else if (ativosTemStatus) {
+        veredito = 'A listagem de ativos traz admissão, departamento E um campo de status. Se o status distinguir quem saiu, a reconstrução sai de uma fonte só — é o caminho mais limpo, e é o próximo a testar.';
+      } else {
+        veredito = 'A listagem de ativos traz admissão e departamento, mas sem status: quem saiu provavelmente não aparece nela. Nesse caso os desligados precisam vir pelo detalhe individual, uma chamada por pessoa.';
+      }
+
+      // O que falta DE VERDADE, medido na resposta e não no rótulo.
+      const faltando: string[] = [];
+      if (!ativosTemAdmissao) faltando.push('Data de admissão (ativos)');
+      if (!ativosTemDept) faltando.push('Departamento (ativos)');
+      if (amostra?.quantidade) {
+        if (!tem(sondas[1], ['admiss', 'hired'])) faltando.push('Data de admissão (desligados)');
+        if (!tem(sondas[1], ['department', 'departamento'])) faltando.push('Departamento (desligados)');
+        if (amostra.temTipoDesligamento === false) faltando.push('Tipo de desligamento');
+      }
+
       const avisos: string[] = [];
+      if (faltandoPeloNome.length && !faltando.length) {
+        avisos.push('Pelo nome dos campos do token, algo parecia faltar; a resposta real mostrou que não. Vale a regra: nome de permissão é indício, resposta é prova.');
+      }
       if (!permissoes.length) {
         avisos.push('O token respondeu, mas sem nenhuma permissão listada. Isso costuma significar que ele foi criado sem marcar nada.');
       }
@@ -232,6 +320,8 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
         faltando,
         excessos,
         amostra,
+        sondas,
+        veredito,
         avisos,
         erro: null,
       };
