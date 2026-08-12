@@ -263,10 +263,11 @@ export function ConveniaCard() {
                   )}
                 </div>
 
-                <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
                   <div><div className="text-muted-foreground">Pessoas</div><div className="font-medium">{r.pessoasUnicas}</div></div>
                   <div><div className="text-muted-foreground">Linhas</div><div className="font-medium">{r.totalLinhas}</div></div>
-                  <div><div className="text-muted-foreground">Sem cadastro</div><div className="font-medium">{r.desligadosSemCadastro}</div></div>
+                  <div><div className="text-muted-foreground">Buscados 1 a 1</div><div className="font-medium">{r.detalhesBuscados}</div></div>
+                  <div><div className="text-muted-foreground">Não resolvidos</div><div className="font-medium">{r.naoResolvidos}</div></div>
                   <div><div className="text-muted-foreground">Requisições</div><div className="font-medium">{r.requisicoes}</div></div>
                 </div>
 

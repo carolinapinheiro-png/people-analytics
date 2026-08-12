@@ -53,6 +53,10 @@ export interface ResumoSyncConvenia {
   }[];
   pessoasUnicas: number;
   desligadosSemCadastro: number;
+  /** Buscados no detalhe individual nesta execução. Cai para ~0 nas próximas. */
+  detalhesBuscados: number;
+  /** Desligados que nem o detalhe resolveu. Estes ainda subestimam a série. */
+  naoResolvidos: number;
   linhasPorMarca: { marca: string; linhas: number; de: string | null; ate: string | null }[];
   totalLinhas: number;
   requisicoes: number;
@@ -84,7 +88,21 @@ export async function executarSyncConvenia(
   try {
     const { fontesConfiguradas } = await import('./fontes');
     const { ConveniaClient } = await import('./client.server');
-    const { EMPLOYEES, EMPLOYEES_DISMISSED } = await import('./paths');
+    const { EMPLOYEES, EMPLOYEES_DISMISSED, EMPLOYEE_DETAIL } = await import('./paths');
+    const { mesDe, ehVoluntaria } = await import('./pessoas');
+
+    // O cache do que já foi resolvido. Uma pessoa desligada não muda de data
+    // de admissão nem de área, então buscar de novo seria expor cadastro
+    // pessoal para reconfirmar um dado imutável.
+    const { data: jaResolvidos } = await db
+      .from('convenia_leavers')
+      .select('convenia_id, hiring_month, department, dismissal_month, marca');
+    const cache = new Map<string, { hiring_month: string | null; department: string | null }>(
+      ((jaResolvidos ?? []) as { convenia_id: string; hiring_month: string | null; department: string | null }[])
+        .map((r) => [r.convenia_id, { hiring_month: r.hiring_month, department: r.department }]),
+    );
+    let buscadosAgora = 0;
+    let naoResolvidos = 0;
 
     const avisos: string[] = [];
     const porMarca = new Map<string, PessoaConvenia[]>();
@@ -135,12 +153,52 @@ export async function executarSyncConvenia(
             r.dataSaida = s.data;
             r.tipoSaida = s.tipo;
           } else {
-            // Saiu, e não está no cadastro de colaboradores: sabemos QUANDO
-            // saiu, não sabemos quando entrou. Entra na série como saída no
-            // mês certo e fica fora do headcount anterior -- o que subestima.
-            // Por isso é contado e aparece no resumo.
+            // Não está no cadastro de ativos -- confirmado: são bases
+            // separadas, 0 de 164 cruzaram. A admissão e a área só existem no
+            // detalhe individual, e é a única forma de a série não ficar
+            // subestimada em 20%.
             desligadosSemCadastro++;
-            registros.push({ id: s.id, hiring_date: null, department: null, dataSaida: s.data, tipoSaida: s.tipo });
+
+            let dados = cache.get(s.id);
+            if (!dados) {
+              try {
+                const det = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(s.id));
+                // A REDUÇÃO, na linha seguinte à chegada. Dos 123 campos que
+                // vieram, quatro seguem adiante; os outros 119 -- CPF, RG,
+                // endereço, conta bancária -- morrem aqui.
+                dados = {
+                  hiring_month: mesDe(det.hiring_date as string),
+                  department: ((det.department as { name?: string })?.name ?? null),
+                };
+                cache.set(s.id, dados);
+                buscadosAgora++;
+
+                await db.from('convenia_leavers').upsert({
+                  convenia_id: s.id,
+                  empresa: f.empresa,
+                  marca: f.marca,
+                  hiring_month: dados.hiring_month,
+                  dismissal_month: mesDe(s.data),
+                  department: dados.department,
+                  dismissal_type: s.tipo,
+                  voluntary: ehVoluntaria(s.tipo),
+                }, { onConflict: 'convenia_id' });
+              } catch {
+                // Uma pessoa que falha não derruba a carga. Ela fica sem
+                // admissão, e o resumo diz quantas ficaram.
+                naoResolvidos++;
+              }
+            }
+
+            registros.push({
+              id: s.id,
+              // O cache guarda MÊS, não data. A série é mensal, e guardar o
+              // dia daria uma precisão que ninguém usa.
+              hiring_date: dados?.hiring_month ? `${dados.hiring_month}-01` : null,
+              department: dados?.department ? { name: dados.department } : null,
+              dataSaida: s.data,
+              tipoSaida: s.tipo,
+            });
           }
         }
 
@@ -179,6 +237,12 @@ export async function executarSyncConvenia(
     const pessoasTodas = [...porMarca.values()].flat();
     const marcadosNoStatus = pessoasTodas.filter((p) => ehDesligadoPeloStatus(p.status ?? null)).length;
     const comSaida = pessoasTodas.filter((p) => p.dataSaida != null).length;
+    if (buscadosAgora > 0) {
+      avisos.push(`${buscadosAgora} desligados foram buscados um a um para recuperar admissão e área. Eles ficam guardados, então a próxima execução não repete a busca.`);
+    }
+    if (naoResolvidos > 0) {
+      avisos.push(`${naoResolvidos} desligados não foram resolvidos nem pelo detalhe — continuam fora do headcount dos meses em que estavam lá.`);
+    }
     if (marcadosNoStatus && Math.abs(marcadosNoStatus - comSaida) > comSaida * 0.1) {
       avisos.push(`O campo status marca ${marcadosNoStatus} pessoas como desligadas, mas a listagem de desligados traz ${comSaida}. A diferença merece um olhar antes de promover esta série a oficial.`);
     }
@@ -188,6 +252,8 @@ export async function executarSyncConvenia(
       empresas,
       pessoasUnicas: pessoasTodas.length,
       desligadosSemCadastro,
+      detalhesBuscados: buscadosAgora,
+      naoResolvidos,
       linhasPorMarca,
       totalLinhas: todasLinhas.length,
       requisicoes,

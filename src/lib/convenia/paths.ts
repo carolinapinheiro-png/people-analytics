@@ -30,6 +30,26 @@ export const POSITIONS = '/positions';
 export const COST_CENTERS = '/cost-centers';
 export const DISMISSAL_TYPES = '/dismissal-types';
 
+/**
+ * Detalhe de UMA pessoa. Traz o cadastro completo -- CPF, RG, endereço, conta
+ * bancária -- e por isso ficou fora desta lista até 12/08/2026.
+ *
+ * Entrou porque não havia alternativa: a listagem de desligados só devolve
+ * `id`, `corporate_email` e o bloco `dismissal`. Sem data de admissão, quem
+ * saiu não entra no headcount dos meses em que estava lá, e a série histórica
+ * fica subestimada -- eram 164 de 802 pessoas, 20% da base.
+ *
+ * A tela de permissões do Convenia foi conferida: só existem dois campos
+ * selecionáveis para aquela listagem. Não é configuração, é limite do produto.
+ *
+ * Três restrições ficam junto com a permissão:
+ *   1. Só é chamado para quem JÁ SAIU -- nunca para quem está na empresa.
+ *   2. Só uma vez por pessoa. O resultado vai para `convenia_leavers` com
+ *      quatro campos, e a mesma pessoa nunca é buscada de novo.
+ *   3. Dos 123 campos que voltam, quatro sobrevivem à primeira linha de código.
+ */
+export const EMPLOYEE_DETAIL = (id: string) => `/employees/${id}`;
+
 const PERMITIDOS: readonly string[] = [
   TOKEN_PERMISSIONS,
   EMPLOYEES,
@@ -40,17 +60,21 @@ const PERMITIDOS: readonly string[] = [
   DISMISSAL_TYPES,
 ];
 
+/** `/employees/{uuid}` -- validado por formato para não virar caminho livre. */
+const DETALHE = /^\/employees\/[A-Za-z0-9-]{8,}$/;
+
 /**
- * Um caminho é permitido se estiver na lista. Query string não conta -- a
- * comparação é sobre o recurso, não sobre os filtros.
+ * Um caminho é permitido se estiver na lista fixa OU for o detalhe de uma
+ * pessoa. Query string não conta -- a comparação é sobre o recurso, não sobre
+ * os filtros.
  *
- * Note que `/employees/{id}` NÃO passa: o detalhe de uma pessoa é justamente o
- * que traz documento e endereço. Se um dia for preciso, entra aqui
- * explicitamente e alguém revisa.
+ * O detalhe passa por regex e não por lista porque o id varia. A regex é
+ * fechada de propósito (só o formato de uuid): sem ela, `/employees/../algo`
+ * viraria caminho livre, e a lista fechada perderia a razão de existir.
  */
 export function isPathPermitido(path: string): boolean {
   const semQuery = path.split('?')[0].replace(/\/+$/, '') || '/';
-  return PERMITIDOS.includes(semQuery);
+  return PERMITIDOS.includes(semQuery) || DETALHE.test(semQuery);
 }
 
 /**
