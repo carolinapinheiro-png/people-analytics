@@ -202,11 +202,17 @@ export async function executarSyncConvenia(
         }));
 
         // Resolve um lote de gênero para quem ainda não está no cache.
-        const semGenero = pessoas.filter((x) => !cacheGenero.has(x.id));
+        //
+        // Inclui QUEM JÁ SAIU, e isso importa mais do que parece: nos meses
+        // antigos a maioria das pessoas presentes já foi embora. Resolvendo só
+        // os ativos, a cobertura de 2019 fica perto de zero e o percentual de
+        // gênero some justamente onde a série é mais longa -- foi o que
+        // aconteceu na primeira rodada, 15 meses com percentual de 272.
+        const semGenero = registros.filter((x) => !cacheGenero.has(x.id));
         for (const alvo of semGenero) {
           if (generoBuscadosAgora >= LOTE_GENERO) break;
           try {
-            const env2 = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(alvo.id));
+            const env2 = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(String(alvo.id)));
             const det2 = (env2?.data ?? env2) as Record<string, unknown>;
             // Dos 123 campos, três seguem adiante. `gender` é a identidade de
             // gênero; `gender_document` seria o do documento, e usar aquele é
@@ -222,7 +228,7 @@ export async function executarSyncConvenia(
               convenia_id: alvo.id,
               gender: g,
               race: raca,
-              birth_month: mesDe(alvo.birth_date),
+              birth_month: mesDe(alvo.birth_date ?? null),
             }, { onConflict: 'convenia_id' });
           } catch {
             // Falhou: NÃO entra no cache, para a próxima execução tentar de novo.
