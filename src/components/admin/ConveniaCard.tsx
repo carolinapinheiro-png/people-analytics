@@ -6,12 +6,11 @@ import { COLORS } from '@/lib/colors';
 import { getConveniaDiagnostico, type ConveniaDiagnostico } from '@/lib/convenia.functions';
 
 /**
- * O que o token do Convenia enxerga.
+ * Estado da integração com o Convenia, empresa por empresa.
  *
- * Esta tela não sincroniza nada -- ela só pergunta à API quais permissões e
- * campos o token carrega. É o passo zero, e existe porque a falha que ela
- * previne é invisível: um token sem "data de admissão" não dá erro nenhum,
- * apenas produz uma série de headcount plausível e errada.
+ * Não sincroniza nada. Pergunta a cada token o que ele enxerga e mostra a
+ * resposta real -- porque a falha que isso previne é invisível: um token sem
+ * data de admissão produz uma série de headcount plausível e errada.
  */
 export function ConveniaCard() {
   const carregar = useServerFn(getConveniaDiagnostico);
@@ -24,8 +23,7 @@ export function ConveniaCard() {
       setD(await carregar({}));
     } catch (e) {
       setD({
-        configurado: false, nomeDoToken: null, permissoes: [], faltando: [],
-        excessos: [], amostra: null, sondas: [], veredito: null, avisos: [],
+        empresas: [], faltamSecrets: [], totalGeral: null, veredito: null, avisos: [],
         erro: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -40,122 +38,66 @@ export function ConveniaCard() {
       <div className="flex items-start gap-3">
         <KeyRound className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
-          <h3 className="text-base font-semibold">Convenia — o que o token enxerga</h3>
+          <h3 className="text-base font-semibold">Convenia — uma empresa por token</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            O token do Convenia expõe só os campos marcados quando ele foi criado.
-            Isto pergunta à API quais são, antes de qualquer carga — um campo que
-            falta não dá erro, vira coluna vazia.
+            O Convenia é por CNPJ: cada empresa tem seu token e só enxerga a si mesma.
+            Aqui dá para ver o que cada uma entrega antes de qualquer carga.
           </p>
 
           <Button onClick={rodar} disabled={carregando} className="mt-4" variant="outline">
             <RefreshCw className={`mr-2 h-4 w-4 ${carregando ? 'animate-spin' : ''}`} />
-            {carregando ? 'Consultando…' : 'Conferir token'}
+            {carregando ? 'Consultando…' : 'Conferir tokens'}
           </Button>
 
           {d?.erro && (
-            <div className="mt-4 rounded-lg border border-border/60 p-3 text-sm">
-              <div className="flex items-center gap-2 font-medium" style={{ color: COLORS.danger }}>
-                <AlertTriangle className="h-4 w-4" /> Não deu para consultar
+            <p className="mt-4 text-sm" style={{ color: COLORS.danger }}>{d.erro}</p>
+          )}
+
+          {d && d.totalGeral != null && (
+            <div className="mt-4 rounded-lg border border-border/60 p-3">
+              <div className="text-2xl font-semibold">{d.totalGeral.toLocaleString('pt-BR')}</div>
+              <div className="text-sm text-muted-foreground">
+                pessoas somando as {d.empresas.length} empresas já configuradas
+                {d.faltamSecrets.length > 0 && ` — faltam ${d.faltamSecrets.length}`}
               </div>
-              <p className="mt-1 text-muted-foreground">{d.erro}</p>
             </div>
           )}
 
-          {d && !d.erro && (
-            <div className="mt-4 rounded-lg border border-border/60 p-4">
-              <div className="flex items-center gap-2 font-medium">
-                {d.faltando.length === 0 ? (
-                  <>
-                    <CheckCircle2 className="h-4 w-4" style={{ color: COLORS.success }} />
-                    Token completo para o que o painel precisa
-                  </>
+          {d?.empresas.map((e) => (
+            <div key={e.env} className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
+              <div className="flex items-center gap-2">
+                {e.erro || e.faltando.length ? (
+                  <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: COLORS.warning }} />
                 ) : (
-                  <>
-                    <AlertTriangle className="h-4 w-4" style={{ color: COLORS.warning }} />
-                    Faltam campos no token
-                  </>
+                  <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: COLORS.success }} />
                 )}
+                <span className="font-medium">{e.empresa}</span>
+                <span className="text-xs text-muted-foreground">
+                  {e.marca}{e.local ? ` · ${e.local}` : ''}
+                </span>
               </div>
 
-              {d.nomeDoToken && (
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Token: <strong>{d.nomeDoToken}</strong>
-                </p>
-              )}
-
-              {d.faltando.length > 0 && (
-                <ul className="mt-3 space-y-1 text-sm">
-                  {d.faltando.map((f) => (
-                    <li key={f} style={{ color: COLORS.warning }}>• {f}</li>
-                  ))}
-                </ul>
-              )}
-
-              {d.permissoes.length > 0 && (
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-sm text-muted-foreground">
-                    {d.permissoes.length} permissões — ver detalhe
-                  </summary>
-                  <div className="mt-2 space-y-2">
-                    {d.permissoes.map((p) => (
-                      <div key={p.recurso} className="text-sm">
-                        <div className="font-medium">{p.recurso}</div>
-                        {p.campos.length > 0 && (
-                          <div className="text-muted-foreground">{p.campos.join(', ')}</div>
-                        )}
-                      </div>
-                    ))}
+              {e.erro ? (
+                <p className="mt-1 text-muted-foreground">{e.erro}</p>
+              ) : (
+                <>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Token "{e.nomeDoToken ?? '—'}" · {e.qtdPermissoes} permissões
+                    {e.permissoesEscrita > 0 && ` (${e.permissoesEscrita} de escrita)`}
                   </div>
-                </details>
-              )}
 
-              {d.amostra && (
-                <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
-                  <div className="font-medium">Resposta real da listagem de desligados</div>
-                  {d.amostra.erro ? (
-                    <p className="mt-1 text-muted-foreground">Não deu para consultar: {d.amostra.erro}</p>
-                  ) : d.amostra.quantidade === 0 ? (
-                    <p className="mt-1 text-muted-foreground">
-                      A API respondeu, mas sem nenhum desligado nesta página — não dá para
-                      inspecionar a forma da resposta com lista vazia.
-                    </p>
-                  ) : (
-                    <>
-                      <p className="mt-1" style={{ color: d.amostra.temTipoDesligamento ? COLORS.success : COLORS.warning }}>
-                        {d.amostra.temTipoDesligamento
-                          ? 'O tipo de desligamento VEM na resposta.'
-                          : 'O tipo de desligamento NÃO vem na resposta.'}
-                      </p>
-                      <details className="mt-2">
-                        <summary className="cursor-pointer text-muted-foreground">
-                          {d.amostra.camposVistos.length} campos na resposta — ver nomes
-                        </summary>
-                        <p className="mt-1 text-muted-foreground">{d.amostra.camposVistos.join(', ')}</p>
-                      </details>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Só os nomes dos campos saem daqui. Nenhum valor é lido nem guardado.
-                      </p>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {d.veredito && (
-                <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
-                  <div className="font-medium">Dá para reconstruir a série mensal?</div>
-                  <p className="mt-1 text-muted-foreground">{d.veredito}</p>
-                  {d.sondas.map((s) => (
+                  {e.sondas.map((s) => (
                     <div key={s.recurso} className="mt-2">
-                      <div className="text-xs font-medium">
-                        {s.recurso}
-                        {s.total != null && ` — ${s.total} registros no total`}
+                      <div className="text-xs">
+                        <span className="font-medium">{s.recurso}</span>
+                        {s.total != null && <span className="text-muted-foreground"> — {s.total} registros</span>}
                       </div>
                       {s.erro ? (
-                        <p className="text-xs text-muted-foreground">Erro: {s.erro}</p>
+                        <p className="text-xs" style={{ color: COLORS.warning }}>{s.erro}</p>
                       ) : (
                         <details>
                           <summary className="cursor-pointer text-xs text-muted-foreground">
-                            {s.camposVistos.length} campos na resposta — ver nomes
+                            {s.camposVistos.length} campos na resposta
                           </summary>
                           <p className="mt-1 text-xs text-muted-foreground">
                             {s.camposVistos.join(', ') || '(nenhum)'}
@@ -164,23 +106,48 @@ export function ConveniaCard() {
                       )}
                     </div>
                   ))}
-                </div>
-              )}
 
-              {d.excessos.length > 0 && (
-                <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
-                  <div className="font-medium">O token vai além do necessário</div>
-                  <ul className="mt-1 space-y-1 text-muted-foreground">
-                    {d.excessos.map((x) => <li key={x}>• {x}</li>)}
-                  </ul>
-                </div>
+                  {e.faltando.length > 0 && (
+                    <p className="mt-2 text-xs" style={{ color: COLORS.warning }}>
+                      Falta: {e.faltando.join(' · ')}
+                    </p>
+                  )}
+                </>
               )}
+            </div>
+          ))}
 
-              {d.avisos.map((a) => (
-                <p key={a} className="mt-3 text-sm text-muted-foreground">⚠ {a}</p>
-              ))}
+          {d && d.faltamSecrets.length > 0 && (
+            <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
+              <div className="font-medium">Empresas sem token cadastrado</div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Crie um secret no Lovable com exatamente este nome para cada uma:
+              </p>
+              <ul className="mt-2 space-y-1">
+                {d.faltamSecrets.map((f) => (
+                  <li key={f.env} className="text-xs">
+                    <code className="rounded bg-muted px-1 py-0.5">{f.env}</code>
+                    <span className="text-muted-foreground"> — {f.empresa}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
+
+          {d?.veredito && (
+            <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
+              <div className="font-medium">Dá para reconstruir a série mensal?</div>
+              <p className="mt-1 text-muted-foreground">{d.veredito}</p>
+            </div>
+          )}
+
+          {d?.avisos.map((a) => (
+            <p key={a} className="mt-3 text-sm text-muted-foreground">⚠ {a}</p>
+          ))}
+
+          <p className="mt-3 text-xs text-muted-foreground">
+            Só os nomes dos campos saem daqui. Nenhum valor de colaborador é lido nem guardado.
+          </p>
         </div>
       </div>
     </div>

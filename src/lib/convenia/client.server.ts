@@ -31,25 +31,15 @@ export class ConveniaClient {
   }
 
   /**
-   * Valida a credencial ANTES de chamar a API, para o erro dizer o que fazer.
+   * Um cliente POR EMPRESA. O token do Convenia é por CNPJ e só enxerga o
+   * próprio -- não existe cliente "da Flutter BR", existe um por unidade.
    *
-   * Isto existe por causa do InHire: um HTTP 400 por espaço em branco colado
-   * junto do valor produziu uma mensagem que apontava para "senha errada", e
-   * mandou quem investigou mexer numa credencial que estava certa.
+   * Cada cliente tem o próprio relógio de ritmo, porque o limite de 50/min é
+   * cobrado por conta: dois tokens diferentes não competem pelo mesmo balde.
+   * Ainda assim a carga roda em sequência, para não abrir cinco frentes de
+   * requisição de uma vez contra o mesmo fornecedor.
    */
-  static create(): ConveniaClient {
-    const bruto = process.env.CONVENIA_API_TOKEN;
-    if (!bruto) {
-      throw new Error('Integração não configurada: falta o secret CONVENIA_API_TOKEN.');
-    }
-    // Espaço, quebra de linha e aspas sobram de copiar e colar. Tirar aqui
-    // evita um 401 que parece token inválido e não é.
-    const token = bruto.trim().replace(/^["']|["']$/g, '');
-    if (token.length < 20) {
-      throw new Error(
-        `CONVENIA_API_TOKEN tem só ${token.length} caracteres — parece truncado. Confira se o valor colado no secret está inteiro.`,
-      );
-    }
+  static paraToken(token: string): ConveniaClient {
     return new ConveniaClient(token);
   }
 

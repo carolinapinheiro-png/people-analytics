@@ -2,24 +2,33 @@ import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 
 /**
- * Diagnóstico do token do Convenia.
+ * Diagnóstico da integração com o Convenia.
  *
  * ------------------------------------------------------------------
- * POR QUE ISTO VEM ANTES DE QUALQUER SINCRONIZAÇÃO
+ * UMA EMPRESA POR TOKEN
  * ------------------------------------------------------------------
- * O token do Convenia expõe apenas os campos marcados na hora em que foi
- * criado. Um token feito para outra finalidade -- Power BI, por exemplo --
- * pode não trazer data de admissão, ou não trazer departamento.
+ * O Convenia é por CNPJ. A Flutter BR está espalhada em cinco empresas -- NSX
+ * Recife, NSX Marechal, NSX São Paulo, Betfair e Flutter International -- e
+ * cada uma tem seu token, que só enxerga a si mesma.
  *
- * Se eu escrevesse o agregador supondo os campos e só descobrisse na primeira
- * carga, o sintoma não seria um erro: seria uma coluna silenciosamente vazia,
- * ou uma série de headcount plausível e errada. É o pior modo de falha que
+ * A primeira sonda voltou com 397 colaboradores e eu quase tratei isso como o
+ * headcount da companhia. Era só Recife. Se a carga tivesse rodado assim, o
+ * painel mostraria um headcount menor que o real com aparência perfeitamente
+ * normal: nenhum erro, nenhuma coluna vazia, só um número errado que ninguém
+ * teria motivo para questionar.
+ *
+ * ------------------------------------------------------------------
+ * POR QUE DIAGNOSTICAR ANTES DE SINCRONIZAR
+ * ------------------------------------------------------------------
+ * O token expõe só os campos marcados na criação, e cada empresa pode ter sido
+ * configurada de um jeito. Um token sem data de admissão não dá erro -- produz
+ * uma série de headcount plausível e errada, que é o pior modo de falha que
  * este painel pode ter.
  *
- * Duas vezes nesta integração eu já concluí que algo não existia por ter
- * consultado a fonte errada -- o `statusHistory` do InHire e o `pg_cron` do
- * Supabase. Nas duas, a resposta real contradisse o que eu tinha lido.
- * Perguntar à API o que ela permite, antes de supor, é o remédio.
+ * Três vezes nesta integração eu concluí que algo não existia por ter olhado a
+ * fonte errada: o `statusHistory` do InHire, o `pg_cron` do Supabase, e o tipo
+ * de desligamento do Convenia. Nas três, a resposta real me contradisse.
+ * Por isso aqui o veredito sai da RESPOSTA, e o nome da permissão é só indício.
  */
 
 async function authorizeAdmin(userEmail: string | undefined) {
@@ -38,68 +47,45 @@ async function authorizeAdmin(userEmail: string | undefined) {
   return userEmail;
 }
 
-export interface PermissaoConvenia {
-  recurso: string;
-  campos: string[];
-}
-
 export interface Sonda {
   recurso: string;
+  /** Apenas NOMES de campo. Nenhum valor sai daqui. */
   camposVistos: string[];
-  /** Total do recurso inteiro, não da página. Compara ativos com desligados. */
+  /** Total do recurso inteiro, não da página. */
   total: number | null;
   quantidade: number;
   erro: string | null;
 }
 
-export interface AmostraDesligados {
-  /**
-   * Apenas os NOMES dos campos que voltaram, nunca os valores.
-   *
-   * A listagem de desligados traz e-mail profissional, que identifica pessoa.
-   * O que precisamos saber aqui é só a FORMA da resposta -- quais chaves
-   * existem --, e a forma não exige ver conteúdo nenhum.
-   */
-  camposVistos: string[];
-  /** null = não deu para checar. */
+export interface DiagnosticoEmpresa {
+  empresa: string;
+  marca: string;
+  local: string | null;
+  env: string;
+  nomeDoToken: string | null;
+  qtdPermissoes: number;
+  permissoesEscrita: number;
+  sondas: Sonda[];
   temTipoDesligamento: boolean | null;
-  quantidade: number;
+  faltando: string[];
   erro: string | null;
 }
 
 export interface ConveniaDiagnostico {
-  configurado: boolean;
-  nomeDoToken: string | null;
-  permissoes: PermissaoConvenia[];
-  /** O que o painel precisa e o token NÃO entrega. Vazio é a resposta boa. */
-  faltando: string[];
-  /** Escrita e dados pessoais que o token carrega mas o painel não usa. */
-  excessos: string[];
-  amostra: AmostraDesligados | null;
-  /** Sondas de forma nos dois recursos que a reconstrução usa. */
-  sondas: Sonda[];
-  /** Veredito sobre a reconstrução da série mensal, em português. */
+  empresas: DiagnosticoEmpresa[];
+  /** Secrets ainda por cadastrar, com o nome exato a usar no Lovable. */
+  faltamSecrets: { env: string; empresa: string }[];
+  /** Soma dos ativos das empresas configuradas. */
+  totalGeral: number | null;
   veredito: string | null;
   avisos: string[];
   erro: string | null;
 }
 
-/**
- * Caminhos de ESCRITA. O painel só lê -- se algum destes estiver no token, é
- * poder que existe sem ter para que servir.
- */
-const ESCRITA = ['criar', 'criacao', 'atualizacao', 'delecao', 'upload', 'vincular'];
+const semAcento = (s: string) =>
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-/** Campos pessoais que o painel nunca usa e que aumentam o estrago de um vazamento. */
-const PESSOAIS = ['cpf', 'registro geral', 'dados bancarios', 'endereco', 'dependente', 'documentos', 'cid'];
-
-/**
- * Devolve caminhos de chave (`dismissal.type`), nunca valores.
- *
- * Dois níveis bastam: campos compostos do Convenia -- "Informações do
- * desligamento" -- são um objeto com as partes dentro, e é exatamente aí que a
- * resposta desta pergunta mora.
- */
+/** Caminhos de chave (`dismissal.type`), nunca valores. */
 function chavesDe(obj: unknown, prefixo = '', nivel = 0): string[] {
   if (nivel > 2 || obj == null || typeof obj !== 'object' || Array.isArray(obj)) return [];
   const out: string[] = [];
@@ -111,220 +97,121 @@ function chavesDe(obj: unknown, prefixo = '', nivel = 0): string[] {
   return out;
 }
 
-/**
- * O que o painel precisa para reconstruir a série mensal.
- *
- * Os nomes são fragmentos procurados sem acento e sem caixa, porque o rótulo
- * exato do Convenia varia ("Data de admissão", "Admissão", "admission_date") e
- * casar string exata daria falso negativo -- que aqui é pior que falso
- * positivo: mandaria você mexer num token que já estava certo.
- */
-const NECESSARIOS: { rotulo: string; procurar: string[] }[] = [
-  { rotulo: 'Data de admissão', procurar: ['admiss', 'hired', 'hire_date'] },
-  { rotulo: 'Departamento', procurar: ['department', 'departamento'] },
-  { rotulo: 'Data de desligamento', procurar: ['dismiss', 'desligamento', 'termination'] },
-  { rotulo: 'Tipo de desligamento', procurar: ['dismissal_type', 'tipo de desligamento', 'dismissal-type'] },
-];
-
-const semAcento = (s: string) =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const ESCRITA = ['criar', 'criacao', 'atualizacao', 'delecao', 'upload', 'vincular'];
 
 export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<ConveniaDiagnostico> => {
     await authorizeAdmin(context.claims.email as string | undefined);
 
-    const vazio: ConveniaDiagnostico = {
-      configurado: false,
-      nomeDoToken: null,
-      permissoes: [],
-      faltando: [],
-      excessos: [],
-      amostra: null,
-      sondas: [],
-      veredito: null,
-      avisos: [],
-      erro: null,
-    };
+    const { fontesConfiguradas, fontesFaltando } = await import('@/lib/convenia/fontes');
+    const configuradas = fontesConfiguradas();
+    const faltamSecrets = fontesFaltando().map((f) => ({ env: f.env, empresa: f.empresa }));
 
-    if (!process.env.CONVENIA_API_TOKEN) {
-      return { ...vazio, erro: 'Falta o secret CONVENIA_API_TOKEN.' };
-    }
-
-    try {
-      const { ConveniaClient } = await import('@/lib/convenia/client.server');
-      const { TOKEN_PERMISSIONS } = await import('@/lib/convenia/paths');
-      const client = ConveniaClient.create();
-
-      const corpo = await client.get<{
-        data?: { name?: string; permissions?: { translated_name?: string; name?: string; fields?: { translated_name?: string; name?: string }[] }[] };
-      }>(TOKEN_PERMISSIONS);
-
-      const perms = corpo?.data?.permissions ?? [];
-      const permissoes: PermissaoConvenia[] = perms.map((p) => ({
-        recurso: p.translated_name || p.name || '(sem nome)',
-        campos: (p.fields ?? []).map((f) => f.translated_name || f.name || '').filter(Boolean),
-      }));
-
-      // Procura em recurso E campo: alguns endpoints entregam a data sem
-      // listá-la como campo separado.
-      const tudo = semAcento(
-        permissoes.map((p) => `${p.recurso} ${p.campos.join(' ')}`).join(' '),
-      );
-      // NOTA: isto olha o NOME das permissões, que é indício fraco. A prova
-      // vem das sondas mais abaixo -- e já me deu um falso alarme aqui: o tipo
-      // de desligamento não aparece como campo nomeado, mas VEM na resposta,
-      // dentro do campo composto "Informações do desligamento".
-      const faltandoPeloNome = NECESSARIOS
-        .filter((n) => !n.procurar.some((frag) => tudo.includes(semAcento(frag))))
-        .map((n) => n.rotulo);
-
-      // ------------------------------------------------------------------
-      // O QUE SOBRA NO TOKEN
-      // ------------------------------------------------------------------
-      // A lista fechada em paths.ts limita o que ESTE código chama. Ela não
-      // limita o token: quem tiver o valor pode chamar qualquer coisa que o
-      // token permita, inclusive escrever. Vale enxergar esse excedente.
-      const escrita = permissoes.filter((p) =>
-        ESCRITA.some((v) => semAcento(p.recurso).startsWith(v)),
-      ).length;
-      const comPessoais = permissoes.filter((p) =>
-        PESSOAIS.some((f) => semAcento(p.campos.join(' ')).includes(semAcento(f))),
-      ).length;
-
-      const excessos: string[] = [];
-      if (escrita > 0) {
-        excessos.push(`${escrita} permissões de escrita (criar admissão, criar desligamento, alterar e apagar cadastro). O painel só lê — isso é poder sem finalidade.`);
-      }
-      if (comPessoais > 0) {
-        excessos.push(`${comPessoais} recursos expõem dado pessoal que o painel não usa: CPF, RG, endereço, dados bancários, dependentes, CID de afastamento.`);
-      }
-
-      // ------------------------------------------------------------------
-      // A SONDA
-      // ------------------------------------------------------------------
-      // "Informações do desligamento" é um campo COMPOSTO. Pelo nome não dá
-      // para saber se o tipo de desligamento está dentro dele. Já errei duas
-      // vezes nesta integração por concluir a partir de nome e de schema em
-      // vez de resposta real -- então aqui eu pergunto à API.
-      //
-      // Uma página, um registro, e só os NOMES das chaves voltam.
-      let amostra: AmostraDesligados | null = null;
-      try {
-        const { EMPLOYEES_DISMISSED } = await import('@/lib/convenia/paths');
-        const { extrairPagina } = await import('@/lib/convenia/paths');
-        const bruto = await client.get<unknown>(EMPLOYEES_DISMISSED, { per_page: 1, page: 1 });
-        const { itens } = extrairPagina<Record<string, unknown>>(bruto);
-        const campos = itens.length ? chavesDe(itens[0]) : [];
-        const achou = campos.some((c) =>
-          ['type', 'tipo', 'reason', 'motivo', 'dismissal_type'].some((f) => semAcento(c).includes(f)),
-        );
-        amostra = {
-          camposVistos: campos,
-          temTipoDesligamento: itens.length ? achou : null,
-          quantidade: itens.length,
-          erro: null,
-        };
-      } catch (e) {
-        amostra = {
-          camposVistos: [],
-          temTipoDesligamento: null,
-          quantidade: 0,
-          erro: e instanceof Error ? e.message : String(e),
-        };
-      }
-
-      // ------------------------------------------------------------------
-      // AS SONDAS DE FORMA
-      // ------------------------------------------------------------------
-      // A listagem de desligados devolve só `id`, `corporate_email` e o bloco
-      // `dismissal` -- sem data de admissão nem departamento. Sem esses dois,
-      // quem saiu some da contagem dos meses em que ESTAVA lá, e a série
-      // histórica fica errada para baixo.
-      //
-      // A pista: a listagem de ativos tem um campo `Status`. Se ela incluir os
-      // desligados, resolve tudo numa chamada só. Comparar os TOTAIS dos dois
-      // recursos responde isso sem precisar baixar nada.
-      const { EMPLOYEES, extrairPagina: extrair } = await import('@/lib/convenia/paths');
-      const sondar = async (recurso: string, path: string): Promise<Sonda> => {
-        try {
-          const bruto = await client.get<unknown>(path, { per_page: 1, page: 1 });
-          const p = extrair<Record<string, unknown>>(bruto);
-          return {
-            recurso,
-            camposVistos: p.itens.length ? chavesDe(p.itens[0]) : [],
-            total: p.total ?? null,
-            quantidade: p.itens.length,
-            erro: null,
-          };
-        } catch (e) {
-          return { recurso, camposVistos: [], total: null, quantidade: 0, erro: e instanceof Error ? e.message : String(e) };
-        }
-      };
-
-      const { EMPLOYEES_DISMISSED: DESL } = await import('@/lib/convenia/paths');
-      const sondaAtivos = await sondar('Colaboradores', EMPLOYEES);
-      // Uma requisição a mais para pegar o TOTAL de desligados. Comparar os
-      // dois totais responde se a listagem de ativos já inclui quem saiu --
-      // e isso decide o desenho inteiro da carga.
-      const sondaDesl = await sondar('Colaboradores desligados', DESL);
-      const sondas = [sondaAtivos, sondaDesl];
-
-      // Um campo é "achado" se aparecer no caminho de chave, em qualquer nível.
-      const tem = (s: Sonda, frags: string[]) =>
-        s.camposVistos.some((c) => frags.some((f) => semAcento(c).includes(f)));
-
-      const ativosTemAdmissao = tem(sondaAtivos, ['admiss', 'hired', 'hire_date']);
-      const ativosTemDept = tem(sondaAtivos, ['department', 'departamento']);
-      const ativosTemStatus = tem(sondaAtivos, ['status']);
-
-      let veredito: string | null = null;
-      if (sondaAtivos.erro) {
-        veredito = `Não deu para sondar a listagem de ativos: ${sondaAtivos.erro}`;
-      } else if (!ativosTemAdmissao || !ativosTemDept) {
-        veredito = `A listagem de ativos ${!ativosTemAdmissao ? 'não traz data de admissão' : 'não traz departamento'} — sem isso não dá para reconstruir a série mensal por área.`;
-      } else if (ativosTemStatus) {
-        veredito = 'A listagem de ativos traz admissão, departamento E um campo de status. Se o status distinguir quem saiu, a reconstrução sai de uma fonte só — é o caminho mais limpo, e é o próximo a testar.';
-      } else {
-        veredito = 'A listagem de ativos traz admissão e departamento, mas sem status: quem saiu provavelmente não aparece nela. Nesse caso os desligados precisam vir pelo detalhe individual, uma chamada por pessoa.';
-      }
-
-      // O que falta DE VERDADE, medido na resposta e não no rótulo.
-      const faltando: string[] = [];
-      if (!ativosTemAdmissao) faltando.push('Data de admissão (ativos)');
-      if (!ativosTemDept) faltando.push('Departamento (ativos)');
-      if (amostra?.quantidade) {
-        if (!tem(sondas[1], ['admiss', 'hired'])) faltando.push('Data de admissão (desligados)');
-        if (!tem(sondas[1], ['department', 'departamento'])) faltando.push('Departamento (desligados)');
-        if (amostra.temTipoDesligamento === false) faltando.push('Tipo de desligamento');
-      }
-
-      const avisos: string[] = [];
-      if (faltandoPeloNome.length && !faltando.length) {
-        avisos.push('Pelo nome dos campos do token, algo parecia faltar; a resposta real mostrou que não. Vale a regra: nome de permissão é indício, resposta é prova.');
-      }
-      if (!permissoes.length) {
-        avisos.push('O token respondeu, mas sem nenhuma permissão listada. Isso costuma significar que ele foi criado sem marcar nada.');
-      }
-      if (amostra?.temTipoDesligamento === true) {
-        avisos.push('O tipo de desligamento VEM na resposta real, dentro do campo composto — o alerta acima era falso alarme meu. Dá para separar saída voluntária de involuntária.');
-      } else if (amostra?.temTipoDesligamento === false) {
-        avisos.push('A resposta real confirma: não vem tipo de desligamento. Sem ele, o painel mostra saídas totais, mas não separa voluntária de involuntária — e essa separação é a que sustenta a leitura de retenção.');
-      }
-
+    if (!configuradas.length) {
       return {
-        configurado: true,
-        nomeDoToken: corpo?.data?.name ?? null,
-        permissoes,
-        faltando,
-        excessos,
-        amostra,
-        sondas,
-        veredito,
-        avisos,
-        erro: null,
+        empresas: [], faltamSecrets, totalGeral: null, veredito: null, avisos: [],
+        erro: 'Nenhum token do Convenia cadastrado ainda.',
       };
-    } catch (e) {
-      return { ...vazio, configurado: true, erro: e instanceof Error ? e.message : String(e) };
     }
+
+    const { ConveniaClient } = await import('@/lib/convenia/client.server');
+    const { TOKEN_PERMISSIONS, EMPLOYEES, EMPLOYEES_DISMISSED, extrairPagina } =
+      await import('@/lib/convenia/paths');
+
+    const empresas: DiagnosticoEmpresa[] = [];
+
+    // Em SEQUÊNCIA, uma empresa por vez. Os limites são por conta, então em
+    // tese daria para paralelizar -- mas cinco frentes simultâneas contra o
+    // mesmo fornecedor é o tipo de coisa que aparece no gráfico deles como
+    // pico e vira conversa desagradável. Diagnóstico não tem pressa.
+    for (const f of configuradas) {
+      const base: DiagnosticoEmpresa = {
+        empresa: f.empresa, marca: f.marca, local: f.local, env: f.env,
+        nomeDoToken: null, qtdPermissoes: 0, permissoesEscrita: 0,
+        sondas: [], temTipoDesligamento: null, faltando: [], erro: null,
+      };
+
+      try {
+        const client = ConveniaClient.paraToken(f.token!);
+
+        const corpo = await client.get<{
+          data?: { name?: string; permissions?: { translated_name?: string; name?: string }[] };
+        }>(TOKEN_PERMISSIONS);
+        const perms = corpo?.data?.permissions ?? [];
+        base.nomeDoToken = corpo?.data?.name ?? null;
+        base.qtdPermissoes = perms.length;
+        base.permissoesEscrita = perms.filter((p) =>
+          ESCRITA.some((v) => semAcento(p.translated_name || p.name || '').startsWith(v)),
+        ).length;
+
+        const sondar = async (recurso: string, path: string): Promise<Sonda> => {
+          try {
+            const bruto = await client.get<unknown>(path, { per_page: 1, page: 1 });
+            const p = extrairPagina<Record<string, unknown>>(bruto);
+            return {
+              recurso,
+              camposVistos: p.itens.length ? chavesDe(p.itens[0]) : [],
+              total: p.total ?? null,
+              quantidade: p.itens.length,
+              erro: null,
+            };
+          } catch (e) {
+            return { recurso, camposVistos: [], total: null, quantidade: 0, erro: e instanceof Error ? e.message : String(e) };
+          }
+        };
+
+        const ativos = await sondar('Colaboradores', EMPLOYEES);
+        const deslig = await sondar('Desligados', EMPLOYEES_DISMISSED);
+        base.sondas = [ativos, deslig];
+
+        const tem = (s: Sonda, frags: string[]) =>
+          s.camposVistos.some((c) => frags.some((x) => semAcento(c).includes(x)));
+
+        base.temTipoDesligamento = deslig.quantidade
+          ? tem(deslig, ['type', 'tipo', 'motivo', 'reason'])
+          : null;
+
+        if (ativos.quantidade) {
+          if (!tem(ativos, ['admiss', 'hired', 'hire_date'])) base.faltando.push('Data de admissão (ativos)');
+          if (!tem(ativos, ['department', 'departamento'])) base.faltando.push('Departamento (ativos)');
+        }
+        if (deslig.quantidade) {
+          if (!tem(deslig, ['admiss', 'hired'])) base.faltando.push('Data de admissão (desligados)');
+          if (!tem(deslig, ['department', 'departamento'])) base.faltando.push('Departamento (desligados)');
+        }
+      } catch (e) {
+        base.erro = e instanceof Error ? e.message : String(e);
+      }
+
+      empresas.push(base);
+    }
+
+    const totais = empresas
+      .map((e) => e.sondas.find((s) => s.recurso === 'Colaboradores')?.total)
+      .filter((t): t is number => typeof t === 'number');
+    const totalGeral = totais.length ? totais.reduce((a, b) => a + b, 0) : null;
+
+    const avisos: string[] = [];
+    if (faltamSecrets.length) {
+      avisos.push(`${faltamSecrets.length} empresas ainda sem token — o headcount somado abaixo está incompleto até elas entrarem.`);
+    }
+    const comEscrita = empresas.filter((e) => e.permissoesEscrita > 0);
+    if (comEscrita.length) {
+      avisos.push(`${comEscrita.length} tokens têm permissão de escrita (criar admissão, criar desligamento, apagar cadastro). O painel só lê.`);
+    }
+
+    // O veredito vale para todas: se uma empresa não traz admissão, é provável
+    // que nenhuma traga, porque a limitação é do endpoint e não do token.
+    const semAdmissao = empresas.filter((e) => e.faltando.some((x) => x.startsWith('Data de admissão (ativos)')));
+    let veredito: string | null = null;
+    if (semAdmissao.length === empresas.length && empresas.length > 0) {
+      veredito = 'Nenhuma empresa traz data de admissão na listagem — é limitação do endpoint de listagem, não do token. O próximo passo é testar se algum parâmetro traz os campos completos, antes de considerar buscar pessoa por pessoa.';
+    } else if (semAdmissao.length) {
+      veredito = `${semAdmissao.length} de ${empresas.length} empresas não trazem data de admissão. Como varia entre elas, é configuração de token — dá para corrigir no Convenia.`;
+    } else if (empresas.length) {
+      veredito = 'Todas as empresas trazem admissão e departamento na listagem. Dá para reconstruir a série mensal por área e por marca.';
+    }
+
+    return { empresas, faltamSecrets, totalGeral, veredito, avisos, erro: null };
   });
