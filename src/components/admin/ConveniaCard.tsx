@@ -24,7 +24,8 @@ export function ConveniaCard() {
       setD(await carregar({}));
     } catch (e) {
       setD({
-        configurado: false, nomeDoToken: null, permissoes: [], faltando: [], avisos: [],
+        configurado: false, nomeDoToken: null, permissoes: [], faltando: [],
+        excessos: [], amostra: null, avisos: [],
         erro: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -106,6 +107,46 @@ export function ConveniaCard() {
                     ))}
                   </div>
                 </details>
+              )}
+
+              {d.amostra && (
+                <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
+                  <div className="font-medium">Resposta real da listagem de desligados</div>
+                  {d.amostra.erro ? (
+                    <p className="mt-1 text-muted-foreground">Não deu para consultar: {d.amostra.erro}</p>
+                  ) : d.amostra.quantidade === 0 ? (
+                    <p className="mt-1 text-muted-foreground">
+                      A API respondeu, mas sem nenhum desligado nesta página — não dá para
+                      inspecionar a forma da resposta com lista vazia.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="mt-1" style={{ color: d.amostra.temTipoDesligamento ? COLORS.success : COLORS.warning }}>
+                        {d.amostra.temTipoDesligamento
+                          ? 'O tipo de desligamento VEM na resposta.'
+                          : 'O tipo de desligamento NÃO vem na resposta.'}
+                      </p>
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-muted-foreground">
+                          {d.amostra.camposVistos.length} campos na resposta — ver nomes
+                        </summary>
+                        <p className="mt-1 text-muted-foreground">{d.amostra.camposVistos.join(', ')}</p>
+                      </details>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Só os nomes dos campos saem daqui. Nenhum valor é lido nem guardado.
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {d.excessos.length > 0 && (
+                <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
+                  <div className="font-medium">O token vai além do necessário</div>
+                  <ul className="mt-1 space-y-1 text-muted-foreground">
+                    {d.excessos.map((x) => <li key={x}>• {x}</li>)}
+                  </ul>
+                </div>
               )}
 
               {d.avisos.map((a) => (
