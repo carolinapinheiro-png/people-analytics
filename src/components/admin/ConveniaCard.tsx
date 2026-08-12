@@ -107,6 +107,13 @@ export function ConveniaCard() {
                     </div>
                   ))}
 
+                  {e.statusDosAtivos.length > 0 && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Status na 1ª página:{' '}
+                      {e.statusDosAtivos.map((s) => `${s.valor} (${s.quantidade})`).join(' · ')}
+                    </p>
+                  )}
+
                   {e.faltando.length > 0 && (
                     <p className="mt-2 text-xs" style={{ color: COLORS.warning }}>
                       Falta: {e.faltando.join(' · ')}

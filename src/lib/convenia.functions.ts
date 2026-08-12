@@ -67,6 +67,13 @@ export interface DiagnosticoEmpresa {
   permissoesEscrita: number;
   sondas: Sonda[];
   temTipoDesligamento: boolean | null;
+  /**
+   * Distribuição do campo `status` nos ativos. É a única leitura de VALOR
+   * deste diagnóstico, e é categórica -- "Ativo", "Desligado" -- então não
+   * identifica ninguém. Existe para responder uma pergunta que nenhum nome de
+   * campo responde: a listagem de "colaboradores" já inclui quem saiu?
+   */
+  statusDosAtivos: { valor: string; quantidade: number }[];
   faltando: string[];
   erro: string | null;
 }
@@ -129,7 +136,7 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
       const base: DiagnosticoEmpresa = {
         empresa: f.empresa, marca: f.marca, local: f.local, env: f.env,
         nomeDoToken: null, qtdPermissoes: 0, permissoesEscrita: 0,
-        sondas: [], temTipoDesligamento: null, faltando: [], erro: null,
+        sondas: [], temTipoDesligamento: null, statusDosAtivos: [], faltando: [], erro: null,
       };
 
       try {
@@ -172,12 +179,39 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
           ? tem(deslig, ['type', 'tipo', 'motivo', 'reason'])
           : null;
 
+        // A pergunta que decide o desenho da carga: os 638 "colaboradores"
+        // incluem os 165 desligados, ou são só os ativos? Se incluírem, a
+        // reconstrução sai de uma fonte só, com admissão e departamento --
+        // que é justamente o que falta na listagem de desligados.
+        //
+        // Uma página de 100, só o campo `status` é lido, nada é guardado.
+        try {
+          const pg = await client.get<unknown>(EMPLOYEES, { per_page: 100, page: 1 });
+          const { itens } = extrairPagina<Record<string, unknown>>(pg);
+          const conta = new Map<string, number>();
+          for (const it of itens) {
+            const v = it.status;
+            const chave = v == null ? '(vazio)' : String(v);
+            conta.set(chave, (conta.get(chave) ?? 0) + 1);
+          }
+          base.statusDosAtivos = [...conta.entries()]
+            .map(([valor, quantidade]) => ({ valor, quantidade }))
+            .sort((a, b) => b.quantidade - a.quantidade);
+        } catch {
+          // Sem tally não dá para responder, mas não invalida o resto.
+        }
+
         if (ativos.quantidade) {
-          if (!tem(ativos, ['admiss', 'hired', 'hire_date'])) base.faltando.push('Data de admissão (ativos)');
+          // `hiring_date` -- descoberto na resposta real depois de eu reportar
+          // três vezes que "faltava data de admissão". Minha lista tinha
+          // `hired` e `hire_date`, e nenhum dos dois casa com `hiring`.
+          // Fragmentos curtos erram para o lado seguro: preferem falso
+          // positivo a mandar alguém mexer num token que estava certo.
+          if (!tem(ativos, ['admis', 'hir', 'contrat'])) base.faltando.push('Data de admissão (ativos)');
           if (!tem(ativos, ['department', 'departamento'])) base.faltando.push('Departamento (ativos)');
         }
         if (deslig.quantidade) {
-          if (!tem(deslig, ['admiss', 'hired'])) base.faltando.push('Data de admissão (desligados)');
+          if (!tem(deslig, ['admis', 'hir'])) base.faltando.push('Data de admissão (desligados)');
           if (!tem(deslig, ['department', 'departamento'])) base.faltando.push('Departamento (desligados)');
         }
       } catch (e) {
