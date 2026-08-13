@@ -255,7 +255,10 @@ function EngagementSection({
 
         {survey && survey.importancia.length > 0 && <DriverImportance rows={survey.importancia} />}
 
-        <DriversDeepDive drivers={data.drivers} />
+        <div className="space-y-2">
+          <EscopoEmpresa escopo={data.escopo} />
+          <DriversDeepDive drivers={data.drivers} />
+        </div>
 
         {cross && (
           <RiskVsAttrition
@@ -267,6 +270,25 @@ function EngagementSection({
         )}
       </Detalhe>
     </div>
+  );
+}
+
+/**
+ * Rótulo para blocos que são da empresa inteira numa tela filtrada por área.
+ *
+ * Existe por um motivo específico: um número sem rótulo, dentro de uma tela
+ * que a pessoa filtrou pela própria área, é lido como sendo da área. O rótulo
+ * não é decoração -- é o que separa "minha equipe" de "a companhia" quando as
+ * duas coisas aparecem na mesma tela.
+ */
+function EscopoEmpresa({ escopo }: { escopo?: { restrito: boolean; departamento: string | null } }) {
+  if (!escopo?.restrito && !escopo?.departamento) return null;
+  return (
+    <p className="text-[11px] text-muted-foreground">
+      Números da <strong>Flutter Brazil</strong> inteira — esta seção não tem recorte
+      por área. Serve de referência para comparar
+      {escopo?.departamento ? ` com ${escopo.departamento}` : ' com a sua'}.
+    </p>
   );
 }
 
@@ -329,6 +351,15 @@ function OnboardingSection({ data }: { data: ExperienceData }) {
       <p className="text-xs text-muted-foreground">
         Jornada de entrada por etapa. Médias de 0 a 10. Recortes com n&lt;3 suprimidos; comentários livres nunca no banco.
       </p>
+
+      {/* As três notas de etapa e a tendência são da empresa; a tabela por
+          área abaixo já vem restrita ao escopo de quem está olhando. */}
+      {data.escopo?.restrito && (
+        <p className="text-[11px] text-muted-foreground">
+          As notas por etapa e a tendência abaixo são da <strong>Flutter Brazil</strong> inteira.
+          A tabela por área mostra só a sua.
+        </p>
+      )}
 
       <div className="grid md:grid-cols-3 gap-4">
         {stages.map((stage) => {
@@ -445,6 +476,7 @@ function InclusionSection({ data }: { data: ExperienceData }) {
         Polly Inclusion Survey 2026 — 327 respostas (≈55% da Flutter Brazil). Flutter Near You: programa de conexão.
         Só distribuições agregadas.
       </p>
+      <EscopoEmpresa escopo={data.escopo} />
 
       {pertencimento.length > 0 && (
         <ChartCard title="Pertencimento" subtitle="% que concorda (notas 4+5) · n=327" icon={HandHeart}>

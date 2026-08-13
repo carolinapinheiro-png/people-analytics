@@ -112,6 +112,15 @@ export interface ExperienceData {
   distributions: ExperienceDistribution[];
   /** Blocos alcancados pelo filtro de departamento (os demais nao tem recorte por area). */
   deptFilterApplied?: string[];
+  /**
+   * Quem está olhando, para a tela saber o que rotular.
+   *
+   * `restrito` = perfil que só enxerga a própria área. Nesse caso os blocos
+   * sem recorte por departamento continuam aparecendo, mas precisam ser
+   * rotulados como Flutter Brazil -- um número da empresa apresentado sem
+   * rótulo dentro de uma tela filtrada por área seria lido como sendo da área.
+   */
+  escopo: { restrito: boolean; departamento: string | null };
 }
 
 export const getExperienceData = createServerFn({ method: 'GET' })
@@ -195,13 +204,38 @@ export const getExperienceData = createServerFn({ method: 'GET' })
       return !sel || escopoDaLinha === sel;
     });
 
+    // ONBOARDING TEM RECORTE POR ÁREA -- e a tela desenha uma tabela com
+    // todos os departamentos. Sem este filtro, um líder de uma área leria a
+    // satisfação de entrada das outras seis, nominalmente, numa tabela.
+    //
+    // As linhas `overall` e `cohort_month` são da empresa e ficam: elas não
+    // identificam área nenhuma, e servem de referência.
+    const onboarding = ((onb.data ?? []) as OnboardingAggregate[]).filter((o) => {
+      if (o.slice_type !== 'department') return true;
+      if (podeVerTudo) return !sel || (o.slice_value ?? '').trim().toUpperCase() === sel;
+      return isInScope(scope, o.slice_value ?? null);
+    });
+
     return {
       engagement,
       drivers: (drv.error ? [] : drv.data ?? []) as EngagementDriver[],
-      onboarding: (onb.data ?? []) as OnboardingAggregate[],
+      onboarding,
       distributions: (dist.data ?? []) as ExperienceDistribution[],
-      /** Quais blocos o filtro de departamento realmente alcança. */
-      deptFilterApplied: sel ? (['engagement'] as const).slice() : [],
+      /**
+       * Quais blocos o filtro de departamento realmente alcança.
+       *
+       * `drivers` e `distributions` ficam de fora porque foram carregadas só
+       * no nível da empresa -- não existe recorte por área nelas. Elas seguem
+       * visíveis como referência, com rótulo, em vez de sumirem: uma seção
+       * vazia parece defeito, e o número da empresa continua verdadeiro.
+       */
+      deptFilterApplied: sel || !podeVerTudo
+        ? (['engagement', 'onboarding'] as const).slice()
+        : [],
+      escopo: {
+        restrito: !podeVerTudo,
+        departamento: sel === '\u0000SEM-ESCOPO' ? null : sel,
+      },
     };
   });
 
