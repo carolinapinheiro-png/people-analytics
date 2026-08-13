@@ -144,7 +144,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     setDataLoading(true);
     setDataError(null);
-    fetchMetrics({ data: { sources: ['reconstruido', 'raw-data.ts'] } })
+    // 'convenia' é a série oficial; 'raw-data.ts' entra só para preencher
+    // pesquisa de desligamento e atrição por faixa salarial, que o Convenia não
+    // tem. A 'reconstruido' saiu: superestimava Betfair BR ao somar o Porto.
+    fetchMetrics({ data: { sources: ['convenia', 'raw-data.ts'] } })
       .then((rows) => {
         if (cancelled) return;
         setData(composeMonthlyMetrics(rows));

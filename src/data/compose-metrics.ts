@@ -63,7 +63,38 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
 // nota: promotions da reconstruida ja vem preenchido; o mapa acima trata null
 // (fontes antigas) como 0.
 
-const OFFICIAL = 'reconstruido';
+/**
+ * A série OFICIAL do painel.
+ *
+ * Passou de 'reconstruido' para 'convenia' em 12/08/2026. A anterior vinha de
+ * planilha importada à mão; esta é calculada a partir das datas de admissão e
+ * desligamento da folha, nas cinco empresas do grupo.
+ *
+ * O que decidiu a troca foi conferência, não preferência:
+ *
+ *   NSX ....................  582 (convenia)  x  581 (as duas antigas)
+ *   Flutter International ...   22            x   22
+ *   Betfair BR ..............   34            x   34 congelada / 76 reconstruida
+ *
+ * A 'reconstruido' somava o Porto -- que é um departamento dentro da Flutter
+ * International, não uma marca -- dentro de Betfair BR, quase dobrando aquela
+ * marca por 19 meses seguidos. Duas fontes independentes contra uma.
+ *
+ * A cobertura também: 85 meses de NSX contra 19, e 162 de Flutter International
+ * contra 19.
+ *
+ * As duas séries antigas continuam no banco. Trocar a constante abaixo volta
+ * atrás sem perder nada.
+ */
+const OFFICIAL = 'convenia';
+
+/**
+ * De onde saem os campos que a série oficial não produz.
+ *
+ * Continua sendo a congelada: pesquisa de desligamento e atrição por faixa
+ * salarial não existem no Convenia, e sem esse preenchimento os dois gráficos
+ * ficariam vazios.
+ */
 const FALLBACK = 'raw-data.ts';
 
 /**
