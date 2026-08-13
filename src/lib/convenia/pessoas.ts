@@ -233,28 +233,79 @@ export function areaDe(p: PessoaConvenia): string {
 }
 
 /**
- * Saída VOLUNTÁRIA vs involuntária.
+ * Classifica a saída em VOLUNTÁRIA, INVOLUNTÁRIA ou OUTRA.
  *
- * O painel só conta saída voluntária no cálculo de atrição ligado a
- * engajamento, porque demissão pela empresa diz respeito à decisão da empresa,
- * não à experiência de quem ficou. Misturar as duas faria uma reestruturação
- * parecer crise de retenção.
+ * ===========================================================================
+ * ESCRITO CONTRA OS RÓTULOS REAIS, DEPOIS DE ERRAR COM OS IMAGINADOS
+ * ===========================================================================
+ * A primeira versão procurava "pedido de demissão" e "pedido do colaborador".
+ * O Convenia escreve **"Pedido do Empregado"**. Nenhum dos dois casava, e o
+ * resultado foi 164 saídas classificadas e ZERO voluntárias -- número que
+ * apareceria no painel como um achado extraordinário em vez de um bug.
  *
- * O Convenia devolve o rótulo em `dismissal.type.title`, em português, coisa
- * como "Pedido de demissão" ou "Demissão SEM justa causa - Pedido da Empresa".
- * A regra abaixo procura o pedido da PESSOA; qualquer outra coisa conta como
- * involuntária. Na dúvida o código erra para involuntária, que é o lado
- * conservador: subestimar atrição voluntária é menos perigoso que inventá-la.
+ * Os rótulos abaixo saíram de uma consulta à base real, não da documentação:
+ *
+ *   77  Demissão SEM justa causa fora do contrato - Pedido da Empresa
+ *   39  Demissão fora do contrato de experiência - Pedido do Empregado
+ *   20  Outros
+ *   10  Antecipado pelo empregador (tempo determinado)
+ *    4  Rescisão contratual por acordo entre as partes
+ *    4  Antecipado pelo empregado (tempo determinado)
+ *    3  Quebra de Contrato de Experiência - Pedido do Empregado
+ *    2  Término do contrato de trabalho por tempo determinado
+ *    2  Quebra de Contrato de Experiência - Pedido da Empresa
+ *    1  Demissão COM justa causa - Pedido da Empresa
+ *    1  Término de Contrato de Experiência - Pedido da Empresa
+ *    1  Suspensão de contrato
+ *
+ * ===========================================================================
+ * POR QUE TRÊS CATEGORIAS, E NÃO DUAS
+ * ===========================================================================
+ * "Rescisão por acordo entre as partes" e "Término de contrato por tempo
+ * determinado" não são nem uma coisa nem outra. Num booleano `voluntary` elas
+ * caem em involuntária por omissão, e inflam o número que a diretoria lê como
+ * "demissões feitas pela empresa".
+ *
+ * "Outros" -- 20 casos, 12% do total -- é ausência de informação, não uma
+ * categoria. Tratá-lo como involuntária seria inventar; como voluntária,
+ * pior ainda.
+ *
+ * A atrição ligada a engajamento usa SÓ a voluntária: demissão pela empresa
+ * fala da decisão da empresa, não da experiência de quem ficou. Misturar as
+ * duas faria uma reestruturação parecer crise de retenção.
  */
-export function ehVoluntaria(tipo: string | null | undefined): boolean {
-  if (!tipo) return false;
-  const t = tipo.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-  if (t.includes('pedido da empresa')) return false;
-  return t.includes('pedido de demissao')
-    || t.includes('pedido do colaborador')
-    || t.includes('a pedido')
-    || t.includes('rescisao a pedido');
+export type TipoSaida = 'voluntaria' | 'involuntaria' | 'outra';
+
+export function classificarSaida(tipo: string | null | undefined): TipoSaida {
+  if (!tipo) return 'outra';
+  const t = tipo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+  // ORDEM CRÍTICA: "pelo empregador" CONTÉM "pelo empregado".
+  //
+  // Um teste com os doze rótulos reais pegou isto: "Antecipado pelo
+  // empregador" caía em voluntária, porque a checagem de voluntária rodava
+  // primeiro e o fragmento mais curto casava dentro do mais longo. Duas
+  // letras de diferença invertiam quem tomou a decisão de desligar.
+  //
+  // Por isso o EMPREGADOR é testado antes -- o caso mais específico primeiro,
+  // sempre, quando um termo é prefixo do outro.
+  if (t.includes('pelo empregador') || t.includes('pedido da empresa')
+      || t.includes('justa causa')) {
+    return 'involuntaria';
+  }
+  if (t.includes('pedido do empregado') || t.includes('pedido do colaborador')
+      || t.includes('pelo empregado') || t.includes('pedido de demissao')) {
+    return 'voluntaria';
+  }
+  // Acordo, fim de contrato, suspensão, "Outros": nem uma nem outra.
+  return 'outra';
 }
+
+/** Compatibilidade: a atrição ligada a engajamento só conta voluntária. */
+export function ehVoluntaria(tipo: string | null | undefined): boolean {
+  return classificarSaida(tipo) === 'voluntaria';
+}
+
 
 /**
  * Reconstrói a série mensal.

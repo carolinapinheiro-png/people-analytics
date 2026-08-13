@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mesDe, mesesEntre, ehVoluntaria, areaDe, reconstruirSerie,
-  idsDeGestores, faixaTempoDeCasa, faixaEtaria, normalizarGenero, type PessoaConvenia,
+  idsDeGestores, faixaTempoDeCasa, faixaEtaria, normalizarGenero, classificarSaida,
+  type PessoaConvenia,
 } from './pessoas';
 
 const p = (o: Partial<PessoaConvenia> & { id: string }): PessoaConvenia => ({ ...o });
@@ -43,24 +44,65 @@ test('mesesEntre com de igual a ate devolve um mês', () => {
 // Voluntária vs involuntária
 // ---------------------------------------------------------------------------
 
-test('separa pedido da pessoa de pedido da empresa', () => {
-  assert.equal(ehVoluntaria('Pedido de demissão'), true);
-  assert.equal(ehVoluntaria('Demissão SEM justa causa fora do contrato de experiência - Pedido da Empresa'), false);
-  assert.equal(ehVoluntaria('Demissão COM justa causa'), false);
+test('os DOZE rótulos reais do Convenia, classificados', () => {
+  // Esta lista saiu de uma consulta à base, não da documentação. A primeira
+  // versão do código procurava "pedido de demissão" -- expressão que o
+  // Convenia não usa em nenhum dos doze -- e classificou 164 saídas com ZERO
+  // voluntárias. O painel teria mostrado isso como um fato.
+  const voluntarias = [
+    'Demissão fora do contrato de experiência - Pedido do Empregado',
+    'Antecipado pelo empregado (tempo determinado)',
+    'Quebra de Contrato de Experiência - Pedido do Empregado',
+  ];
+  const involuntarias = [
+    'Demissão SEM justa causa fora do contrato de experiência - Pedido da Empresa',
+    'Antecipado pelo empregador (tempo determinado)',
+    'Quebra de Contrato de Experiência - Pedido da Empresa',
+    'Demissão COM justa causa fora do contrato de experiência - Pedido da Empresa',
+    'Término de Contrato de Experiência - Pedido da Empresa',
+  ];
+  const outras = [
+    'Outros',
+    'Rescisão contratual por acordo entre as partes',
+    'Término do contrato de trabalho por tempo determinado',
+    'Suspensão de contrato',
+  ];
+
+  for (const t of voluntarias) assert.equal(classificarSaida(t), 'voluntaria', t);
+  for (const t of involuntarias) assert.equal(classificarSaida(t), 'involuntaria', t);
+  for (const t of outras) assert.equal(classificarSaida(t), 'outra', t);
+  assert.equal(voluntarias.length + involuntarias.length + outras.length, 12);
 });
 
-test('na dúvida conta como involuntária', () => {
-  // Subestimar atrição voluntária é menos perigoso que inventá-la: o número
-  // sustenta a leitura de retenção, e inflá-lo levaria a agir sobre um
-  // problema que não existe.
-  assert.equal(ehVoluntaria('Rescisão contratual'), false);
-  assert.equal(ehVoluntaria(null), false);
-  assert.equal(ehVoluntaria(''), false);
+test('"empregado" e "empresa" aparecem em rótulos parecidos e não podem se confundir', () => {
+  // A diferença entre os dois é uma palavra no fim de uma frase longa. Casar
+  // o fragmento errado inverteria a classificação sem dar erro.
+  assert.equal(classificarSaida('Quebra de Contrato de Experiência - Pedido do Empregado'), 'voluntaria');
+  assert.equal(classificarSaida('Quebra de Contrato de Experiência - Pedido da Empresa'), 'involuntaria');
+});
+
+test('acordo e fim de contrato NÃO são involuntárias', () => {
+  // Num booleano elas cairiam em involuntária por omissão, inflando o número
+  // que a diretoria lê como "demissões feitas pela empresa".
+  assert.equal(classificarSaida('Rescisão contratual por acordo entre as partes'), 'outra');
+  assert.equal(classificarSaida('Término do contrato de trabalho por tempo determinado'), 'outra');
+});
+
+test('"Outros" é ausência de informação, não categoria', () => {
+  assert.equal(classificarSaida('Outros'), 'outra');
+  assert.equal(classificarSaida(null), 'outra');
+  assert.equal(classificarSaida(''), 'outra');
+});
+
+test('só a voluntária conta na atrição ligada a engajamento', () => {
+  assert.equal(ehVoluntaria('Demissão fora do contrato de experiência - Pedido do Empregado'), true);
+  assert.equal(ehVoluntaria('Demissão SEM justa causa fora do contrato de experiência - Pedido da Empresa'), false);
+  assert.equal(ehVoluntaria('Rescisão contratual por acordo entre as partes'), false);
 });
 
 test('ignora acento e caixa', () => {
-  assert.equal(ehVoluntaria('PEDIDO DE DEMISSAO'), true);
-  assert.equal(ehVoluntaria('pedido de demissão'), true);
+  assert.equal(classificarSaida('PEDIDO DO EMPREGADO'), 'voluntaria');
+  assert.equal(classificarSaida('pedido da empresa'), 'involuntaria');
 });
 
 // ---------------------------------------------------------------------------
