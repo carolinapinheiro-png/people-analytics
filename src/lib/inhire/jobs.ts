@@ -82,6 +82,17 @@ export interface InhireJob {
   statusHistory?: Array<{ status?: string | null; createdAt?: string | null }> | null;
   /** Tempo já calculado pelo InHire. Veio vazio em 156 de 156 vagas. */
   sla?: number | null;
+  /**
+   * Prazo ALVO em dias, confirmado pelo suporte do InHire em 12/08/2026.
+   *
+   * Note a diferença: NÃO é o tempo decorrido nem o realizado. É a meta. O
+   * `sla` acima, que eu tinha tentado usar antes, vem vazio em todas as vagas
+   * -- o cálculo final não é exposto pela API.
+   *
+   * A meta sozinha vale pouco. Combinada com o tempo de fechamento que já
+   * calculamos, ela responde a pergunta que interessa: fechou no prazo?
+   */
+  slaDaysGoal?: number | string | null;
 }
 
 /** De-para InHire → canônico do dashboard. Ver docs/inhire-regras-de-negocio.md. */
@@ -164,6 +175,16 @@ export function isTalentPool(job: InhireJob): boolean {
 const norm = (v: string | null | undefined) => limpa(v).toLowerCase();
 
 const ABERTA = new Set(['open', 'aberta', 'ativa', 'active', 'publicada', 'published']);
+/**
+ * O InHire manda `slaDaysGoal` ora número, ora string. Zero e negativo são
+ * tratados como ausência de meta -- "fechar em 0 dias" não é meta, é campo
+ * não preenchido, e julgar uma vaga contra ele reprovaria todas.
+ */
+export function metaSla(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v.trim()) : NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 const FECHADA = new Set(['closed', 'fechada', 'concluida', 'concluída', 'finalizada', 'hired']);
 const CONGELADA = new Set(['frozen', 'congelada', 'on hold', 'paused', 'pausada']);
 const CANCELADA = new Set(['canceled', 'cancelled', 'cancelada', 'arquivada', 'archived']);
@@ -248,6 +269,15 @@ export interface MonthlyRow {
   tth_avg: number | null;
   tth_median: number | null;
   applications: number;
+  /** Fechadas dentro do prazo alvo. */
+  closed_within_sla: number;
+  /**
+   * Quantas tinham meta cadastrada. É o DENOMINADOR correto do indicador --
+   * `closed_jobs` incluiria vagas sem meta, e vaga sem meta não pode ser
+   * julgada como dentro ou fora do prazo. Usar o denominador errado aqui
+   * transformaria falta de cadastro em mau desempenho.
+   */
+  closed_with_sla_goal: number;
 }
 
 export interface OpenRow {
@@ -258,6 +288,9 @@ export interface OpenRow {
   positions: number;
   applications: number;
   avg_age_days: number | null;
+  /** Abertas há mais dias que a própria meta. */
+  overdue_sla: number;
+  with_sla_goal: number;
 }
 
 export interface AggregateResult {
@@ -268,6 +301,8 @@ export interface AggregateResult {
     vagasRecebidas: number;
     talentPoolExcluidas: number;
     semDepartamento: number;
+    /** Quantas vagas têm prazo alvo cadastrado. Zero = ninguém preenche. */
+    comMetaSla: number;
     fechadasComTempo: number;
     fechadasSemTempo: number;
   };
@@ -294,12 +329,19 @@ export function aggregateJobs(jobs: InhireJob[], asOf: string): AggregateResult 
     vagasRecebidas: jobs.length,
     talentPoolExcluidas: jobs.length - reais.length,
     semDepartamento: 0,
+    comMetaSla: 0,
     fechadasComTempo: 0,
     fechadasSemTempo: 0,
   };
 
-  const porMes = new Map<string, { fechadas: number; tempos: number[]; candidaturas: number }>();
-  const porAberta = new Map<string, { jobs: number; positions: number; applications: number; idades: number[] }>();
+  const porMes = new Map<string, {
+    fechadas: number; tempos: number[]; candidaturas: number;
+    comMeta: number; dentroDoPrazo: number;
+  }>();
+  const porAberta = new Map<string, {
+    jobs: number; positions: number; applications: number; idades: number[];
+    comMeta: number; estouradas: number;
+  }>();
   const agora = Date.now();
 
   for (const j of reais) {
@@ -316,11 +358,23 @@ export function aggregateJobs(jobs: InhireJob[], asOf: string): AggregateResult 
       if (fechadaEm) {
         const mes = fechadaEm.slice(0, 7);
         const k = `${mes}|${dept}`;
-        const cur = porMes.get(k) ?? { fechadas: 0, tempos: [], candidaturas: 0 };
+        const cur = porMes.get(k) ?? { fechadas: 0, tempos: [], candidaturas: 0, comMeta: 0, dentroDoPrazo: 0 };
         cur.fechadas++;
         cur.candidaturas += candidaturas;
         if (dias != null) { cur.tempos.push(dias); resumo.fechadasComTempo++; }
         else resumo.fechadasSemTempo++;
+
+        // Julgar prazo exige as DUAS pontas: a meta e o realizado. Faltando
+        // qualquer uma, a vaga fica fora do indicador em vez de entrar como
+        // fora do prazo -- ausência de dado não é atraso.
+        const meta = metaSla(j.slaDaysGoal);
+        if (meta != null) {
+          resumo.comMetaSla++;
+          if (dias != null) {
+            cur.comMeta++;
+            if (dias <= meta) cur.dentroDoPrazo++;
+          }
+        }
         porMes.set(k, cur);
       } else {
         resumo.fechadasSemTempo++;
@@ -330,13 +384,21 @@ export function aggregateJobs(jobs: InhireJob[], asOf: string): AggregateResult 
 
     if (bucket === 'aberta' || bucket === 'congelada') {
       const k = `${dept}|${bucket}`;
-      const cur = porAberta.get(k) ?? { jobs: 0, positions: 0, applications: 0, idades: [] };
+      const cur = porAberta.get(k) ?? { jobs: 0, positions: 0, applications: 0, idades: [], comMeta: 0, estouradas: 0 };
       cur.jobs++;
       cur.positions += Number(j.openPositions ?? 0) || 0;
       cur.applications += candidaturas;
       if (j.createdAt) {
         const idade = (agora - new Date(j.createdAt).getTime()) / 86_400_000;
-        if (Number.isFinite(idade) && idade >= 0) cur.idades.push(idade);
+        if (Number.isFinite(idade) && idade >= 0) {
+          cur.idades.push(idade);
+          const meta = metaSla(j.slaDaysGoal);
+          if (meta != null) {
+            resumo.comMetaSla++;
+            cur.comMeta++;
+            if (idade > meta) cur.estouradas++;
+          }
+        }
       }
       porAberta.set(k, cur);
     }
@@ -353,6 +415,8 @@ export function aggregateJobs(jobs: InhireJob[], asOf: string): AggregateResult 
         : null,
       tth_median: mediana(v.tempos),
       applications: v.candidaturas,
+      closed_within_sla: v.dentroDoPrazo,
+      closed_with_sla_goal: v.comMeta,
     };
   }).sort((a, b) => a.month.localeCompare(b.month) || a.department.localeCompare(b.department));
 
@@ -368,6 +432,8 @@ export function aggregateJobs(jobs: InhireJob[], asOf: string): AggregateResult 
       avg_age_days: v.idades.length
         ? Math.round((v.idades.reduce((a, b) => a + b, 0) / v.idades.length) * 10) / 10
         : null,
+      overdue_sla: v.estouradas,
+      with_sla_goal: v.comMeta,
     };
   }).sort((a, b) => a.department.localeCompare(b.department) || a.status.localeCompare(b.status));
 

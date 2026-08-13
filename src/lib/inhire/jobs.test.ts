@@ -16,6 +16,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   aggregateJobs, canonDept, deptOf, isTalentPool, statusBucket, tempoDeFechamento,
+  metaSla,
   type InhireJob,
 } from './jobs';
 
@@ -305,4 +306,88 @@ test('deptOf lê o custom field, que é onde o dado realmente está', () => {
   // O campo `area` da view vem vazio em 156 de 156 vagas.
   assert.equal(deptOf(job({ customFields_map: { Departamento: 'RH' } })), 'HR');
   assert.equal(deptOf(job({ customFields_map: {} })), null);
+});
+
+// ---------------------------------------------------------------------------
+// SLA — prazo alvo vindo de `slaDaysGoal`
+// ---------------------------------------------------------------------------
+
+test('metaSla aceita número e string, e recusa zero', () => {
+  assert.equal(metaSla(30), 30);
+  assert.equal(metaSla('45'), 45);
+  assert.equal(metaSla(' 60 '), 60);
+  // Zero não é "fechar no mesmo dia": é campo não preenchido. Tratá-lo como
+  // meta reprovaria toda vaga que levasse mais de zero dias — ou seja, todas.
+  assert.equal(metaSla(0), null);
+  assert.equal(metaSla(-5), null);
+  assert.equal(metaSla(null), null);
+  assert.equal(metaSla('sem prazo'), null);
+});
+
+test('vaga fechada dentro do prazo conta como dentro', () => {
+  const j = job({
+    slaDaysGoal: 30,
+    createdAt: '2026-03-01T00:00:00Z',
+    statusHistory: [
+      { status: 'open', createdAt: '2026-03-01T00:00:00Z' },
+      { status: 'closed', createdAt: '2026-03-21T00:00:00Z' },
+    ],
+  });
+  const r = aggregateJobs([j], '2026-08-10');
+  assert.equal(r.monthly[0].closed_with_sla_goal, 1);
+  assert.equal(r.monthly[0].closed_within_sla, 1);
+});
+
+test('vaga que estourou o prazo conta no denominador mas não no numerador', () => {
+  const j = job({
+    slaDaysGoal: 10,
+    createdAt: '2026-03-01T00:00:00Z',
+    statusHistory: [
+      { status: 'open', createdAt: '2026-03-01T00:00:00Z' },
+      { status: 'closed', createdAt: '2026-04-15T00:00:00Z' },
+    ],
+  });
+  const r = aggregateJobs([j], '2026-08-10');
+  assert.equal(r.monthly[0].closed_with_sla_goal, 1);
+  assert.equal(r.monthly[0].closed_within_sla, 0);
+});
+
+test('vaga SEM meta fica fora do indicador, não conta como atrasada', () => {
+  // A distinção é o ponto: falta de cadastro não é mau desempenho. Se a vaga
+  // sem meta entrasse no denominador, o indicador mediria preenchimento de
+  // campo em vez de cumprimento de prazo.
+  const j = job({
+    createdAt: '2026-03-01T00:00:00Z',
+    statusHistory: [
+      { status: 'open', createdAt: '2026-03-01T00:00:00Z' },
+      { status: 'closed', createdAt: '2026-06-01T00:00:00Z' },
+    ],
+  });
+  const r = aggregateJobs([j], '2026-08-10');
+  assert.equal(r.monthly[0].closed_jobs, 1);
+  assert.equal(r.monthly[0].closed_with_sla_goal, 0);
+  assert.equal(r.monthly[0].closed_within_sla, 0);
+  assert.equal(r.resumo.comMetaSla, 0);
+});
+
+test('vaga aberta há mais dias que a meta aparece como estourada', () => {
+  const j = job({
+    status: 'open',
+    slaDaysGoal: 15,
+    createdAt: new Date(Date.now() - 40 * 86_400_000).toISOString(),
+  });
+  const r = aggregateJobs([j], '2026-08-10');
+  assert.equal(r.open[0].with_sla_goal, 1);
+  assert.equal(r.open[0].overdue_sla, 1);
+});
+
+test('vaga aberta dentro do prazo não é estourada', () => {
+  const j = job({
+    status: 'open',
+    slaDaysGoal: 60,
+    createdAt: new Date(Date.now() - 10 * 86_400_000).toISOString(),
+  });
+  const r = aggregateJobs([j], '2026-08-10');
+  assert.equal(r.open[0].with_sla_goal, 1);
+  assert.equal(r.open[0].overdue_sla, 0);
 });

@@ -106,6 +106,9 @@ export async function executarSyncInhire(
     if (resumo.semDepartamento > 0) {
       avisos.push(`${resumo.semDepartamento} vagas sem o campo Departamento preenchido — entram como "SEM DEPTO". É lacuna de cadastro no InHire, não zero.`);
     }
+    if (resumo.comMetaSla === 0 && jobs.length > 0) {
+      avisos.push('Nenhuma vaga tem prazo alvo (slaDaysGoal) cadastrado no InHire — sem ele não dá para dizer se uma vaga fechou no prazo. É preenchimento no InHire, não limitação da API.');
+    }
     if (resumo.fechadasSemTempo > 0 && comHist > 0) {
       avisos.push(`${resumo.fechadasSemTempo} vagas fechadas sem histórico suficiente para calcular o tempo — contam no volume, ficam fora da média.`);
     }
