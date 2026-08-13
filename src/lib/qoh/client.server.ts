@@ -67,6 +67,44 @@ export class QohClient {
     return texto.split(this.token).join('<TOKEN>');
   }
 
+  /**
+   * Tenta a mesma chamada de quatro formas e devolve o status de cada uma.
+   *
+   * Existe porque um 403 sozinho não distingue três causas muito diferentes:
+   * token errado, formato de autenticação errado, e chamada barrada pela
+   * origem. Um status por tentativa separa as três sem adivinhação --
+   * especialmente o último caso, em que TODAS falham igual e o token está
+   * perfeito.
+   */
+  async diagnosticar(path: string): Promise<{ forma: string; status: number | null; corpo: string }[]> {
+    const formas: { forma: string; comQuery: boolean; headers: Record<string, string> }[] = [
+      { forma: 'Só na URL (como o curl)', comQuery: true, headers: {} },
+      { forma: 'Authorization: Bearer', comQuery: false, headers: { Authorization: `Bearer ${this.token}` } },
+      { forma: 'X-Token', comQuery: false, headers: { 'X-Token': this.token } },
+      { forma: 'Sem token nenhum', comQuery: false, headers: {} },
+    ];
+
+    const out: { forma: string; status: number | null; corpo: string }[] = [];
+    for (const f of formas) {
+      const url = new URL(QOH_BASE + path);
+      if (f.comQuery) url.searchParams.set('token', this.token);
+      try {
+        this.stats.requests++;
+        const res = await fetch(url, { headers: { Accept: 'application/json', ...f.headers } });
+        const corpo = await res.text();
+        out.push({ forma: f.forma, status: res.status, corpo: this.redigir(corpo).slice(0, 200) });
+      } catch (e) {
+        // Falha de rede, DNS ou TLS -- diferente de resposta HTTP, e a
+        // distinção importa: significa que nem chegamos ao serviço.
+        out.push({
+          forma: f.forma, status: null,
+          corpo: this.redigir(e instanceof Error ? e.message : String(e)).slice(0, 200),
+        });
+      }
+    }
+    return out;
+  }
+
   async get<T>(path: string, params?: Record<string, string | number>): Promise<T> {
     if (!isPathPermitido(path)) {
       throw new Error(`Caminho não permitido: ${path}. A lista fechada está em src/lib/qoh/paths.ts.`);

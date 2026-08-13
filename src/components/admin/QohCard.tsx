@@ -24,7 +24,8 @@ export function QohCard() {
     } catch (e) {
       setS({
         configurado: false, registros: 0, campos: [], categorias: [],
-        viaHeader: false, avisos: [], erro: e instanceof Error ? e.message : String(e),
+        viaHeader: false, avisos: [], tentativas: [],
+        erro: e instanceof Error ? e.message : String(e),
       });
     } finally {
       setCarregando(false);
@@ -56,6 +57,27 @@ export function QohCard() {
                 <AlertTriangle className="h-4 w-4" /> Não deu para consultar
               </div>
               <p className="mt-1 text-muted-foreground">{s.erro}</p>
+
+              {s.tentativas.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-xs font-medium">As quatro formas de autenticar</div>
+                  <p className="text-xs text-muted-foreground">
+                    Se todas falharem igual — inclusive a última, sem token —, o problema
+                    não é a credencial: é a chamada estar sendo barrada pela origem.
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    {s.tentativas.map((t) => (
+                      <div key={t.forma} className="text-xs">
+                        <span className="font-medium">{t.forma}</span>:{' '}
+                        <span style={{ color: t.status === 200 ? COLORS.success : COLORS.warning }}>
+                          {t.status ?? 'sem resposta'}
+                        </span>
+                        {t.corpo && <span className="text-muted-foreground"> — {t.corpo}</span>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

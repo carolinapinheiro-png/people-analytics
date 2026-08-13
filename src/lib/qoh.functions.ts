@@ -47,6 +47,8 @@ export interface SondaQoh {
   viaHeader: boolean;
   avisos: string[];
   erro: string | null;
+  /** Preenchido quando a chamada falha: uma linha por forma de autenticação. */
+  tentativas: { forma: string; status: number | null; corpo: string }[];
 }
 
 const MAX_DISTINTOS = 12;
@@ -58,7 +60,7 @@ export const sondarQoh = createServerFn({ method: 'GET' })
 
     const vazio: SondaQoh = {
       configurado: false, registros: 0, campos: [], categorias: [],
-      viaHeader: false, avisos: [], erro: null,
+      viaHeader: false, avisos: [], erro: null, tentativas: [],
     };
 
     if (!process.env.QOH_API_TOKEN) {
@@ -122,8 +124,22 @@ export const sondarQoh = createServerFn({ method: 'GET' })
         viaHeader: client.stats.viaHeader > 0 && client.stats.viaQuery === 0,
         avisos,
         erro: null,
+        tentativas: [],
       };
     } catch (e) {
-      return { ...vazio, configurado: true, erro: e instanceof Error ? e.message : String(e) };
+      // Falhou. Antes de devolver, mede as quatro formas de autenticar -- um
+      // 403 sozinho não distingue token errado de chamada barrada pela origem.
+      let tentativas: SondaQoh['tentativas'] = [];
+      try {
+        const { QohClient } = await import('@/lib/qoh/client.server');
+        const { AVALIACOES } = await import('@/lib/qoh/paths');
+        tentativas = await QohClient.create().diagnosticar(AVALIACOES);
+      } catch {
+        // Se nem o cliente pôde ser criado, o erro original já explica.
+      }
+      return {
+        ...vazio, configurado: true, tentativas,
+        erro: e instanceof Error ? e.message : String(e),
+      };
     }
   });
