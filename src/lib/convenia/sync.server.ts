@@ -201,43 +201,6 @@ export async function executarSyncConvenia(
           genero: cacheGenero.get(p.id) ?? null,
         }));
 
-        // Resolve um lote de gênero para quem ainda não está no cache.
-        //
-        // Inclui QUEM JÁ SAIU, e isso importa mais do que parece: nos meses
-        // antigos a maioria das pessoas presentes já foi embora. Resolvendo só
-        // os ativos, a cobertura de 2019 fica perto de zero e o percentual de
-        // gênero some justamente onde a série é mais longa -- foi o que
-        // aconteceu na primeira rodada, 15 meses com percentual de 272.
-        const semGenero = registros.filter((x) => !cacheGenero.has(x.id));
-        for (const alvo of semGenero) {
-          if (generoBuscadosAgora >= LOTE_GENERO) break;
-          try {
-            const env2 = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(String(alvo.id)));
-            const det2 = (env2?.data ?? env2) as Record<string, unknown>;
-            // Dos 123 campos, três seguem adiante. `gender` é a identidade de
-            // gênero; `gender_document` seria o do documento, e usar aquele é
-            // deliberado -- o painel fala de pessoas, não de cartórios.
-            const g = normalizarGenero(
-              (det2.gender as { name?: string } | string | null) &&
-              (typeof det2.gender === 'string' ? det2.gender : (det2.gender as { name?: string })?.name),
-            );
-            const raca = (det2.ethnicity as { name?: string } | null)?.name ?? null;
-            cacheGenero.set(alvo.id, g);
-            generoBuscadosAgora++;
-            await db.from('convenia_pessoas').upsert({
-              convenia_id: alvo.id,
-              gender: g,
-              race: raca,
-              birth_month: mesDe(alvo.birth_date ?? null),
-            }, { onConflict: 'convenia_id' });
-          } catch {
-            // Falhou: NÃO entra no cache, para a próxima execução tentar de novo.
-            break;
-          }
-        }
-
-        // Reaplica o que acabou de ser resolvido.
-        for (const r of registros) r.genero = cacheGenero.get(r.id) ?? null;
 
         for (const s of saidas) {
           const achado = porId.get(s.id);
@@ -318,6 +281,57 @@ export async function executarSyncConvenia(
             });
           }
         }
+
+        // ------------------------------------------------------------------
+        // O GÊNERO É RESOLVIDO AQUI, DEPOIS DAS SAÍDAS -- E A ORDEM É O PONTO
+        // ------------------------------------------------------------------
+        // Este bloco já esteve acima do laço de saídas. A lista de alvos saía
+        // de `registros`, que naquele momento tinha só os ativos: os
+        // desligados ainda não tinham sido acrescentados.
+        //
+        // O resultado foi 638 pessoas resolvidas de 802, e o efeito visível
+        // foi o percentual de gênero existir em 15 dos 272 meses -- porque nos
+        // meses antigos a maioria das pessoas presentes já saiu.
+        //
+        // Nada falhou. A correção estava escrita e certa; só rodava cedo
+        // demais.
+        // Resolve um lote de gênero para quem ainda não está no cache.
+        //
+        // Inclui QUEM JÁ SAIU, e isso importa mais do que parece: nos meses
+        // antigos a maioria das pessoas presentes já foi embora. Resolvendo só
+        // os ativos, a cobertura de 2019 fica perto de zero e o percentual de
+        // gênero some justamente onde a série é mais longa -- foi o que
+        // aconteceu na primeira rodada, 15 meses com percentual de 272.
+        const semGenero = registros.filter((x) => !cacheGenero.has(x.id));
+        for (const alvo of semGenero) {
+          if (generoBuscadosAgora >= LOTE_GENERO) break;
+          try {
+            const env2 = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(String(alvo.id)));
+            const det2 = (env2?.data ?? env2) as Record<string, unknown>;
+            // Dos 123 campos, três seguem adiante. `gender` é a identidade de
+            // gênero; `gender_document` seria o do documento, e usar aquele é
+            // deliberado -- o painel fala de pessoas, não de cartórios.
+            const g = normalizarGenero(
+              (det2.gender as { name?: string } | string | null) &&
+              (typeof det2.gender === 'string' ? det2.gender : (det2.gender as { name?: string })?.name),
+            );
+            const raca = (det2.ethnicity as { name?: string } | null)?.name ?? null;
+            cacheGenero.set(alvo.id, g);
+            generoBuscadosAgora++;
+            await db.from('convenia_pessoas').upsert({
+              convenia_id: alvo.id,
+              gender: g,
+              race: raca,
+              birth_month: mesDe(alvo.birth_date ?? null),
+            }, { onConflict: 'convenia_id' });
+          } catch {
+            // Falhou: NÃO entra no cache, para a próxima execução tentar de novo.
+            break;
+          }
+        }
+
+        // Reaplica o que acabou de ser resolvido.
+        for (const r of registros) r.genero = cacheGenero.get(r.id) ?? null;
 
         const lista = porMarca.get(f.marca) ?? [];
         lista.push(...registros);
