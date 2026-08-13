@@ -32,6 +32,11 @@ export interface SyncResumo {
   semDepartamento: number;
   fechadasComTempo: number;
   fechadasSemTempo: number;
+  /** Vagas com prazo alvo cadastrado. */
+  comMetaSla: number;
+  /** Fechadas que dá para julgar (têm meta E tempo) e quantas cumpriram. */
+  julgaveisPorPrazo: number;
+  dentroDoPrazo: number;
   linhasMensais: number;
   linhasAbertas: number;
   requisicoes: number;
@@ -123,6 +128,9 @@ export async function executarSyncInhire(
       semDepartamento: resumo.semDepartamento,
       fechadasComTempo: resumo.fechadasComTempo,
       fechadasSemTempo: resumo.fechadasSemTempo,
+      comMetaSla: resumo.comMetaSla,
+      julgaveisPorPrazo: monthly.reduce((a, m) => a + m.closed_with_sla_goal, 0),
+      dentroDoPrazo: monthly.reduce((a, m) => a + m.closed_within_sla, 0),
       linhasMensais: monthly.length,
       linhasAbertas: open.length,
       requisicoes: client.stats.requests,

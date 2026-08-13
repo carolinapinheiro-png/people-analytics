@@ -147,6 +147,16 @@ export default function InhireSyncCard() {
               ['Sem departamento', resultado.semDepartamento],
               ['Requisições usadas', resultado.requisicoes],
               ['Menor saldo do limite', resultado.menorSaldoLimite ?? '—'],
+              ['Com prazo alvo', resultado.comMetaSla],
+              // Julgáveis, não fechadas: vaga sem meta OU sem tempo não pode
+              // ser dita dentro ou fora do prazo. Mostrar as duas pontas evita
+              // que "12 no prazo" seja lido como "só 12 de 122 cumpriram".
+              [
+                'Fechou no prazo',
+                resultado.julgaveisPorPrazo > 0
+                  ? `${resultado.dentroDoPrazo} de ${resultado.julgaveisPorPrazo}`
+                  : 'sem meta para julgar',
+              ],
             ].map(([label, valor]) => (
               <div key={String(label)}>
                 <p className="text-muted-foreground">{label}</p>
