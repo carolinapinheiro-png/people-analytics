@@ -1,7 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { isInScope, isGlobalProfile, type AccessProfile, type AccessScope } from '@/lib/permissions';
+import { isInScope, isGlobalProfile, type AccessScope } from '@/lib/permissions';
 import { selectedDept } from '@/lib/dept-filter';
 import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
 import { z } from 'zod';
@@ -36,23 +36,14 @@ const pick = (v?: string | null): string | null => {
 
 type UntypedClient = SupabaseClient<any, 'public', any>;
 
-async function authorize(userEmail: string | undefined) {
-  if (!userEmail) throw new Error('Unauthorized');
-  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  const { data, error } = await supabaseAdmin
-    .from('allowed_emails')
-    .select('role, profile, departments, job_families')
-    .ilike('email', userEmail)
-    .maybeSingle();
-  if (error) throw new Error(`Access check failed: ${error.message}`);
-  if (!data) throw new Error('Forbidden');
-  const row = data as { profile?: string; departments?: string[]; job_families?: string[] };
-  const scope: AccessScope = {
-    profile: (row.profile as AccessProfile) ?? 'dept_leader',
-    departments: row.departments ?? [],
-    jobFamilies: row.job_families ?? [],
-  };
-  return scope;
+/**
+ * Adaptador fino sobre `resolverEscopo`, que e o unico lugar do sistema que
+ * decide quem voce e -- e o unico que sabe do "ver como". Antes cada arquivo
+ * tinha sua propria copia desta consulta; treze copias, quatro formatos.
+ */
+async function authorize(userEmail: string | undefined): Promise<AccessScope> {
+  const { resolverEscopo } = await import('@/lib/escopo.server');
+  return (await resolverEscopo(userEmail)).scope;
 }
 
 function median(nums: number[]): number | null {

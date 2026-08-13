@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DeptFilterInput, selectedDept } from '@/lib/dept-filter';
 import {
-  isGlobalProfile, isInScope, type AccessProfile, type AccessScope,
+  isGlobalProfile, isInScope, type AccessScope,
 } from '@/lib/permissions';
 
 /**
@@ -34,29 +34,14 @@ import {
 
 type UntypedClient = SupabaseClient<any, 'public', any>;
 
+/**
+ * Adaptador fino sobre `resolverEscopo`, que e o unico lugar do sistema que
+ * decide quem voce e -- e o unico que sabe do "ver como". Antes cada arquivo
+ * tinha sua propria copia desta consulta; treze copias, quatro formatos.
+ */
 async function authorize(userEmail: string | undefined): Promise<AccessScope> {
-  if (!userEmail) throw new Error('Unauthorized');
-  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  const { data, error } = await supabaseAdmin
-    .from('allowed_emails')
-    .select('role, profile, departments, job_families')
-    .ilike('email', userEmail)
-    .maybeSingle();
-  if (error) throw new Error(`Access check failed: ${error.message}`);
-  if (!data) throw new Error('Forbidden');
-
-  // O cruzamento com a base de desligados exige escopo, mesmo devolvendo só
-  // contagem. Um gestor de uma área não deve inferir o volume de saídas de
-  // outra a partir daqui -- o número é agregado, mas com 8 áreas na tela um
-  // agregado por área é tão identificável quanto uma lista.
-  const row = data as {
-    profile?: string; departments?: string[]; job_families?: string[];
-  };
-  return {
-    profile: (row.profile as AccessProfile) ?? 'dept_leader',
-    departments: row.departments ?? [],
-    jobFamilies: row.job_families ?? [],
-  };
+  const { resolverEscopo } = await import('@/lib/escopo.server');
+  return (await resolverEscopo(userEmail)).scope;
 }
 
 export interface EngagementScore {
@@ -309,6 +294,10 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       hcPorMesDept[ym] = porDept;
     }
 
+    // O cruzamento com a base de desligados exige escopo, mesmo devolvendo só
+    // contagem. Um gestor de uma área não deve inferir o volume de saídas de
+    // outra a partir daqui -- o número é agregado, mas com 8 áreas na tela um
+    // agregado por área é tão identificável quanto uma lista.
     const leavers = ((lv.data ?? []) as Array<LeaverLike & { job_family?: string | null }>).filter(
       (r) => isInScope(scope, r.departamento, r.job_family ?? null),
     );

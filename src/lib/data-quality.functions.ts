@@ -19,16 +19,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 type UntypedClient = SupabaseClient<any, 'public', any>;
 
+/**
+ * Adaptador fino sobre `resolverEscopo`, que e o unico lugar do sistema que
+ * decide quem voce e -- e o unico que sabe do "ver como". Antes cada arquivo
+ * tinha sua propria copia desta consulta; treze copias, quatro formatos.
+ */
 async function authorize(userEmail: string | undefined) {
-  if (!userEmail) throw new Error('Unauthorized');
-  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  const { data, error } = await supabaseAdmin
-    .from('allowed_emails')
-    .select('role')
-    .ilike('email', userEmail)
-    .maybeSingle();
-  if (error) throw new Error(`Access check failed: ${error.message}`);
-  if (!data) throw new Error('Forbidden');
+  const { resolverEscopo } = await import('@/lib/escopo.server');
+  await resolverEscopo(userEmail);
 }
 
 export interface QualityIssue {

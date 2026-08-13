@@ -29,6 +29,12 @@ interface AuthContextType {
   departments: string[];
   /** Job type families atendidas; vazio para perfis globais. */
   jobFamilies: string[];
+  /**
+   * Preenchido quando o servidor CONFIRMOU que está respondendo pelos olhos
+   * de outra pessoa. Note que confirmação vem do servidor, não do navegador:
+   * é o que permite detectar o pedido que não chegou (ver `FaixaVerComo`).
+   */
+  verComo: { email: string; profile: string } | null;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -60,6 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [profile, setProfile] = useState<AccessProfile | null>(null);
   const [departments, setDepartments] = useState<string[]>([]);
   const [jobFamilies, setJobFamilies] = useState<string[]>([]);
+  const [verComo, setVerComo] = useState<{ email: string; profile: string } | null>(null);
   const checkAccessFn = useServerFn(checkAccess);
 
   /**
@@ -86,6 +93,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setProfile((result.profile as AccessProfile | null) ?? null);
           setDepartments(result.departments ?? []);
           setJobFamilies((result as { jobFamilies?: string[] }).jobFamilies ?? []);
+          setVerComo((result as { verComo?: { email: string; profile: string } | null }).verComo ?? null);
           return 'allowed';
         }
 
@@ -95,6 +103,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setProfile(null);
         setDepartments([]);
         setJobFamilies([]);
+        setVerComo(null);
         setUser(null);
         setSession(null);
 
@@ -125,6 +134,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setProfile(null);
     setDepartments([]);
     setJobFamilies([]);
+    setVerComo(null);
     return 'error';
   }, [checkAccessFn]);
 
@@ -145,6 +155,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setProfile(null);
           setDepartments([]);
           setJobFamilies([]);
+          setVerComo(null);
           setLoading(false);
           return;
         }
@@ -212,6 +223,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setProfile(null);
     setDepartments([]);
     setJobFamilies([]);
+    setVerComo(null);
   };
 
   const retryAccessCheck = useCallback(() => verifyAccess(), [verifyAccess]);
@@ -231,6 +243,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         profile,
         departments,
         jobFamilies,
+        verComo,
         signIn,
         signUp,
         signOut,

@@ -31,39 +31,58 @@ export const checkAccess = createServerFn({ method: 'GET' })
     // authenticated nao le — o subselect volta nulo e tudo seria negado.
     // O claims.email ja vem verificado pelo JWT, entao a consulta de
     // autorizacao usa o admin client.
+    //
+    // A resolucao passa por `resolverEscopo` -- o MESMO ponto que todas as
+    // outras server functions usam. E o que garante que a tela e os dados
+    // concordem sobre quem esta olhando. Se a UI se desenhasse pelo perfil
+    // real enquanto os dados viessem pelo perfil simulado (ou o contrario), a
+    // divergencia nao apareceria como erro: apareceria como um grafico vazio,
+    // que qualquer um leria como "essa area nao tem dado".
     const { supabaseAdmin } = await import('./access-rules.server');
-    const { data, error } = await supabaseAdmin
-      .from('allowed_emails')
-      .select('role, profile, departments, job_families')
-      .ilike('email', userEmail)
-      .maybeSingle();
+    const { resolverEscopo } = await import('./escopo.server');
 
-    // Falha de lookup NAO e negacao: erro transitorio de banco nao pode se
-    // disfarcar de "nao autorizado" e derrubar uma sessao valida. Lanca erro
-    // (cliente trata como 'error'); data === null e a negacao autoritativa.
-    if (error) throw new Error(`Access check failed: ${error.message}`);
+    const negado = {
+      allowed: false,
+      role: null as 'admin' | 'viewer' | null,
+      profile: null as string | null,
+      departments: [] as string[],
+      jobFamilies: [] as string[],
+      verComo: null as { email: string; profile: string } | null,
+    };
 
-    const allowed = !!data;
-    const profile = data?.profile ?? null;
-    const role = profile === 'admin' ? 'admin' : data ? 'viewer' : null;
+    const logar = async (allowed: boolean) => {
+      try {
+        await supabaseAdmin.from('access_logs').insert({
+          email: userEmail, user_id: context.userId, action: 'check_access', allowed,
+        });
+      } catch (logError) {
+        console.error('Failed to log access attempt:', logError);
+      }
+    };
 
+    let e: Awaited<ReturnType<typeof resolverEscopo>>;
     try {
-      await supabaseAdmin.from('access_logs').insert({
-        email: userEmail,
-        user_id: context.userId,
-        action: 'check_access',
-        allowed,
-      });
-    } catch (logError) {
-      console.error('Failed to log access attempt:', logError);
+      e = await resolverEscopo(userEmail);
+    } catch (err) {
+      // 'Forbidden' e a negacao autoritativa: o e-mail nao esta na lista.
+      // Qualquer outra falha (banco fora do ar, alvo de simulacao inexistente)
+      // NAO e negacao e nao pode derrubar uma sessao valida -- propaga como
+      // erro, que o cliente trata como 'error' e permite tentar de novo.
+      if ((err instanceof Error ? err.message : String(err)) !== 'Forbidden') throw err;
+      await logar(false);
+      return negado;
     }
 
+    await logar(true);
+
     return {
-      allowed,
-      role,
-      profile,
-      departments: data?.departments ?? [],
-      jobFamilies: data?.job_families ?? [],
+      allowed: true,
+      role: e.role,
+      profile: e.profile as string | null,
+      departments: e.departments,
+      jobFamilies: e.jobFamilies,
+      /** Preenchido = a tela inteira esta desenhada pelos olhos de outra pessoa. */
+      verComo: e.verComo as { email: string; profile: string } | null,
     };
   });
 

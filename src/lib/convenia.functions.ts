@@ -31,20 +31,14 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
  * Por isso aqui o veredito sai da RESPOSTA, e o nome da permissão é só indício.
  */
 
+/**
+ * Porta de admin. Delega a `exigirAdmin`, que alem de conferir o perfil
+ * recusa enquanto a sessao esta vendo o painel como outra pessoa -- uma
+ * previa em que os botoes de admin ainda funcionam nao confere nada.
+ */
 async function authorizeAdmin(userEmail: string | undefined) {
-  if (!userEmail) throw new Error('Unauthorized');
-  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  const { data, error } = await supabaseAdmin
-    .from('allowed_emails')
-    .select('role')
-    .ilike('email', userEmail)
-    .maybeSingle();
-  if (error) throw new Error(`Access check failed: ${error.message}`);
-  if (!data) throw new Error('Forbidden');
-  if ((data as { role?: string }).role !== 'admin') {
-    throw new Error('Forbidden: apenas admin pode inspecionar a integração');
-  }
-  return userEmail;
+  const { exigirAdmin } = await import('@/lib/escopo.server');
+  return exigirAdmin(userEmail, 'inspecionar a integração');
 }
 
 export interface Sonda {

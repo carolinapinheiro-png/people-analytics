@@ -13,6 +13,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from "@/components/ui/sonner";
+import FaixaVerComo from "@/components/layout/FaixaVerComo";
 
 function NotFoundComponent() {
   return (
@@ -131,6 +132,11 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
+        {/* Fora do <Outlet /> de proposito: a faixa de "ver como" precisa
+            aparecer em QUALQUER tela, inclusive na de erro de acesso. E o
+            unico aviso de que os numeros na tela sao os de outra pessoa, e o
+            unico caminho de volta. */}
+        <FaixaVerComo />
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <Outlet />
         <Toaster />

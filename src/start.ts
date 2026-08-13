@@ -2,6 +2,7 @@ import { createStart, createMiddleware } from "@tanstack/react-start";
 
 import { renderErrorPage } from "./lib/error-page";
 import { attachSupabaseAuth } from "@/integrations/supabase/auth-attacher";
+import { attachVerComo } from "@/lib/ver-como/attach";
 
 const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
@@ -19,6 +20,10 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
 });
 
 export const startInstance = createStart(() => ({
-  functionMiddleware: [attachSupabaseAuth],
+  // Os dois são globais porque valem para TODA server function. O primeiro
+  // anexa o token; o segundo, o "ver como". Aplicar qualquer um deles arquivo
+  // a arquivo seria esperar que ninguém esquecesse nenhum -- e o esquecimento
+  // do segundo é invisível na tela.
+  functionMiddleware: [attachSupabaseAuth, attachVerComo],
   requestMiddleware: [errorMiddleware],
 }));

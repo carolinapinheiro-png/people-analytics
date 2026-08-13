@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { canSeeIndividualData, type AccessProfile } from '@/lib/permissions';
+import { canSeeIndividualData } from '@/lib/permissions';
 import { parsePollyExport } from '@/lib/aggregator/polly-parser';
 import {
   computeCuts, computeDriverScores, computeDriverImportance,
@@ -25,22 +25,15 @@ import {
 
 type UntypedClient = SupabaseClient<any, 'public', any>;
 
+/**
+ * Adaptador fino sobre `resolverEscopo`, que e o unico lugar do sistema que
+ * decide quem voce e -- e o unico que sabe do "ver como". Antes cada arquivo
+ * tinha sua propria copia desta consulta; treze copias, quatro formatos.
+ */
 async function authorize(userEmail: string | undefined) {
-  if (!userEmail) throw new Error('Unauthorized');
-  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  const { data, error } = await supabaseAdmin
-    .from('allowed_emails')
-    .select('role, profile')
-    .ilike('email', userEmail)
-    .maybeSingle();
-  if (error) throw new Error(`Access check failed: ${error.message}`);
-  if (!data) throw new Error('Forbidden');
-  const row = data as { role?: string; profile?: string };
-  return {
-    email: userEmail,
-    role: (row.role as 'admin' | 'viewer') ?? 'viewer',
-    profile: (row.profile as AccessProfile) ?? 'dept_leader',
-  };
+  const { resolverEscopo } = await import('@/lib/escopo.server');
+  const e = await resolverEscopo(userEmail);
+  return { email: e.email, role: e.role, profile: e.profile };
 }
 
 // ---------------------------------------------------------------- importação

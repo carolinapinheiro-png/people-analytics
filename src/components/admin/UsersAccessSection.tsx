@@ -26,6 +26,7 @@ import {
   Eye,
 } from 'lucide-react';
 import MultiSelect from '@/components/admin/MultiSelect';
+import { entrarVerComo } from '@/components/layout/FaixaVerComo';
 import {
   addAllowedEmail,
   removeAllowedEmail,
@@ -371,6 +372,20 @@ export default function UsersAccessSection({
                   )}
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
+                  {/* "Ver como" mora AQUI, e nao num seletor solto, porque
+                      esta e a unica tela em que o escopo da pessoa esta a
+                      vista. Conferir o que alguem enxerga so quer dizer
+                      alguma coisa se der para ler, na mesma linha, o que
+                      esperavamos que ela enxergasse. */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    title={`Ver o painel como ${item.email}`}
+                    aria-label={`Ver o painel como ${item.email}`}
+                    onClick={() => entrarVerComo(item.email)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => openEdit(item)}>
                     <Pencil className="h-4 w-4" />
                   </Button>

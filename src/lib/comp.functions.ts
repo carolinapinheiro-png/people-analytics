@@ -5,8 +5,6 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   canSeeIndividualData,
   isInScope,
-  type AccessProfile,
-  type AccessScope,
 } from '@/lib/permissions';
 import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
 
@@ -39,23 +37,15 @@ export interface CompRatioRow {
   hire: string | null;
 }
 
+/**
+ * Adaptador fino sobre `resolverEscopo`, que e o unico lugar do sistema que
+ * decide quem voce e -- e o unico que sabe do "ver como". Antes cada arquivo
+ * tinha sua propria copia desta consulta; treze copias, quatro formatos.
+ */
 async function authorize(userEmail: string | undefined) {
-  if (!userEmail) throw new Error('Unauthorized');
-  const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
-  const { data, error } = await supabaseAdmin
-    .from('allowed_emails')
-    .select('role, profile, departments, job_families')
-    .ilike('email', userEmail)
-    .maybeSingle();
-  if (error) throw new Error(`Access check failed: ${error.message}`);
-  if (!data) throw new Error('Forbidden');
-  const row = data as { role?: string; profile?: string; departments?: string[]; job_families?: string[] };
-  const scope: AccessScope = {
-    profile: (row.profile as AccessProfile) ?? 'dept_leader',
-    departments: row.departments ?? [],
-    jobFamilies: row.job_families ?? [],
-  };
-  return { email: userEmail, role: (row.role as 'admin' | 'viewer') ?? 'viewer', scope };
+  const { resolverEscopo } = await import('@/lib/escopo.server');
+  const e = await resolverEscopo(userEmail);
+  return { email: e.email, role: e.role, scope: e.scope };
 }
 
 const ListInput = z
