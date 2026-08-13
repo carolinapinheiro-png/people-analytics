@@ -2,7 +2,22 @@ import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DeptFilterInput, selectedDept } from '@/lib/dept-filter';
-import { isInScope, type AccessProfile, type AccessScope } from '@/lib/permissions';
+import {
+  isGlobalProfile, isInScope, type AccessProfile, type AccessScope,
+} from '@/lib/permissions';
+
+/**
+ * A área que um perfil restrito enxerga quando não pede nada.
+ *
+ * Devolve `'\u0000SEM-ESCOPO'` -- valor que não casa com nenhum departamento --
+ * para quem tem perfil restrito e nenhuma área atribuída. O resultado é uma
+ * tela vazia, que é o correto: um cadastro incompleto não deve virar acesso
+ * total por omissão.
+ */
+function normalizarPrimeiroDept(scope: AccessScope): string {
+  const d = (scope.departments ?? []).map((x) => (x ?? '').trim().toUpperCase()).filter(Boolean);
+  return d[0] ?? '\u0000SEM-ESCOPO';
+}
 import {
   buildEngagementContext,
   type EngagementContextResult,
@@ -103,8 +118,36 @@ export const getExperienceData = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => DeptFilterInput.parse(input))
   .handler(async ({ context, data: input }): Promise<ExperienceData> => {
-    await authorize(context.claims.email as string | undefined);
-    const sel = selectedDept(input);
+    const scope = await authorize(context.claims.email as string | undefined);
+
+    // ======================================================================
+    // O FILTRO PEDIDO NÃO PODE AMPLIAR O ESCOPO -- SÓ ESTREITAR
+    // ======================================================================
+    // Até 13/08/2026 esta função chamava `authorize()` e DESCARTAVA o
+    // resultado. O recorte vinha inteiro do `input`, ou seja, do navegador.
+    //
+    // Na prática: um Department Leader que pedisse outro departamento --
+    // ou nenhum -- recebia a base inteira. O filtro escondia na tela, e o
+    // dado chegava ao navegador de qualquer jeito. Quem abrisse o inspetor
+    // via tudo.
+    //
+    // Nunca chegou a vazar porque nenhum líder de área tinha acesso ainda.
+    // Foi encontrado justamente ao preparar esse acesso.
+    //
+    // A regra agora é a que deveria ter sido desde o início: o servidor
+    // decide o que pode sair, e o pedido do cliente só escolhe DENTRO disso.
+    const pedido = selectedDept(input);
+    const podeVerTudo = isGlobalProfile(scope.profile);
+
+    if (!podeVerTudo && pedido && !isInScope(scope, pedido)) {
+      // Pedir área fora do escopo é erro, não silêncio: devolver vazio
+      // pareceria "sua área não tem dados" e esconderia a tentativa.
+      throw new Error('Sem acesso a este departamento.');
+    }
+
+    // Sem pedido explícito, quem tem escopo limitado vê a PRÓPRIA área --
+    // não a empresa. "Nenhum filtro" não pode significar "tudo".
+    const sel = pedido ?? (podeVerTudo ? null : normalizarPrimeiroDept(scope));
 
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
@@ -144,9 +187,13 @@ export const getExperienceData = createServerFn({ method: 'GET' })
     // vazio: uma seção some sem explicação parece defeito, e o número da
     // empresa continua sendo verdadeiro (só não é o da área). A aba avisa que
     // o filtro alcança só parte dela.
-    const engagement = ((eng.data ?? []) as EngagementScore[]).filter(
-      (r) => !sel || (r.scope ?? '').trim().toUpperCase() === sel,
-    );
+    // `EMPRESA` é a linha consolidada. Perfil restrito NÃO a recebe: com 8
+    // áreas na tela, saber o total e a própria área permite estimar as outras.
+    const engagement = ((eng.data ?? []) as EngagementScore[]).filter((r) => {
+      const escopoDaLinha = (r.scope ?? '').trim().toUpperCase();
+      if (!podeVerTudo) return escopoDaLinha === sel;
+      return !sel || escopoDaLinha === sel;
+    });
 
     return {
       engagement,
