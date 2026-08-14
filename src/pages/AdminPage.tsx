@@ -11,6 +11,7 @@ import UsersAccessSection, {
   type DepartmentOption,
 } from '@/components/admin/UsersAccessSection';
 import DepartmentsSection from '@/components/admin/DepartmentsSection';
+import UsersCsvCard from '@/components/admin/UsersCsvCard';
 import AuditSection, { type AccessLog } from '@/components/admin/AuditSection';
 import InhireSyncCard from '@/components/admin/InhireSyncCard';
 import ConveniaCard from '@/components/admin/ConveniaCard';
@@ -22,6 +23,8 @@ interface UserPaginationState {
   page: number;
   limit: number;
   totalPages: number;
+  /** Quantos usuarios em cada perfil, sempre da base inteira. */
+  porPerfil: Record<string, number>;
 }
 
 export default function AdminPage() {
@@ -32,8 +35,12 @@ export default function AdminPage() {
     page: 1,
     limit: 20,
     totalPages: 1,
+    porPerfil: {},
   });
   const [search, setSearch] = useState('');
+  // Filtros da lista. O servidor ja os aceitava; a tela nunca os enviou.
+  const [profileFilter, setProfileFilter] = useState('');
+  const [deptFilter, setDeptFilter] = useState('');
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(20);
   const [departments, setDepartments] = useState<DepartmentOption[]>([]);
@@ -45,13 +52,16 @@ export default function AdminPage() {
 
   const fetchEmails = useCallback(async () => {
     try {
-      const data = await getAllowedEmailsFn({ data: { search, page, limit } });
+      const data = await getAllowedEmailsFn({
+        data: { search, page, limit, profile: profileFilter, department: deptFilter },
+      });
       setPagination({
         items: data.items as AllowedEmail[],
         count: data.count,
         page: data.page,
         limit: data.limit,
         totalPages: data.totalPages,
+        porPerfil: data.porPerfil ?? {},
       });
       if (data.page > data.totalPages && data.totalPages > 0) {
         setPage(data.totalPages);
@@ -60,7 +70,7 @@ export default function AdminPage() {
       toast.error('Erro ao carregar emails autorizados');
       console.error(error);
     }
-  }, [getAllowedEmailsFn, search, page, limit]);
+  }, [getAllowedEmailsFn, search, page, limit, profileFilter, deptFilter]);
 
   const fetchDepartments = useCallback(async () => {
     try {
@@ -169,11 +179,19 @@ export default function AdminPage() {
               totalPages={pagination.totalPages}
               limit={pagination.limit}
               search={search}
+              porPerfil={pagination.porPerfil}
+              profileFilter={profileFilter}
+              deptFilter={deptFilter}
+              onProfileFilterChange={(v) => { setProfileFilter(v); setPage(1); }}
+              onDeptFilterChange={(v) => { setDeptFilter(v); setPage(1); }}
               onSearchChange={handleSearchChange}
               onPageChange={setPage}
               onLimitChange={handleLimitChange}
               onChanged={refreshAccess}
             />
+            <div className="mt-4">
+              <UsersCsvCard onChanged={refreshAccess} />
+            </div>
           </TabsContent>
 
           <TabsContent value="departments" className="mt-0">

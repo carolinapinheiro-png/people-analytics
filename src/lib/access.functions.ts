@@ -12,6 +12,9 @@ import {
   isScopedProfileValue,
   roleForProfile,
   SCOPED_REQUIRES_SCOPE_MESSAGE,
+  BulkUpdateSchema,
+  ImportCsvSchema,
+  type AccessProfileValue,
 } from '@/lib/access-rules';
 
 export const checkAccess = createServerFn({ method: 'GET' })
@@ -456,6 +459,286 @@ export const removeAllowedEmail = createServerFn({ method: 'POST' })
       );
     }
     return { success: true };
+  });
+
+// ---------------------------------------------------------------------------
+// Lote
+// ---------------------------------------------------------------------------
+
+/**
+ * Aplica a mesma mudança a vários usuários.
+ *
+ * ===========================================================================
+ * POR QUE ISTO GRAVA UM POR UM, E NÃO NUM UPDATE SÓ
+ * ===========================================================================
+ * Um `update ... in (ids)` seria uma linha de código e uma consulta. Mas cada
+ * pessoa tem um escopo DIFERENTE: somar TECHNOLOGY a quarenta usuários não é
+ * a mesma escrita quarenta vezes, é quarenta escritas distintas.
+ *
+ * E, principalmente: o histórico "de → para" que acabamos de criar precisa de
+ * um registro POR PESSOA. Um lote que gravasse de uma vez deixaria no log uma
+ * única linha dizendo "quarenta pessoas mudaram", e a pergunta que o log
+ * existe para responder -- "o que ESTE usuário tinha antes?" -- voltaria a
+ * não ter resposta. O lote seria o buraco na auditoria que o resto fechou.
+ */
+export const bulkUpdateAllowedEmails = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => BulkUpdateSchema.parse(data))
+  .handler(async ({ context, data }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
+    const autor = (context.claims.email as string) ?? '?';
+
+    const { data: linhas, error: eLer } = await supabaseAdmin
+      .from('allowed_emails')
+      .select('id, email, profile, departments, job_families, extra_tabs, can_see_individual, expires_at')
+      .in('id', data.ids);
+    if (eLer) throw new Error(eLer.message);
+
+    const somar = data.addDepartments.map((d) => d.trim().toUpperCase());
+    const tirar = new Set(data.removeDepartments.map((d) => d.trim().toUpperCase()));
+
+    const aplicados: string[] = [];
+    const recusados: Array<{ email: string; motivo: string }> = [];
+
+    for (const bruta of (linhas ?? []) as unknown as Array<{
+      id: string; email: string; profile: string; departments: string[] | null;
+      job_families: string[] | null; extra_tabs: string[] | null;
+      can_see_individual: boolean | null; expires_at: string | null;
+    }>) {
+      const perfilNovo = (data.profile ?? bruta.profile) as AccessProfileValue;
+      const depts = [...new Set([...(bruta.departments ?? []), ...somar])]
+        .filter((d) => !tirar.has(d));
+      const familias = bruta.job_families ?? [];
+
+      // A mesma regra do cadastro individual: perfil escopado sem escopo é
+      // cadastro pela metade. Em lote isso apareceria como "salvou" e a
+      // pessoa ficaria sem ver nada, sem ninguem entender por que.
+      if (isScopedProfileValue(perfilNovo) && depts.length === 0 && familias.length === 0) {
+        recusados.push({ email: bruta.email, motivo: SCOPED_REQUIRES_SCOPE_MESSAGE });
+        continue;
+      }
+
+      const escopado = isScopedProfileValue(perfilNovo);
+      const expira = data.expiresAt === undefined ? bruta.expires_at : data.expiresAt;
+
+      const { error } = await supabaseAdmin
+        .from('allowed_emails')
+        .update({
+          role: roleForProfile(perfilNovo),
+          profile: perfilNovo as unknown as never,
+          departments: escopado ? depts : [],
+          job_families: escopado ? familias : [],
+          expires_at: expira,
+        } as never)
+        .eq('id', bruta.id);
+
+      if (error) { recusados.push({ email: bruta.email, motivo: error.message }); continue; }
+
+      await registrarMudanca(autor, 'permissao_alterada', bruta.email,
+        {
+          profile: bruta.profile, departments: bruta.departments ?? [],
+          jobFamilies: familias, extraTabs: bruta.extra_tabs ?? [],
+          canSeeIndividual: bruta.can_see_individual, expiresAt: bruta.expires_at,
+        },
+        {
+          profile: perfilNovo, departments: escopado ? depts : [],
+          jobFamilies: escopado ? familias : [], extraTabs: bruta.extra_tabs ?? [],
+          canSeeIndividual: bruta.can_see_individual, expiresAt: expira,
+        },
+      );
+      aplicados.push(bruta.email);
+    }
+
+    return { aplicados, recusados };
+  });
+
+// ---------------------------------------------------------------------------
+// CSV
+// ---------------------------------------------------------------------------
+
+/** Exporta a base inteira no MESMO formato que a importação lê. */
+export const exportAllowedEmailsCsv = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
+    const { gerarCsv } = await import('./access-csv');
+
+    const { data, error } = await supabaseAdmin
+      .from('allowed_emails')
+      .select('email, profile, departments, job_families, extra_tabs, job_title, job_level, expires_at, can_see_individual, last_login_at')
+      .order('email');
+    if (error) throw new Error(error.message);
+
+    // A exportação é uma leitura de TODA a base de permissões. Fica no mesmo
+    // log que o resto -- quem exportou levou a lista inteira para fora do
+    // sistema, e isso é exatamente o tipo de coisa que se quer reconstruir.
+    await registrarMudanca(
+      (context.claims.email as string) ?? '?', 'permissao_alterada', 'exportacao-csv',
+      null, { profile: `${(data ?? []).length} usuários exportados` },
+    );
+
+    return { csv: gerarCsv((data ?? []) as never), linhas: (data ?? []).length };
+  });
+
+export interface PreviaImportacaoLinha {
+  email: string;
+  acao: 'criar' | 'atualizar' | 'sem mudanca';
+  /** Resumo do que muda, em português, para conferir sem ler JSON. */
+  mudancas: string[];
+}
+
+/**
+ * Importa usuários de um CSV. Sem `confirm`, só diz o que FARIA.
+ *
+ * ===========================================================================
+ * PRÉVIA OBRIGATÓRIA
+ * ===========================================================================
+ * É o mesmo padrão dos outros importadores do painel (Convenia, inHire,
+ * Polly), e aqui ele pesa mais: os outros importam NÚMEROS, este importa
+ * PERMISSÃO. Um arquivo com a coluna trocada não quebra nada -- concede
+ * acesso a quem não devia, em silêncio, para várias pessoas de uma vez.
+ *
+ * A prévia mostra linha a linha o que muda. Só depois disso grava.
+ */
+export const importAllowedEmailsCsv = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => ImportCsvSchema.parse(data))
+  .handler(async ({ context, data }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
+    const autor = (context.claims.email as string) ?? '?';
+
+    const { lerCsv } = await import('./access-csv');
+    const { ALL_TABS } = await import('./permissions');
+    const leitura = lerCsv(data.texto, ALL_TABS);
+
+    const { data: existentes } = await supabaseAdmin
+      .from('allowed_emails')
+      .select('id, email, profile, departments, job_families, extra_tabs, can_see_individual, expires_at');
+
+    const porEmail = new Map<string, {
+      id: string; email: string; profile: string; departments: string[] | null;
+      job_families: string[] | null; extra_tabs: string[] | null;
+      can_see_individual: boolean | null; expires_at: string | null;
+    }>();
+    for (const r of (existentes ?? []) as never[]) {
+      const x = r as unknown as { email: string };
+      porEmail.set(x.email.toLowerCase(), r as never);
+    }
+
+    const problemas = [...leitura.problemas];
+    const previa: PreviaImportacaoLinha[] = [];
+
+    // Departamentos ativos: o trigger recusa inativo, e descobrir isso só na
+    // hora de gravar deixaria metade do arquivo dentro e metade fora.
+    const { data: deps } = await supabaseAdmin.from('departments').select('name, active');
+    const ativos = new Set(
+      ((deps ?? []) as Array<{ name: string; active: boolean }>)
+        .filter((d) => d.active).map((d) => d.name),
+    );
+
+    const aplicaveis: Array<{ linha: (typeof leitura.linhas)[number]; atual: ReturnType<typeof porEmail.get> }> = [];
+
+    for (const l of leitura.linhas) {
+      const inativo = l.departments.filter((d) => !ativos.has(d));
+      if (inativo.length) {
+        problemas.push({
+          linha: 0, email: l.email,
+          motivo: `Departamento não existe ou está inativo no catálogo: ${inativo.join(', ')}.`,
+        });
+        continue;
+      }
+      const perfil = l.profile as AccessProfileValue;
+      if (isScopedProfileValue(perfil) && !l.departments.length && !l.jobFamilies.length) {
+        problemas.push({ linha: 0, email: l.email, motivo: SCOPED_REQUIRES_SCOPE_MESSAGE });
+        continue;
+      }
+
+      const atual = porEmail.get(l.email);
+      const mudancas: string[] = [];
+      if (!atual) {
+        mudancas.push(`novo acesso como ${l.profile}`);
+        if (l.departments.length) mudancas.push(`áreas: ${l.departments.join(', ')}`);
+      } else {
+        if (atual.profile !== l.profile) mudancas.push(`perfil ${atual.profile} → ${l.profile}`);
+        const de = (atual.departments ?? []).join(',');
+        const para = l.departments.join(',');
+        if (de !== para) mudancas.push(`áreas ${de || '—'} → ${para || '—'}`);
+        const deTabs = (atual.extra_tabs ?? []).join(',');
+        if (deTabs !== l.extraTabs.join(',')) {
+          mudancas.push(`abas ${deTabs || '—'} → ${l.extraTabs.join(',') || '—'}`);
+        }
+        const indNovo = l.canSeeIndividual === '' ? null : l.canSeeIndividual === 'sim';
+        if ((atual.can_see_individual ?? null) !== indNovo) {
+          mudancas.push(`dado individual → ${indNovo == null ? 'padrão do perfil' : indNovo ? 'sim' : 'não'}`);
+        }
+        const expNovo = l.expiresAt ? new Date(l.expiresAt).toISOString() : null;
+        if ((atual.expires_at ?? null) !== expNovo) {
+          mudancas.push(`validade → ${expNovo ? expNovo.slice(0, 10) : 'sem prazo'}`);
+        }
+      }
+
+      previa.push({
+        email: l.email,
+        acao: !atual ? 'criar' : mudancas.length ? 'atualizar' : 'sem mudanca',
+        mudancas,
+      });
+      if (!atual || mudancas.length) aplicaveis.push({ linha: l, atual });
+    }
+
+    const resumo = {
+      criar: previa.filter((p) => p.acao === 'criar').length,
+      atualizar: previa.filter((p) => p.acao === 'atualizar').length,
+      semMudanca: previa.filter((p) => p.acao === 'sem mudanca').length,
+      problemas,
+      ignorados: leitura.ignorados,
+      previa,
+      gravado: false,
+    };
+
+    if (!data.confirm) return resumo;
+
+    for (const { linha: l, atual } of aplicaveis) {
+      const perfil = l.profile as AccessProfileValue;
+      const escopado = isScopedProfileValue(perfil);
+      const campos = {
+        role: roleForProfile(perfil),
+        profile: perfil as unknown as never,
+        departments: escopado ? l.departments : [],
+        job_families: escopado ? l.jobFamilies : [],
+        job_title: l.jobTitle || null,
+        job_level: l.jobLevel || null,
+        extra_tabs: l.extraTabs,
+        can_see_individual: l.canSeeIndividual === '' ? null : l.canSeeIndividual === 'sim',
+        expires_at: l.expiresAt ? new Date(l.expiresAt).toISOString() : null,
+      };
+
+      const depois = {
+        profile: l.profile, departments: campos.departments, jobFamilies: campos.job_families,
+        extraTabs: l.extraTabs, canSeeIndividual: campos.can_see_individual,
+        expiresAt: campos.expires_at,
+      };
+
+      if (atual) {
+        const { error } = await supabaseAdmin.from('allowed_emails')
+          .update(campos as never).eq('id', atual.id);
+        if (error) { problemas.push({ linha: 0, email: l.email, motivo: error.message }); continue; }
+        await registrarMudanca(autor, 'permissao_alterada', l.email, {
+          profile: atual.profile, departments: atual.departments ?? [],
+          jobFamilies: atual.job_families ?? [], extraTabs: atual.extra_tabs ?? [],
+          canSeeIndividual: atual.can_see_individual, expiresAt: atual.expires_at,
+        }, depois);
+      } else {
+        const { error } = await supabaseAdmin.from('allowed_emails')
+          .insert({ email: l.email, responsibilities: [], ...campos } as never);
+        if (error) { problemas.push({ linha: 0, email: l.email, motivo: error.message }); continue; }
+        await registrarMudanca(autor, 'permissao_criada', l.email, null, depois);
+      }
+    }
+
+    return { ...resumo, problemas, gravado: true };
   });
 
 /** Catalogo de departamentos — leitura para qualquer usuario autenticado. */

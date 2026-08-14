@@ -48,7 +48,8 @@ export type DashboardTab =
   | 'individual'
   | 'data';
 
-const ALL_TABS: DashboardTab[] = [
+/** Todas as abas que existem. Exportada para validar `extra_tabs` e o CSV. */
+export const ALL_TABS: DashboardTab[] = [
   'overview',
   'team',
   'dei',

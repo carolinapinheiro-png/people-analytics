@@ -14,6 +14,9 @@ export const ProfileSchema = z.enum([
 
 export type AccessProfileValue = z.infer<typeof ProfileSchema>;
 
+/** Perfil opcional: em lote, não escolher perfil quer dizer "não mexe nele". */
+export const ProfileSchemaOpcional = ProfileSchema.optional();
+
 export interface AllowedEmailRow {
   id: string;
   email: string;
@@ -49,6 +52,30 @@ export const ResponsibilitiesSchema = z
   .array(z.string().trim().min(1).max(80))
   .max(20)
   .default([]);
+
+/**
+ * Ação em lote. Cada campo é OPCIONAL e só mexe no que veio -- o resto da
+ * permissão de cada pessoa fica como estava.
+ *
+ * `addDepartments` e `removeDepartments` existem em vez de um `departments`
+ * que substitui: numa lista de 40 pessoas com escopos diferentes, substituir
+ * apagaria o escopo de todas para igualar ao de nenhuma. Somar e tirar são as
+ * duas operações que fazem sentido sobre um conjunto heterogêneo.
+ */
+export const BulkUpdateSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(200),
+  profile: ProfileSchemaOpcional,
+  addDepartments: z.array(z.string().trim().min(1).max(80)).max(50).default([]),
+  removeDepartments: z.array(z.string().trim().min(1).max(80)).max(50).default([]),
+  /** `null` limpa a validade; ausente não mexe. */
+  expiresAt: z.string().datetime().nullable().optional(),
+});
+
+export const ImportCsvSchema = z.object({
+  texto: z.string().min(1).max(500_000),
+  /** Sem isto a chamada só simula e devolve o que faria. */
+  confirm: z.boolean().default(false),
+});
 
 export const GetAllowedEmailsSchema = z.object({
   search: z.string().trim().max(120).default(''),

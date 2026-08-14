@@ -31,6 +31,7 @@ import {
   addAllowedEmail,
   removeAllowedEmail,
   updateAllowedEmailUser,
+  bulkUpdateAllowedEmails,
 } from '@/lib/access.functions';
 import {
   isScopedProfileValue,
@@ -288,6 +289,11 @@ export default function UsersAccessSection({
   totalPages,
   limit,
   search,
+  porPerfil,
+  profileFilter,
+  deptFilter,
+  onProfileFilterChange,
+  onDeptFilterChange,
   onSearchChange,
   onPageChange,
   onLimitChange,
@@ -300,6 +306,11 @@ export default function UsersAccessSection({
   totalPages: number;
   limit: number;
   search: string;
+  porPerfil: Record<string, number>;
+  profileFilter: string;
+  deptFilter: string;
+  onProfileFilterChange: (v: string) => void;
+  onDeptFilterChange: (v: string) => void;
   onSearchChange: (value: string) => void;
   onPageChange: (page: number) => void;
   onLimitChange: (limit: number) => void;
@@ -321,6 +332,64 @@ export default function UsersAccessSection({
    */
   const [removendo, setRemovendo] = useState<AllowedEmail | null>(null);
   const [confirmacao, setConfirmacao] = useState('');
+
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [loteAberto, setLoteAberto] = useState(false);
+  const [loteProfile, setLoteProfile] = useState('');
+  const [loteAdd, setLoteAdd] = useState<string[]>([]);
+  const [loteRemove, setLoteRemove] = useState<string[]>([]);
+  const [loteSalvando, setLoteSalvando] = useState(false);
+  const bulkFn = useServerFn(bulkUpdateAllowedEmails);
+
+  const alternarSelecao = (id: string, marcado: boolean) => {
+    setSelecionados((s) => {
+      const n = new Set(s);
+      if (marcado) n.add(id); else n.delete(id);
+      return n;
+    });
+  };
+
+  const selecionarPagina = (marcado: boolean) => {
+    setSelecionados((s) => {
+      const n = new Set(s);
+      for (const e of emails) { if (marcado) n.add(e.id); else n.delete(e.id); }
+      return n;
+    });
+  };
+
+  const aplicarLote = async () => {
+    if (!loteProfile && loteAdd.length === 0 && loteRemove.length === 0) {
+      toast.error('Escolha ao menos uma mudança para aplicar.');
+      return;
+    }
+    setLoteSalvando(true);
+    try {
+      const r = await bulkFn({ data: {
+        ids: [...selecionados],
+        profile: loteProfile ? (loteProfile as AccessProfile) : undefined,
+        addDepartments: loteAdd,
+        removeDepartments: loteRemove,
+      } });
+      // Sucesso parcial e o desfecho comum: alguem do lote pode ficar sem
+      // escopo com a mudanca. Dizer so "pronto" esconderia isso.
+      if (r.recusados.length) {
+        toast.warning(
+          `${r.aplicados.length} atualizado(s); ${r.recusados.length} recusado(s): ` +
+          r.recusados.map((x) => x.email).join(', '),
+        );
+      } else {
+        toast.success(`${r.aplicados.length} usuário(s) atualizado(s).`);
+      }
+      setLoteAberto(false);
+      setSelecionados(new Set());
+      setLoteProfile(''); setLoteAdd([]); setLoteRemove([]);
+      onChanged();
+    } catch (e) {
+      toast.error(errorMessage(e, 'Falha ao aplicar em lote'));
+    } finally {
+      setLoteSalvando(false);
+    }
+  };
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<UserFormState>(EMPTY_FORM);
@@ -497,15 +566,114 @@ export default function UsersAccessSection({
               />
             </div>
           </div>
+
+          {/* ------------------------------------------------------------------
+              OS CONTADORES SAO O FILTRO
+              ------------------------------------------------------------------
+              Buscar por e-mail so ajuda quem ja sabe o e-mail. As perguntas
+              reais sao "quem sao os dept leaders?" e "quem enxerga
+              COMMERCIAL?" -- e a resposta da primeira ja esta na tela como
+              numero. Clicar nela filtra: o caminho mais curto entre a duvida
+              e a lista.
+
+              A contagem vem da base INTEIRA, nao do filtro. Um contador que
+              encolhe junto com o filtro deixa de responder "como esta a
+              distribuicao", que e para o que ele serve.
+          ------------------------------------------------------------------ */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            {ACCESS_PROFILES.filter((p) => (porPerfil[p] ?? 0) > 0).map((p) => {
+              const ativo = profileFilter === p;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => onProfileFilterChange(ativo ? '' : p)}
+                  aria-pressed={ativo}
+                  className={`rounded-full border px-2.5 py-1 text-[11px] transition-colors ${
+                    ativo
+                      ? 'border-primary bg-primary/10 text-foreground font-medium'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:bg-secondary'
+                  }`}
+                >
+                  {PROFILE_LABELS[p]} · {porPerfil[p]}
+                </button>
+              );
+            })}
+
+            <select
+              value={deptFilter}
+              onChange={(e) => onDeptFilterChange(e.target.value)}
+              className="ml-auto rounded border border-border bg-secondary px-2 py-1 text-[11px]"
+              aria-label="Filtrar por departamento atendido"
+            >
+              <option value="">Todos os departamentos</option>
+              {departments.filter((d) => d.active).map((d) => (
+                <option key={d.name} value={d.name}>{d.name}</option>
+              ))}
+            </select>
+
+            {(profileFilter || deptFilter) && (
+              <button
+                type="button"
+                onClick={() => { onProfileFilterChange(''); onDeptFilterChange(''); }}
+                className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                limpar filtros
+              </button>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
+          {/* ------------------------------------------------------------------
+              LOTE
+              ------------------------------------------------------------------
+              A selecao vale so para a PAGINA VISIVEL, de proposito. Um
+              "selecionar todos os 120" com filtro ligado e a forma classica de
+              alguem trocar o perfil de gente que nunca viu na tela -- e a
+              acao aqui concede acesso.
+          ------------------------------------------------------------------ */}
+          {emails.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px]">
+              <label className="flex items-center gap-1.5 text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={emails.length > 0 && emails.every((e) => selecionados.has(e.id))}
+                  onChange={(e) => selecionarPagina(e.target.checked)}
+                />
+                Selecionar os {emails.length} desta página
+              </label>
+              {selecionados.size > 0 && (
+                <>
+                  <span className="font-medium">{selecionados.size} selecionado{selecionados.size > 1 ? 's' : ''}</span>
+                  <Button size="sm" variant="outline" className="h-7" onClick={() => setLoteAberto(true)}>
+                    Editar em lote
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setSelecionados(new Set())}
+                    className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    limpar seleção
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="space-y-2">
             {emails.map((item) => (
               <div
                 key={item.id}
                 className="flex items-start justify-between p-3 rounded-lg border border-border bg-card gap-4"
               >
-                <div className="flex flex-col gap-1.5 min-w-0">
+                <input
+                  type="checkbox"
+                  checked={selecionados.has(item.id)}
+                  onChange={(e) => alternarSelecao(item.id, e.target.checked)}
+                  aria-label={`Selecionar ${item.email}`}
+                  className="mt-1 shrink-0"
+                />
+                <div className="flex flex-col gap-1.5 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium truncate">{item.email}</span>
                     <Badge variant={item.profile === 'admin' ? 'default' : 'secondary'}>
@@ -647,6 +815,75 @@ export default function UsersAccessSection({
       </Card>
 
       {/* Remocao com confirmacao digitada. Ver a nota no estado `removendo`. */}
+      {/* ------------------------------------------------------------------
+          LOTE: SOMA E TIRA, NAO SUBSTITUI
+          ------------------------------------------------------------------
+          Um campo "departamentos" que substitui apagaria o escopo de todos
+          para igualar ao de nenhum -- as pessoas do lote tem escopos
+          diferentes, e e por isso que estao sendo editadas juntas. Somar e
+          tirar sao as duas operacoes que fazem sentido sobre um conjunto
+          heterogeneo.
+      ------------------------------------------------------------------ */}
+      <Dialog open={loteAberto} onOpenChange={setLoteAberto}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Editar {selecionados.size} usuário(s)</DialogTitle>
+            <DialogDescription>
+              O que ficar em branco não é alterado. Departamentos são somados ou
+              retirados do que cada pessoa já tem — não substituem.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="lote-perfil">Trocar perfil</Label>
+              <select
+                id="lote-perfil"
+                value={loteProfile}
+                onChange={(e) => setLoteProfile(e.target.value)}
+                className="w-full rounded border border-border bg-secondary px-2 py-1.5 text-sm"
+              >
+                <option value="">— não mexer no perfil —</option>
+                {ACCESS_PROFILES.map((p) => (
+                  <option key={p} value={p}>{PROFILE_LABELS[p]}</option>
+                ))}
+              </select>
+            </div>
+
+            <MultiSelect
+              id="lote-add"
+              label="Somar departamentos"
+              options={departments.filter((d) => d.active).map((d) => d.name)}
+              value={loteAdd}
+              onChange={setLoteAdd}
+              placeholder="Nenhum"
+              searchPlaceholder="Buscar departamento..."
+            />
+            <MultiSelect
+              id="lote-remove"
+              label="Tirar departamentos"
+              options={departments.map((d) => d.name)}
+              value={loteRemove}
+              onChange={setLoteRemove}
+              placeholder="Nenhum"
+              searchPlaceholder="Buscar departamento..."
+            />
+
+            <p className="rounded-md bg-secondary/60 p-2 text-[11px] text-muted-foreground">
+              Quem ficar com perfil restrito e nenhuma área é <strong>recusado</strong>,
+              não salvo pela metade — e você vê a lista de quem foi.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLoteAberto(false)}>Cancelar</Button>
+            <Button onClick={aplicarLote} disabled={loteSalvando}>
+              {loteSalvando ? 'Aplicando…' : `Aplicar a ${selecionados.size}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!removendo} onOpenChange={(open) => { if (!open) { setRemovendo(null); setConfirmacao(''); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
