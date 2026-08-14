@@ -32,6 +32,7 @@ import {
   removeAllowedEmail,
   updateAllowedEmailUser,
   bulkUpdateAllowedEmails,
+  sugerirEscopoPorEmail,
 } from '@/lib/access.functions';
 import {
   isScopedProfileValue,
@@ -317,6 +318,38 @@ export default function UsersAccessSection({
   onChanged: () => void;
 }) {
   const [newEmail, setNewEmail] = useState('');
+  const [orgAviso, setOrgAviso] = useState('');
+  const sugerirFn = useServerFn(sugerirEscopoPorEmail);
+
+  /**
+   * Preenche camada N e departamento a partir do organograma.
+   *
+   * ------------------------------------------------------------------
+   * PREENCHE, MAS NAO TRAVA
+   * ------------------------------------------------------------------
+   * O padrao certo posto sozinho resolve o caso comum -- um lider de area,
+   * que enxerga a propria area. Mas HRBP atende varias, e sempre existe a
+   * excecao. Travar o campo transformaria a excecao num pedido de suporte.
+   *
+   * So preenche o que estiver VAZIO: se quem cadastra ja escolheu areas, a
+   * busca nao apaga a escolha dele.
+   */
+  const buscarNoOrganograma = async (email: string) => {
+    if (!email.includes('@')) { setOrgAviso(''); return; }
+    try {
+      const r = await sugerirFn({ data: { email } });
+      setOrgAviso(r.motivo ?? '');
+      if (!r.encontrado) return;
+      setAddForm((f) => ({
+        ...f,
+        jobLevel: f.jobLevel || (r.camada ?? ''),
+        departments: f.departments.length ? f.departments : (r.departamento ? [r.departamento.toUpperCase()] : []),
+      }));
+    } catch {
+      // Falha aqui nao pode impedir o cadastro -- e so uma sugestao.
+      setOrgAviso('');
+    }
+  };
   const [addForm, setAddForm] = useState<UserFormState>(EMPTY_FORM);
   const [isLoading, setIsLoading] = useState(false);
   /** So mostra o erro depois da primeira mexida no formulario. */
@@ -510,9 +543,16 @@ export default function UsersAccessSection({
                 placeholder="nome@nsx.bet"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
+                onBlur={(e) => void buscarNoOrganograma(e.target.value.trim())}
                 required
                 className="max-w-md"
               />
+              <p className="text-[11px] text-muted-foreground">
+                Ao sair do campo, camada N e departamento vêm do organograma do Convenia.
+              </p>
+              {orgAviso && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-500 max-w-md">{orgAviso}</p>
+              )}
             </div>
 
             <UserAccessFormFields

@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start';
+import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import {
   AddAllowedEmailSchema,
@@ -742,6 +743,82 @@ export const importAllowedEmailsCsv = createServerFn({ method: 'POST' })
     }
 
     return { ...resumo, problemas, gravado: true };
+  });
+
+/**
+ * Quem e este e-mail no organograma.
+ *
+ * ===========================================================================
+ * POR QUE O CADASTRO NAO DEVE PEDIR ISTO DIGITADO
+ * ===========================================================================
+ * Camada N, departamento e job family sao TRES campos que ja existem na base
+ * de RH e que, digitados a mao, produzem os mesmos dois problemas:
+ *
+ *   1. Quem cadastra precisa ir "catar" a informacao pessoa por pessoa.
+ *   2. Eles envelhecem calados. Promocao, mudanca de area e troca de gestor
+ *      nao avisam ninguem -- o acesso simplesmente continua o de antes.
+ *
+ * A camada aqui vem calculada da cadeia de reporte (ver organograma.ts) e e
+ * recalculada a cada sincronizacao do Convenia.
+ *
+ * SUGESTAO, e nao imposicao: HRBP atende varias areas, e alguem pode precisar
+ * de um recorte diferente do proprio. O formulario preenche e deixa editar.
+ */
+export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ email: z.string().trim().max(200) }).parse(data))
+  .handler(async ({ context, data }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
+
+    const email = data.email.trim().toLowerCase();
+    const vazio = {
+      encontrado: false,
+      camada: null as string | null,
+      departamento: null as string | null,
+      motivo: '' as string,
+    };
+    if (!email.includes('@')) return vazio;
+
+    const { data: linha, error } = await (supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          ilike: (c: string, v: string) => {
+            maybeSingle: () => PromiseLike<{
+              data: { camada: string | null; department: string | null } | null;
+              error: { message: string } | null;
+            }>;
+          };
+        };
+      };
+    })
+      .from('org_pessoas')
+      .select('camada, department')
+      .ilike('email', email)
+      .maybeSingle();
+
+    if (error) throw new Error(`Falha ao consultar o organograma: ${error.message}`);
+
+    if (!linha) {
+      return {
+        ...vazio,
+        motivo: 'Este e-mail não está no Convenia. Pode ser terceiro, conta de serviço, ou alguém que ainda não foi cadastrado no RH — preencha à mão.',
+      };
+    }
+    if (!linha.camada) {
+      return {
+        ...vazio,
+        encontrado: true,
+        departamento: linha.department ?? null,
+        motivo: 'Encontrei a pessoa, mas a cadeia de reporte dela no Convenia está quebrada ou em ciclo, então não dá para calcular a camada. Sem camada, ela não vê remuneração de ninguém.',
+      };
+    }
+    return {
+      encontrado: true,
+      camada: linha.camada,
+      departamento: linha.department ?? null,
+      motivo: '',
+    };
   });
 
 /** Catalogo de departamentos — leitura para qualquer usuario autenticado. */

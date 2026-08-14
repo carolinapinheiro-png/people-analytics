@@ -43,6 +43,8 @@ interface Minimo {
   salary: number | null;
   birth_date: string | null;
   uf: string | null;
+  /** Corporativo. Liga a conta do painel a esta pessoa no organograma. */
+  email: string | null;
 }
 
 export interface ResumoSyncConvenia {
@@ -149,6 +151,10 @@ export async function executarSyncConvenia(
 
     const avisos: string[] = [];
     const porMarca = new Map<string, PessoaConvenia[]>();
+    // Organograma de TODAS as empresas junto: a cadeia de reporte atravessa
+    // as fontes (alguem da Betfair pode reportar a alguem da NSX), e calcular
+    // empresa por empresa criaria topos falsos.
+    const orgTodos: Array<{ id: string; supervisorId: string | null; email: string | null; department: string | null }> = [];
     const empresas: ResumoSyncConvenia['empresas'] = [];
     let requisicoes = 0;
     let desligadosSemCadastro = 0;
@@ -174,6 +180,11 @@ export async function executarSyncConvenia(
             department: (b.department as { name: string | null }) ?? null,
             status: (b.status as string) ?? null,
             supervisorId: sup?.id ? String(sup.id) : null,
+            // E-mail corporativo: a UNICA ponte entre uma conta do painel e a
+            // posicao da pessoa no organograma. Entra na reducao porque sem
+            // ele a camada N teria de continuar sendo digitada a mao -- e
+            // digitada a mao ela envelhece calada a cada promocao.
+            email: ((b.corporate_email ?? b.email) as string | null) ?? null,
             // O Convenia manda salário ora número, ora string ("3.218,00").
             // Number() em "3.218,00" dá NaN, que viraria média silenciosamente
             // errada -- por isso a normalização explícita.
@@ -193,6 +204,13 @@ export async function executarSyncConvenia(
 
         linha.ativos = pessoas.length;
         linha.desligados = saidas.length;
+
+        for (const p of pessoas) {
+          orgTodos.push({
+            id: p.id, supervisorId: p.supervisorId, email: p.email,
+            department: p.department?.name ?? null,
+          });
+        }
 
         const porId = new Map(pessoas.map((p) => [p.id, p]));
         const registros: PessoaConvenia[] = pessoas.map((p) => ({
@@ -416,6 +434,50 @@ export async function executarSyncConvenia(
     if (!confirm) {
       await encerrar('preview', { requests: requisicoes, detail: out as unknown as Record<string, unknown> });
       return out;
+    }
+
+    // ======================================================================
+    // ORGANOGRAMA: A CAMADA DE CADA UM, RECALCULADA A CADA SINCRONIZACAO
+    // ======================================================================
+    // E o que faz o acesso a remuneracao acompanhar promocao e troca de
+    // gestor sem ninguem editar cadastro nenhum. Gravado com `upsert`, entao
+    // quem mudou de chefe muda de camada na proxima rodada.
+    //
+    // Quem cai em ciclo ou em cadeia quebrada fica com camada nula -- e nulo
+    // ESCONDE. Uma cadeia mal preenchida no Convenia vira tela vazia na aba
+    // de Salarios, nunca acesso a mais.
+    if (orgTodos.length) {
+      const { calcularCamadas, diagnosticar } = await import('@/lib/organograma');
+      const camadas = calcularCamadas(orgTodos);
+      const porPessoa = new Map(camadas.map((c) => [c.id, c]));
+      const diag = diagnosticar(orgTodos, camadas);
+
+      if (diag.semCamada > 0) {
+        avisos.push(
+          `${diag.semCamada} de ${diag.total} pessoas ficaram sem camada N (cadeia de reporte quebrada ou em ciclo no Convenia). Elas nao aparecem na aba de Salarios de ninguem, e quem for cadastrado com esses e-mails nao vai enxergar remuneracao.`,
+        );
+      }
+      if (diag.topos > 8) {
+        avisos.push(
+          `${diag.topos} pessoas sem supervisor conhecido. Cada uma vira um "topo" e recebe N-2, o que achata a escada -- vale conferir o preenchimento de gestor no Convenia.`,
+        );
+      }
+
+      const linhasOrg = orgTodos.map((p) => ({
+        convenia_id: p.id,
+        email: p.email ? p.email.trim().toLowerCase() : null,
+        supervisor_id: p.supervisorId,
+        department: p.department,
+        camada: porPessoa.get(p.id)?.camada ?? null,
+        profundidade: porPessoa.get(p.id)?.profundidade ?? null,
+        atualizado_em: new Date().toISOString(),
+      }));
+
+      for (let i = 0; i < linhasOrg.length; i += 500) {
+        const { error } = await db.from('org_pessoas')
+          .upsert(linhasOrg.slice(i, i + 500) as never, { onConflict: 'convenia_id' });
+        if (error) throw new Error(`Falha ao gravar o organograma: ${error.message}`);
+      }
     }
 
     if (todasLinhas.length) {
