@@ -1,139 +1,122 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  degrauDe, descreverRecorte, filtrarLinhas, podeVerLinha, NIVEL_POR_ROTULO,
+  camadaDe, descreverRecorte, filtrarLinhas, podeVerLinha, temCamadaNosDados,
   type EscopoComp,
 } from './comp-scope';
 
-const DIRETOR_TECH: EscopoComp = { global: false, degrau: 7, areas: ['TECHNOLOGY'] };
-const GLOBAL: EscopoComp = { global: true, degrau: null, areas: [] };
+/** N-1 = C-level, reporta ao CEO. */
+const C_LEVEL_TECH: EscopoComp = { global: false, camada: 1, areas: ['TECHNOLOGY'] };
+const N2_TECH: EscopoComp = { global: false, camada: 2, areas: ['TECHNOLOGY'] };
+const GLOBAL: EscopoComp = { global: true, camada: null, areas: [] };
 
 /**
- * Regra de remuneração. O modo de falhar que importa aqui é assimétrico:
- * quem NÃO vê um salário percebe e reclama; quem vê um salário que não devia
- * não reclama, e ninguém fica sabendo. Por isso todo teste abaixo pergunta
- * "isto pode vazar?", e não "isto aparece?".
+ * A escada aqui é o "N" do Workday: `N` é o CEO, `N-1` são os reportes
+ * diretos, e o número CRESCE conforme desce. É o inverso da escada L0..L9 da
+ * tabela de remuneração.
+ *
+ * A primeira versão desta regra usou a escada errada e no sentido errado. Os
+ * testes abaixo travam as duas coisas -- qual escada, e para que lado.
  */
 
-// ------------------------------------------------------------------ degraus
+// ------------------------------------------------------------------ a escada
 
-test('reconhece as duas escritas que existem na base', () => {
-  // A tabela de remuneração usa L0..L9; o cadastro de usuário usa rótulos.
-  assert.equal(degrauDe('L7'), 7);
-  assert.equal(degrauDe('Director'), 7);
-  assert.equal(degrauDe('  director  '), 7);
-  assert.equal(degrauDe('C-Level'), 9);
+test('N é o CEO, e o número cresce descendo', () => {
+  assert.equal(camadaDe('N'), 0);
+  assert.equal(camadaDe('N-1'), 1);
+  assert.equal(camadaDe('N-4'), 4);
 });
 
-test('nível que não existe vira null, não zero', () => {
-  // Zero seria o degrau mais BAIXO -- e um nível ilegível viraria "estagiário",
-  // deixando a linha visível para praticamente todo mundo.
-  assert.equal(degrauDe('Diretor'), null);
-  assert.equal(degrauDe('L99'), null);
-  assert.equal(degrauDe(''), null);
-  assert.equal(degrauDe(null), null);
-  assert.equal(degrauDe(undefined), null);
-});
-
-test('a escada tem dez degraus distintos, sem empate', () => {
-  // Dois rótulos no mesmo degrau fariam pares se enxergarem.
-  const degraus = Object.values(NIVEL_POR_ROTULO);
-  assert.equal(new Set(degraus).size, degraus.length);
-});
-
-// ------------------------------------------------------------------ a regra
-
-test('vê quem está abaixo', () => {
-  assert.equal(podeVerLinha(DIRETOR_TECH, { area: 'TECHNOLOGY', level: 'L5' }), true);
-  assert.equal(podeVerLinha(DIRETOR_TECH, { area: 'TECHNOLOGY', level: 'L0' }), true);
-});
-
-test('NÃO vê os pares — é o caso que a regra existe para cobrir', () => {
-  assert.equal(podeVerLinha(DIRETOR_TECH, { area: 'TECHNOLOGY', level: 'L7' }), false);
-});
-
-test('NÃO vê os níveis acima', () => {
-  assert.equal(podeVerLinha(DIRETOR_TECH, { area: 'TECHNOLOGY', level: 'L8' }), false);
-  assert.equal(podeVerLinha(DIRETOR_TECH, { area: 'TECHNOLOGY', level: 'L9' }), false);
-});
-
-test('NÃO vê outra área, mesmo abaixo do próprio nível', () => {
-  assert.equal(podeVerLinha(DIRETOR_TECH, { area: 'MARKETING', level: 'L2' }), false);
-});
-
-test('linha sem nível não aparece', () => {
-  // Cadastro incompleto na origem não pode virar exceção à regra.
-  assert.equal(podeVerLinha(DIRETOR_TECH, { area: 'TECHNOLOGY', level: null }), false);
-  assert.equal(podeVerLinha(DIRETOR_TECH, { area: 'TECHNOLOGY', level: 'Sênior' }), false);
-});
-
-test('linha sem área não aparece', () => {
-  assert.equal(podeVerLinha(DIRETOR_TECH, { area: null, level: 'L1' }), false);
-});
-
-test('quem olha sem nível reconhecido não vê NADA', () => {
-  // O desfecho é tela vazia, e é o certo: um cadastro pela metade não pode
-  // resolver para "vê tudo".
-  const semNivel: EscopoComp = { global: false, degrau: null, areas: ['TECHNOLOGY'] };
-  assert.equal(podeVerLinha(semNivel, { area: 'TECHNOLOGY', level: 'L0' }), false);
-  assert.deepEqual(filtrarLinhas(semNivel, [{ area: 'TECHNOLOGY', level: 'L0' }]), []);
-});
-
-test('quem olha sem área não vê nada', () => {
-  const semArea: EscopoComp = { global: false, degrau: 9, areas: [] };
-  assert.equal(podeVerLinha(semArea, { area: 'TECHNOLOGY', level: 'L0' }), false);
-});
-
-test('C-level vê todos os níveis abaixo da própria área, e nenhum par', () => {
-  const cLevel: EscopoComp = { global: false, degrau: 9, areas: ['COMMERCIAL'] };
-  const base = [
-    { area: 'COMMERCIAL', level: 'L9' },
-    { area: 'COMMERCIAL', level: 'L8' },
-    { area: 'COMMERCIAL', level: 'L3' },
-    { area: 'TECHNOLOGY', level: 'L1' },
-  ];
-  assert.deepEqual(
-    filtrarLinhas(cLevel, base).map((r) => `${r.area}/${r.level}`),
-    ['COMMERCIAL/L8', 'COMMERCIAL/L3'],
+test('N-1 é MAIS sênior que N-2 — o sentido que eu tinha invertido', () => {
+  assert.ok(
+    (camadaDe('N-1') as number) < (camadaDe('N-2') as number),
+    'camada menor = mais sênior',
   );
 });
 
-test('perfil global passa por cima de tudo, inclusive sem nível cadastrado', () => {
-  assert.equal(podeVerLinha(GLOBAL, { area: 'QUALQUER', level: null }), true);
-  assert.equal(filtrarLinhas(GLOBAL, [{ area: null, level: null }]).length, 1);
+test('aceita as escritas que aparecem numa planilha preenchida à mão', () => {
+  for (const v of ['N-2', 'n-2', 'N 2', 'N2', '2', 'Layer 2', 'camada 2', ' n – 2 ']) {
+    assert.equal(camadaDe(v), 2, `não reconheceu "${v}"`);
+  }
 });
 
-test('área compara sem depender de caixa ou espaço', () => {
-  assert.equal(podeVerLinha(DIRETOR_TECH, { area: ' technology ', level: 'L1' }), true);
+test('o que não é camada vira null, não zero', () => {
+  // Zero seria o CEO. Um valor ilegível virando CEO deixaria a linha visível
+  // para ninguém -- mas um valor ilegível virando N-9 deixaria visível para
+  // todos. `null` é a única resposta segura.
+  assert.equal(camadaDe('Director'), null);
+  assert.equal(camadaDe('L7'), null, 'a escada L NÃO é a escada N');
+  assert.equal(camadaDe(''), null);
+  assert.equal(camadaDe(null), null);
+  assert.equal(camadaDe('N-37'), null, 'liderança vai até N-4; 37 é digitação errada');
 });
 
-test('quem atende várias áreas vê as duas, com o mesmo corte de nível', () => {
-  const hrbp: EscopoComp = { global: false, degrau: 7, areas: ['TECHNOLOGY', 'PRODUCT'] };
-  const r = filtrarLinhas(hrbp, [
-    { area: 'TECHNOLOGY', level: 'L6' },
-    { area: 'PRODUCT', level: 'L6' },
-    { area: 'PRODUCT', level: 'L7' },
-    { area: 'FINANCE', level: 'L1' },
-  ]);
-  assert.deepEqual(r.map((x) => `${x.area}/${x.level}`), ['TECHNOLOGY/L6', 'PRODUCT/L6']);
+// -------------------------------------------------------------------- regra
+
+test('C-level vê as camadas abaixo da dele', () => {
+  assert.equal(podeVerLinha(C_LEVEL_TECH, { area: 'TECHNOLOGY', n_layer: 'N-2' }), true);
+  assert.equal(podeVerLinha(C_LEVEL_TECH, { area: 'TECHNOLOGY', n_layer: 'N-4' }), true);
 });
 
-// ------------------------------------------------------------------ o aviso
-
-test('a tela sempre sabe dizer que está vendo um recorte', () => {
-  // Um recorte silencioso faz alguém levar "a média da área" para uma
-  // conversa de orçamento sem saber que os níveis acima ficaram de fora.
-  const texto = descreverRecorte(DIRETOR_TECH, 'Director');
-  assert.match(texto ?? '', /TECHNOLOGY/);
-  assert.match(texto ?? '', /abaixo do seu/);
-  assert.match(texto ?? '', /médias/);
+test('C-level NÃO vê os pares nem o CEO', () => {
+  assert.equal(podeVerLinha(C_LEVEL_TECH, { area: 'TECHNOLOGY', n_layer: 'N-1' }), false);
+  assert.equal(podeVerLinha(C_LEVEL_TECH, { area: 'TECHNOLOGY', n_layer: 'N' }), false);
 });
 
-test('sem nível cadastrado, o aviso diz o que fazer', () => {
-  const semNivel: EscopoComp = { global: false, degrau: null, areas: ['TECHNOLOGY'] };
-  assert.match(descreverRecorte(semNivel) ?? '', /Fale com o RH/);
+test('N-2 não vê N-1 — o teste que a versão anterior passava ao contrário', () => {
+  assert.equal(podeVerLinha(N2_TECH, { area: 'TECHNOLOGY', n_layer: 'N-1' }), false);
+  assert.equal(podeVerLinha(N2_TECH, { area: 'TECHNOLOGY', n_layer: 'N-3' }), true);
+});
+
+test('NÃO vê outra área, mesmo em camada mais profunda', () => {
+  assert.equal(podeVerLinha(C_LEVEL_TECH, { area: 'MARKETING', n_layer: 'N-3' }), false);
+});
+
+test('linha sem camada não aparece', () => {
+  assert.equal(podeVerLinha(C_LEVEL_TECH, { area: 'TECHNOLOGY', n_layer: null }), false);
+  assert.equal(podeVerLinha(C_LEVEL_TECH, { area: 'TECHNOLOGY', n_layer: 'L3' }), false);
+});
+
+test('camada numérica também vale — planilha às vezes traz só o número', () => {
+  assert.equal(podeVerLinha(C_LEVEL_TECH, { area: 'TECHNOLOGY', n_layer: 3 }), true);
+  assert.equal(podeVerLinha(C_LEVEL_TECH, { area: 'TECHNOLOGY', n_layer: 1 }), false);
+});
+
+test('quem olha sem camada cadastrada não vê NADA', () => {
+  const sem: EscopoComp = { global: false, camada: null, areas: ['TECHNOLOGY'] };
+  assert.deepEqual(filtrarLinhas(sem, [{ area: 'TECHNOLOGY', n_layer: 'N-4' }]), []);
+});
+
+test('perfil global passa por cima de tudo', () => {
+  assert.equal(podeVerLinha(GLOBAL, { area: null, n_layer: null }), true);
+});
+
+test('área compara sem depender de caixa, acento ou espaço', () => {
+  assert.equal(podeVerLinha(C_LEVEL_TECH, { area: ' technology ', n_layer: 'N-2' }), true);
+});
+
+// ------------------------------------------- dado ausente x regra funcionando
+
+test('sabe distinguir "não importei a camada" de "não há gente"', () => {
+  // As duas produzem a MESMA tela vazia e pedem ações opostas.
+  assert.equal(temCamadaNosDados([{ n_layer: null }, { n_layer: 'L3' }]), false);
+  assert.equal(temCamadaNosDados([{ n_layer: null }, { n_layer: 'N-3' }]), true);
+  assert.equal(temCamadaNosDados([]), false);
+});
+
+test('sem a camada importada, o aviso diz que falta DADO, não acesso', () => {
+  const t = descreverRecorte(C_LEVEL_TECH, 'N-1', false);
+  assert.match(t ?? '', /não foi importada/);
+  assert.match(t ?? '', /não ausência de gente/i);
+});
+
+test('com tudo no lugar, o aviso nomeia a área e o corte', () => {
+  const t = descreverRecorte(C_LEVEL_TECH, 'N-1', true);
+  assert.match(t ?? '', /TECHNOLOGY/);
+  assert.match(t ?? '', /abaixo da sua/);
+  assert.match(t ?? '', /médias/);
 });
 
 test('perfil global não recebe aviso de recorte, porque não há recorte', () => {
-  assert.equal(descreverRecorte(GLOBAL), null);
+  assert.equal(descreverRecorte(GLOBAL, null, false), null);
 });

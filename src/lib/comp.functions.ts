@@ -8,7 +8,7 @@ import {
 } from '@/lib/permissions';
 import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
 import {
-  degrauDe, descreverRecorte, filtrarLinhas, podeVerLinha, type EscopoComp,
+  camadaDe, filtrarLinhas, podeVerLinha, temCamadaNosDados, type EscopoComp,
 } from '@/lib/comp-scope';
 
 /**
@@ -25,8 +25,21 @@ import {
 
 type UntypedClient = SupabaseClient<any, 'public', any>;
 
+/** O que a aba de Salarios recebe: as linhas e o diagnostico do vazio. */
+export interface CompRatioLista {
+  rows: CompRatioRow[];
+  /**
+   * false = a coluna `n_layer` esta vazia na base inteira. Sem ela a regra
+   * de camadas esconde tudo, corretamente -- e a tela precisa dizer que o
+   * motivo e falta de dado, nao falta de gente.
+   */
+  camadaImportada: boolean;
+}
+
 export interface CompRatioRow {
   id: string;
+  /** Camada N ("N-1"...). Ver comp-scope.ts: decide quem ve quem. */
+  n_layer?: string | null;
   company: string | null;
   name: string;
   level: string | null;
@@ -65,7 +78,7 @@ async function authorize(userEmail: string | undefined) {
   // tras no proximo ajuste, e a que ficasse para tras vazaria salario.
   const escopoComp: EscopoComp = {
     global: isGlobalProfile(e.profile),
-    degrau: degrauDe(e.nivel),
+    camada: camadaDe(e.nivel),
     areas: (e.departments ?? []).map((d) => (d ?? '').trim().toUpperCase()).filter(Boolean),
   };
   return {
@@ -102,7 +115,7 @@ const sel = (v?: string | null): string | null => {
 export const listCompRatio = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ListInput.parse(input))
-  .handler(async ({ context, data }): Promise<CompRatioRow[]> => {
+  .handler(async ({ context, data }): Promise<CompRatioLista> => {
     const { email, scope, podeVerIndividual, escopoComp } = await authorize(context.claims.email as string | undefined);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
@@ -129,7 +142,7 @@ export const listCompRatio = createServerFn({ method: 'GET' })
       // RECORTE POR NIVEL -- aplicado ANTES de qualquer filtro de tela, e
       // antes de a linha existir na resposta HTTP. Filtrar depois, ou na tela,
       // deixaria o salario no payload: escondido por CSS continua entregue.
-      .filter((r) => podeVerLinha(escopoComp, { area: r.area, level: r.level }))
+      .filter((r) => podeVerLinha(escopoComp, { area: r.area, n_layer: r.n_layer }))
       // Filtros de tela: comp_ratio e person-level, entao aqui TODOS funcionam
       // de verdade -- ao contrario da serie mensal, que so guarda a quebra por
       // departamento.
@@ -169,11 +182,21 @@ export const listCompRatio = createServerFn({ method: 'GET' })
     // acesso no Convenia -- o comp-ratio ja da a leitura relativa sem expor o
     // valor nominal. Fica sempre null; a folha continua disponivel em agregados
     // (getCompAggregates: medias por contrato/nivel/area).
-    return visible.map((r) => ({
-      ...r,
-      salary: null,
-      comp_ratio: r.comp_ratio == null ? null : Number(r.comp_ratio),
-    })) as CompRatioRow[];
+    return {
+      rows: visible.map((r) => ({
+        ...r,
+        salary: null,
+        comp_ratio: r.comp_ratio == null ? null : Number(r.comp_ratio),
+      })) as CompRatioRow[],
+      // Calculado sobre a tabela CRUA, antes de qualquer filtro.
+      //
+      // A tela nao consegue responder isto sozinha: ela so recebe as linhas
+      // que sobraram. Tabela vazia por corte de regra e tabela vazia por
+      // camada nao importada sao identicas do lado de la, e pedem acoes
+      // opostas -- uma e o sistema funcionando, a outra e uma importacao
+      // faltando.
+      camadaImportada: temCamadaNosDados((rows ?? []) as Array<{ n_layer?: string | null }>),
+    };
   });
 
 /**
@@ -383,7 +406,7 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
 
     const { data: person, error } = await db
       .from('comp_ratio')
-      .select('id, company, name, area, team, job_title, level, contract, hire, salary, comp_ratio, quartile, last_promotion, in_comp_scope, job_type_family')
+      .select('id, company, name, area, team, job_title, level, n_layer, contract, hire, salary, comp_ratio, quartile, last_promotion, in_comp_scope, job_type_family')
       .eq('id', data.id)
       .maybeSingle();
     if (error) throw new Error(`Falha ao carregar perfil: ${error.message}`);
@@ -429,7 +452,7 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
     // nao sao remuneracao, e sao o que faz esta tela existir. So os campos de
     // dinheiro somem.
     const podeVerComp = podeVerLinha(escopoComp, {
-      area: person.area, level: person.level,
+      area: person.area, n_layer: person.n_layer,
     });
 
     const profile: EmployeeProfile = {
@@ -500,7 +523,7 @@ export const getCompByLevelRole = createServerFn({ method: 'GET' })
 
     const { data: rows, error } = await db
       .from('comp_ratio')
-      .select('area, level, salary, comp_ratio, is_leader, is_people_manager, in_comp_scope');
+      .select('area, level, n_layer, salary, comp_ratio, is_leader, is_people_manager, in_comp_scope');
     if (error) throw new Error(`Falha ao carregar split por papel: ${error.message}`);
 
     // O RECORTE VALE PARA O AGREGADO TAMBEM.
@@ -554,7 +577,7 @@ export const getCompAggregates = createServerFn({ method: 'GET' })
 
     const { data: allRows, error } = await db
       .from('comp_ratio')
-      .select('company, area, contract, level, salary, comp_ratio, in_comp_scope');
+      .select('company, area, contract, level, n_layer, salary, comp_ratio, in_comp_scope');
     if (error) throw new Error(`Falha ao carregar agregados de comp: ${error.message}`);
 
     // Agregados de compensacao usam SO a populacao do arquivo de comp -- e,

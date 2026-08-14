@@ -2,139 +2,146 @@
  * Quem enxerga a remuneração de quem.
  *
  * ===========================================================================
- * A REGRA (decidida com a Carolina em 14/08/2026)
+ * A REGRA (Carolina, 14/08/2026)
  * ===========================================================================
  *   - HR Leader e Admin: veem tudo, como antes.
- *   - C-level e N-2 com a aba concedida: veem a remuneração da PRÓPRIA ÁREA,
- *     e só de quem está ESTRITAMENTE ABAIXO do próprio nível. O próprio nível
- *     e tudo acima ficam de fora.
+ *   - N-1 (C-level) e N-2 com a aba concedida: veem a remuneração da PRÓPRIA
+ *     ÁREA, e só de quem está em camada MAIS PROFUNDA que a sua. A própria
+ *     camada e as acima ficam de fora.
  *   - O resto da empresa: não acessa o quadro de remuneração.
  *
- * "Estritamente abaixo" cobre as duas coisas que ela pediu: esconde os pares
- * (mesmo N) e esconde a faixa acima. Uma comparação só -- `<` -- em vez de
- * duas listas de exceção que divergiriam.
- *
  * ===========================================================================
- * POR QUE ISTO FALHA FECHADO
+ * A ESCADA É O "N" DO WORKDAY, E ELA CONTA AO CONTRÁRIO
  * ===========================================================================
- * Toda dúvida aqui resolve para ESCONDER:
- *   - nível de quem olha desconhecido  -> não vê nada
- *   - nível da linha desconhecido      -> a linha não aparece
- *   - área da linha fora do escopo     -> a linha não aparece
+ * `N` é o CEO. `N-1` são os reportes diretos dele, `N-2` a camada seguinte, e
+ * assim por diante até `N-4`. Ou seja: **quanto MAIOR o número depois do
+ * traço, mais júnior** a pessoa.
  *
- * O contrário seria pior de um jeito específico: quem não vê um salário
- * percebe e reclama. Quem vê um salário que não devia não reclama, e ninguém
- * fica sabendo.
+ * Isto é o inverso da escada L0..L9 da tabela de remuneração, em que o número
+ * maior é o mais sênior. Na primeira versão desta regra eu usei a escada
+ * errada E no sentido errado -- um N-1 teria visto exatamente quem não devia.
+ * Por isso as duas nunca se misturam neste arquivo: `camadaDe` só entende N.
  */
 
 /**
- * ===========================================================================
- * ISTO PRECISA SER CONFERIDO -- É A ÚNICA PARTE QUE EU NÃO DEDUZI DOS DADOS
- * ===========================================================================
- * A tabela de remuneração usa a escada L0..L9. O cadastro de usuários usa
- * rótulos ("Director", "VP"). Não existia, em lugar nenhum do sistema, o
- * de-para entre os dois -- e é ele que decide quem vê o salário de quem.
+ * Profundidade a partir do CEO. `N` = 0, `N-1` = 1, ... `N-4` = 4.
  *
- * O mapa abaixo é o encaixe 1:1 mais natural entre os dez rótulos e os dez
- * degraus, coerente com o comentário que já existia em comp.functions.ts
- * ("L0-L2, L3-L4, lideres L4-L5/L6-L7, C-level"). Mas é uma LEITURA, não um
- * fato conferido: se na Flutter um Director for L6 e não L7, esta linha
- * mostra a um Director os salários dos pares dele.
+ * Aceita as escritas que aparecem numa planilha preenchida à mão: `N-2`,
+ * `n 2`, `N2`, `2`, `Layer 2`. Devolve `null` para o que não reconhecer -- e
+ * `null` sempre esconde.
  *
- * Um degrau errado aqui não gera erro nenhum na tela.
+ * O limite de 12 é um sanity check: a Flutter define liderança até N-4, então
+ * um "N-37" é erro de digitação, não uma camada. Aceitar viraria uma linha
+ * visível para todo mundo.
  */
-export const NIVEL_POR_ROTULO: Record<string, number> = {
-  'intern': 0,
-  'analyst': 1,
-  'senior analyst': 2,
-  'specialist': 3,
-  'coordinator': 4,
-  'manager': 5,
-  'senior manager': 6,
-  'director': 7,
-  'vp': 8,
-  'c-level': 9,
-};
-
-const normalizar = (s: string | null | undefined): string =>
-  (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
-
-/**
- * Converte um nível para o degrau numérico da escada.
- *
- * Aceita as duas escritas que existem na base: `L7` (tabela de remuneração) e
- * `Director` (cadastro de usuário). Devolve `null` quando não reconhece --
- * e `null` sempre esconde, nunca mostra.
- */
-export function degrauDe(nivel: string | null | undefined): number | null {
-  const s = normalizar(nivel);
+export function camadaDe(valor: string | null | undefined): number | null {
+  const s = (valor ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .trim().toLowerCase();
   if (!s) return null;
 
-  const escada = /^l(\d)$/.exec(s);
-  if (escada) return Number(escada[1]);
+  if (s === 'n' || s === 'ceo') return 0;
 
-  const porRotulo = NIVEL_POR_ROTULO[s];
-  return porRotulo === undefined ? null : porRotulo;
+  const m = /^(?:n|layer|camada)?\s*[-–_ ]?\s*(\d{1,2})$/.exec(s);
+  if (!m) return null;
+
+  const n = Number(m[1]);
+  return Number.isFinite(n) && n >= 0 && n <= 12 ? n : null;
 }
+
+export type KpiToneNaoUsado = never;
 
 export interface EscopoComp {
   /** Perfis globais (admin, hr_leader) veem tudo. */
   global: boolean;
-  /** Degrau de quem está olhando. `null` = não reconhecido. */
-  degrau: number | null;
-  /** Áreas que a pessoa atende, já normalizadas em MAIÚSCULAS. */
+  /** Camada de quem está olhando. `null` = não cadastrada. */
+  camada: number | null;
+  /** Áreas que a pessoa atende, já em MAIÚSCULAS. */
   areas: string[];
 }
 
 export interface LinhaComp {
   area?: string | null;
-  level?: string | null;
+  /** Camada N da pessoa da linha. Vem do "WorkDay Level". */
+  n_layer?: string | number | null;
 }
+
+const areaNormal = (v: string | null | undefined) =>
+  (v ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase();
 
 /**
  * A linha de remuneração pode sair para esta pessoa?
  *
  * Chamado NO SERVIDOR, antes de a linha entrar na resposta. Filtrar na tela
- * deixaria o salário no payload -- e um salário escondido por CSS continua
- * sendo um salário entregue.
+ * deixaria o salário no payload -- e salário escondido por CSS continua sendo
+ * salário entregue.
+ *
+ * Toda dúvida resolve para ESCONDER. O motivo é assimétrico: quem não vê um
+ * salário percebe e reclama; quem vê um que não devia não reclama, e ninguém
+ * fica sabendo.
  */
 export function podeVerLinha(escopo: EscopoComp, linha: LinhaComp): boolean {
   if (escopo.global) return true;
+  if (escopo.camada == null) return false;
 
-  // Sem degrau reconhecido não há como comparar com nada. Mostrar tudo seria
-  // a leitura otimista de um cadastro incompleto.
-  if (escopo.degrau == null) return false;
+  if (!escopo.areas.includes(areaNormal(linha.area))) return false;
 
-  const areaDaLinha = normalizar(linha.area).toUpperCase();
-  if (!escopo.areas.includes(areaDaLinha)) return false;
+  const camadaDaLinha = camadaDe(
+    typeof linha.n_layer === 'number' ? String(linha.n_layer) : linha.n_layer,
+  );
+  if (camadaDaLinha == null) return false;
 
-  const degrauDaLinha = degrauDe(linha.level);
-  if (degrauDaLinha == null) return false;
-
-  // ESTRITAMENTE abaixo: `<`, não `<=`. O `<=` deixaria os pares visíveis,
-  // que é exatamente o caso que a regra existe para cobrir.
-  return degrauDaLinha < escopo.degrau;
+  // MAIS PROFUNDO que o de quem olha. `>` e não `>=`: o `>=` deixaria os
+  // pares visíveis, que é o caso central da regra.
+  return camadaDaLinha > escopo.camada;
 }
 
-/** Aplica a regra a uma lista inteira. */
 export function filtrarLinhas<T extends LinhaComp>(escopo: EscopoComp, linhas: T[]): T[] {
   if (escopo.global) return linhas;
   return linhas.filter((l) => podeVerLinha(escopo, l));
 }
 
 /**
- * Explica em uma frase o que a pessoa está vendo, para a tela poder dizer.
+ * A camada N já existe nos dados?
  *
- * Um recorte silencioso é o pior desfecho: quem lê "média salarial da área"
- * sem saber que os níveis acima do dele ficaram de fora leva um número
- * errado para uma conversa de orçamento, e o número parece certo.
+ * ------------------------------------------------------------------
+ * POR QUE ESTA PERGUNTA PRECISA DE RESPOSTA PRÓPRIA
+ * ------------------------------------------------------------------
+ * Enquanto `n_layer` estiver vazia para todo mundo, a regra -- corretamente --
+ * esconde tudo. Mas "escondi tudo porque a regra mandou" e "escondi tudo
+ * porque o dado não foi importado" produzem a MESMA tela vazia, e levam a
+ * ações opostas: a primeira é o sistema funcionando, a segunda é uma
+ * importação faltando.
+ *
+ * Sem esta distinção, alguém abriria a aba, veria vazio, e concluiria que a
+ * área não tem gente.
  */
-export function descreverRecorte(escopo: EscopoComp, rotuloNivel?: string | null): string | null {
+export function temCamadaNosDados(linhas: LinhaComp[]): boolean {
+  return linhas.some((l) => camadaDe(
+    typeof l.n_layer === 'number' ? String(l.n_layer) : l.n_layer,
+  ) != null);
+}
+
+/**
+ * Explica em uma frase o que a pessoa está vendo. Um recorte silencioso é o
+ * pior desfecho: quem lê "média da área" sem saber que as camadas acima
+ * ficaram de fora leva um número errado para uma conversa de orçamento -- e o
+ * número parece certo.
+ */
+export function descreverRecorte(
+  escopo: EscopoComp,
+  rotuloCamada?: string | null,
+  camadaImportada = true,
+): string | null {
   if (escopo.global) return null;
-  if (escopo.degrau == null) {
-    return 'Seu nível não está cadastrado, então nenhuma remuneração é exibida. Fale com o RH.';
+
+  if (!camadaImportada) {
+    return 'A camada N ainda não foi importada para a base de remuneração, então nenhuma linha pode ser liberada. Isto é falta de dado, não ausência de gente na sua área.';
   }
-  const nivel = rotuloNivel?.trim() ? ` (${rotuloNivel.trim()})` : '';
+  if (escopo.camada == null) {
+    return 'Sua camada N não está cadastrada, então nenhuma remuneração é exibida. Fale com o RH.';
+  }
+  const quem = rotuloCamada?.trim() ? ` (${rotuloCamada.trim()})` : '';
   const areas = escopo.areas.length ? escopo.areas.join(', ') : 'sua área';
-  return `Mostrando ${areas}, apenas níveis abaixo do seu${nivel}. Seus pares e os níveis acima não aparecem — nem nos totais e médias desta tela.`;
+  return `Mostrando ${areas}, apenas camadas abaixo da sua${quem}. Seus pares e as camadas acima não aparecem — nem nos totais e médias desta tela.`;
 }

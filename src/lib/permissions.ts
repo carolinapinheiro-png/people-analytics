@@ -289,17 +289,25 @@ export const JOB_TYPE_FAMILIES = [
 ];
 
 /** Sugestoes de level no cadastro (campo livre, datalist). */
+/**
+ * Camada N do Workday -- profundidade a partir do CEO.
+ *
+ * `N` e o CEO (Peter Jackson); `N-1` sao os reportes diretos dele; lideranca
+ * vai ate `N-4`. Quanto MAIOR o numero, mais junior.
+ *
+ * Nao confundir com a escada `L0..L9` de senioridade de cargo. Sao coisas
+ * diferentes: dois L7 podem estar em camadas distintas, e um Director e um VP
+ * podem estar na mesma. Ate 14/08/2026 este campo guardava titulo de cargo e
+ * era decorativo; agora ele decide, na aba de Salarios, ate que camada a
+ * pessoa enxerga remuneracao.
+ */
 export const JOB_LEVEL_PRESETS = [
-  'C-Level',
-  'VP',
-  'Director',
-  'Senior Manager',
-  'Manager',
-  'Coordinator',
-  'Specialist',
-  'Senior Analyst',
-  'Analyst',
-  'Intern',
+  'N',
+  'N-1',
+  'N-2',
+  'N-3',
+  'N-4',
+  'N-5',
 ];
 
 /** Sugestoes de responsabilidades no cadastro (chips, campo livre nao permitido). */

@@ -1024,7 +1024,7 @@ function UserAccessFormFields({
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground" htmlFor={levelListId}>Level</Label>
+          <Label className="text-xs text-muted-foreground" htmlFor={levelListId}>Camada N</Label>
           {/* ------------------------------------------------------------------
               LISTA FECHADA, E NAO MAIS TEXTO LIVRE
               ------------------------------------------------------------------
@@ -1041,14 +1041,14 @@ function UserAccessFormFields({
             onChange={(e) => patch({ jobLevel: e.target.value })}
             className="w-full rounded border border-border bg-secondary px-2 py-1.5 text-sm"
           >
-            <option value="">— não definido —</option>
+            <option value="">— não definida —</option>
             {JOB_LEVEL_PRESETS.map((l) => (
               <option key={l} value={l}>{l}</option>
             ))}
           </select>
           {isCompVisivel && !value.jobLevel && (
             <p className="text-[11px] text-amber-600 dark:text-amber-500">
-              Sem level, esta pessoa abre a aba de Salários e não vê ninguém.
+              Sem a camada N, esta pessoa abre a aba de Salários e não vê ninguém.
             </p>
           )}
         </div>

@@ -11,7 +11,7 @@ import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 import { useDashboard } from '@/data/DashboardContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { isGlobalProfile } from '@/lib/permissions';
-import { degrauDe, descreverRecorte } from '@/lib/comp-scope';
+import { camadaDe, descreverRecorte } from '@/lib/comp-scope';
 
 /**
  * CompRatio individual (587 ativos). Dado sensivel: vem da server function
@@ -27,6 +27,7 @@ const quartileColor = (q: string) =>
 
 export default function CompRatioTab() {
   const [rows, setRows] = useState<CompRatioRow[] | null>(null);
+  const [camadaImportada, setCamadaImportada] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const { filters } = useDashboard();
@@ -39,13 +40,17 @@ export default function CompRatioTab() {
   // olha. Um total assim, sem aviso, e lido como "a area inteira" -- e vira
   // numero de reuniao de orcamento. O aviso e montado do proprio nivel e das
   // proprias areas; nenhum dado de outra pessoa entra nele.
+  // `temCamadaNosDados` responde a pergunta que a tabela vazia nao responde:
+  // "esta vazio porque a regra cortou, ou porque a camada N nunca foi
+  // importada?". As duas produzem a mesma tela e pedem acoes opostas.
   const avisoRecorte = descreverRecorte(
     {
       global: profile ? isGlobalProfile(profile) : false,
-      degrau: degrauDe(nivel),
+      camada: camadaDe(nivel),
       areas: (departments ?? []).map((d) => d.trim().toUpperCase()).filter(Boolean),
     },
     nivel,
+    camadaImportada,
   );
   const fetchData = useServerFn(listCompRatio);
 
@@ -62,7 +67,11 @@ export default function CompRatioTab() {
         salaryBand: filters.faixaSalarial,
       },
     })
-      .then((d) => { if (!cancelled) setRows(d as CompRatioRow[]); })
+      .then((d) => {
+        if (cancelled) return;
+        setRows(d.rows as CompRatioRow[]);
+        setCamadaImportada(d.camadaImportada);
+      })
       .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : 'Falha ao carregar'); });
     return () => { cancelled = true; };
   }, [fetchData, filters.departamento, filters.level, filters.tipoContrato, filters.jobFamily, filters.tempoCasa, filters.faixaSalarial]);
