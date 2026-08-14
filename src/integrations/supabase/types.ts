@@ -22,6 +22,7 @@ export type Database = {
           email: string
           id: string
           ip_address: string | null
+          metadata: Json | null
           user_id: string | null
         }
         Insert: {
@@ -31,6 +32,7 @@ export type Database = {
           email: string
           id?: string
           ip_address?: string | null
+          metadata?: Json | null
           user_id?: string | null
         }
         Update: {
@@ -40,6 +42,7 @@ export type Database = {
           email?: string
           id?: string
           ip_address?: string | null
+          metadata?: Json | null
           user_id?: string | null
         }
         Relationships: []
@@ -224,6 +227,69 @@ export type Database = {
           month?: string
           n?: number
           position?: number | null
+        }
+        Relationships: []
+      }
+      convenia_leavers: {
+        Row: {
+          convenia_id: string
+          department: string | null
+          dismissal_month: string | null
+          dismissal_type: string | null
+          empresa: string
+          exit_type: string | null
+          fetched_at: string
+          hiring_month: string | null
+          marca: string
+          voluntary: boolean | null
+        }
+        Insert: {
+          convenia_id: string
+          department?: string | null
+          dismissal_month?: string | null
+          dismissal_type?: string | null
+          empresa: string
+          exit_type?: string | null
+          fetched_at?: string
+          hiring_month?: string | null
+          marca: string
+          voluntary?: boolean | null
+        }
+        Update: {
+          convenia_id?: string
+          department?: string | null
+          dismissal_month?: string | null
+          dismissal_type?: string | null
+          empresa?: string
+          exit_type?: string | null
+          fetched_at?: string
+          hiring_month?: string | null
+          marca?: string
+          voluntary?: boolean | null
+        }
+        Relationships: []
+      }
+      convenia_pessoas: {
+        Row: {
+          birth_month: string | null
+          convenia_id: string
+          fetched_at: string
+          gender: string | null
+          race: string | null
+        }
+        Insert: {
+          birth_month?: string | null
+          convenia_id: string
+          fetched_at?: string
+          gender?: string | null
+          race?: string | null
+        }
+        Update: {
+          birth_month?: string | null
+          convenia_id?: string
+          fetched_at?: string
+          gender?: string | null
+          race?: string | null
         }
         Relationships: []
       }
@@ -594,6 +660,75 @@ export type Database = {
         }
         Relationships: []
       }
+      integration_sync_log: {
+        Row: {
+          detail: Json | null
+          error: string | null
+          finished_at: string | null
+          id: string
+          provider: string
+          requests: number | null
+          rows_written: number | null
+          started_at: string
+          status: string
+          triggered_by: string | null
+        }
+        Insert: {
+          detail?: Json | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          provider: string
+          requests?: number | null
+          rows_written?: number | null
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Update: {
+          detail?: Json | null
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          provider?: string
+          requests?: number | null
+          rows_written?: number | null
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+        }
+        Relationships: []
+      }
+      integration_tokens: {
+        Row: {
+          access_expires_at: string | null
+          access_token: string | null
+          last_error: string | null
+          provider: string
+          refresh_expires_at: string | null
+          refresh_token: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_expires_at?: string | null
+          access_token?: string | null
+          last_error?: string | null
+          provider: string
+          refresh_expires_at?: string | null
+          refresh_token?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_expires_at?: string | null
+          access_token?: string | null
+          last_error?: string | null
+          provider?: string
+          refresh_expires_at?: string | null
+          refresh_token?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       leavers: {
         Row: {
           ano_desligamento: string | null
@@ -937,6 +1072,8 @@ export type Database = {
         Row: {
           applications: number
           closed_jobs: number
+          closed_with_sla_goal: number | null
+          closed_within_sla: number | null
           department: string
           id: string
           loaded_at: string | null
@@ -947,6 +1084,8 @@ export type Database = {
         Insert: {
           applications?: number
           closed_jobs?: number
+          closed_with_sla_goal?: number | null
+          closed_within_sla?: number | null
           department: string
           id?: string
           loaded_at?: string | null
@@ -957,6 +1096,8 @@ export type Database = {
         Update: {
           applications?: number
           closed_jobs?: number
+          closed_with_sla_goal?: number | null
+          closed_within_sla?: number | null
           department?: string
           id?: string
           loaded_at?: string | null
@@ -975,8 +1116,10 @@ export type Database = {
           id: string
           jobs: number
           loaded_at: string | null
+          overdue_sla: number | null
           positions: number
           status: string
+          with_sla_goal: number | null
         }
         Insert: {
           applications?: number
@@ -986,8 +1129,10 @@ export type Database = {
           id?: string
           jobs?: number
           loaded_at?: string | null
+          overdue_sla?: number | null
           positions?: number
           status: string
+          with_sla_goal?: number | null
         }
         Update: {
           applications?: number
@@ -997,8 +1142,10 @@ export type Database = {
           id?: string
           jobs?: number
           loaded_at?: string | null
+          overdue_sla?: number | null
           positions?: number
           status?: string
+          with_sla_goal?: number | null
         }
         Relationships: []
       }
@@ -1047,6 +1194,24 @@ export type Database = {
           q2?: number | null
           q3?: number | null
           q4?: number | null
+        }
+        Relationships: []
+      }
+      service_secrets: {
+        Row: {
+          created_at: string
+          name: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          name: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          name?: string
+          value?: string
         }
         Relationships: []
       }
@@ -1355,7 +1520,12 @@ export type Database = {
       show_trgm: { Args: { "": string }; Returns: string[] }
     }
     Enums: {
-      access_profile: "admin" | "hr_leader" | "hrbp" | "dept_leader"
+      access_profile:
+        | "admin"
+        | "hr_leader"
+        | "hrbp"
+        | "dept_leader"
+        | "engagement_viewer"
       business_unit: "nsx_br" | "betfair" | "flutter_intl"
     }
     CompositeTypes: {
@@ -1484,7 +1654,13 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      access_profile: ["admin", "hr_leader", "hrbp", "dept_leader"],
+      access_profile: [
+        "admin",
+        "hr_leader",
+        "hrbp",
+        "dept_leader",
+        "engagement_viewer",
+      ],
       business_unit: ["nsx_br", "betfair", "flutter_intl"],
     },
   },
