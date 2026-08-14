@@ -26,8 +26,23 @@ type UntypedClient = SupabaseClient<any, 'public', any>;
  */
 async function authorize(userEmail: string | undefined) {
   const { resolverEscopo } = await import('@/lib/escopo.server');
+  const { canSeeTab } = await import('@/lib/permissions');
   const e = await resolverEscopo(userEmail);
-  return { email: e.email, role: e.role };
+  // ------------------------------------------------------------------
+  // AQUI A RECUSA E VAZIO, NAO ERRO -- E A DIFERENCA IMPORTA
+  // ------------------------------------------------------------------
+  // Esta serie alimenta o CONTEXTO do painel, carregado antes de qualquer
+  // aba ser escolhida. `Index.tsx` bloqueia a tela inteira quando ela falha.
+  //
+  // Entao lancar 'Forbidden' para um perfil de aba unica (Experiencia) nao
+  // barraria uma aba: barraria o aplicativo, e a pessoa veria "erro ao
+  // carregar" na unica secao a que tem direito.
+  //
+  // Devolver vazio e a resposta honesta: nao ha serie mensal para este
+  // perfil. As abas que a desenhariam nao estao no menu dele nem passam pelo
+  // servidor -- cada uma delas declara a sua aba e recusa por conta propria.
+  const podeVerSerie = canSeeTab(e.profile, 'overview');
+  return { email: e.email, role: e.role, podeVerSerie };
 }
 
 const DeptAggregateSchema = z.object({
@@ -172,7 +187,8 @@ export const listMetricsBySource = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ListInput.parse(input))
   .handler(async ({ context, data }) => {
-    await authorize(context.claims.email as string | undefined);
+    const { podeVerSerie } = await authorize(context.claims.email as string | undefined);
+    if (!podeVerSerie) return [];
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -251,7 +267,8 @@ export const getMonthlyMetrics = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ListInput.parse(input))
   .handler(async ({ context, data }) => {
-    await authorize(context.claims.email as string | undefined);
+    const { podeVerSerie } = await authorize(context.claims.email as string | undefined);
+    if (!podeVerSerie) return [];
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;

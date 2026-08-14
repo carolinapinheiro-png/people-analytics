@@ -8,7 +8,9 @@ import { z } from 'zod';
  * tem o trigger validate_allowed_email_rules como backstop final.
  */
 
-export const ProfileSchema = z.enum(['admin', 'hr_leader', 'hrbp', 'dept_leader']);
+export const ProfileSchema = z.enum([
+  'admin', 'hr_leader', 'hrbp', 'dept_leader', 'engagement_viewer',
+]);
 
 export type AccessProfileValue = z.infer<typeof ProfileSchema>;
 
@@ -50,9 +52,15 @@ export const GetAllowedEmailsSchema = z.object({
   limit: z.number().int().min(5).max(100).default(20),
 });
 
-/** Departamento e job family so valem para perfis escopados (hrbp/dept_leader). */
+/**
+ * Perfis escopados: so enxergam as areas atribuidas, e por isso EXIGEM ao
+ * menos uma. Sem escopo o cadastro fica ambiguo -- e a ambiguidade aqui
+ * resolve para o lado errado, porque "sem filtro" parece "tudo".
+ */
+const PERFIS_ESCOPADOS: AccessProfileValue[] = ['hrbp', 'dept_leader', 'engagement_viewer'];
+
 export function isScopedProfileValue(profile: AccessProfileValue): boolean {
-  return profile === 'hrbp' || profile === 'dept_leader';
+  return PERFIS_ESCOPADOS.includes(profile);
 }
 
 /** Perfil admin e o unico que administra usuarios; role fica derivado dele. */

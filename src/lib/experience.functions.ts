@@ -3,7 +3,8 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { DeptFilterInput, selectedDept } from '@/lib/dept-filter';
 import {
-  isGlobalProfile, isInScope, type AccessScope,
+  isGlobalProfile, isInScope, visibleExperienceSubTabs,
+  type AccessScope, type ExperienceSubTab,
 } from '@/lib/permissions';
 import { deptForScope } from '@/lib/engagement-context';
 
@@ -42,7 +43,7 @@ type UntypedClient = SupabaseClient<any, 'public', any>;
  */
 async function authorize(userEmail: string | undefined): Promise<AccessScope> {
   const { resolverEscopo } = await import('@/lib/escopo.server');
-  return (await resolverEscopo(userEmail)).scope;
+  return (await resolverEscopo(userEmail, 'engagement')).scope;
 }
 
 export interface EngagementScore {
@@ -98,6 +99,14 @@ export interface ExperienceData {
   distributions: ExperienceDistribution[];
   /** Blocos alcancados pelo filtro de departamento (os demais nao tem recorte por area). */
   deptFilterApplied?: string[];
+  /**
+   * Sub-abas que este perfil pode abrir.
+   *
+   * Vem do servidor, e nao e so um espelho do que a UI ja saberia calcular: o
+   * conteudo das sub-abas ausentes tambem NAO e enviado. Assim a lista e a
+   * resposta contam a mesma historia.
+   */
+  subAbas?: ExperienceSubTab[];
   /**
    * Quem está olhando, para a tela saber o que rotular.
    *
@@ -234,11 +243,25 @@ export const getExperienceData = createServerFn({ method: 'GET' })
       return isInScope(scope, o.slice_value ?? null);
     });
 
+    // ======================================================================
+    // QUEM SÓ PODE VER ENGAJAMENTO NÃO RECEBE ONBOARDING NEM INCLUSÃO
+    // ======================================================================
+    // As três sub-abas vêm desta mesma chamada. Esconder duas delas no
+    // componente deixaria os dados no payload -- e "escondido na tela" é uma
+    // frase que só descreve o que a pessoa vê sem procurar.
+    //
+    // A lista de sub-abas visíveis é a mesma que a UI usa (`permissions.ts`),
+    // para as duas não poderem discordar.
+    const subs = visibleExperienceSubTabs(scope.profile);
+    const soEngajamento = !subs.includes('onboarding') && !subs.includes('inclusao');
+
     return {
       engagement,
       drivers: (drv.error ? [] : drv.data ?? []) as EngagementDriver[],
-      onboarding,
-      distributions: (dist.data ?? []) as ExperienceDistribution[],
+      onboarding: soEngajamento ? [] : onboarding,
+      distributions: soEngajamento ? [] : ((dist.data ?? []) as ExperienceDistribution[]),
+      /** Sub-abas que este perfil pode abrir. A UI desenha só estas. */
+      subAbas: subs,
       /**
        * Quais blocos o filtro de departamento realmente alcança.
        *

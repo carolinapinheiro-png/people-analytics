@@ -168,7 +168,10 @@ export const addAllowedEmail = createServerFn({ method: 'POST' })
     const { error } = await supabaseAdmin.from('allowed_emails').insert({
       email: data.email.toLowerCase(),
       role: roleForProfile(data.profile),
-      profile: data.profile,
+      // `profile` e text no banco. Os tipos gerados do Supabase ainda listam a
+      // uniao antiga de perfis -- somem na proxima geracao. O valor ja foi
+      // validado por ProfileSchema no inputValidator.
+      profile: data.profile as unknown as never,
       departments: scoped ? data.departments : [],
       job_families: scoped ? data.jobFamilies : [],
       job_title: data.jobTitle || null,
@@ -201,7 +204,8 @@ export const updateAllowedEmailUser = createServerFn({ method: 'POST' })
       .from('allowed_emails')
       .update({
         role: roleForProfile(data.profile),
-        profile: data.profile,
+        // Ver nota em addAllowedEmail: tipos gerados desatualizados.
+        profile: data.profile as unknown as never,
         departments: scoped ? data.departments : [],
         job_families: scoped ? data.jobFamilies : [],
         job_title: data.jobTitle || null,

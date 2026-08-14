@@ -40,10 +40,13 @@ type UntypedClient = SupabaseClient<any, 'public', any>;
  * Adaptador fino sobre `resolverEscopo`, que e o unico lugar do sistema que
  * decide quem voce e -- e o unico que sabe do "ver como". Antes cada arquivo
  * tinha sua propria copia desta consulta; treze copias, quatro formatos.
+ *
+ * A aba declarada ('team') e permissao, nao decoracao: um perfil que nao a
+ * enxerga leva 'Forbidden' aqui, e nao so deixa de ver o item no menu.
  */
 async function authorize(userEmail: string | undefined): Promise<AccessScope> {
   const { resolverEscopo } = await import('@/lib/escopo.server');
-  return (await resolverEscopo(userEmail)).scope;
+  return (await resolverEscopo(userEmail, 'team')).scope;
 }
 
 function median(nums: number[]): number | null {

@@ -653,6 +653,15 @@ export default function EngagementTab() {
   if (error) return <p className="text-sm text-muted-foreground text-center py-24">Não foi possível carregar a Experiência: {error}</p>;
   if (!data) return <Loading />;
 
+  // Sub-abas permitidas. Sem `subAbas` na resposta (versao antiga em cache),
+  // assume as tres -- o servidor ja recusaria o que nao pode sair.
+  const subs = data.subAbas ?? ['engajamento', 'onboarding', 'inclusao'];
+  const podeVer = (id: string) => subs.includes(id as (typeof subs)[number]);
+  // Uma sub-aba lembrada da sessao anterior pode nao existir mais para este
+  // perfil. Sem isto, a tela abriria em branco -- com as Tabs apontando para
+  // um valor sem conteudo -- e pareceria defeito.
+  const subAtiva = podeVer(activeSubTab ?? '') ? (activeSubTab as string) : subs[0];
+
   return (
     <div className="space-y-4">
       <div>
@@ -664,21 +673,37 @@ export default function EngagementTab() {
       </div>
 
       <Tabs
-        value={activeSubTab ?? 'engajamento'}
+        value={subAtiva}
         onValueChange={setActiveSubTab}
         className="space-y-4"
       >
 
+        {/* As sub-abas vem do SERVIDOR (`data.subAbas`), nao de um calculo aqui.
+            Para o perfil "Experiencia -- Engajamento", Onboarding e Inclusao
+            nao aparecem E nao sao enviados: se a lista fosse decidida so na
+            tela, o conteudo continuaria no payload, a um inspetor de
+            distancia. Uma sub-aba escondida com o dado dentro da resposta e
+            uma sub-aba visivel para quem procura. */}
         <TabsList>
-          <TabsTrigger value="engajamento" className="gap-2"><Heart className="h-4 w-4" />Engajamento</TabsTrigger>
-          <TabsTrigger value="onboarding" className="gap-2"><Sparkles className="h-4 w-4" />Onboarding</TabsTrigger>
-          <TabsTrigger value="inclusao" className="gap-2"><HandHeart className="h-4 w-4" />Inclusão &amp; Pertencimento</TabsTrigger>
+          {podeVer('engajamento') && (
+            <TabsTrigger value="engajamento" className="gap-2"><Heart className="h-4 w-4" />Engajamento</TabsTrigger>
+          )}
+          {podeVer('onboarding') && (
+            <TabsTrigger value="onboarding" className="gap-2"><Sparkles className="h-4 w-4" />Onboarding</TabsTrigger>
+          )}
+          {podeVer('inclusao') && (
+            <TabsTrigger value="inclusao" className="gap-2"><HandHeart className="h-4 w-4" />Inclusão &amp; Pertencimento</TabsTrigger>
+          )}
         </TabsList>
         <TabsContent value="engajamento" className="mt-0">
           <EngagementSection data={data} cross={cross} survey={survey} />
         </TabsContent>
-        <TabsContent value="onboarding" className="mt-0"><OnboardingSection data={data} /></TabsContent>
-        <TabsContent value="inclusao" className="mt-0"><InclusionSection data={data} /></TabsContent>
+        {podeVer('onboarding') && (
+          <TabsContent value="onboarding" className="mt-0"><OnboardingSection data={data} /></TabsContent>
+        )}
+        {podeVer('inclusao') && (
+          <TabsContent value="inclusao" className="mt-0"><InclusionSection data={data} /></TabsContent>
+        )}
       </Tabs>
     </div>
   );

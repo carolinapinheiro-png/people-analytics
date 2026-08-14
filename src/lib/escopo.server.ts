@@ -2,6 +2,7 @@ import { getRequest } from '@tanstack/react-start/server';
 import { supabaseAdmin } from '@/integrations/supabase/client.server';
 import { CABECALHO_VER_COMO } from '@/lib/ver-como/estado';
 import { decidirEscopo, perfilDe, type EscopoResolvido, type LinhaAcesso } from '@/lib/ver-como/regras';
+import { canSeeTab, type DashboardTab } from '@/lib/permissions';
 
 /**
  * ===========================================================================
@@ -83,7 +84,10 @@ function registrar(campos: Record<string, unknown>): void {
  * banco, registrar o log. A DECISÃO em si vive em `ver-como/regras.ts`, como
  * função pura e testada; aqui não há regra de permissão escrita duas vezes.
  */
-export async function resolverEscopo(userEmail: string | undefined): Promise<EscopoEfetivo> {
+export async function resolverEscopo(
+  userEmail: string | undefined,
+  aba?: DashboardTab,
+): Promise<EscopoEfetivo> {
   if (!userEmail) throw new Error('Unauthorized');
 
   const propria = await buscarLinha(userEmail);
@@ -113,6 +117,22 @@ export async function resolverEscopo(userEmail: string | undefined): Promise<Esc
       email: userEmail, action: 'ver_como', allowed: true,
       metadata: { alvo: resolvido.verComo.email, perfil_alvo: resolvido.verComo.profile },
     });
+  }
+
+  // ------------------------------------------------------------------
+  // A ABA TAMBÉM É PERMISSÃO
+  // ------------------------------------------------------------------
+  // Esconder uma aba no menu não impede nada: a server function continua
+  // respondendo a quem souber chamá-la, e saber chamá-la é abrir o inspetor
+  // uma vez. Cada função declara a que aba pertence, e a recusa acontece
+  // aqui -- no mesmo lugar que já decide quem a pessoa é, e não espalhada
+  // por dezessete arquivos onde uma delas ficaria de fora.
+  if (aba && !canSeeTab(resolvido.profile, aba)) {
+    registrar({
+      email: userEmail, action: 'aba_negada', allowed: false,
+      metadata: { aba, perfil: resolvido.profile },
+    });
+    throw new Error('Forbidden: seu perfil não tem acesso a esta seção.');
   }
 
   return resolvido;

@@ -112,7 +112,14 @@ function accessSummary(form: UserFormState, email: string): string {
   if (d.length) partes.push(`${d.length === 1 ? 'o departamento' : 'os departamentos'} ${d.join(', ')}`);
   if (f.length) partes.push(`${f.length === 1 ? 'a família' : 'as famílias'} ${f.join(', ')}`);
   // "ou" e nao "e": quem bate em QUALQUER um dos criterios entra no escopo.
-  return `${who} vê quem está em ${partes.join(' — ou em — ')}. Só números agregados, sem nome de pessoa.`;
+  const areas = `${who} vê quem está em ${partes.join(' — ou em — ')}`;
+  // O perfil de aba unica precisa dizer isso AQUI. Esta frase e a ultima coisa
+  // lida antes de salvar, e "Experiencia -- Engajamento" no seletor nao deixa
+  // obvio que TODAS as outras abas ficam de fora.
+  if (form.profile === 'engagement_viewer') {
+    return `${areas} — e só a aba Experiência › Engajamento. Nenhuma outra seção do painel, nem as outras sub-abas de Experiência.`;
+  }
+  return `${areas}. Só números agregados, sem nome de pessoa.`;
 }
 
 /** Validacao client-side espelhando o trigger do banco. */

@@ -32,7 +32,9 @@ type UntypedClient = SupabaseClient<any, 'public', any>;
  */
 async function authorize(userEmail: string | undefined) {
   const { resolverEscopo } = await import('@/lib/escopo.server');
-  const e = await resolverEscopo(userEmail);
+  // A importação de onda é ação de admin e a leitura pertence a Engajamento --
+  // as duas cabem na mesma aba, porque um admin enxerga todas.
+  const e = await resolverEscopo(userEmail, 'engagement');
   return { email: e.email, role: e.role, profile: e.profile, scope: e.scope };
 }
 

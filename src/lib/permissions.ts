@@ -11,15 +11,19 @@
  * mapa antes de devolver dado.
  */
 
-export type AccessProfile = 'admin' | 'hr_leader' | 'hrbp' | 'dept_leader';
+export type AccessProfile =
+  | 'admin' | 'hr_leader' | 'hrbp' | 'dept_leader' | 'engagement_viewer';
 
-export const ACCESS_PROFILES: AccessProfile[] = ['admin', 'hr_leader', 'hrbp', 'dept_leader'];
+export const ACCESS_PROFILES: AccessProfile[] = [
+  'admin', 'hr_leader', 'hrbp', 'dept_leader', 'engagement_viewer',
+];
 
 export const PROFILE_LABELS: Record<AccessProfile, string> = {
   admin: 'Admin',
   hr_leader: 'HR Leader',
   hrbp: 'HRBP',
   dept_leader: 'Department Leader',
+  engagement_viewer: 'Experiência — Engajamento',
 };
 
 export const PROFILE_DESCRIPTIONS: Record<AccessProfile, string> = {
@@ -27,6 +31,8 @@ export const PROFILE_DESCRIPTIONS: Record<AccessProfile, string> = {
   hr_leader: 'Vê a empresa inteira, sem administrar usuários.',
   hrbp: 'Vê tudo dos departamentos e famílias que atende.',
   dept_leader: 'Vê só o próprio time, em números agregados — sem dado individual.',
+  engagement_viewer:
+    'Vê só Experiência › Engajamento, e só das áreas atribuídas. Nenhuma outra aba.',
 };
 
 export type DashboardTab =
@@ -58,6 +64,38 @@ const ALL_TABS: DashboardTab[] = [
 
 /** Abas que exigem visao consolidada da empresa inteira. */
 const COMPANY_WIDE_TABS: DashboardTab[] = ['data'];
+
+/**
+ * Perfis que existem para UMA aba só.
+ *
+ * Criado em 14/08/2026 para Talent Management e lideres de departamento: eles
+ * acompanham engajamento e nada mais. Um perfil por aba nao escala -- se
+ * amanha alguem precisar de "so Recrutamento", isto vira um mapa maior, nao
+ * uma segunda lista paralela.
+ */
+const TABS_POR_PERFIL: Partial<Record<AccessProfile, DashboardTab[]>> = {
+  engagement_viewer: ['engagement'],
+};
+
+/**
+ * Sub-abas visiveis dentro de Experiencia.
+ *
+ * A Carolina pediu Engajamento apenas. Onboarding tem recorte por area e
+ * Inclusao e da empresa inteira -- as duas ficam fora para este perfil, e
+ * ficam fora TAMBEM do que o servidor manda (ver getExperienceData). Esconder
+ * na tela deixaria o dado no payload, visivel para quem abrisse o inspetor.
+ */
+export type ExperienceSubTab = 'engajamento' | 'onboarding' | 'inclusao';
+
+const TODAS_SUBABAS: ExperienceSubTab[] = ['engajamento', 'onboarding', 'inclusao'];
+
+export function visibleExperienceSubTabs(profile: AccessProfile): ExperienceSubTab[] {
+  return profile === 'engagement_viewer' ? ['engajamento'] : TODAS_SUBABAS;
+}
+
+export function canSeeExperienceSubTab(profile: AccessProfile, sub: string): boolean {
+  return visibleExperienceSubTabs(profile).includes(sub as ExperienceSubTab);
+}
 
 export interface AccessScope {
   profile: AccessProfile;
@@ -92,6 +130,11 @@ export function canSeeIndividualData(profile: AccessProfile): boolean {
 }
 
 export function visibleTabs(profile: AccessProfile): DashboardTab[] {
+  // Perfil de aba unica vem primeiro: a lista dele nao e "tudo menos algo",
+  // e sim exatamente o que foi autorizado. Deixar por ultimo faria um perfil
+  // novo herdar tudo por omissao, que e o erro caro nesta funcao.
+  const so = TABS_POR_PERFIL[profile];
+  if (so) return so.slice();
   if (isGlobalProfile(profile)) return ALL_TABS;
   return ALL_TABS.filter((t) => !COMPANY_WIDE_TABS.includes(t));
 }

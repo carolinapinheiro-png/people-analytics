@@ -69,8 +69,14 @@ type UntypedClient = SupabaseClient<any, 'public', any>;
  */
 async function authorize(userEmail: string | undefined) {
   const { resolverEscopo } = await import('@/lib/escopo.server');
+  const { canSeeTab } = await import('@/lib/permissions');
   const e = await resolverEscopo(userEmail);
-  return { email: e.email, role: e.role, scope: e.scope };
+  // Como a serie mensal, a lista de desligados e carregada pelo CONTEXTO do
+  // painel, antes de qualquer aba ser escolhida. Lancar 'Forbidden' aqui
+  // faria um perfil de aba unica ver um erro na propria aba a que tem
+  // direito. Vazio e a resposta certa: nao ha desligados para este perfil.
+  const podeVerDesligados = canSeeTab(e.profile, 'attrition');
+  return { email: e.email, role: e.role, scope: e.scope, podeVerDesligados };
 }
 
 const ListLeaversInput = z
@@ -84,7 +90,8 @@ export const listLeavers = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ListLeaversInput.parse(input))
   .handler(async ({ context, data }) => {
-    const { email, scope } = await authorize(context.claims.email as string | undefined);
+    const { email, scope, podeVerDesligados } = await authorize(context.claims.email as string | undefined);
+    if (!podeVerDesligados) return [];
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
