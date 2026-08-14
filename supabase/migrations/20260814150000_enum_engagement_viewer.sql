@@ -1,0 +1,23 @@
+-- `allowed_emails.profile` NÃO é text: é o enum `access_profile`.
+--
+-- ===========================================================================
+-- COMO ISTO PASSOU
+-- ===========================================================================
+-- Antes de criar o perfil eu consultei `pg_constraint` procurando um CHECK na
+-- coluna. Não havia -- e concluí que a coluna aceitava qualquer texto. A
+-- restrição estava no TIPO, num catálogo diferente (`pg_type`/`pg_enum`), que
+-- eu não olhei.
+--
+-- É o mesmo erro que já cometi nesta base consultando `pg_extension` (o que
+-- está instalado) em vez de `pg_available_extensions` (o que pode ser
+-- instalado). A lição que fica escrita aqui: "não achei a restrição" e "não
+-- existe restrição" são coisas diferentes, e a distância entre as duas é
+-- sempre o catálogo que não foi consultado.
+--
+-- O sintoma foi o pior tipo de tardio: typecheck passou, testes passaram, o
+-- deploy subiu, o perfil apareceu no seletor -- e o banco recusou só no
+-- clique em Salvar, com `invalid input value for enum access_profile`.
+--
+-- ADD VALUE é aditivo e irreversível: um enum não perde valor sem recriar o
+-- tipo. Como o valor já é usado pelo aplicativo, isso é o desejado.
+alter type public.access_profile add value if not exists 'engagement_viewer';
