@@ -103,6 +103,30 @@ function EngagementSection({
 }) {
   const company = data.engagement.find((e) => e.scope === 'company');
   const depts = data.engagement.filter((e) => e.scope !== 'company');
+
+  // ------------------------------------------------------------------
+  // OS CARTÕES SEGUEM O FILTRO
+  // ------------------------------------------------------------------
+  // Eles liam sempre a linha `company`. Com um departamento selecionado essa
+  // linha não vinha, e os quatro cartões simplesmente SUMIAM -- filtrar por
+  // uma área apagava os números em vez de mostrar os daquela área. Quem
+  // filtra por Technology quer os números de Technology.
+  //
+  // `depts[0]` é seguro: o servidor devolve no máximo uma área quando há
+  // filtro, e para perfil restrito devolve só a dele.
+  const deptSel = data.escopo?.departamento ?? null;
+  const areaSel = deptSel ? (depts[0] ?? null) : null;
+  // Nem todo departamento do catálogo aparece na pesquisa -- CW GROUP,
+  // DIRETORIA, PORTO e TECHNOLOGY GROUP não têm linha. Sem este caso separado,
+  // o `??` cairia na linha da empresa e mostraria os números da Flutter Brazil
+  // debaixo de um filtro que diz PORTO. Um número errado com rótulo certo é
+  // pior que um espaço vazio: ninguém desconfia dele.
+  const semDadoDaArea = !!deptSel && !areaSel;
+  const foco = deptSel ? areaSel : company;
+  // Referência para comparar. Só existe para quem pode ver a empresa: para
+  // perfil restrito, `company` não vem -- e é essa ausência que impede
+  // deduzir as outras áreas a partir do total.
+  const referencia = areaSel && company ? company : null;
   // Saídas observadas, indexadas pelo nome da área da pesquisa, para enriquecer
   // a tabela de detalhe sem uma segunda tabela ao lado.
   const saidasPorScope = useMemo(() => {
@@ -140,48 +164,68 @@ function EngagementSection({
           a resposta precisa estar no painel, não num print no Slack.
       ------------------------------------------------------------------ */}
 
-      {company && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiCard
-            label="eNPS"
-            value={fmt1(company.enps)}
-            color={COLORS.flutter}
-            icon={Heart}
-            delta={company.enps_delta == null ? undefined : <Delta v={company.enps_delta} />}
-            tone={enpsTone(company.enps)}
-            hint={enpsHint(company.enps)}
-          />
-          <KpiCard
-            label="Satisfação"
-            value={`${fmt1(company.satisfaction)}/10`}
-            color={COLORS.nsx}
-            icon={Sparkles}
-            tone={satTone(company.satisfaction)}
-            hint={company.satisfaction == null ? undefined : company.satisfaction >= 8 ? 'patamar alto' : company.satisfaction >= 7 ? 'patamar ok' : 'abaixo do esperado'}
-          />
-          <KpiCard
-            label="Risco de saída"
-            value={`${fmt1(company.retention_risk)}%`}
-            color={COLORS.warning}
-            icon={TrendingUp}
-            delta={company.rr_delta == null ? undefined : <Delta v={company.rr_delta} invertido />}
-            tone={riscoTone(company.retention_risk)}
-            hint={company.retention_risk == null ? undefined : company.retention_risk >= 20 ? 'acima do confortável' : company.retention_risk >= 12 ? 'atenção' : 'sob controle'}
-          />
-          <KpiCard
-            label="Responderam"
-            value={survey ? String(survey.respondentes) : `${fmt1(company.participation)}%`}
-            color={COLORS.info}
-            icon={Users}
-            tone={participacaoTone(company.participation)}
-            hint={company.participation == null ? undefined : `${fmt1(company.participation)}% dos elegíveis`}
-          />
-        </div>
+      {semDadoDaArea && (
+        <p className="rounded-lg border border-border/60 p-3 text-sm text-muted-foreground">
+          <strong>{deptSel}</strong> não aparece na pesquisa de engajamento — a onda
+          de jan/26 tem nove áreas, e esta não é uma delas. Os blocos abaixo que
+          não têm recorte por área continuam sendo da Flutter Brazil inteira.
+        </p>
+      )}
+
+      {foco && (
+        <>
+          {areaSel && (
+            <p className="text-xs text-muted-foreground">
+              Números de <strong>{deptSel}</strong>
+              {referencia?.enps != null ? ` — a empresa toda está em eNPS ${fmt1(referencia.enps)}.` : '.'}
+            </p>
+          )}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <KpiCard
+              label="eNPS"
+              value={fmt1(foco.enps)}
+              color={COLORS.flutter}
+              icon={Heart}
+              delta={foco.enps_delta == null ? undefined : <Delta v={foco.enps_delta} />}
+              tone={enpsTone(foco.enps)}
+              hint={enpsHint(foco.enps)}
+            />
+            <KpiCard
+              label="Satisfação"
+              value={`${fmt1(foco.satisfaction)}/10`}
+              color={COLORS.nsx}
+              icon={Sparkles}
+              tone={satTone(foco.satisfaction)}
+              hint={foco.satisfaction == null ? undefined : foco.satisfaction >= 8 ? 'patamar alto' : foco.satisfaction >= 7 ? 'patamar ok' : 'abaixo do esperado'}
+            />
+            <KpiCard
+              label="Risco de saída"
+              value={`${fmt1(foco.retention_risk)}%`}
+              color={COLORS.warning}
+              icon={TrendingUp}
+              delta={foco.rr_delta == null ? undefined : <Delta v={foco.rr_delta} invertido />}
+              tone={riscoTone(foco.retention_risk)}
+              hint={foco.retention_risk == null ? undefined : foco.retention_risk >= 20 ? 'acima do confortável' : foco.retention_risk >= 12 ? 'atenção' : 'sob controle'}
+            />
+            {/* A participação é medida da onda inteira, não da área: a pesquisa
+                não guarda quantos elegíveis cada área tinha. Com filtro ligado
+                o cartão diz de quem é o número, em vez de sugerir que é da
+                área. */}
+            <KpiCard
+              label={areaSel ? 'Responderam (empresa)' : 'Responderam'}
+              value={survey ? String(survey.respondentes) : `${fmt1(company?.participation)}%`}
+              color={COLORS.info}
+              icon={Users}
+              tone={participacaoTone(company?.participation)}
+              hint={company?.participation == null ? undefined : `${fmt1(company.participation)}% dos elegíveis`}
+            />
+          </div>
+        </>
       )}
 
 
       <EngagementReading
-        enpsEmpresa={company?.enps ?? null}
+        enpsEmpresa={foco?.enps ?? null}
         respondentes={survey?.respondentes ?? null}
         participacao={company?.participation ?? null}
         areas={cross?.rows ?? []}
@@ -562,28 +606,49 @@ export default function EngagementTab() {
     return () => { cancelled = true; };
   }, [fetchData, filters.departamento]);
 
-  // O cruzamento com saídas não depende do filtro de área: ele é justamente a
-  // comparação ENTRE áreas, e filtrar deixaria um ponto só no gráfico. Por isso
-  // busca uma vez e fica. Falha aqui não derruba a aba -- as visões da pesquisa
-  // continuam válidas sem o cruzamento, então o erro só some com os gráficos.
+  // ------------------------------------------------------------------
+  // O CRUZAMENTO PASSOU A RESPEITAR O FILTRO
+  // ------------------------------------------------------------------
+  // O comentário antigo aqui dizia que ele "não depende do filtro de área,
+  // porque é justamente a comparação ENTRE áreas". Estava errado por dois
+  // motivos, e o segundo é grave:
+  //
+  //   1. Com TECHNOLOGY selecionado, a leitura continuava dizendo que o lugar
+  //      de agir era Marketing. Uma tela filtrada que fala de outra área não
+  //      está filtrada.
+  //   2. É daqui que saem a fila por área e o gráfico de movimento entre
+  //      ondas. Sem escopo, um líder de área lia o ranking das outras oito --
+  //      o mesmo vazamento fechado nas outras visões, entrando por esta.
+  //
+  // Sim, com uma área só o gráfico vira um ponto. É a resposta correta para
+  // quem só pode ver uma área.
+  //
+  // Falha aqui não derruba a aba: as visões da pesquisa continuam válidas sem
+  // o cruzamento, então o erro só some com os gráficos.
   useEffect(() => {
     let cancelled = false;
-    fetchCross()
+    fetchCross({ data: { department: filters.departamento } })
       .then((d) => { if (!cancelled) setCross(d as EngagementCrossData); })
       .catch((e: unknown) => { console.error('cruzamento engajamento × saídas indisponível:', e); });
     return () => { cancelled = true; };
-  }, [fetchCross]);
+  }, [fetchCross, filters.departamento]);
 
-  // Recortes da onda mais recente. Como o cruzamento, não depende do filtro de
-  // área -- e a supressão por n baixo já vem aplicada do servidor, então o que
-  // chega aqui nunca contém nota de grupo pequeno para quem não pode vê-la.
+  // Recortes da onda mais recente.
+  //
+  // O recorte por ÁREA respeita o filtro e o escopo (era outra porta aberta:
+  // trazia eNPS e risco das nove áreas, nominalmente, para qualquer perfil).
+  // Os recortes por tempo de casa, função e marca continuam da empresa toda --
+  // não identificam área, e servem de referência.
+  //
+  // A supressão por n baixo já vem aplicada do servidor, então o que chega
+  // aqui nunca contém nota de grupo pequeno para quem não pode vê-la.
   useEffect(() => {
     let cancelled = false;
-    fetchSurvey({ data: {} })
+    fetchSurvey({ data: { department: filters.departamento } })
       .then((d) => { if (!cancelled) setSurvey(d as SurveyWaveData | null); })
       .catch((e: unknown) => { console.error('recortes da pesquisa indisponíveis:', e); });
     return () => { cancelled = true; };
-  }, [fetchSurvey]);
+  }, [fetchSurvey, filters.departamento]);
 
   if (error) return <p className="text-sm text-muted-foreground text-center py-24">Não foi possível carregar a Experiência: {error}</p>;
   if (!data) return <Loading />;

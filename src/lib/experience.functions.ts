@@ -5,6 +5,7 @@ import { DeptFilterInput, selectedDept } from '@/lib/dept-filter';
 import {
   isGlobalProfile, isInScope, type AccessScope,
 } from '@/lib/permissions';
+import { deptForScope } from '@/lib/engagement-context';
 
 /**
  * A área que um perfil restrito enxerga quando não pede nada.
@@ -181,12 +182,44 @@ export const getExperienceData = createServerFn({ method: 'GET' })
     // vazio: uma seção some sem explicação parece defeito, e o número da
     // empresa continua sendo verdadeiro (só não é o da área). A aba avisa que
     // o filtro alcança só parte dela.
-    // `EMPRESA` é a linha consolidada. Perfil restrito NÃO a recebe: com 8
-    // áreas na tela, saber o total e a própria área permite estimar as outras.
+    // ======================================================================
+    // O NOME DA ÁREA NA PESQUISA NÃO É O NOME DO DEPARTAMENTO
+    // ======================================================================
+    // A pesquisa escreve "Human Resources", "Customer Service", "Legal". O
+    // catálogo tem HR, OPERATION, LEGAL & COMPLIANCE. Comparar os dois textos
+    // em maiúsculas -- que era o que esta função fazia -- acerta seis das nove
+    // áreas e erra três, sempre em silêncio: o filtro devolve zero linhas e a
+    // tela diz "sem dado para esta área", que é indistinguível da verdade.
+    //
+    // `deptForScope` é o de-para conferido com a Carolina em 10/08. Usá-lo
+    // aqui é obrigatório, e não uma melhoria: é o mesmo mapa que o cruzamento
+    // com saídas já usa, e as duas visões precisam concordar sobre o que é
+    // "Technology".
+    const daArea = (escopoDaLinha: string | null | undefined): boolean =>
+      deptForScope(escopoDaLinha ?? '') === sel;
+
+    // ======================================================================
+    // A LINHA `company` FICA -- INCLUSIVE PARA PERFIL RESTRITO
+    // ======================================================================
+    // Ontem eu a retirei de perfis restritos, com o argumento de que "com 8
+    // áreas na tela, saber o total e a própria permite estimar as outras".
+    // Esse argumento vale quando se vê SETE das oito -- aí a oitava se deduz.
+    // Não vale aqui: um perfil restrito passa a ver UMA área. Total menos a
+    // sua devolve as outras oito somadas, que não identifica nenhuma.
+    //
+    // Retirá-la custava caro e não comprava nada: uma nota sozinha, sem
+    // referência, é difícil de agir. E era incoerente com os drivers e a
+    // inclusão, que já aparecem com número de empresa e rótulo.
+    //
+    // Para perfil global com filtro ligado, ela também precisa vir -- e essa
+    // parte é a correção do que a Carolina viu. Os quatro cartões do topo são
+    // desenhados a partir dela; ao filtrar, o filtro a removia junto com as
+    // outras áreas e os cartões simplesmente sumiam da tela.
+    const ehEmpresa = (r: EngagementScore) => (r.scope ?? '').trim().toLowerCase() === 'company';
     const engagement = ((eng.data ?? []) as EngagementScore[]).filter((r) => {
-      const escopoDaLinha = (r.scope ?? '').trim().toUpperCase();
-      if (!podeVerTudo) return escopoDaLinha === sel;
-      return !sel || escopoDaLinha === sel;
+      if (ehEmpresa(r)) return true;
+      if (!podeVerTudo) return daArea(r.scope) && isInScope(scope, deptForScope(r.scope ?? '') ?? null);
+      return !sel || daArea(r.scope);
     });
 
     // ONBOARDING TEM RECORTE POR ÁREA -- e a tela desenha uma tabela com
@@ -247,8 +280,10 @@ export interface EngagementCrossData extends EngagementContextResult {
 
 export const getEngagementCross = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<EngagementCrossData> => {
+  .validator((input: unknown) => DeptFilterInput.parse(input))
+  .handler(async ({ context, data: input }): Promise<EngagementCrossData> => {
     const scope = await authorize(context.claims.email as string | undefined);
+    const podeVerTudo = isGlobalProfile(scope.profile);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -302,8 +337,39 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       (r) => isInScope(scope, r.departamento, r.job_family ?? null),
     );
 
+    // ======================================================================
+    // AS LINHAS DA PESQUISA TAMBÉM PRECISAM DE ESCOPO
+    // ======================================================================
+    // Até 13/08 esta função filtrava os DESLIGADOS pelo escopo e devolvia o
+    // eNPS, o risco e a satisfação das nove áreas para qualquer perfil. Meio
+    // caminho é pior que nenhum: dá a impressão de que o escopo foi tratado.
+    //
+    // É por aqui que a fila de prioridade por área, o gráfico de movimento
+    // entre ondas e a frase "onde agir primeiro" se alimentam. Um líder de uma
+    // área veria o ranking das outras oito -- exatamente o que o recorte por
+    // departamento existe para impedir, entrando por outra porta.
+    //
+    // O filtro pedido também vale aqui, e pela razão que a Carolina relatou:
+    // com TECHNOLOGY selecionado, a leitura continuava dizendo que o lugar de
+    // agir era Marketing. Uma tela filtrada que fala de outra área não é uma
+    // tela filtrada.
+    const pedido = selectedDept(input);
+    if (!podeVerTudo && pedido && !isInScope(scope, pedido)) {
+      throw new Error('Sem acesso a este departamento.');
+    }
+    const sel = pedido ?? (podeVerTudo ? null : normalizarPrimeiroDept(scope));
+
+    const scores = ((eng.data ?? []) as EngagementScoreLike[]).filter((s) => {
+      const dept = deptForScope(s.scope ?? '');
+      // Linhas que não são departamento (`company`, `Betfair`) seguem a mesma
+      // regra do resto: perfil restrito não as recebe, perfil global recebe.
+      if (dept == null) return podeVerTudo;
+      if (!podeVerTudo && !isInScope(scope, dept)) return false;
+      return !sel || dept === sel;
+    });
+
     const result = buildEngagementContext(
-      (eng.data ?? []) as EngagementScoreLike[],
+      scores,
       leavers,
       hcPorMesDept,
       JANELA,

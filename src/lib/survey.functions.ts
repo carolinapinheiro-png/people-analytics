@@ -33,7 +33,7 @@ type UntypedClient = SupabaseClient<any, 'public', any>;
 async function authorize(userEmail: string | undefined) {
   const { resolverEscopo } = await import('@/lib/escopo.server');
   const e = await resolverEscopo(userEmail);
-  return { email: e.email, role: e.role, profile: e.profile };
+  return { email: e.email, role: e.role, profile: e.profile, scope: e.scope };
 }
 
 // ---------------------------------------------------------------- importação
@@ -195,9 +195,27 @@ export interface SurveyWaveData {
 
 export const getSurveyWave = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => z.object({ wave: z.string().optional() }).parse(input ?? {}))
+  .validator((input: unknown) =>
+    z.object({ wave: z.string().optional(), department: z.string().nullish() }).parse(input ?? {}))
   .handler(async ({ context, data }): Promise<SurveyWaveData | null> => {
-    const { profile } = await authorize(context.claims.email as string | undefined);
+    const { profile, scope } = await authorize(context.claims.email as string | undefined);
+    const { isGlobalProfile, isInScope } = await import('@/lib/permissions');
+    const { deptForScope } = await import('@/lib/engagement-context');
+
+    // Nome distinto de proposito: mais abaixo existe um `podeVerTudo` que
+    // significa outra coisa (ver dado INDIVIDUAL, para a supressao por n
+    // baixo). Sao duas perguntas diferentes -- "quais areas" e "que nivel de
+    // detalhe" -- e confundi-las e como um perfil acaba vendo o que nao deve.
+    const podeVerTudoEscopo = isGlobalProfile(profile);
+    const pedido = (data.department ?? '').trim().toUpperCase() || null;
+    if (!podeVerTudoEscopo && pedido && !isInScope(scope, pedido)) {
+      throw new Error('Sem acesso a este departamento.');
+    }
+    // Sentinela que nao casa com departamento nenhum: perfil restrito sem area
+    // atribuida ve tela vazia, nao a empresa inteira.
+    const primeiro = (scope.departments ?? [])
+      .map((d) => (d ?? '').trim().toUpperCase()).filter(Boolean)[0] ?? '\u0000SEM-ESCOPO';
+    const sel = pedido ?? (podeVerTudoEscopo ? null : primeiro);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -230,10 +248,31 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       detratores: c.detratores == null ? null : Number(c.detratores),
     }));
 
+    // ======================================================================
+    // O RECORTE POR ÁREA PRECISA DE ESCOPO; OS OUTROS NÃO
+    // ======================================================================
+    // `cut_type = 'area'` traz eNPS, risco e satisfação de cada departamento,
+    // nominalmente. Sem este filtro, um líder de uma área lia as outras oito
+    // aqui -- pelo mesmo caminho que o recorte por departamento fecha nas
+    // outras visões, o que torna o fechamento das outras inútil.
+    //
+    // Os recortes por tempo de casa, função e marca NÃO identificam área e
+    // seguem inteiros: são da Flutter Brazil e servem de referência. É a mesma
+    // regra já usada nos drivers e na inclusão.
+    const noEscopo = brutos.filter((c) => {
+      if (c.cutType !== 'area') return true;
+      const dept = deptForScope(c.cutValue);
+      // Área da pesquisa sem correspondência no catálogo (hoje, "Betfair" —
+      // que é marca) não pode virar linha para perfil restrito por omissão.
+      if (dept == null) return podeVerTudoEscopo;
+      if (!podeVerTudoEscopo && !isInScope(scope, dept)) return false;
+      return !sel || dept === sel;
+    });
+
     // A supressão é aplicada AQUI, antes de a linha existir na resposta HTTP.
     // Fazer isso na tela deixaria o número real no payload -- visível para
     // qualquer pessoa que abrisse a aba de rede do navegador.
-    const cuts = applySuppression(brutos, podeVerTudo, [
+    const cuts = applySuppression(noEscopo, podeVerTudo, [
       'enps', 'risco', 'satisfacao', 'promotores', 'passivos', 'detratores',
     ]) as SurveyCut[];
 
