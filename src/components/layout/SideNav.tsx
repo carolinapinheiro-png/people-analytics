@@ -8,7 +8,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useDashboard } from '@/data/DashboardContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { visibleTabs } from '@/lib/permissions';
+import { visibleTabs, visibleExperienceSubTabs } from '@/lib/permissions';
 import { GROUPS, type NavItem } from './nav-config';
 import { readNavState, writeNavState } from '@/lib/nav-state';
 
@@ -34,10 +34,29 @@ export default function SideNav() {
     if (restored) writeNavState({ collapsed, open });
   }, [restored, collapsed, open]);
 
-  const allowed = visibleTabs(profile ?? 'dept_leader');
+  const perfil = profile ?? 'dept_leader';
+  const allowed = visibleTabs(perfil);
+
+  // As SUB-ABAS tambem sao permissao.
+  //
+  // Filtrar so `items` deixava "Onboarding" e "Inclusao & Pertencimento"
+  // listados no indice para quem nao pode abri-los -- clicar levava a uma aba
+  // vazia, porque o servidor nao manda o conteudo. Item de menu que nao leva a
+  // lugar nenhum e pior que item ausente: sugere que falta dado, e nao que
+  // falta acesso.
+  //
+  // Quando sobra UMA sub-aba, a lista some inteira: um indice de um item so e
+  // ruido, e o titulo da secao ja diz onde a pessoa esta.
+  const subsPermitidas = visibleExperienceSubTabs(perfil) as readonly string[];
+  const podarSubs = (i: NavItem): NavItem => {
+    if (!i.subs) return i;
+    const subs = i.subs.filter((sb) => subsPermitidas.includes(sb.id));
+    return subs.length > 1 ? { ...i, subs } : { ...i, subs: undefined };
+  };
+
   const groups = GROUPS.map((g) => ({
     ...g,
-    items: g.items.filter((i) => allowed.includes(i.id)),
+    items: g.items.filter((i) => allowed.includes(i.id)).map(podarSubs),
   })).filter((g) => g.items.length > 0);
 
   const firstAllowed = groups[0]?.items[0]?.id;

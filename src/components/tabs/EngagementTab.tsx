@@ -669,7 +669,14 @@ export default function EngagementTab() {
           <Sparkles className="h-5 w-5 text-[hsl(var(--flutter))]" />
           Experiência
         </h2>
-        <p className="text-sm text-muted-foreground">Engajamento, jornada de entrada e inclusão &amp; pertencimento.</p>
+        {/* O subtitulo lista o que a aba tem. Prometer "jornada de entrada e
+            inclusao" a quem so pode ver Engajamento manda a pessoa procurar
+            duas secoes que nao existem para ela. */}
+        <p className="text-sm text-muted-foreground">
+          {subs.length > 1
+            ? 'Engajamento, jornada de entrada e inclusão & pertencimento.'
+            : 'Resultado da pesquisa de engajamento.'}
+        </p>
       </div>
 
       <Tabs
@@ -684,6 +691,10 @@ export default function EngagementTab() {
             tela, o conteudo continuaria no payload, a um inspetor de
             distancia. Uma sub-aba escondida com o dado dentro da resposta e
             uma sub-aba visivel para quem procura. */}
+        {/* Uma aba so nao e escolha: a barra de sub-abas some. Um botao
+            solitario marcado como "selecionado" sugere que existem outros --
+            e a pessoa procura pelos que faltam. */}
+        {subs.length > 1 && (
         <TabsList>
           {podeVer('engajamento') && (
             <TabsTrigger value="engajamento" className="gap-2"><Heart className="h-4 w-4" />Engajamento</TabsTrigger>
@@ -695,6 +706,7 @@ export default function EngagementTab() {
             <TabsTrigger value="inclusao" className="gap-2"><HandHeart className="h-4 w-4" />Inclusão &amp; Pertencimento</TabsTrigger>
           )}
         </TabsList>
+        )}
         <TabsContent value="engajamento" className="mt-0">
           <EngagementSection data={data} cross={cross} survey={survey} />
         </TabsContent>

@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
 import { filtersForTab, unavailableFilters, FILTER_LABELS, RECORTES_EXCLUSIVOS, type FilterKey } from '@/lib/tab-filters';
-import { SlidersHorizontal, X } from 'lucide-react';
+import { Lock, SlidersHorizontal, X } from 'lucide-react';
 
 /**
  * Barra de filtros.
@@ -57,19 +57,47 @@ const VAZIO: Filters = {
 
 export default function FilterBar() {
   const { filters, setFilters, brand, activeTab, activeSubTab } = useDashboard();
-  const { profile, departments } = useAuth();
+  const { profile, departments, jobFamilies } = useAuth();
   const [aberto, setAberto] = useState(false);
 
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const disponiveis = filtersForTab(activeTab, activeSubTab);
   const indisponiveis = unavailableFilters(activeTab, activeSubTab);
 
-  // Perfis com escopo só escolhem entre os departamentos que atendem.
+  // ------------------------------------------------------------------
+  // PARA QUEM TEM ESCOPO, "TODOS" NAO EXISTE
+  // ------------------------------------------------------------------
+  // A lista ja vinha restrita aos departamentos atendidos, mas mantinha
+  // "Todos" no topo. Escolher "Todos" nao vazava nada -- o servidor cai na
+  // propria area de qualquer jeito -- e era exatamente esse o problema: a
+  // tela dizia "Todos" e mostrava UMA area. Um rotulo que descreve errado o
+  // que esta na tela e pior que um controle ausente, porque ninguem
+  // desconfia de um numero que acha que entendeu.
+  //
+  // O mesmo vale para job family: o escopo e a UNIAO dos dois criterios, e
+  // deixar um deles aberto tornaria o outro decorativo.
   const scoped = !!profile && !isGlobalProfile(profile);
-  const opcoes = (k: FilterKey): string[] =>
-    k === 'departamento' && scoped
-      ? ['Todos', ...departments.map(normalizeDept).filter(Boolean)]
-      : filterOptions[k];
+  const meusDepts = departments.map(normalizeDept).filter(Boolean);
+  const minhasFamilias = (jobFamilies ?? []).filter(Boolean);
+
+  const opcoes = (k: FilterKey): string[] => {
+    if (!scoped) return filterOptions[k];
+    if (k === 'departamento') return meusDepts;
+    if (k === 'jobFamily' && minhasFamilias.length > 0) return minhasFamilias;
+    return filterOptions[k];
+  };
+
+  /**
+   * Filtro que a pessoa nao pode desligar.
+   *
+   * Para perfil com escopo, o departamento nao e uma escolha: e quem ela e.
+   * A etiqueta continua visivel -- ela explica de onde vem o numero -- mas sem
+   * o "x", que so produziria a volta ao mesmo valor um instante depois.
+   */
+  const travado = (k: FilterKey) => scoped && k === 'departamento';
+
+  /** Com uma area so, o seletor tem uma opcao. Vira texto, nao controle. */
+  const semEscolhaDeDept = scoped && meusDepts.length <= 1;
 
   // Todo filtro ligado aparece, sempre -- mesmo quando esta aba não o aplica.
   //
@@ -100,7 +128,11 @@ export default function FilterBar() {
     setFilters(next);
   };
   const limparUm = (key: FilterKey) => set(key, 'Todos');
-  const limparTudo = () => setFilters({ ...VAZIO });
+  const limparTudo = () =>
+    // Preserva o que a pessoa nao tem direito de desligar. Sem isto,
+    // "limpar todos" apagaria o departamento e o servidor o devolveria --
+    // um botao que parece nao funcionar.
+    setFilters({ ...VAZIO, departamento: scoped ? filters.departamento : 'Todos' });
 
   // Aba sem nada filtrável: a barra some. Melhor que oferecer controle inerte.
   if (disponiveis.length === 0) return null;
@@ -137,13 +169,17 @@ export default function FilterBar() {
           >
             <span className="text-muted-foreground">{FILTER_LABELS[k]}:</span>
             <span className="font-medium max-w-[180px] truncate">{filters[k]}</span>
-            <button
-              onClick={() => limparUm(k)}
-              aria-label={`Remover filtro ${FILTER_LABELS[k]}`}
-              className="rounded-full hover:bg-background/60 p-0.5"
-            >
-              <X className="h-3 w-3" />
-            </button>
+            {travado(k) ? (
+              <Lock className="h-3 w-3 text-muted-foreground" aria-label="Definido pelo seu acesso" />
+            ) : (
+              <button
+                onClick={() => limparUm(k)}
+                aria-label={`Remover filtro ${FILTER_LABELS[k]}`}
+                className="rounded-full hover:bg-background/60 p-0.5"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </span>
         ))}
 
@@ -175,7 +211,7 @@ export default function FilterBar() {
           </button>
         )}
 
-        {ativos.length + ativosForaDaAba.length === 0 && !aberto && (
+        {ativos.length + ativosForaDaAba.length === 0 && !aberto && !scoped && (
           <span className="text-[11px] text-muted-foreground">
             Mostrando a empresa toda.
           </span>
@@ -198,6 +234,14 @@ export default function FilterBar() {
               <label className="block text-[10px] uppercase tracking-wider text-muted-foreground">
                 {FILTER_LABELS[k]}
               </label>
+              {k === 'departamento' && semEscolhaDeDept ? (
+                <div
+                  className="rounded border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground min-w-[140px] max-w-[200px]"
+                  title="Definido pelo seu acesso — não é uma escolha."
+                >
+                  {meusDepts[0] ?? 'sem área atribuída'}
+                </div>
+              ) : (
               <select
                 value={filters[k]}
                 onChange={(e) => set(k, e.target.value)}
@@ -221,6 +265,7 @@ export default function FilterBar() {
                   </option>
                 ))}
               </select>
+              )}
             </div>
           ))}
 
