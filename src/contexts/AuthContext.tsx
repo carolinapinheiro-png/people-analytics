@@ -36,6 +36,12 @@ interface AuthContextType {
    */
   verComo: { email: string; profile: string } | null;
   /**
+   * Nivel proprio ("Director"). Na aba de Salarios, decide ate que degrau a
+   * pessoa enxerga remuneracao -- e a tela usa para dizer qual recorte esta
+   * mostrando, em vez de exibir um total silenciosamente cortado.
+   */
+  nivel: string | null;
+  /**
    * Abas concedidas a esta pessoa alem das do perfil. O menu soma as duas --
    * ver `visibleTabs(profile, extraTabs)`.
    */
@@ -76,6 +82,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [departments, setDepartments] = useState<string[]>([]);
   const [jobFamilies, setJobFamilies] = useState<string[]>([]);
   const [verComo, setVerComo] = useState<{ email: string; profile: string } | null>(null);
+  const [nivel, setNivel] = useState<string | null>(null);
   const [extraTabs, setExtraTabs] = useState<string[]>([]);
   const [podeVerIndividual, setPodeVerIndividual] = useState(false);
   const [expiraEm, setExpiraEm] = useState<string | null>(null);
@@ -106,6 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setDepartments(result.departments ?? []);
           setJobFamilies((result as { jobFamilies?: string[] }).jobFamilies ?? []);
           setVerComo((result as { verComo?: { email: string; profile: string } | null }).verComo ?? null);
+          setNivel((result as { nivel?: string | null }).nivel ?? null);
           setExtraTabs((result as { extraTabs?: string[] }).extraTabs ?? []);
           setPodeVerIndividual(!!(result as { podeVerIndividual?: boolean }).podeVerIndividual);
           setExpiraEm((result as { expiraEm?: string | null }).expiraEm ?? null);
@@ -119,6 +127,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setDepartments([]);
         setJobFamilies([]);
         setVerComo(null);
+        setNivel(null);
         setExtraTabs([]);
         setPodeVerIndividual(false);
         setExpiraEm(null);
@@ -153,6 +162,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setDepartments([]);
     setJobFamilies([]);
     setVerComo(null);
+    setNivel(null);
     setExtraTabs([]);
     setPodeVerIndividual(false);
     setExpiraEm(null);
@@ -177,6 +187,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setDepartments([]);
           setJobFamilies([]);
           setVerComo(null);
+          setNivel(null);
           setExtraTabs([]);
           setPodeVerIndividual(false);
           setExpiraEm(null);
@@ -248,6 +259,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setDepartments([]);
     setJobFamilies([]);
     setVerComo(null);
+    setNivel(null);
     setExtraTabs([]);
     setPodeVerIndividual(false);
     setExpiraEm(null);
@@ -271,6 +283,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         departments,
         jobFamilies,
         verComo,
+        nivel,
         extraTabs,
         podeVerIndividual,
         expiraEm,

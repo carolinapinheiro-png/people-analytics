@@ -9,6 +9,9 @@ import { DollarSign, TrendingUp, TrendingDown, Scale, ShieldAlert } from 'lucide
 import { COLORS } from '@/lib/colors';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 import { useDashboard } from '@/data/DashboardContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { isGlobalProfile } from '@/lib/permissions';
+import { degrauDe, descreverRecorte } from '@/lib/comp-scope';
 
 /**
  * CompRatio individual (587 ativos). Dado sensivel: vem da server function
@@ -27,6 +30,23 @@ export default function CompRatioTab() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const { filters } = useDashboard();
+  const { profile, departments, nivel } = useAuth();
+
+  // ------------------------------------------------------------------
+  // O RECORTE PRECISA ESTAR ESCRITO NA TELA
+  // ------------------------------------------------------------------
+  // Fora de HR Leader e Admin, esta aba mostra so os niveis ABAIXO do de quem
+  // olha. Um total assim, sem aviso, e lido como "a area inteira" -- e vira
+  // numero de reuniao de orcamento. O aviso e montado do proprio nivel e das
+  // proprias areas; nenhum dado de outra pessoa entra nele.
+  const avisoRecorte = descreverRecorte(
+    {
+      global: profile ? isGlobalProfile(profile) : false,
+      degrau: degrauDe(nivel),
+      areas: (departments ?? []).map((d) => d.trim().toUpperCase()).filter(Boolean),
+    },
+    nivel,
+  );
   const fetchData = useServerFn(listCompRatio);
 
   useEffect(() => {
@@ -115,6 +135,12 @@ export default function CompRatioTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end"><FreshnessBadge dataset="comp_ratio" /></div>
+
+      {avisoRecorte && (
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
+          {avisoRecorte}
+        </p>
+      )}
       <div>
         <h2 className="text-lg font-bold flex items-center gap-2">
           <Scale className="h-5 w-5 text-[hsl(var(--flutter))]" />

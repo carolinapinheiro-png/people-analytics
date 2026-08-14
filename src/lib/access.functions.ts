@@ -55,6 +55,7 @@ export const checkAccess = createServerFn({ method: 'GET' })
       extraTabs: [] as string[],
       podeVerIndividual: false,
       expiraEm: null as string | null,
+      nivel: null as string | null,
     };
 
     const logar = async (allowed: boolean) => {
@@ -104,6 +105,8 @@ export const checkAccess = createServerFn({ method: 'GET' })
       extraTabs: e.extraTabs,
       podeVerIndividual: e.podeVerIndividual,
       expiraEm: e.expiraEm,
+      /** Nivel proprio -- a aba de Salarios usa para dizer que recorte a pessoa esta vendo. */
+      nivel: e.nivel,
       /** Preenchido = a tela inteira esta desenhada pelos olhos de outra pessoa. */
       verComo: e.verComo as { email: string; profile: string } | null,
     };

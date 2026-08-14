@@ -22,6 +22,12 @@ export interface LinhaAcesso {
   can_see_individual?: boolean | null;
   /** Acesso temporario. Passou da data, a conta para de valer. */
   expires_at?: string | null;
+  /**
+   * Nivel da pessoa ("Director", "C-Level"). Deixou de ser decorativo em
+   * 14/08/2026: e ele que decide, na aba de Salarios, ate que degrau da escada
+   * a pessoa enxerga remuneracao. Ver `lib/comp-scope.ts`.
+   */
+  job_level?: string | null;
 }
 
 export interface EscopoResolvido {
@@ -43,6 +49,12 @@ export interface EscopoResolvido {
   podeVerIndividual: boolean;
   /** Quando o acesso expira, se for temporario. */
   expiraEm: string | null;
+  /**
+   * Nivel de quem esta olhando. Na aba de Salarios, so aparece remuneracao de
+   * quem esta ESTRITAMENTE ABAIXO deste nivel. `null` = nao cadastrado, e
+   * nesse caso nao aparece nada -- ver `comp-scope.ts`.
+   */
+  nivel: string | null;
 }
 
 /** Perfil ausente cai no mais restrito, nunca no mais permissivo. */
@@ -127,6 +139,9 @@ function montar(
     // mostram dado individual nao repetirem a regra cada um do seu jeito.
     podeVerIndividual: canSeeIndividualData(profile, linha.can_see_individual ?? null),
     expiraEm: linha.expires_at ?? null,
+    // Do ALVO quando simulando, como todo o resto: conferir o acesso de
+    // alguem so quer dizer alguma coisa se o nivel usado for o dessa pessoa.
+    nivel: linha.job_level ?? null,
     // ------------------------------------------------------------------
     // `role` E `profile` SE SEPARAM AQUI, DE PROPÓSITO
     // ------------------------------------------------------------------

@@ -7,6 +7,9 @@ import {
   isInScope,
 } from '@/lib/permissions';
 import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
+import {
+  degrauDe, descreverRecorte, filtrarLinhas, podeVerLinha, type EscopoComp,
+} from '@/lib/comp-scope';
 
 /**
  * Acesso ao salario individual + comp ratio dos ativos (587).
@@ -51,7 +54,25 @@ async function authorize(userEmail: string | undefined) {
   // `podeVerIndividual` ja vem resolvido (flag por usuario quando existe,
   // perfil quando nao existe). Recalcular aqui a partir do perfil ignoraria o
   // flag -- que e exatamente o caso que ele existe para cobrir.
-  return { email: e.email, role: e.role, scope: e.scope, podeVerIndividual: e.podeVerIndividual };
+  const { isGlobalProfile } = await import('@/lib/permissions');
+  // ------------------------------------------------------------------
+  // O RECORTE POR NIVEL, MONTADO UMA VEZ
+  // ------------------------------------------------------------------
+  // Regra de 14/08/2026: fora de HR Leader e Admin, so aparece remuneracao de
+  // quem esta ESTRITAMENTE ABAIXO do nivel de quem olha, e dentro da propria
+  // area. Montado aqui, no adaptador, para as quatro funcoes deste arquivo
+  // usarem o mesmo objeto -- se cada uma remontasse, uma delas ficaria para
+  // tras no proximo ajuste, e a que ficasse para tras vazaria salario.
+  const escopoComp: EscopoComp = {
+    global: isGlobalProfile(e.profile),
+    degrau: degrauDe(e.nivel),
+    areas: (e.departments ?? []).map((d) => (d ?? '').trim().toUpperCase()).filter(Boolean),
+  };
+  return {
+    email: e.email, role: e.role, scope: e.scope,
+    podeVerIndividual: e.podeVerIndividual,
+    escopoComp, nivel: e.nivel,
+  };
 }
 
 const ListInput = z
@@ -82,7 +103,7 @@ export const listCompRatio = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ListInput.parse(input))
   .handler(async ({ context, data }): Promise<CompRatioRow[]> => {
-    const { email, scope, podeVerIndividual } = await authorize(context.claims.email as string | undefined);
+    const { email, scope, podeVerIndividual, escopoComp } = await authorize(context.claims.email as string | undefined);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -105,6 +126,10 @@ export const listCompRatio = createServerFn({ method: 'GET' })
     const scoped = (rows ?? [])
       .filter((r) => r.in_comp_scope !== false)
       .filter((r) => isInScope(scope, r.area, r.job_type_family))
+      // RECORTE POR NIVEL -- aplicado ANTES de qualquer filtro de tela, e
+      // antes de a linha existir na resposta HTTP. Filtrar depois, ou na tela,
+      // deixaria o salario no payload: escondido por CSS continua entregue.
+      .filter((r) => podeVerLinha(escopoComp, { area: r.area, level: r.level }))
       // Filtros de tela: comp_ratio e person-level, entao aqui TODOS funcionam
       // de verdade -- ao contrario da serie mensal, que so guarda a quebra por
       // departamento.
@@ -123,6 +148,12 @@ export const listCompRatio = createServerFn({ method: 'GET' })
     const visible = podeVerIndividual
       ? scoped
       : scoped.map((r) => ({ ...r, name: 'Confidencial', salary: null }));
+
+    // O aviso de recorte NAO sai daqui: esta funcao devolve um array puro, e
+    // pendurar um campo nele mudaria a forma para todos os consumidores. Ele e
+    // montado na tela a partir do proprio nivel e das proprias areas, que o
+    // `checkAccess` ja devolve -- dado da propria pessoa, sobre a propria
+    // pessoa.
 
     // Log obrigatorio: sem registrar quem viu, nao devolve. Igual aos desligados.
     const { error: logError } = await db.from('comp_ratio_access_log').insert({
@@ -267,6 +298,12 @@ export interface EmployeeProfile {
   cr_percentile_level: number | null;
   cohort_level: CohortStat;
   cohort_area: CohortStat;
+  /**
+   * true quando os campos de remuneracao vieram vazios por permissao, e nao
+   * por falta de dado. A tela precisa distinguir as duas coisas: "nao ha
+   * comp-ratio" e "voce nao pode ver o comp-ratio" levam a acoes diferentes.
+   */
+  comp_restrito?: boolean;
   /** false = carregado do historico so para o perfil (People/diretoria fora do
    *  arquivo de comp); nesse caso nao ha comp-ratio, so faixa via folha. */
   in_comp_scope: boolean;
@@ -339,7 +376,7 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ProfileInput.parse(input))
   .handler(async ({ context, data }): Promise<EmployeeProfile | null> => {
-    const { email, scope } = await authorize(context.claims.email as string | undefined);
+    const { email, scope, escopoComp } = await authorize(context.claims.email as string | undefined);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -380,6 +417,21 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
         ? Math.round((crLevel.filter((v) => v <= myCr).length / crLevel.length) * 100)
         : null;
 
+    // ==================================================================
+    // A PORTA DOS FUNDOS DA ABA PERFIL
+    // ==================================================================
+    // Esta tela mostra comp-ratio e quartil de QUALQUER pessoa, achada por
+    // busca de nome. Sem o mesmo recorte da aba de Salarios, um Director
+    // barrado la abriria aqui, digitaria o nome do VP e leria o mesmo dado --
+    // e a regra que acabou de ser criada viraria enfeite.
+    //
+    // A pessoa continua aparecendo: admissao, tempo de casa, promocao e nivel
+    // nao sao remuneracao, e sao o que faz esta tela existir. So os campos de
+    // dinheiro somem.
+    const podeVerComp = podeVerLinha(escopoComp, {
+      area: person.area, level: person.level,
+    });
+
     const profile: EmployeeProfile = {
       id: person.id,
       name: person.name,
@@ -393,12 +445,21 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
       tenure_months: tenureMonthsFrom(person.hire),
       last_promotion: person.last_promotion ?? null,
       months_since_promotion: monthsSinceIso(person.last_promotion),
-      band: salaryBand(person.salary == null ? null : Number(person.salary)),
-      comp_ratio: myCr,
-      quartile: person.quartile ?? null,
-      cr_percentile_level: crPct,
-      cohort_level: { n: byLevel.length, med_cr: median(crLevel), med_tenure_months: median(tenLevel) },
-      cohort_area: { n: byArea.length, med_cr: median(crArea), med_tenure_months: median(tenArea) },
+      // Os cinco campos de remuneracao saem juntos ou ficam juntos. Deixar
+      // um deles passar -- o quartil, por exemplo -- entregaria a posicao na
+      // faixa, que e o que se queria esconder.
+      band: podeVerComp ? salaryBand(person.salary == null ? null : Number(person.salary)) : 'Restrito',
+      comp_ratio: podeVerComp ? myCr : null,
+      quartile: podeVerComp ? person.quartile ?? null : null,
+      cr_percentile_level: podeVerComp ? crPct : null,
+      cohort_level: podeVerComp
+        ? { n: byLevel.length, med_cr: median(crLevel), med_tenure_months: median(tenLevel) }
+        : { n: 0, med_cr: null, med_tenure_months: null },
+      cohort_area: podeVerComp
+        ? { n: byArea.length, med_cr: median(crArea), med_tenure_months: median(tenArea) }
+        : { n: 0, med_cr: null, med_tenure_months: null },
+      /** false = os campos de remuneracao vieram vazios de proposito. */
+      comp_restrito: !podeVerComp,
       in_comp_scope: person.in_comp_scope !== false,
     };
 
@@ -432,17 +493,22 @@ export interface CompByRole {
 export const getCompByLevelRole = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<CompByRole> => {
-    await authorize(context.claims.email as string | undefined);
+    const { escopoComp } = await authorize(context.claims.email as string | undefined);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
 
     const { data: rows, error } = await db
       .from('comp_ratio')
-      .select('level, salary, comp_ratio, is_leader, is_people_manager, in_comp_scope');
+      .select('area, level, salary, comp_ratio, is_leader, is_people_manager, in_comp_scope');
     if (error) throw new Error(`Falha ao carregar split por papel: ${error.message}`);
 
-    const active = (rows ?? []).filter(
+    // O RECORTE VALE PARA O AGREGADO TAMBEM.
+    //
+    // "Media salarial por nivel" com os niveis de cima dentro e o mesmo
+    // vazamento com menos passos: nos degraus altos ha poucas pessoas, e a
+    // media de tres e praticamente o salario de cada uma.
+    const active = filtrarLinhas(escopoComp, rows ?? []).filter(
       (r) => r.in_comp_scope !== false && (r.level ?? '').trim() !== '',
     );
 
@@ -481,7 +547,7 @@ export const getCompByLevelRole = createServerFn({ method: 'GET' })
 export const getCompAggregates = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<CompAggregates> => {
-    await authorize(context.claims.email as string | undefined);
+    const { escopoComp } = await authorize(context.claims.email as string | undefined);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -491,8 +557,11 @@ export const getCompAggregates = createServerFn({ method: 'GET' })
       .select('company, area, contract, level, salary, comp_ratio, in_comp_scope');
     if (error) throw new Error(`Falha ao carregar agregados de comp: ${error.message}`);
 
-    // Agregados de compensacao usam SO a populacao do arquivo de comp.
-    const rows = (allRows ?? []).filter((r) => r.in_comp_scope !== false);
+    // Agregados de compensacao usam SO a populacao do arquivo de comp -- e,
+    // desde 14/08/2026, so os niveis abaixo do de quem olha. Ver o comentario
+    // em getCompByLevelRole: media de poucos e salario individual disfarcado.
+    const rows = filtrarLinhas(escopoComp, allRows ?? [])
+      .filter((r) => r.in_comp_scope !== false);
 
     const cMap = new Map<string, CompContractAgg>();
     const aMap = new Map<string, CompAreaAgg>();

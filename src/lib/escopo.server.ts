@@ -36,7 +36,7 @@ export type EscopoEfetivo = EscopoResolvido;
 async function buscarLinha(email: string): Promise<LinhaAcesso | null> {
   const { data, error } = await supabaseAdmin
     .from('allowed_emails')
-    .select('role, profile, departments, job_families, extra_tabs, can_see_individual, expires_at')
+    .select('role, profile, departments, job_families, extra_tabs, can_see_individual, expires_at, job_level')
     .ilike('email', email)
     .maybeSingle();
   // Falha de consulta NÃO é negação: um erro transitório de banco não pode se

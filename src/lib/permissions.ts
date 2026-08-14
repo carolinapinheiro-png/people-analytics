@@ -67,6 +67,24 @@ export const ALL_TABS: DashboardTab[] = [
 const COMPANY_WIDE_TABS: DashboardTab[] = ['data'];
 
 /**
+ * Abas que NAO entram em preset nenhum fora dos perfis globais.
+ *
+ * ------------------------------------------------------------------
+ * REMUNERACAO SAI DO PADRAO (decidido em 14/08/2026)
+ * ------------------------------------------------------------------
+ * Ate hoje `comp` vinha junto para Department Leader e HRBP, por herdar
+ * "tudo menos as company-wide". A regra nova e a inversa: fora de HR Leader e
+ * Admin, ninguem tem a aba de Salarios por padrao -- quem precisa recebe a
+ * concessao no proprio cadastro, que fica registrada com quem deu e quando.
+ *
+ * Lista separada de COMPANY_WIDE_TABS porque o motivo e outro. `data` sai por
+ * ser consolidada demais para quem tem escopo; `comp` sai por ser sensivel
+ * demais para vir por omissao. Juntar as duas faria a proxima pessoa a mexer
+ * achar que sao a mesma regra.
+ */
+const NUNCA_POR_PADRAO: DashboardTab[] = ['comp'];
+
+/**
  * Perfis que existem para UMA aba só.
  *
  * Criado em 14/08/2026 para Talent Management e lideres de departamento: eles
@@ -161,7 +179,9 @@ function tabsDoPerfil(profile: AccessProfile): DashboardTab[] {
   const so = TABS_POR_PERFIL[profile];
   if (so) return so.slice();
   if (isGlobalProfile(profile)) return ALL_TABS;
-  return ALL_TABS.filter((t) => !COMPANY_WIDE_TABS.includes(t));
+  return ALL_TABS.filter(
+    (t) => !COMPANY_WIDE_TABS.includes(t) && !NUNCA_POR_PADRAO.includes(t),
+  );
 }
 
 /**

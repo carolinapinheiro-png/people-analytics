@@ -68,7 +68,6 @@ test('os perfis que já existiam não mudaram', () => {
   // A Carolina pediu para NÃO mexer no Department Leader. Se um dia alguém
   // mexer, que seja de propósito e apagando este teste.
   assert.deepEqual(visibleExperienceSubTabs('dept_leader'), ['engajamento', 'onboarding', 'inclusao']);
-  assert.equal(canSeeTab('dept_leader', 'comp'), true);
   assert.equal(canSeeTab('dept_leader', 'recruitment'), true);
   // 'data' exige visão consolidada e continua fora dos perfis não-globais.
   assert.equal(canSeeTab('dept_leader', 'data'), false);
@@ -145,4 +144,38 @@ test('responsabilidade sugere aba, e so sugere', () => {
   assert.deepEqual(sugerirAbas(['DEI', 'Estrutura & Span']), ['team', 'dei', 'demographics', 'span']);
   assert.deepEqual(sugerirAbas([]), []);
   assert.deepEqual(sugerirAbas(['coisa que nao existe']), []);
+});
+
+
+// ---------------------------------------------------------------------------
+// Remuneracao fora do padrao (14/08/2026)
+// ---------------------------------------------------------------------------
+
+test('ninguem tem Salarios por padrao, fora dos perfis globais', () => {
+  // A regra da Carolina: "o restante da empresa nao tem acesso ao quadro de
+  // compensation". Herdar `comp` por ser "tudo menos as company-wide" era
+  // exatamente como Department Leader e HRBP tinham.
+  assert.equal(canSeeTab('dept_leader', 'comp'), false);
+  assert.equal(canSeeTab('hrbp', 'comp'), false);
+  assert.equal(canSeeTab('engagement_viewer', 'comp'), false);
+});
+
+test('HR Leader e Admin continuam vendo Salarios', () => {
+  assert.equal(canSeeTab('hr_leader', 'comp'), true);
+  assert.equal(canSeeTab('admin', 'comp'), true);
+});
+
+test('Salarios volta pela concessao individual, e so por ela', () => {
+  // E como um C-level ou N-2 recebe a aba: no proprio cadastro, com registro
+  // de quem deu e quando.
+  assert.equal(canSeeTab('dept_leader', 'comp', ['comp']), true);
+  assert.equal(isExtraTab('dept_leader', 'comp'), true);
+});
+
+test('tirar `comp` do padrao nao derrubou as outras abas do perfil', () => {
+  // O jeito errado de fazer isto seria trocar a lista inteira e perder uma
+  // aba sem querer.
+  for (const t of ['overview', 'team', 'dei', 'demographics', 'engagement', 'span', 'attrition', 'recruitment', 'individual'] as const) {
+    assert.equal(canSeeTab('dept_leader', t), true, `dept_leader perdeu ${t}`);
+  }
 });

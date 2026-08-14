@@ -992,6 +992,9 @@ function UserAccessFormFields({
 }) {
   const patch = (partial: Partial<UserFormState>) => onChange({ ...value, ...partial });
   const levelListId = `job-levels-${idSuffix}`;
+  // Salarios so aparece por concessao individual desde 14/08/2026 -- e quando
+  // aparece, o Level deixa de ser decorativo e passa a decidir o recorte.
+  const isCompVisivel = visibleTabs(value.profile, value.extraTabs).includes('comp');
 
   return (
     <div className="space-y-4">
@@ -1021,19 +1024,33 @@ function UserAccessFormFields({
           />
         </div>
         <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Level</Label>
-          <Input
-            placeholder="Ex.: Manager"
+          <Label className="text-xs text-muted-foreground" htmlFor={levelListId}>Level</Label>
+          {/* ------------------------------------------------------------------
+              LISTA FECHADA, E NAO MAIS TEXTO LIVRE
+              ------------------------------------------------------------------
+              Este campo era decorativo -- ninguem lia. Desde 14/08/2026 ele
+              decide, na aba de Salarios, ate que degrau a pessoa enxerga
+              remuneracao.
+              Com texto livre, "Diretor" em vez de "Director" nao daria erro
+              nenhum: o nivel simplesmente nao seria reconhecido, e a pessoa
+              abriria a aba sem ver ninguem. O suporte diria "esta sem dado".
+          ------------------------------------------------------------------ */}
+          <select
+            id={levelListId}
             value={value.jobLevel}
-            maxLength={40}
-            list={levelListId}
             onChange={(e) => patch({ jobLevel: e.target.value })}
-          />
-          <datalist id={levelListId}>
+            className="w-full rounded border border-border bg-secondary px-2 py-1.5 text-sm"
+          >
+            <option value="">— não definido —</option>
             {JOB_LEVEL_PRESETS.map((l) => (
-              <option key={l} value={l} />
+              <option key={l} value={l}>{l}</option>
             ))}
-          </datalist>
+          </select>
+          {isCompVisivel && !value.jobLevel && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-500">
+              Sem level, esta pessoa abre a aba de Salários e não vê ninguém.
+            </p>
+          )}
         </div>
       </div>
 
