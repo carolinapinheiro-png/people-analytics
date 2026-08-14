@@ -71,7 +71,22 @@ export default function MultiSelect({
         )}
       </div>
 
-      <Popover open={open} onOpenChange={setOpen}>
+      {/* ==================================================================
+          `modal` NÃO É DETALHE: SEM ELE A LISTA ABRE E NÃO CLICA
+          ==================================================================
+          Este seletor vive dentro do diálogo "Editar acesso". Um Dialog do
+          Radix em modo modal põe `pointer-events: none` no <body> e reabilita
+          apenas a própria subárvore. O conteúdo do Popover é portado para o
+          <body>, ou seja, PARA FORA dessa subárvore -- então ele aparece
+          normalmente, com busca e caixas de seleção, e simplesmente ignora
+          qualquer clique.
+
+          O sintoma é enganoso: a lista está lá, visível e bem desenhada, e
+          nada acontece. Parece "o drill down não funciona", quando na verdade
+          o clique nunca chega. `modal` faz o Popover gerenciar a própria
+          camada de eventos e devolve o clique.
+      ================================================================== */}
+      <Popover open={open} onOpenChange={setOpen} modal>
         <PopoverTrigger asChild>
           <Button
             id={id}
