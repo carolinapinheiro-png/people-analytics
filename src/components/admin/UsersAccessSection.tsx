@@ -44,8 +44,63 @@ import {
   JOB_TYPE_FAMILIES,
   JOB_LEVEL_PRESETS,
   RESPONSIBILITY_PRESETS,
+  canSeeIndividualData,
+  visibleTabs,
+  isExtraTab,
+  sugerirAbas,
   type AccessProfile,
+  type DashboardTab,
 } from '@/lib/permissions';
+
+/** Rotulos das abas, para os chips da previa. */
+const TAB_LABELS: Record<DashboardTab, string> = {
+  overview: 'Overview',
+  team: 'Meu Time',
+  dei: 'DEI',
+  comp: 'Salários',
+  demographics: 'Demográficos',
+  engagement: 'Experiência',
+  span: 'Span',
+  attrition: 'Atrição',
+  recruitment: 'Recrutamento',
+  individual: 'Perfil',
+  data: 'Dados',
+};
+
+/**
+ * As abas que o cadastro atual produz, em chips.
+ *
+ * O resumo em texto ja explicava o ESCOPO (quais areas). Nao explicava o
+ * ALCANCE (quais telas) -- e "Department Leader" nao deixa obvio que isso
+ * inclui salarios e atricao. Chips respondem a pergunta que a frase nao
+ * respondia, e marcam o que foi concedido a mais.
+ */
+function PreviaDeAbas({ form }: { form: UserFormState }) {
+  const abas = visibleTabs(form.profile, form.extraTabs);
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {abas.map((t) => {
+        const extra = isExtraTab(form.profile, t);
+        return (
+          <span
+            key={t}
+            title={extra ? 'Concedida a esta pessoa, além do perfil' : 'Vem do perfil'}
+            className={`rounded-full px-2 py-0.5 text-[11px] ${
+              extra
+                ? 'bg-primary/15 text-primary font-medium'
+                : 'bg-muted text-muted-foreground'
+            }`}
+          >
+            {TAB_LABELS[t]}{extra ? ' +' : ''}
+          </span>
+        );
+      })}
+      {abas.length === 0 && (
+        <span className="text-[11px] text-muted-foreground">Nenhuma aba — a pessoa entra e não vê nada.</span>
+      )}
+    </div>
+  );
+}
 
 export interface AllowedEmail {
   id: string;
@@ -58,6 +113,10 @@ export interface AllowedEmail {
   job_level: string | null;
   responsibilities: string[];
   created_at: string;
+  extra_tabs?: string[] | null;
+  can_see_individual?: boolean | null;
+  expires_at?: string | null;
+  last_login_at?: string | null;
 }
 
 export interface DepartmentOption {
@@ -74,6 +133,12 @@ interface UserFormState {
   jobTitle: string;
   jobLevel: string;
   responsibilities: string[];
+  /** Abas concedidas alem das do perfil. */
+  extraTabs: string[];
+  /** null = conforme o perfil. */
+  canSeeIndividual: boolean | null;
+  /** '' = sem prazo. */
+  expiresAt: string;
 }
 
 const EMPTY_FORM: UserFormState = {
@@ -83,6 +148,9 @@ const EMPTY_FORM: UserFormState = {
   jobTitle: '',
   jobLevel: '',
   responsibilities: [],
+  extraTabs: [],
+  canSeeIndividual: null,
+  expiresAt: '',
 };
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -116,10 +184,28 @@ function accessSummary(form: UserFormState, email: string): string {
   // O perfil de aba unica precisa dizer isso AQUI. Esta frase e a ultima coisa
   // lida antes de salvar, e "Experiencia -- Engajamento" no seletor nao deixa
   // obvio que TODAS as outras abas ficam de fora.
-  if (form.profile === 'engagement_viewer') {
+  const individual = canSeeIndividualData(form.profile, form.canSeeIndividual)
+    ? 'Vê nome e salário individuais.'
+    : 'Só números agregados, sem nome de pessoa.';
+
+  if (form.profile === 'engagement_viewer' && form.extraTabs.length === 0) {
     return `${areas} — e só a aba Experiência › Engajamento. Nenhuma outra seção do painel, nem as outras sub-abas de Experiência.`;
   }
-  return `${areas}. Só números agregados, sem nome de pessoa.`;
+  return `${areas}. ${individual}`;
+}
+
+/**
+ * Converte o formulario para o formato do servidor.
+ *
+ * O campo de data devolve 'YYYY-MM-DD', que vira meia-noite UTC -- ou seja, o
+ * acesso morreria no COMECO do dia escolhido. Quem digita "31/12" quer o dia
+ * 31 inteiro, entao a validade vai para o fim do dia.
+ */
+function paraEnvio(form: UserFormState) {
+  return {
+    ...form,
+    expiresAt: form.expiresAt ? `${form.expiresAt}T23:59:59` : null,
+  };
 }
 
 /** Validacao client-side espelhando o trigger do banco. */
@@ -132,6 +218,66 @@ function validateForm(form: UserFormState): string | null {
     return SCOPED_REQUIRES_SCOPE_MESSAGE;
   }
   return null;
+}
+
+/** Dias inteiros entre uma data e agora. */
+function diasDesde(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.floor((Date.now() - t) / 86_400_000);
+}
+
+const PARADA_DIAS = 60;
+
+function SinaisDaLinha({
+  item, departamentos,
+}: { item: AllowedEmail; departamentos: DepartmentOption[] }) {
+  const inativos = new Set(departamentos.filter((d) => !d.active).map((d) => d.name));
+  // O trigger impede ATRIBUIR um departamento inativo, mas nao impede
+  // INATIVAR um departamento que ja esta atribuido. Quem foi inativado depois
+  // fica apontando para o vazio -- e o efeito e uma tela sem dado nenhum.
+  const apontaParaInativo = (item.departments ?? []).filter((d) => inativos.has(d));
+
+  const expira = item.expires_at ? new Date(item.expires_at) : null;
+  const vencido = expira ? expira.getTime() <= Date.now() : false;
+  const diasSemEntrar = diasDesde(item.last_login_at);
+
+  const sinais: Array<{ texto: string; tom: 'aviso' | 'neutro' }> = [];
+  if (apontaParaInativo.length) {
+    sinais.push({
+      tom: 'aviso',
+      texto: `${apontaParaInativo.join(', ')} ${apontaParaInativo.length === 1 ? 'foi inativado' : 'foram inativados'} no catálogo — esta pessoa não vê dados dessa área.`,
+    });
+  }
+  if (expira) {
+    sinais.push({
+      tom: vencido ? 'aviso' : 'neutro',
+      texto: vencido
+        ? `Acesso expirou em ${expira.toLocaleDateString('pt-BR')} — a pessoa já não entra.`
+        : `Acesso válido até ${expira.toLocaleDateString('pt-BR')}.`,
+    });
+  }
+  if (diasSemEntrar == null) {
+    sinais.push({ tom: 'neutro', texto: 'Nunca entrou.' });
+  } else if (diasSemEntrar >= PARADA_DIAS) {
+    sinais.push({ tom: 'neutro', texto: `Sem entrar há ${diasSemEntrar} dias.` });
+  }
+
+  if (!sinais.length) return null;
+
+  return (
+    <div className="flex flex-col gap-0.5">
+      {sinais.map((sg) => (
+        <span
+          key={sg.texto}
+          className={`text-[11px] ${sg.tom === 'aviso' ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground'}`}
+        >
+          {sg.tom === 'aviso' ? '⚠ ' : ''}{sg.texto}
+        </span>
+      ))}
+    </div>
+  );
 }
 
 export default function UsersAccessSection({
@@ -165,6 +311,17 @@ export default function UsersAccessSection({
   /** So mostra o erro depois da primeira mexida no formulario. */
   const [addTouched, setAddTouched] = useState(false);
 
+  /**
+   * Remocao com atrito.
+   *
+   * Era um clique -- ao lado do lapis, no mesmo tamanho, na mesma cor de
+   * icone. Tirar o acesso de alguem por engano so aparece quando a pessoa
+   * reclama que nao consegue entrar, o que pode levar dias. Digitar o e-mail
+   * custa cinco segundos e torna o engano praticamente impossivel.
+   */
+  const [removendo, setRemovendo] = useState<AllowedEmail | null>(null);
+  const [confirmacao, setConfirmacao] = useState('');
+
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<UserFormState>(EMPTY_FORM);
   const [isSaving, setIsSaving] = useState(false);
@@ -189,7 +346,7 @@ export default function UsersAccessSection({
     setIsLoading(true);
     try {
       await addAllowedEmailFn({
-        data: { email: newEmail.trim(), ...addForm },
+        data: { email: newEmail.trim(), ...paraEnvio(addForm) },
       });
       toast.success('Email autorizado com sucesso');
       setNewEmail('');
@@ -204,10 +361,13 @@ export default function UsersAccessSection({
     }
   };
 
-  const handleRemove = async (id: string) => {
+  const handleRemove = async () => {
+    if (!removendo) return;
     try {
-      await removeAllowedEmailFn({ data: { id } });
-      toast.success('Email removido');
+      await removeAllowedEmailFn({ data: { id: removendo.id } });
+      toast.success(`Acesso de ${removendo.email} removido`);
+      setRemovendo(null);
+      setConfirmacao('');
       onChanged();
     } catch (error) {
       toast.error(errorMessage(error, 'Erro ao remover email'));
@@ -224,6 +384,10 @@ export default function UsersAccessSection({
       jobTitle: item.job_title ?? '',
       jobLevel: item.job_level ?? '',
       responsibilities: item.responsibilities ?? [],
+      extraTabs: item.extra_tabs ?? [],
+      canSeeIndividual: item.can_see_individual ?? null,
+      // O input de data quer 'YYYY-MM-DD'; o banco guarda timestamptz.
+      expiresAt: item.expires_at ? String(item.expires_at).slice(0, 10) : '',
     });
   };
 
@@ -238,7 +402,7 @@ export default function UsersAccessSection({
 
     setIsSaving(true);
     try {
-      await updateAllowedEmailUserFn({ data: { id: editingId, ...editForm } });
+      await updateAllowedEmailUserFn({ data: { id: editingId, ...paraEnvio(editForm) } });
       toast.success('Usuário atualizado');
       setEditingId(null);
       onChanged();
@@ -365,6 +529,15 @@ export default function UsersAccessSection({
                         : 'Sem escopo atribuído — sem acesso a dados'}
                     </span>
                   )}
+
+                  {/* ------------------------------------------------------
+                      SINAIS QUE SO APARECEM SE ALGUEM OLHAR
+                      ------------------------------------------------------
+                      Departamento inativado, validade vencida e conta parada
+                      sao os tres jeitos de um cadastro apodrecer sem avisar.
+                      Nenhum deles gera erro; todos produzem uma pessoa que
+                      "nao esta vendo nada" e nao sabe por que. */}
+                  <SinaisDaLinha item={item} departamentos={departments} />
                   {item.responsibilities?.length > 0 && (
                     <div className="flex flex-wrap gap-1">
                       {item.responsibilities.map((r) => (
@@ -399,7 +572,7 @@ export default function UsersAccessSection({
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => handleRemove(item.id)}
+                    onClick={() => { setRemovendo(item); setConfirmacao(''); }}
                     className="text-destructive hover:text-destructive"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -472,6 +645,64 @@ export default function UsersAccessSection({
           )}
         </CardContent>
       </Card>
+
+      {/* Remocao com confirmacao digitada. Ver a nota no estado `removendo`. */}
+      <Dialog open={!!removendo} onOpenChange={(open) => { if (!open) { setRemovendo(null); setConfirmacao(''); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remover acesso</DialogTitle>
+            <DialogDescription>
+              {removendo?.email} perde o acesso ao painel imediatamente.
+            </DialogDescription>
+          </DialogHeader>
+
+          {removendo && (
+            <div className="space-y-3">
+              <div className="rounded-md bg-muted/50 p-2.5 space-y-1.5">
+                <p className="text-xs text-muted-foreground">O que essa pessoa deixa de ver:</p>
+                <PreviaDeAbas
+                  form={{
+                    ...EMPTY_FORM,
+                    profile: removendo.profile,
+                    extraTabs: removendo.extra_tabs ?? [],
+                  }}
+                />
+                {(removendo.departments?.length || removendo.job_families?.length) ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    Escopo: {[...(removendo.departments ?? []), ...(removendo.job_families ?? [])].join(' · ')}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="confirma-remocao" className="text-xs">
+                  Digite <strong>{removendo.email}</strong> para confirmar
+                </Label>
+                <Input
+                  id="confirma-remocao"
+                  value={confirmacao}
+                  onChange={(e) => setConfirmacao(e.target.value)}
+                  placeholder={removendo.email}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setRemovendo(null); setConfirmacao(''); }}>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={confirmacao.trim().toLowerCase() !== (removendo?.email ?? '').toLowerCase()}
+              onClick={handleRemove}
+            >
+              Remover acesso
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editingId} onOpenChange={(open) => !open && setEditingId(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
@@ -578,6 +809,89 @@ function UserAccessFormFields({
         placeholder="Nenhuma (opcional)"
         searchPlaceholder="Buscar responsabilidade..."
       />
+
+      {/* ------------------------------------------------------------------
+          ABAS, VALIDADE E DADO INDIVIDUAL
+          ------------------------------------------------------------------
+          Os tres campos existem no banco desde 14/08 e ate agora nao tinham
+          onde ser preenchidos. Ficam JUNTOS porque respondem a mesma pergunta
+          por angulos diferentes: o que essa pessoa alcanca, ate quando, e com
+          que profundidade. */}
+      <div className="space-y-3 rounded-lg border border-border p-3">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <Label className="text-xs">O que esta pessoa vai ver</Label>
+          {value.responsibilities.length > 0 && (
+            <button
+              type="button"
+              onClick={() => patch({ extraTabs: sugerirAbas(value.responsibilities) })}
+              className="text-[11px] underline underline-offset-2 text-muted-foreground hover:text-foreground"
+              // Sugerir, e nunca aplicar sozinho: uma aba que aparece por
+              // efeito colateral de marcar uma responsabilidade e permissao
+              // que ninguem lembra de ter concedido.
+              title="Preenche as abas a partir das responsabilidades marcadas"
+            >
+              sugerir pelas responsabilidades
+            </button>
+          )}
+        </div>
+
+        <PreviaDeAbas form={value} />
+
+        <MultiSelect
+          id={`tabs-${idSuffix}`}
+          label="Abas concedidas além do perfil"
+          options={Object.keys(TAB_LABELS)}
+          value={value.extraTabs}
+          onChange={(extraTabs) => patch({ extraTabs })}
+          placeholder="Nenhuma (só as do perfil)"
+          searchPlaceholder="Buscar aba..."
+        />
+        {value.extraTabs.includes('data') && !isGlobalProfile(value.profile) && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-500">
+            A aba <strong>Dados</strong> é da empresa inteira e não tem recorte por área —
+            concedê-la a um perfil com escopo mostra números de todos os departamentos.
+          </p>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <Label htmlFor={`exp-${idSuffix}`} className="text-xs">Acesso válido até</Label>
+            <Input
+              id={`exp-${idSuffix}`}
+              type="date"
+              value={value.expiresAt}
+              onChange={(e) => patch({ expiresAt: e.target.value })}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              {value.expiresAt
+                ? 'Depois desta data a pessoa deixa de entrar, sem precisar de ninguém.'
+                : 'Em branco = sem prazo.'}
+            </p>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor={`ind-${idSuffix}`} className="text-xs">Nome e salário individuais</Label>
+            <select
+              id={`ind-${idSuffix}`}
+              value={value.canSeeIndividual === null ? 'perfil' : value.canSeeIndividual ? 'sim' : 'nao'}
+              onChange={(e) => patch({
+                canSeeIndividual:
+                  e.target.value === 'perfil' ? null : e.target.value === 'sim',
+              })}
+              className="w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm"
+            >
+              <option value="perfil">Conforme o perfil</option>
+              <option value="sim">Sim, mesmo que o perfil não veja</option>
+              <option value="nao">Não, mesmo que o perfil veja</option>
+            </select>
+            <p className="text-[11px] text-muted-foreground">
+              {canSeeIndividualData(value.profile, value.canSeeIndividual)
+                ? 'Verá nome e salário nas telas de Comp e Desligamentos.'
+                : 'Verá só números agregados.'}
+            </p>
+          </div>
+        </div>
+      </div>
 
       {isScopedProfileValue(value.profile) && (
         <div className="space-y-3 rounded-lg border border-border p-3">

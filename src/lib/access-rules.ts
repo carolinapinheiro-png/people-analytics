@@ -26,6 +26,10 @@ export interface AllowedEmailRow {
   responsibilities: string[];
   created_at: string;
   updated_at: string;
+  extra_tabs: string[];
+  can_see_individual: boolean | null;
+  expires_at: string | null;
+  last_login_at: string | null;
 }
 
 export const DepartmentsSchema = z
@@ -50,6 +54,9 @@ export const GetAllowedEmailsSchema = z.object({
   search: z.string().trim().max(120).default(''),
   page: z.number().int().min(1).default(1),
   limit: z.number().int().min(5).max(100).default(20),
+  /** Filtros da lista. Vazio = sem filtro. Busca por e-mail nao basta com 100+ linhas. */
+  profile: z.string().trim().max(40).default(''),
+  department: z.string().trim().max(80).default(''),
 });
 
 /**
@@ -71,6 +78,31 @@ export function roleForProfile(profile: AccessProfileValue): 'admin' | 'viewer' 
 export const SCOPED_REQUIRES_SCOPE_MESSAGE =
   'Perfis HRBP e Department Leader exigem ao menos um departamento ou job family.';
 
+/** Abas concedidas alem das do perfil. Validadas contra a lista real. */
+export const ExtraTabsSchema = z
+  .array(z.enum([
+    'overview', 'team', 'dei', 'comp', 'demographics', 'engagement',
+    'span', 'attrition', 'recruitment', 'individual', 'data',
+  ]))
+  .max(11)
+  .default([]);
+
+/**
+ * `null` = conforme o perfil. E o padrao de propósito: um booleano de dois
+ * estados obrigaria a decidir por todo mundo agora, e "conforme o perfil" e a
+ * resposta certa para quase todos os cadastros.
+ */
+export const CanSeeIndividualSchema = z.boolean().nullable().default(null);
+
+/** Data ISO ou vazio. Vazio = acesso sem prazo. */
+export const ExpiresAtSchema = z
+  .string()
+  .trim()
+  .max(40)
+  .nullable()
+  .default(null)
+  .transform((v) => (v && v.length ? v : null));
+
 export const AddAllowedEmailSchema = z.object({
   email: z.string().trim().email().max(255),
   profile: ProfileSchema,
@@ -79,6 +111,9 @@ export const AddAllowedEmailSchema = z.object({
   jobTitle: JobTitleSchema,
   jobLevel: JobLevelSchema,
   responsibilities: ResponsibilitiesSchema,
+  extraTabs: ExtraTabsSchema,
+  canSeeIndividual: CanSeeIndividualSchema,
+  expiresAt: ExpiresAtSchema,
 });
 
 export const UpdateAllowedEmailUserSchema = z.object({
@@ -89,6 +124,14 @@ export const UpdateAllowedEmailUserSchema = z.object({
   jobTitle: JobTitleSchema,
   jobLevel: JobLevelSchema,
   responsibilities: ResponsibilitiesSchema,
+  extraTabs: ExtraTabsSchema,
+  canSeeIndividual: CanSeeIndividualSchema,
+  expiresAt: ExpiresAtSchema,
+});
+
+/** Historico de mudancas de permissao de um usuario. */
+export const UserHistorySchema = z.object({
+  email: z.string().trim().email().max(255),
 });
 
 export const RemoveAllowedEmailSchema = z.object({

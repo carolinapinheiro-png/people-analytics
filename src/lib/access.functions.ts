@@ -7,6 +7,7 @@ import {
   AddDepartmentSchema,
   SetDepartmentActiveSchema,
   GetAllowedEmailsSchema,
+  UserHistorySchema,
   type AllowedEmailRow,
   isScopedProfileValue,
   roleForProfile,
@@ -131,6 +132,18 @@ export const getAllowedEmails = createServerFn({ method: 'POST' })
       itemsQuery = itemsQuery.or(filter);
     }
 
+    // Filtros da lista. Com 100+ linhas, buscar por e-mail so ajuda quem ja
+    // sabe o e-mail -- e a pergunta comum e outra: "quem sao os dept leaders?",
+    // "quem enxerga COMMERCIAL?".
+    if (data.profile) {
+      countQuery = countQuery.eq('profile', data.profile as never);
+      itemsQuery = itemsQuery.eq('profile', data.profile as never);
+    }
+    if (data.department) {
+      countQuery = countQuery.contains('departments', [data.department]);
+      itemsQuery = itemsQuery.contains('departments', [data.department]);
+    }
+
     const from = (data.page - 1) * data.limit;
     const to = from + data.limit - 1;
 
@@ -143,14 +156,98 @@ export const getAllowedEmails = createServerFn({ method: 'POST' })
     const total = count ?? 0;
     const totalPages = Math.max(1, Math.ceil(total / data.limit));
 
+    // Contagem por perfil no topo, sempre da base INTEIRA -- nao do filtro.
+    // Um contador que muda junto com o filtro nao responde "como esta a
+    // distribuicao", que e para o que ele serve.
+    const { data: todos } = await supabaseAdmin.from('allowed_emails').select('profile');
+    const porPerfil: Record<string, number> = {};
+    for (const r of (todos ?? []) as Array<{ profile: string }>) {
+      porPerfil[r.profile] = (porPerfil[r.profile] ?? 0) + 1;
+    }
+
     return {
       items: items as AllowedEmailRow[],
       count: total,
       page: data.page,
       limit: data.limit,
       totalPages,
+      porPerfil,
     };
   });
+
+/**
+ * O que mudou na permissao de um usuario, e quem mudou.
+ *
+ * ------------------------------------------------------------------
+ * POR QUE ISTO FALTAVA
+ * ------------------------------------------------------------------
+ * `access_logs` registrava ACESSOS -- quem entrou, quando, se foi permitido.
+ * Nunca registrou CONCESSOES. Na pratica: dava para saber que o fulano abriu
+ * a aba de salarios, e nao dava para saber quem tinha dado a ele o direito de
+ * abrir, nem quando.
+ *
+ * "Quem deu esse acesso?" e a primeira pergunta de qualquer revisao, e ate
+ * agora a resposta era "ninguem sabe".
+ */
+export const getUserHistory = createServerFn({ method: 'POST' })
+  .inputValidator((data) => UserHistorySchema.parse(data))
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context, data }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
+
+    const { data: rows, error } = await (supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          in: (c: string, v: string[]) => {
+            contains: (c: string, v: unknown) => {
+              order: (c: string, o: { ascending: boolean }) => {
+                limit: (n: number) => PromiseLike<{
+                  data: HistoricoRow[] | null; error: { message: string } | null;
+                }>;
+              };
+            };
+          };
+        };
+      };
+    })
+      .from('access_logs')
+      .select('email, action, created_at, metadata')
+      .in('action', ['permissao_criada', 'permissao_alterada', 'permissao_removida'])
+      .contains('metadata', { alvo: data.email.toLowerCase() })
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    if (error) throw new Error(error.message);
+    return (rows ?? []) as HistoricoRow[];
+  });
+
+/**
+ * Foto da permissao num instante. Campos explicitos, e nao um mapa livre,
+ * porque isto atravessa a fronteira servidor->cliente: um `Record<string,
+ * unknown>` nao e serializavel pelo TanStack, e listar os campos tem um ganho
+ * extra -- o diff na tela sabe o nome de cada um.
+ */
+export interface PermissaoSnapshot {
+  profile?: string | null;
+  departments?: string[];
+  jobFamilies?: string[];
+  extraTabs?: string[];
+  canSeeIndividual?: boolean | null;
+  expiresAt?: string | null;
+}
+
+export interface HistoricoRow {
+  /** Quem FEZ a mudanca (o admin), nao quem a sofreu. */
+  email: string;
+  action: string;
+  created_at: string;
+  metadata: {
+    alvo?: string;
+    de?: PermissaoSnapshot;
+    para?: PermissaoSnapshot;
+  } | null;
+}
 
 export const getAccessLogs = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
@@ -167,6 +264,68 @@ export const getAccessLogs = createServerFn({ method: 'GET' })
     if (error) throw new Error(error.message);
     return data || [];
   });
+
+
+/**
+ * Registra uma mudanca de permissao.
+ *
+ * Fica em `access_logs` com `action` proprio, e nao numa tabela nova, porque a
+ * pergunta que isto responde ("quem deu esse acesso, e quando?") sempre vem
+ * junto da outra ("e o que essa pessoa andou vendo?"). Duas tabelas fariam a
+ * resposta exigir duas consultas e uma juncao mental.
+ *
+ * `alvo` no metadata e o e-mail de QUEM SOFREU a mudanca; a coluna `email` e
+ * de quem a FEZ. Confundir os dois inverteria o sentido do registro.
+ */
+async function registrarMudanca(
+  autor: string,
+  acao: 'permissao_criada' | 'permissao_alterada' | 'permissao_removida',
+  alvo: string,
+  de: PermissaoSnapshot | null,
+  para: PermissaoSnapshot | null,
+): Promise<void> {
+  const { supabaseAdmin } = await import('./access-rules.server');
+  try {
+    await (supabaseAdmin as unknown as {
+      from: (t: string) => { insert: (v: unknown) => PromiseLike<{ error: unknown }> };
+    }).from('access_logs').insert({
+      email: autor,
+      action: acao,
+      allowed: true,
+      metadata: { alvo: alvo.toLowerCase(), ...(de ? { de } : {}), ...(para ? { para } : {}) },
+    });
+  } catch (e) {
+    // Falhar em registrar NAO pode impedir a mudanca: o admin ficaria sem
+    // conseguir corrigir um acesso errado por causa do log.
+    console.error('Falha ao registrar mudanca de permissao:', e);
+  }
+}
+
+/** Le a linha atual para o "de" do diff. Sem ela o historico so teria o depois. */
+async function fotoAtual(id: string): Promise<{ email: string; foto: PermissaoSnapshot } | null> {
+  const { supabaseAdmin } = await import('./access-rules.server');
+  const { data } = await supabaseAdmin
+    .from('allowed_emails')
+    .select('email, profile, departments, job_families, extra_tabs, can_see_individual, expires_at')
+    .eq('id', id)
+    .maybeSingle();
+  if (!data) return null;
+  const r = data as unknown as {
+    email: string; profile: string; departments: string[]; job_families: string[];
+    extra_tabs: string[]; can_see_individual: boolean | null; expires_at: string | null;
+  };
+  return {
+    email: r.email,
+    foto: {
+      profile: r.profile,
+      departments: r.departments ?? [],
+      jobFamilies: r.job_families ?? [],
+      extraTabs: r.extra_tabs ?? [],
+      canSeeIndividual: r.can_see_individual ?? null,
+      expiresAt: r.expires_at ?? null,
+    },
+  };
+}
 
 export const addAllowedEmail = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
@@ -196,9 +355,24 @@ export const addAllowedEmail = createServerFn({ method: 'POST' })
       job_title: data.jobTitle || null,
       job_level: data.jobLevel || null,
       responsibilities: data.responsibilities,
-    });
+      extra_tabs: data.extraTabs,
+      can_see_individual: data.canSeeIndividual,
+      expires_at: data.expiresAt,
+    } as never);
 
     if (error) throw new Error(error.message);
+
+    await registrarMudanca(
+      (context.claims.email as string) ?? '?', 'permissao_criada', data.email, null,
+      {
+        profile: data.profile,
+        departments: scoped ? data.departments : [],
+        jobFamilies: scoped ? data.jobFamilies : [],
+        extraTabs: data.extraTabs,
+        canSeeIndividual: data.canSeeIndividual,
+        expiresAt: data.expiresAt,
+      },
+    );
     return { success: true };
   });
 
@@ -218,6 +392,10 @@ export const updateAllowedEmailUser = createServerFn({ method: 'POST' })
       throw new Error(SCOPED_REQUIRES_SCOPE_MESSAGE);
     }
 
+    // Le ANTES de escrever: sem o "de", o historico so contaria metade e a
+    // pergunta "o que essa pessoa tinha antes?" continuaria sem resposta.
+    const antes = await fotoAtual(data.id);
+
     const scoped = isScopedProfileValue(data.profile);
     const { error } = await supabaseAdmin
       .from('allowed_emails')
@@ -230,10 +408,28 @@ export const updateAllowedEmailUser = createServerFn({ method: 'POST' })
         job_title: data.jobTitle || null,
         job_level: data.jobLevel || null,
         responsibilities: data.responsibilities,
-      })
+        extra_tabs: data.extraTabs,
+        can_see_individual: data.canSeeIndividual,
+        expires_at: data.expiresAt,
+      } as never)
       .eq('id', data.id);
 
     if (error) throw new Error(error.message);
+
+    if (antes) {
+      await registrarMudanca(
+        (context.claims.email as string) ?? '?', 'permissao_alterada', antes.email,
+        antes.foto,
+        {
+          profile: data.profile,
+          departments: scoped ? data.departments : [],
+          jobFamilies: scoped ? data.jobFamilies : [],
+          extraTabs: data.extraTabs,
+          canSeeIndividual: data.canSeeIndividual,
+          expiresAt: data.expiresAt,
+        },
+      );
+    }
     return { success: true };
   });
 
@@ -244,9 +440,21 @@ export const removeAllowedEmail = createServerFn({ method: 'POST' })
     const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
     await requireAdmin(context.claims.email as string | undefined);
 
+    // Guarda o que a pessoa tinha antes de sumir. Sem isto, uma remocao
+    // acidental deixaria o registro "fulano foi removido" e nenhuma pista de
+    // como recriar o acesso que ele tinha.
+    const antes = await fotoAtual(data.id);
+
     const { error } = await supabaseAdmin.from('allowed_emails').delete().eq('id', data.id);
 
     if (error) throw new Error(error.message);
+
+    if (antes) {
+      await registrarMudanca(
+        (context.claims.email as string) ?? '?', 'permissao_removida', antes.email,
+        antes.foto, null,
+      );
+    }
     return { success: true };
   });
 
