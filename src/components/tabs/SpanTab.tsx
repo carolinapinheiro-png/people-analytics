@@ -81,7 +81,7 @@ export default function SpanTab() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <KpiCard label="Ativos" value={fmt1(overall.actives)} color={COLORS.flutter} icon={Users} />
           <KpiCard label="Gestores" value={fmt1(overall.managers)} color={COLORS.nsx} icon={UserCog} />
-          <KpiCard label="Span médio" value={fmt1(overall.avg_span)} color={COLORS.success} icon={GitBranch} />
+          <KpiCard label="Span médio" value={fmt1(overall.avg_span)} color={COLORS.success} icon={GitBranch} help="spanMedio" />
           <KpiCard label="Contribuidores individuais" value={fmt1(overall.ics)} color={COLORS.info} icon={Users} />
         </div>
       )}

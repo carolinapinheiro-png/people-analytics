@@ -16,7 +16,9 @@ import EngagementMatrix from '@/components/dashboard/EngagementMatrix';
 import EnpsSlope from '@/components/dashboard/EnpsSlope';
 import RiskVsAttrition from '@/components/dashboard/RiskVsAttrition';
 import DriversDeepDive from '@/components/dashboard/DriversDeepDive';
-import KpiCard, { type KpiTone } from '@/components/dashboard/KpiCard';
+import KpiCard from '@/components/dashboard/KpiCard';
+import Delta from '@/components/dashboard/Delta';
+import { rotuloDe, toneDe } from '@/lib/metric-help';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
@@ -46,36 +48,11 @@ const fmt1 = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 
 /**
- * Variação vs. onda anterior. `invertido` para métricas onde subir é ruim
- * (risco de saída): a seta continua apontando o movimento real, mas a cor
- * passa a dizer se o movimento é bom.
+ * Os limiares que pintam estes cartoes viviam AQUI, como `if (v >= 70)`.
+ * Mudaram de lugar para `lib/metric-help.ts` quando os tooltips passaram a
+ * explicar o que a cor significa: com o numero em dois lugares, o primeiro
+ * ajuste faria a explicacao mentir sobre a propria tela.
  */
-function Delta({ v, invertido = false }: { v: number | null; invertido?: boolean }) {
-  if (v == null) return <span className="text-muted-foreground text-[11px]">—</span>;
-  const Icon = v > 0 ? TrendingUp : TrendingDown;
-  const bom = invertido ? v < 0 : v > 0;
-  const color = v === 0
-    ? 'text-muted-foreground'
-    : bom ? 'text-emerald-600 dark:text-emerald-500' : 'text-amber-600 dark:text-amber-500';
-  return (
-    <span className={`inline-flex items-center gap-0.5 text-[11px] ${color}`}>
-      {v !== 0 && <Icon className="h-3 w-3" />}{v > 0 ? '+' : ''}{fmt1(v)}
-    </span>
-  );
-}
-
-/* Patamares dos KPIs. Faixas fixas, para o cartão dar veredito e não só número. */
-const enpsTone = (v: number | null | undefined): KpiTone =>
-  v == null ? 'neutral' : v >= 70 ? 'good' : v >= 50 ? 'neutral' : v >= 30 ? 'warn' : 'bad';
-const enpsHint = (v: number | null | undefined) =>
-  v == null ? undefined : v >= 70 ? 'patamar alto' : v >= 50 ? 'patamar saudável' : v >= 30 ? 'patamar baixo' : 'patamar crítico';
-const satTone = (v: number | null | undefined): KpiTone =>
-  v == null ? 'neutral' : v >= 8 ? 'good' : v >= 7 ? 'neutral' : 'warn';
-const riscoTone = (v: number | null | undefined): KpiTone =>
-  v == null ? 'neutral' : v >= 20 ? 'bad' : v >= 12 ? 'warn' : 'good';
-const participacaoTone = (v: number | null | undefined): KpiTone =>
-  v == null ? 'neutral' : v >= 70 ? 'good' : v >= 50 ? 'neutral' : 'warn';
-
 
 function Loading() {
   return <div className="flex items-center justify-center py-24"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
@@ -186,26 +163,32 @@ function EngagementSection({
               value={fmt1(foco.enps)}
               color={COLORS.flutter}
               icon={Heart}
-              delta={foco.enps_delta == null ? undefined : <Delta v={foco.enps_delta} />}
-              tone={enpsTone(foco.enps)}
-              hint={enpsHint(foco.enps)}
+              delta={foco.enps_delta == null ? undefined : <Delta v={foco.enps_delta} periodo="a onda anterior" />}
+              tone={toneDe('enps', foco.enps)}
+              hint={rotuloDe('enps', foco.enps)}
+              help="enps"
+              helpValue={foco.enps}
             />
             <KpiCard
               label="Satisfação"
               value={`${fmt1(foco.satisfaction)}/10`}
               color={COLORS.nsx}
               icon={Sparkles}
-              tone={satTone(foco.satisfaction)}
-              hint={foco.satisfaction == null ? undefined : foco.satisfaction >= 8 ? 'patamar alto' : foco.satisfaction >= 7 ? 'patamar ok' : 'abaixo do esperado'}
+              tone={toneDe('satisfacao', foco.satisfaction)}
+              hint={rotuloDe('satisfacao', foco.satisfaction)}
+              help="satisfacao"
+              helpValue={foco.satisfaction}
             />
             <KpiCard
               label="Risco de saída"
               value={`${fmt1(foco.retention_risk)}%`}
               color={COLORS.warning}
               icon={TrendingUp}
-              delta={foco.rr_delta == null ? undefined : <Delta v={foco.rr_delta} invertido />}
-              tone={riscoTone(foco.retention_risk)}
-              hint={foco.retention_risk == null ? undefined : foco.retention_risk >= 20 ? 'acima do confortável' : foco.retention_risk >= 12 ? 'atenção' : 'sob controle'}
+              delta={foco.rr_delta == null ? undefined : <Delta v={foco.rr_delta} invertido periodo="a onda anterior" />}
+              tone={toneDe('riscoSaida', foco.retention_risk)}
+              hint={rotuloDe('riscoSaida', foco.retention_risk)}
+              help="riscoSaida"
+              helpValue={foco.retention_risk}
             />
             {/* A participação é medida da onda inteira, não da área: a pesquisa
                 não guarda quantos elegíveis cada área tinha. Com filtro ligado
@@ -216,8 +199,10 @@ function EngagementSection({
               value={survey ? String(survey.respondentes) : `${fmt1(company?.participation)}%`}
               color={COLORS.info}
               icon={Users}
-              tone={participacaoTone(company?.participation)}
+              tone={toneDe('participacao', company?.participation)}
               hint={company?.participation == null ? undefined : `${fmt1(company.participation)}% dos elegíveis`}
+              help="participacao"
+              helpValue={company?.participation}
             />
           </div>
         </>
@@ -269,7 +254,7 @@ function EngagementSection({
                     <tr key={d.scope} className="border-b border-border/50">
                       <td className="p-2 font-medium">{d.scope}</td>
                       <td className="p-2 text-right tabular-nums">{fmt1(d.enps)}</td>
-                      <td className="p-2 text-right"><Delta v={d.enps_delta} /></td>
+                      <td className="p-2 text-right"><Delta v={d.enps_delta} periodo="a onda anterior" /></td>
                       <td className="p-2 text-right tabular-nums">{fmt1(d.retention_risk)}%</td>
                       <td className="p-2 text-right tabular-nums">{fmt1(d.satisfaction)}</td>
                       {cross && (

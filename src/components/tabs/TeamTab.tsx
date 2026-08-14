@@ -69,7 +69,7 @@ export default function TeamTab() {
         <KpiCard label="Headcount do time" value={String(snap.headcount)} color={COLORS.flutter} icon={Users} />
         <KpiCard label="Gestores de pessoas" value={String(snap.roles.managers)} color={COLORS.nsx} icon={UserCog} sub={`${snap.roles.leaders} líderes (flag)`} />
         <KpiCard label="Contribuidores individuais" value={String(snap.roles.ics)} color={COLORS.info} icon={Users} />
-        <KpiCard label="Comp-ratio mediano" value={snap.med_comp_ratio != null ? `${fmt1(snap.med_comp_ratio)}%` : '—'} color={COLORS.purple} icon={Scale} sub={`${snap.comp_n} com comp-ratio`} />
+        <KpiCard label="Comp-ratio mediano" value={snap.med_comp_ratio != null ? `${fmt1(snap.med_comp_ratio)}%` : '—'} color={COLORS.purple} icon={Scale} sub={`${snap.comp_n} com comp-ratio`} help="compRatio" helpValue={snap.med_comp_ratio} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

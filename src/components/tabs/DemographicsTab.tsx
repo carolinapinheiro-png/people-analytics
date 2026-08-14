@@ -160,10 +160,10 @@ export default function DemographicsTab() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <KpiCard label="Mulheres" value={`${curr.gender_female_pct || 0}%`} color={COLORS.female} icon={Users} />
+        <KpiCard label="Mulheres" value={`${curr.gender_female_pct || 0}%`} color={COLORS.female} icon={Users} help="mulheres" />
         <KpiCard label="Faixa etária top" value={topAge ? topAge.name : '—'} sub={topAge ? `${pctOf(topAge.value, hc).toFixed(0)}% do quadro` : ''} color={COLORS.info} icon={Cake} />
-        <KpiCard label="Não brancos" value={raceKnown ? `${pctOf(nonWhite, raceKnown).toFixed(0)}%` : '—'} sub="da base com raça" color={COLORS.nsx} icon={Globe} />
-        <KpiCard label="% PCD" value={`${pctOf(curr.pcd || 0, hc).toFixed(1)}%`} sub={`${curr.pcd || 0} · campo parcial`} color={COLORS.warning} icon={ShieldCheck} />
+        <KpiCard label="Não brancos" value={raceKnown ? `${pctOf(nonWhite, raceKnown).toFixed(0)}%` : '—'} sub="da base com raça" color={COLORS.nsx} icon={Globe} help="naoBrancos" />
+        <KpiCard label="% PCD" value={`${pctOf(curr.pcd || 0, hc).toFixed(1)}%`} sub={`${curr.pcd || 0} · campo parcial`} color={COLORS.warning} icon={ShieldCheck} help="pcd" />
         <KpiCard label="% Aprendiz" value={`${pctOf(curr.apprentice || 0, hc).toFixed(1)}%`} sub={`${curr.apprentice || 0} aprendizes`} color={COLORS.purple} icon={GraduationCap} />
       </div>
 

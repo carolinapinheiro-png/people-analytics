@@ -128,9 +128,9 @@ export default function CompRatioTab() {
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard label="Ativos com banda" value={stats.total} color={COLORS.flutter} icon={DollarSign} />
-        <KpiCard label="Comp ratio mediano" value={`${fmt1(stats.median)}%`} color={COLORS.nsx} icon={Scale} />
-        <KpiCard label="Acima da faixa" value={`${stats.above} (${fmt1((stats.above / stats.total) * 100)}%)`} color={COLORS.warning} icon={TrendingUp} />
-        <KpiCard label="Abaixo da faixa" value={`${stats.below} (${fmt1((stats.below / stats.total) * 100)}%)`} color={COLORS.danger} icon={TrendingDown} />
+        <KpiCard label="Comp ratio mediano" value={`${fmt1(stats.median)}%`} color={COLORS.nsx} icon={Scale} help="compRatio" helpValue={stats.median} />
+        <KpiCard label="Acima da faixa" value={`${stats.above} (${fmt1((stats.above / stats.total) * 100)}%)`} color={COLORS.warning} icon={TrendingUp} help="acimaDaFaixa" />
+        <KpiCard label="Abaixo da faixa" value={`${stats.below} (${fmt1((stats.below / stats.total) * 100)}%)`} color={COLORS.danger} icon={TrendingDown} help="abaixoDaFaixa" />
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">

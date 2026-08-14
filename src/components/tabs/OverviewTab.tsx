@@ -192,6 +192,11 @@ export default function OverviewTab() {
     },
     { 
       label: 'Taxa de Atrição',
+      // As tres com `help` sao as que ja foram lidas errado: atricao
+      // confundida com turnover, turnover lido como perda, e eNPS lido como
+      // nota de 0 a 100. As outras cinco ("Headcount", "Saidas") dispensam --
+      // um "?" em todo cartao deixa de significar "aqui tem sutileza".
+      help: 'atricao' as const,
       val: (curr.attrition_rate || 0).toFixed(2) + '%',
       color: attritionTrend === 'high' ? COLORS.danger : attritionTrend === 'medium' ? COLORS.warning : COLORS.success,
       sub: `saídas ÷ HC · média período ${avgAttrition.toFixed(1)}%`,
@@ -199,6 +204,7 @@ export default function OverviewTab() {
     },
     {
       label: 'Turnover',
+      help: 'turnover' as const,
       val: tv + '%',
       color: tv > TURNOVER_ALERT_THRESHOLD ? COLORS.orange : COLORS.success,
       sub: 'Movimentação total',
@@ -206,6 +212,7 @@ export default function OverviewTab() {
     },
     {
       label: 'eNPS',
+      help: 'enps' as const,
       val: enps?.v != null ? String(enps.v) : '—',
       color: COLORS.info,
       sub: enps?.d != null ? `${enps.d >= 0 ? '+' : ''}${enps.d} vs onda ant.` : 'clima (empresa)',
@@ -372,6 +379,7 @@ export default function OverviewTab() {
             value={k.val} 
             color={k.color} 
             sub={k.sub}
+            help={'help' in k ? k.help : undefined}
           />
         ))}
       </div>

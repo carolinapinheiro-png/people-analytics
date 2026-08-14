@@ -1,6 +1,8 @@
 import { cn } from '@/lib/utils';
 import { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
+import MetricHelp from '@/components/dashboard/MetricHelp';
+import type { ChaveMetrica, KpiTone } from '@/lib/metric-help';
 
 /**
  * Cartão de KPI.
@@ -11,7 +13,11 @@ import type { ReactNode } from 'react';
  * veredito" -- a mesma filosofia do bloco de leitura da aba de engajamento.
  */
 
-export type KpiTone = 'good' | 'warn' | 'bad' | 'neutral';
+/**
+ * O tipo mora em `lib/metric-help.ts`, junto das faixas que o produzem.
+ * Reexportado aqui porque muitas abas ja o importavam deste arquivo.
+ */
+export type { KpiTone };
 
 const TONE_TEXT: Record<KpiTone, string> = {
   good: 'text-emerald-600 dark:text-emerald-500',
@@ -39,10 +45,22 @@ interface KpiCardProps {
   tone?: KpiTone;
   /** Nota curta de patamar, ex.: "patamar saudável". */
   hint?: string;
+  /**
+   * Verbete de `lib/metric-help.ts`. Quando presente, o cartao ganha um "?"
+   * discreto ao lado do rotulo com a definicao, a leitura e o que a cor
+   * significa.
+   *
+   * Nem todo cartao leva um. "Ativos" nao precisa de explicacao, e um icone em
+   * cada cartao vira ruido -- o "?" perde o sentido de "aqui tem sutileza"
+   * quando esta em toda parte.
+   */
+  help?: ChaveMetrica;
+  /** Valor numerico cru, so para o tooltip destacar a faixa atual. */
+  helpValue?: number | null;
 }
 
 export default function KpiCard({
-  label, value, color, sub, icon: Icon, delta, tone = 'neutral', hint,
+  label, value, color, sub, icon: Icon, delta, tone = 'neutral', hint, help, helpValue,
 }: KpiCardProps) {
   return (
     <div className={cn(
@@ -52,7 +70,10 @@ export default function KpiCard({
       <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: color }} />
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">{label}</div>
+          <div className="flex items-center gap-1 mb-1.5">
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</span>
+            {help && <MetricHelp metrica={help} valor={helpValue} rotulo={label} />}
+          </div>
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <div className={cn(
               'font-extrabold tracking-tight',
