@@ -49,39 +49,51 @@ export type Database = {
       }
       allowed_emails: {
         Row: {
+          can_see_individual: boolean | null
           created_at: string | null
           departments: string[]
           email: string
+          expires_at: string | null
+          extra_tabs: string[]
           id: string
           job_families: string[]
           job_level: string | null
           job_title: string | null
+          last_login_at: string | null
           profile: Database["public"]["Enums"]["access_profile"]
           responsibilities: string[]
           role: string
           updated_at: string
         }
         Insert: {
+          can_see_individual?: boolean | null
           created_at?: string | null
           departments?: string[]
           email: string
+          expires_at?: string | null
+          extra_tabs?: string[]
           id?: string
           job_families?: string[]
           job_level?: string | null
           job_title?: string | null
+          last_login_at?: string | null
           profile?: Database["public"]["Enums"]["access_profile"]
           responsibilities?: string[]
           role?: string
           updated_at?: string
         }
         Update: {
+          can_see_individual?: boolean | null
           created_at?: string | null
           departments?: string[]
           email?: string
+          expires_at?: string | null
+          extra_tabs?: string[]
           id?: string
           job_families?: string[]
           job_level?: string | null
           job_title?: string | null
+          last_login_at?: string | null
           profile?: Database["public"]["Enums"]["access_profile"]
           responsibilities?: string[]
           role?: string
