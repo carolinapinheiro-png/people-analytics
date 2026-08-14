@@ -4,6 +4,7 @@ import {
   ACCESS_PROFILES, PROFILE_LABELS, PROFILE_DESCRIPTIONS,
   visibleTabs, canSeeTab, isGlobalProfile, canSeeIndividualData, canManageUsers,
   visibleExperienceSubTabs, canSeeExperienceSubTab, isInScope,
+  isExtraTab, sugerirAbas,
   type AccessProfile,
 } from './permissions';
 
@@ -96,4 +97,52 @@ test('nenhum perfil enxerga aba fora da lista conhecida', () => {
       assert.equal(CONHECIDAS.has(t), true, `${p} lista aba desconhecida: ${t}`);
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// Abas concedidas por usuario (extra_tabs)
+// ---------------------------------------------------------------------------
+
+test('aba concedida soma ao preset, sem reordenar o menu', () => {
+  const abas = visibleTabs('engagement_viewer', ['comp', 'span']);
+  assert.deepEqual(abas, ['comp', 'engagement', 'span']);
+  assert.equal(canSeeTab('engagement_viewer', 'comp', ['comp']), true);
+});
+
+test('aba concedida nao tira nada do preset', () => {
+  // A lista so soma. Duas listas, uma somando e outra subtraindo, produzem
+  // combinacoes que ninguem preve lendo o cadastro.
+  assert.equal(canSeeTab('engagement_viewer', 'engagement', ['comp']), true);
+});
+
+test('valor invalido em extra_tabs nao vira aba', () => {
+  // O trigger do banco ja recusa, mas a regra tem de valer sozinha: o filtro
+  // e feito contra ALL_TABS, entao lixo simplesmente nao aparece.
+  assert.deepEqual(visibleTabs('engagement_viewer', ['inexistente', '*']), ['engagement']);
+});
+
+test('sem concessao, nada muda', () => {
+  assert.deepEqual(visibleTabs('engagement_viewer'), ['engagement']);
+  assert.deepEqual(visibleTabs('engagement_viewer', []), ['engagement']);
+  assert.deepEqual(visibleTabs('engagement_viewer', null), ['engagement']);
+});
+
+test('isExtraTab distingue o que veio do preset do que foi concedido', () => {
+  assert.equal(isExtraTab('engagement_viewer', 'engagement'), false);
+  assert.equal(isExtraTab('engagement_viewer', 'comp'), true);
+  assert.equal(isExtraTab('admin', 'comp'), false);
+});
+
+test('o flag de dado individual sobrepoe o perfil nos dois sentidos', () => {
+  assert.equal(canSeeIndividualData('hrbp', false), false);
+  assert.equal(canSeeIndividualData('dept_leader', true), true);
+  assert.equal(canSeeIndividualData('hrbp', null), true);
+  assert.equal(canSeeIndividualData('dept_leader'), false);
+});
+
+test('responsabilidade sugere aba, e so sugere', () => {
+  assert.deepEqual(sugerirAbas(['Comp & Ben']), ['comp']);
+  assert.deepEqual(sugerirAbas(['DEI', 'Estrutura & Span']), ['team', 'dei', 'demographics', 'span']);
+  assert.deepEqual(sugerirAbas([]), []);
+  assert.deepEqual(sugerirAbas(['coisa que nao existe']), []);
 });

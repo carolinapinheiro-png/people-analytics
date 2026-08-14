@@ -48,7 +48,10 @@ export interface CompRatioRow {
 async function authorize(userEmail: string | undefined) {
   const { resolverEscopo } = await import('@/lib/escopo.server');
   const e = await resolverEscopo(userEmail, 'comp');
-  return { email: e.email, role: e.role, scope: e.scope };
+  // `podeVerIndividual` ja vem resolvido (flag por usuario quando existe,
+  // perfil quando nao existe). Recalcular aqui a partir do perfil ignoraria o
+  // flag -- que e exatamente o caso que ele existe para cobrir.
+  return { email: e.email, role: e.role, scope: e.scope, podeVerIndividual: e.podeVerIndividual };
 }
 
 const ListInput = z
@@ -79,7 +82,7 @@ export const listCompRatio = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ListInput.parse(input))
   .handler(async ({ context, data }): Promise<CompRatioRow[]> => {
-    const { email, scope } = await authorize(context.claims.email as string | undefined);
+    const { email, scope, podeVerIndividual } = await authorize(context.claims.email as string | undefined);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -117,7 +120,7 @@ export const listCompRatio = createServerFn({ method: 'GET' })
         (r) => !fBand || salaryBand(r.salary == null ? null : Number(r.salary)) === fBand,
       );
 
-    const visible = canSeeIndividualData(scope.profile)
+    const visible = podeVerIndividual
       ? scoped
       : scoped.map((r) => ({ ...r, name: 'Confidencial', salary: null }));
 

@@ -75,8 +75,11 @@ async function authorize(userEmail: string | undefined) {
   // painel, antes de qualquer aba ser escolhida. Lancar 'Forbidden' aqui
   // faria um perfil de aba unica ver um erro na propria aba a que tem
   // direito. Vazio e a resposta certa: nao ha desligados para este perfil.
-  const podeVerDesligados = canSeeTab(e.profile, 'attrition');
-  return { email: e.email, role: e.role, scope: e.scope, podeVerDesligados };
+  const podeVerDesligados = canSeeTab(e.profile, 'attrition', e.extraTabs);
+  return {
+    email: e.email, role: e.role, scope: e.scope, podeVerDesligados,
+    podeVerIndividual: e.podeVerIndividual,
+  };
 }
 
 const ListLeaversInput = z
@@ -90,7 +93,7 @@ export const listLeavers = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ListLeaversInput.parse(input))
   .handler(async ({ context, data }) => {
-    const { email, scope, podeVerDesligados } = await authorize(context.claims.email as string | undefined);
+    const { email, scope, podeVerDesligados, podeVerIndividual } = await authorize(context.claims.email as string | undefined);
     if (!podeVerDesligados) return [];
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
@@ -105,7 +108,7 @@ export const listLeavers = createServerFn({ method: 'GET' })
     // Escopo e mascaramento aplicados no servidor: o perfil nunca recebe linha
     // fora dos seus departamentos, nem nome/salario quando nao tem direito.
     const scoped = (rows ?? []).filter((r) => isInScope(scope, r.departamento, r.job_family));
-    const visible = canSeeIndividualData(scope.profile)
+    const visible = podeVerIndividual
       ? scoped
       : scoped.map((r) => ({ ...r, nome: 'Confidencial', salario: null, faixa_salarial: null }));
 

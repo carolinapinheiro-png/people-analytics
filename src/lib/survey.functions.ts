@@ -35,7 +35,10 @@ async function authorize(userEmail: string | undefined) {
   // A importação de onda é ação de admin e a leitura pertence a Engajamento --
   // as duas cabem na mesma aba, porque um admin enxerga todas.
   const e = await resolverEscopo(userEmail, 'engagement');
-  return { email: e.email, role: e.role, profile: e.profile, scope: e.scope };
+  return {
+    email: e.email, role: e.role, profile: e.profile, scope: e.scope,
+    podeVerIndividual: e.podeVerIndividual,
+  };
 }
 
 // ---------------------------------------------------------------- importação
@@ -200,7 +203,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
   .validator((input: unknown) =>
     z.object({ wave: z.string().optional(), department: z.string().nullish() }).parse(input ?? {}))
   .handler(async ({ context, data }): Promise<SurveyWaveData | null> => {
-    const { profile, scope } = await authorize(context.claims.email as string | undefined);
+    const { profile, scope, podeVerIndividual } = await authorize(context.claims.email as string | undefined);
     const { isGlobalProfile, isInScope } = await import('@/lib/permissions');
     const { deptForScope } = await import('@/lib/engagement-context');
 
@@ -238,7 +241,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     ]);
     if (cutRes.error) throw new Error(`Falha ao carregar recortes: ${cutRes.error.message}`);
 
-    const podeVerTudo = canSeeIndividualData(profile);
+    const podeVerTudo = podeVerIndividual;
     const brutos = (cutRes.data ?? []).map((c: Record<string, unknown>) => ({
       cutType: String(c.cut_type), cutValue: String(c.cut_value),
       n: Number(c.n),

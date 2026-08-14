@@ -48,6 +48,9 @@ export const checkAccess = createServerFn({ method: 'GET' })
       departments: [] as string[],
       jobFamilies: [] as string[],
       verComo: null as { email: string; profile: string } | null,
+      extraTabs: [] as string[],
+      podeVerIndividual: false,
+      expiraEm: null as string | null,
     };
 
     const logar = async (allowed: boolean) => {
@@ -75,12 +78,28 @@ export const checkAccess = createServerFn({ method: 'GET' })
 
     await logar(true);
 
+    // "Ultimo acesso" existe para a lista de usuarios nao crescer so de um
+    // lado: sem ele, uma conta criada para um projeto de tres meses fica ali
+    // para sempre e ninguem sabe dizer se ainda e usada. Fire-and-forget --
+    // falhar em anotar o acesso nao pode impedir o acesso.
+    void supabaseAdmin
+      .from('allowed_emails')
+      .update({ last_login_at: new Date().toISOString() } as never)
+      .ilike('email', userEmail)
+      .then(({ error }) => {
+        if (error) console.error('Falha ao anotar ultimo acesso:', error.message);
+      });
+
     return {
       allowed: true,
       role: e.role,
       profile: e.profile as string | null,
       departments: e.departments,
       jobFamilies: e.jobFamilies,
+      /** Abas concedidas alem das do perfil -- o menu precisa somar as duas. */
+      extraTabs: e.extraTabs,
+      podeVerIndividual: e.podeVerIndividual,
+      expiraEm: e.expiraEm,
       /** Preenchido = a tela inteira esta desenhada pelos olhos de outra pessoa. */
       verComo: e.verComo as { email: string; profile: string } | null,
     };

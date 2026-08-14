@@ -35,9 +35,10 @@ type UntypedClient = SupabaseClient<any, 'public', any>;
  * A aba declarada ('recruitment') e permissao, nao decoracao: um perfil que nao a
  * enxerga leva 'Forbidden' aqui, e nao so deixa de ver o item no menu.
  */
-async function authorize(userEmail: string | undefined): Promise<AccessScope> {
+async function authorize(userEmail: string | undefined) {
   const { resolverEscopo } = await import('@/lib/escopo.server');
-  return (await resolverEscopo(userEmail, 'recruitment')).scope;
+  const e = await resolverEscopo(userEmail, 'recruitment');
+  return { scope: e.scope, podeVerIndividual: e.podeVerIndividual };
 }
 
 export interface DimensionScore {
@@ -90,7 +91,7 @@ const avg = (ns: number[]) =>
 export const getTaSatisfaction = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<TaSatisfactionData> => {
-    const scope = await authorize(context.claims.email as string | undefined);
+    const { scope, podeVerIndividual } = await authorize(context.claims.email as string | undefined);
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
 
@@ -133,7 +134,7 @@ export const getTaSatisfaction = createServerFn({ method: 'GET' })
       .map(([area, vals]) => ({ area, avg: avg(vals), n: vals.length }))
       .sort((a, b) => a.avg - b.avg);
 
-    const podeVerTexto = canSeeIndividualData(scope.profile);
+    const podeVerTexto = podeVerIndividual;
     const comments: SurveyComment[] = podeVerTexto
       ? rows
           .filter((r) => r.comment && r.comment.trim().length > 0)

@@ -87,3 +87,99 @@ test('escopo nulo no banco vira lista vazia, e lista vazia não vê nada', () =>
   assert.deepEqual(r.jobFamilies, []);
   assert.deepEqual(r.scope.departments, []);
 });
+
+// ---------------------------------------------------------------------------
+// Colunas criadas em 14/08 que ficaram sem uso ate agora
+// ---------------------------------------------------------------------------
+
+test('acesso vencido e negado, nao apenas avisado', () => {
+  // A coluna existia e NADA a lia. Quem cadastrasse validade ia embora achando
+  // que o acesso terminaria sozinho -- e nao terminava.
+  assert.throws(
+    () => decidirEscopo({
+      email: 'ana@x.com',
+      propria: { ...LIDER, expires_at: '2020-01-01T00:00:00Z' },
+      alvo: null, linhaAlvo: null,
+      agora: new Date('2026-08-14T12:00:00Z'),
+    }),
+    /expirado/,
+  );
+});
+
+test('validade no futuro nao atrapalha', () => {
+  const r = decidirEscopo({
+    email: 'ana@x.com',
+    propria: { ...LIDER, expires_at: '2030-01-01T00:00:00Z' },
+    alvo: null, linhaAlvo: null,
+    agora: new Date('2026-08-14T12:00:00Z'),
+  });
+  assert.equal(r.expiraEm, '2030-01-01T00:00:00Z');
+});
+
+test('data de validade ilegivel nao bloqueia ninguem', () => {
+  // Um valor corrompido nao pode virar negacao de acesso silenciosa para
+  // alguem que nunca pediu prazo nenhum.
+  const r = decidirEscopo({
+    email: 'ana@x.com',
+    propria: { ...LIDER, expires_at: 'nao-e-data' },
+    alvo: null, linhaAlvo: null,
+    agora: new Date('2026-08-14T12:00:00Z'),
+  });
+  assert.equal(r.profile, 'dept_leader');
+});
+
+test('nao da para simular uma conta vencida', () => {
+  assert.throws(
+    () => decidirEscopo({
+      email: 'ana@x.com', propria: ADMIN, alvo: 'velho@x.com',
+      linhaAlvo: { ...LIDER, expires_at: '2020-01-01T00:00:00Z' },
+      agora: new Date('2026-08-14T12:00:00Z'),
+    }),
+    /expirado/,
+  );
+});
+
+test('abas concedidas viajam com o escopo', () => {
+  const r = decidirEscopo({
+    email: 'ana@x.com',
+    propria: { ...LIDER, extra_tabs: ['comp', 'span'] },
+    alvo: null, linhaAlvo: null,
+  });
+  assert.deepEqual(r.extraTabs, ['comp', 'span']);
+});
+
+test('simular usa as abas concedidas DO ALVO, nao as do admin', () => {
+  // Se as do admin vazassem para ca, a previa mostraria abas que o liderado
+  // nao tem -- e a conferencia diria o contrario da verdade.
+  const r = decidirEscopo({
+    email: 'ana@x.com',
+    propria: { ...ADMIN, extra_tabs: ['data'] },
+    alvo: 'lider@x.com',
+    linhaAlvo: { ...LIDER, extra_tabs: ['comp'] },
+  });
+  assert.deepEqual(r.extraTabs, ['comp']);
+});
+
+test('o flag de dado individual vence o padrao do perfil, nos dois sentidos', () => {
+  // HRBP que NAO deve abrir salario nominal -- o caso que antes exigia
+  // inventar um perfil novo.
+  const hrbpSemSalario = decidirEscopo({
+    email: 'a@x.com',
+    propria: { profile: 'hrbp', departments: ['TECHNOLOGY'], can_see_individual: false },
+    alvo: null, linhaAlvo: null,
+  });
+  assert.equal(hrbpSemSalario.podeVerIndividual, false);
+
+  // E o inverso: um dept_leader autorizado caso a caso.
+  const liderComSalario = decidirEscopo({
+    email: 'b@x.com',
+    propria: { ...LIDER, can_see_individual: true },
+    alvo: null, linhaAlvo: null,
+  });
+  assert.equal(liderComSalario.podeVerIndividual, true);
+});
+
+test('sem flag, o perfil decide como antes', () => {
+  assert.equal(decidirEscopo({ email: 'a@x.com', propria: ADMIN, alvo: null, linhaAlvo: null }).podeVerIndividual, true);
+  assert.equal(decidirEscopo({ email: 'b@x.com', propria: LIDER, alvo: null, linhaAlvo: null }).podeVerIndividual, false);
+});

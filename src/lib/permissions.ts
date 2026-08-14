@@ -124,12 +124,36 @@ export function canImportData(profile: AccessProfile): boolean {
   return profile === 'admin';
 }
 
-/** Nome + salario individual (Comp Ratio e Desligamentos). */
-export function canSeeIndividualData(profile: AccessProfile): boolean {
+/**
+ * Nome + salario individual (Comp Ratio e Desligamentos).
+ *
+ * ------------------------------------------------------------------
+ * ESCOPO E SENSIBILIDADE SAO PERGUNTAS DIFERENTES
+ * ------------------------------------------------------------------
+ * "Quais AREAS a pessoa ve" e "que NIVEL DE DETALHE ela ve" estavam colados
+ * no perfil: HRBP via salario individual porque era HRBP, ponto. Nao havia
+ * como cadastrar um HRBP que acompanha a area inteira mas nao deve abrir
+ * salario nominal -- so criando um perfil novo, que e como um enum de quatro
+ * vira um de doze.
+ *
+ * `override` e o campo por usuario (`can_see_individual`):
+ *   true  -> ve, mesmo que o perfil por padrao nao veja
+ *   false -> nao ve, mesmo sendo HRBP
+ *   null  -> conforme o perfil (o comportamento de sempre)
+ */
+export function canSeeIndividualData(
+  profile: AccessProfile,
+  override?: boolean | null,
+): boolean {
+  if (override === true || override === false) return override;
   return profile === 'admin' || profile === 'hr_leader' || profile === 'hrbp';
 }
 
-export function visibleTabs(profile: AccessProfile): DashboardTab[] {
+/**
+ * As abas que o PERFIL concede, antes de qualquer concessao individual.
+ * O perfil e um preset; `extra_tabs` e o ajuste fino em cima dele.
+ */
+function tabsDoPerfil(profile: AccessProfile): DashboardTab[] {
   // Perfil de aba unica vem primeiro: a lista dele nao e "tudo menos algo",
   // e sim exatamente o que foi autorizado. Deixar por ultimo faria um perfil
   // novo herdar tudo por omissao, que e o erro caro nesta funcao.
@@ -139,8 +163,69 @@ export function visibleTabs(profile: AccessProfile): DashboardTab[] {
   return ALL_TABS.filter((t) => !COMPANY_WIDE_TABS.includes(t));
 }
 
-export function canSeeTab(profile: AccessProfile, tab: DashboardTab): boolean {
-  return visibleTabs(profile).includes(tab);
+/**
+ * O que a pessoa ve: as abas do perfil MAIS as concedidas a ela.
+ *
+ * ------------------------------------------------------------------
+ * SO SOMA, NUNCA SUBTRAI
+ * ------------------------------------------------------------------
+ * `extraTabs` amplia; nao existe "tirar uma aba do preset". Foi escolha, e a
+ * razao e a mesma que fez o perfil de aba unica vir primeiro em `tabsDoPerfil`:
+ * duas listas, uma somando e outra subtraindo, produzem combinacoes que
+ * ninguem consegue prever lendo o cadastro. Se um preset conceder demais para
+ * um caso, o certo e um preset novo -- nao uma exclusao escondida.
+ *
+ * A ordem de `ALL_TABS` e preservada para o menu nao embaralhar conforme o
+ * que foi concedido.
+ */
+export function visibleTabs(
+  profile: AccessProfile,
+  extraTabs?: readonly string[] | null,
+): DashboardTab[] {
+  const base = tabsDoPerfil(profile);
+  if (!extraTabs?.length) return base;
+  const set = new Set<string>([...base, ...extraTabs]);
+  return ALL_TABS.filter((t) => set.has(t));
+}
+
+export function canSeeTab(
+  profile: AccessProfile,
+  tab: DashboardTab,
+  extraTabs?: readonly string[] | null,
+): boolean {
+  return visibleTabs(profile, extraTabs).includes(tab);
+}
+
+/** Aba concedida que veio de `extra_tabs`, e nao do preset. Para a tela rotular. */
+export function isExtraTab(profile: AccessProfile, tab: DashboardTab): boolean {
+  return !tabsDoPerfil(profile).includes(tab);
+}
+
+/**
+ * Responsabilidade -> abas que costumam ir junto.
+ *
+ * SUGESTAO, nunca concessao automatica. Marcar "Comp & Ben" e a aba de
+ * salarios aparecer sozinha seria permissao concedida por efeito colateral de
+ * um campo que ate ontem era decorativo -- o tipo de coisa que ninguem lembra
+ * de ter autorizado. Na tela isto vira um botao "sugerir abas".
+ */
+export const ABAS_POR_RESPONSABILIDADE: Record<string, DashboardTab[]> = {
+  'Headcount & Movimentação': ['overview', 'team', 'demographics'],
+  'Turnover & Retenção': ['attrition', 'overview'],
+  'Comp & Ben': ['comp'],
+  DEI: ['dei', 'demographics'],
+  'Engagement & Experiência': ['engagement'],
+  Onboarding: ['engagement'],
+  'Estrutura & Span': ['span', 'team'],
+  'Talent Mobility': ['recruitment', 'individual'],
+};
+
+export function sugerirAbas(responsabilidades: readonly string[]): DashboardTab[] {
+  const set = new Set<DashboardTab>();
+  for (const r of responsabilidades) {
+    for (const t of ABAS_POR_RESPONSABILIDADE[r] ?? []) set.add(t);
+  }
+  return ALL_TABS.filter((t) => set.has(t));
 }
 
 export function normalizeDept(value: string | null | undefined): string {
