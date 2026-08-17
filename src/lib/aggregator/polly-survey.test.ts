@@ -22,7 +22,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  canonArea, canonGestor, canonMarca, canonTempo, ordemTempo, limpa,
+  canonArea, canonGestor, canonMarca, canonModelo, canonTempo, ordemTempo, limpa,
   computeMetrics, computeCuts, computeDriverImportance, applySuppression,
   N_MINIMO_EXIBICAO, type PollyResponse,
 } from './polly-survey';
@@ -30,6 +30,7 @@ import { parsePollyExport } from './polly-parser';
 
 const resp = (o: Partial<PollyResponse> = {}): PollyResponse => ({
   area: 'Technology', tempoCasa: '24+ meses', gestor: false, marca: 'Betnacional',
+  modelo: 'Híbrido',
   nps: 10, retencao: 10, satisfacao: 9, drivers: {}, ...o,
 });
 
@@ -247,4 +248,51 @@ test('importância: correlação positiva aparece; par incompleto não conta', (
 test('importância: pergunta com poucas respostas fica de fora', () => {
   const rs = Array(5).fill(0).map(() => resp({ drivers: { 'D||q': 4 } }));
   assert.equal(computeDriverImportance(rs, 30).length, 0);
+});
+
+
+// ---------------------------------------------------------------------------
+// Modelo de trabalho — pergunta nova em ago/26
+// ---------------------------------------------------------------------------
+
+test('modelo de trabalho normaliza pelo nucleo da palavra, nao pela frase', () => {
+  // Cada onda escreve a mesma coisa de um jeito. Um dicionario de frases
+  // cobriria o que ja vimos e quebraria calado na proxima -- foi exatamente o
+  // que aconteceu com tempo de casa ("6-9 months" virou faixa propria).
+  for (const v of ['Remoto', '100% remoto', 'Home office', 'REMOTO ']) {
+    assert.equal(canonModelo(v), 'Remoto', `nao reconheceu "${v}"`);
+  }
+  for (const v of ['Híbrido', 'hibrido', 'Modelo híbrido (3x2)']) {
+    assert.equal(canonModelo(v), 'Híbrido', `nao reconheceu "${v}"`);
+  }
+  for (const v of ['Presencial', 'No escritório todos os dias']) {
+    assert.equal(canonModelo(v), 'Presencial', `nao reconheceu "${v}"`);
+  }
+});
+
+test('modelo desconhecido volta como veio, visivel na tela', () => {
+  // Somar silenciosamente com um grupo errado seria pior: a nota do grupo
+  // muda e ninguem tem como desconfiar.
+  assert.equal(canonModelo('Anywhere office 4 dias'), 'Remoto');
+  assert.equal(canonModelo('Coisa nova'), 'Coisa nova');
+  assert.equal(canonModelo(''), null);
+  assert.equal(canonModelo(null), null);
+});
+
+test('o recorte por modelo entra em computeCuts', () => {
+  const rs = [
+    resp({ modelo: 'Remoto', nps: 10 }),
+    resp({ modelo: 'Remoto', nps: 10 }),
+    resp({ modelo: 'Presencial', nps: 0 }),
+  ];
+  const cuts = computeCuts(rs);
+  const m = cuts.filter((c) => c.cutType === 'modelo');
+  assert.equal(m.length, 2);
+  assert.equal(m.find((c) => c.cutValue === 'Remoto')?.n, 2);
+  assert.equal(m.find((c) => c.cutValue === 'Presencial')?.enps, -100);
+});
+
+test('quem nao respondeu o modelo fica fora do recorte, nao num grupo vazio', () => {
+  const cuts = computeCuts([resp({ modelo: null })]);
+  assert.equal(cuts.filter((c) => c.cutType === 'modelo').length, 0);
 });

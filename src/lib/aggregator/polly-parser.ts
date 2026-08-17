@@ -1,5 +1,5 @@
 import {
-  canonArea, canonGestor, canonMarca, canonTempo, limpa,
+  canonArea, canonGestor, canonMarca, canonModelo, canonTempo, limpa,
   type PollyResponse,
 } from './polly-survey';
 
@@ -44,6 +44,9 @@ const MARCADORES = {
   tempo: 'tempo voce trabalha na organizacao',
   funcao: 'descreve melhor sua funcao',
   marca: 'qual marca voce atua',
+  // Pergunta nova em ago/26. Sem este marcador ela cai em `ignorados` junto
+  // com "Polly Id" -- feita a 485 pessoas e descartada sem aviso.
+  modelo: 'seu modelo de trabalho',
 } as const;
 
 /**
@@ -73,7 +76,7 @@ export interface ParseResult {
   /** O que foi reconhecido, para conferência antes de gravar. */
   encontrado: {
     nps: boolean; retencao: boolean; satisfacao: boolean;
-    area: boolean; tempo: boolean; funcao: boolean; marca: boolean;
+    area: boolean; tempo: boolean; funcao: boolean; marca: boolean; modelo: boolean;
     drivers: number;
   };
   /** Cabeçalhos que não viraram nada. Nem todos são problema -- Polly Id não é. */
@@ -87,7 +90,7 @@ export function parsePollyExport(rows: string[][]): ParseResult {
   if (!rows.length) {
     return {
       responses: [],
-      encontrado: { nps: false, retencao: false, satisfacao: false, area: false, tempo: false, funcao: false, marca: false, drivers: 0 },
+      encontrado: { nps: false, retencao: false, satisfacao: false, area: false, tempo: false, funcao: false, marca: false, modelo: false, drivers: 0 },
       ignorados: [],
     };
   }
@@ -128,6 +131,7 @@ export function parsePollyExport(rows: string[][]): ParseResult {
         tempoCasa: idx.tempo != null ? canonTempo(r[idx.tempo]) : null,
         gestor: idx.funcao != null ? canonGestor(r[idx.funcao]) : null,
         marca: idx.marca != null ? canonMarca(r[idx.marca]) : null,
+        modelo: idx.modelo != null ? canonModelo(r[idx.modelo]) : null,
         nps: idx.nps != null ? num(r[idx.nps]) : null,
         retencao: idx.retencao != null ? num(r[idx.retencao]) : null,
         satisfacao: idx.satisfacao != null ? num(r[idx.satisfacao]) : null,
@@ -140,6 +144,7 @@ export function parsePollyExport(rows: string[][]): ParseResult {
     encontrado: {
       nps: idx.nps != null, retencao: idx.retencao != null, satisfacao: idx.satisfacao != null,
       area: idx.area != null, tempo: idx.tempo != null, funcao: idx.funcao != null, marca: idx.marca != null,
+      modelo: idx.modelo != null,
       drivers: driverCols.length,
     },
     ignorados,

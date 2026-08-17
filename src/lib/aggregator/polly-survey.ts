@@ -53,6 +53,15 @@ export interface PollyResponse {
   /** true = gestor, false = contribuidor individual, null = não perguntado. */
   gestor: boolean | null;
   marca: string | null;
+  /**
+   * Presencial / híbrido / remoto. Pergunta nova na onda de ago/26.
+   *
+   * Entrou porque estava sendo DESCARTADA em silêncio: o parser lê por
+   * cabeçalho e simplesmente não reconhecia esta coluna, então ela caía na
+   * lista de ignorados junto com "Polly Id". A pergunta foi feita a 485
+   * pessoas e a resposta não chegava a lugar nenhum.
+   */
+  modelo: string | null;
   /** Recomendação, 0-10. */
   nps: number | null;
   /** Permaneceria com oferta idêntica, 0-10. */
@@ -109,6 +118,24 @@ export function canonArea(v: string | null | undefined): string | null {
   const k = limpa(v).toLowerCase();
   if (!k) return null;
   return AREA_CANON[k] ?? limpa(v);
+}
+
+/**
+ * Modelo de trabalho. Normaliza pelo NÚCLEO da palavra, e não pela frase
+ * inteira: cada onda escreve "100% remoto", "Remoto", "Home office" para a
+ * mesma coisa, e um dicionário de frases quebraria calado na próxima.
+ *
+ * O que não reconhecer volta como veio -- visível na tela, em vez de somar
+ * silenciosamente com um grupo errado.
+ */
+export function canonModelo(v: string | null | undefined): string | null {
+  const s = limpa(v);
+  if (!s) return null;
+  const k = s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (k.includes('hibrid')) return 'Híbrido';
+  if (k.includes('remoto') || k.includes('home office') || k.includes('anywhere')) return 'Remoto';
+  if (k.includes('presencial') || k.includes('escritorio')) return 'Presencial';
+  return s;
 }
 
 export function canonMarca(v: string | null | undefined): string | null {
@@ -204,7 +231,7 @@ export function computeMetrics(rs: PollyResponse[]): CutMetrics {
   };
 }
 
-export type CutType = 'company' | 'area' | 'funcao' | 'marca' | 'tempo';
+export type CutType = 'company' | 'area' | 'funcao' | 'marca' | 'tempo' | 'modelo';
 
 export interface CutRow extends CutMetrics {
   cutType: CutType;
@@ -218,9 +245,10 @@ const CUT_KEY: Record<CutType, (r: PollyResponse) => string | null> = {
   funcao: (r) => (r.gestor == null ? null : r.gestor ? 'Gestores' : 'Contribuidores individuais'),
   marca: (r) => r.marca,
   tempo: (r) => r.tempoCasa,
+  modelo: (r) => r.modelo,
 };
 
-export function computeCuts(rs: PollyResponse[], tipos: CutType[] = ['company', 'area', 'funcao', 'marca', 'tempo']): CutRow[] {
+export function computeCuts(rs: PollyResponse[], tipos: CutType[] = ['company', 'area', 'funcao', 'marca', 'tempo', 'modelo']): CutRow[] {
   const out: CutRow[] = [];
   for (const t of tipos) {
     const grupos = new Map<string, PollyResponse[]>();
