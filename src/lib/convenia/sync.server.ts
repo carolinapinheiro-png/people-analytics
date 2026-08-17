@@ -45,6 +45,8 @@ interface Minimo {
   uf: string | null;
   /** Corporativo. Liga a conta do painel a esta pessoa no organograma. */
   email: string | null;
+  /** Ponte com a folha de remuneracao, que nao tem e-mail. */
+  nome: string | null;
 }
 
 export interface ResumoSyncConvenia {
@@ -154,7 +156,10 @@ export async function executarSyncConvenia(
     // Organograma de TODAS as empresas junto: a cadeia de reporte atravessa
     // as fontes (alguem da Betfair pode reportar a alguem da NSX), e calcular
     // empresa por empresa criaria topos falsos.
-    const orgTodos: Array<{ id: string; supervisorId: string | null; email: string | null; department: string | null }> = [];
+    const orgTodos: Array<{
+      id: string; supervisorId: string | null; email: string | null;
+      department: string | null; nome: string | null;
+    }> = [];
     const empresas: ResumoSyncConvenia['empresas'] = [];
     let requisicoes = 0;
     let desligadosSemCadastro = 0;
@@ -185,6 +190,10 @@ export async function executarSyncConvenia(
             // ele a camada N teria de continuar sendo digitada a mao -- e
             // digitada a mao ela envelhece calada a cada promocao.
             email: ((b.corporate_email ?? b.email) as string | null) ?? null,
+            // Nome: unica ponte com `comp_ratio`, que veio de planilha e nao
+            // tem e-mail. Ver vinculo-comp.ts -- e a nota na migracao
+            // 20260814210000, que explica por que ele passou a entrar.
+            nome: ((b.name ?? b.full_name) as string | null) ?? null,
             // O Convenia manda salário ora número, ora string ("3.218,00").
             // Number() em "3.218,00" dá NaN, que viraria média silenciosamente
             // errada -- por isso a normalização explícita.
@@ -208,7 +217,7 @@ export async function executarSyncConvenia(
         for (const p of pessoas) {
           orgTodos.push({
             id: p.id, supervisorId: p.supervisorId, email: p.email,
-            department: p.department?.name ?? null,
+            department: p.department?.name ?? null, nome: p.nome,
           });
         }
 
@@ -466,6 +475,7 @@ export async function executarSyncConvenia(
       const linhasOrg = orgTodos.map((p) => ({
         convenia_id: p.id,
         email: p.email ? p.email.trim().toLowerCase() : null,
+        nome: p.nome,
         supervisor_id: p.supervisorId,
         department: p.department,
         camada: porPessoa.get(p.id)?.camada ?? null,

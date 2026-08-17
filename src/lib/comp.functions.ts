@@ -495,6 +495,84 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
   });
 
 /**
+ * Preenche a camada N das linhas de remuneração a partir do organograma.
+ *
+ * ===========================================================================
+ * A PONTE POSSÍVEL, COM A REGRA QUE A TORNA SEGURA
+ * ===========================================================================
+ * `comp_ratio` veio de planilha e tem `name`; o organograma vem do Convenia e
+ * tem `corporate_email`. O nome é o único campo em comum -- e nome é chave
+ * ruim: homônimo existe, grafia varia.
+ *
+ * A regra que compensa isso está em `vinculo-comp.ts`: na dúvida, NÃO casa.
+ * Nome repetido de qualquer um dos lados fica sem camada, e sem camada a
+ * linha não aparece para ninguém que não seja perfil global.
+ *
+ * Sem `confirm` só diz o que faria. É o mesmo padrão dos outros importadores
+ * do painel, e aqui pesa mais: um casamento errado não gera erro nenhum na
+ * tela -- gera o salário de alguém aparecendo para quem não devia.
+ */
+export const vincularCamadaComp = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .validator((input: unknown) => z.object({ confirm: z.boolean().default(false) }).parse(input ?? {}))
+  .handler(async ({ context, data }) => {
+    const { exigirAdmin } = await import('@/lib/escopo.server');
+    await exigirAdmin(context.claims.email as string | undefined, 'vincular a camada N à folha');
+
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const db = supabaseAdmin as unknown as UntypedClient;
+    const { vincular, resumir } = await import('@/lib/vinculo-comp');
+
+    const [comp, org] = await Promise.all([
+      db.from('comp_ratio').select('id, name'),
+      db.from('org_pessoas').select('nome, camada'),
+    ]);
+    if (comp.error) throw new Error(`Falha ao ler a folha: ${comp.error.message}`);
+    if (org.error) {
+      throw new Error(
+        `Falha ao ler o organograma: ${org.error.message}. Rode a migração de org_pessoas e uma sincronização do Convenia antes.`,
+      );
+    }
+
+    const linhas = (comp.data ?? []) as Array<{ id: string; name: string }>;
+    const organograma = (org.data ?? []) as Array<{ nome: string; camada: string | null }>;
+
+    if (organograma.length === 0) {
+      return {
+        gravado: false, total: linhas.length, casados: 0,
+        semCorrespondencia: [] as string[], ambiguos: [] as string[],
+        semCamadaNaOrigem: [] as string[],
+        resumo: 'O organograma está vazio. Rode uma sincronização do Convenia primeiro — sem ela não há camada para vincular.',
+      };
+    }
+
+    const r = vincular(linhas, organograma);
+    const out = {
+      gravado: false,
+      total: linhas.length,
+      casados: r.casados.length,
+      // Amostra, não a lista inteira: são nomes de pessoas, e a tela precisa
+      // do suficiente para conferir, não de um diretório.
+      semCorrespondencia: r.semCorrespondencia.slice(0, 20),
+      ambiguos: r.ambiguos.slice(0, 20),
+      semCamadaNaOrigem: r.semCamadaNaOrigem.slice(0, 20),
+      resumo: resumir(r, linhas.length),
+    };
+
+    if (!data.confirm) return out;
+
+    // Grava em lotes. Só as que casaram: quem não casou fica com n_layer nulo,
+    // que ESCONDE a linha -- o lado seguro do erro.
+    for (let i = 0; i < r.casados.length; i += 500) {
+      const lote = r.casados.slice(i, i + 500).map((c) => ({ id: c.id, n_layer: c.camada }));
+      const { error } = await db.from('comp_ratio').upsert(lote as never, { onConflict: 'id' });
+      if (error) throw new Error(`Falha ao gravar a camada: ${error.message}`);
+    }
+
+    return { ...out, gravado: true };
+  });
+
+/**
  * Split salarial por nivel x papel (Caio #13). Dois eixos independentes:
  *  - gestao: "Gestor de pessoas" (tem reporte) vs "Contribuidor individual".
  *  - lideranca: "Líder" (flag do cadastro) vs "Não-líder".

@@ -15,6 +15,7 @@ import UsersCsvCard from '@/components/admin/UsersCsvCard';
 import AuditSection, { type AccessLog } from '@/components/admin/AuditSection';
 import InhireSyncCard from '@/components/admin/InhireSyncCard';
 import ConveniaCard from '@/components/admin/ConveniaCard';
+import VinculoCamadaCard from '@/components/admin/VinculoCamadaCard';
 import QohCard from '@/components/admin/QohCard';
 
 interface UserPaginationState {
@@ -210,6 +211,9 @@ export default function AdminPage() {
             <TabsContent value="data" className="space-y-6 mt-0">
               <InhireSyncCard />
               <ConveniaCard />
+              {/* Logo apos o Convenia: e a sincronizacao dele que produz o
+                  organograma de onde a camada sai. */}
+              <VinculoCamadaCard />
               <QohCard />
             </TabsContent>
           )}
