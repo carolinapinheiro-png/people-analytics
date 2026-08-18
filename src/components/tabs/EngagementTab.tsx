@@ -233,7 +233,7 @@ function EngagementSection({
         {/* A história vem primeiro: ela explica metade das ressalvas que
             apareceriam depois, e responde a pergunta que sempre abre a conversa
             quando alguém desconfia de um número. */}
-        <SurveyTimeline />
+        <SurveyTimeline ondas={data.ondas} />
 
         <ChartCard title="Detalhe por departamento" subtitle={cross ? `pesquisa × saídas em ${janela}` : undefined} icon={Users}>
           <div className="overflow-x-auto">

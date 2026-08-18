@@ -1,5 +1,6 @@
 import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
+import type { OndaResumo } from '@/lib/experience.functions';
 
 /**
  * A história do instrumento: como a pesquisa virou o que é hoje.
@@ -14,79 +15,74 @@ import { cn } from '@/lib/utils';
  * diferentes contando o mesmo fato quatro vezes, em quatro lugares.
  *
  * Contado uma vez, como história, o fato fica entendido e as quatro frases
- * deixam de ser necessárias. É a diferença entre pedir desculpa por um limite e
- * explicar de onde ele vem.
+ * deixam de ser necessárias.
  *
  * ------------------------------------------------------------------
- * POR QUE FICA NO DETALHE E NÃO NO TOPO
+ * ESTA LISTA ERA ESCRITA À MÃO. ENVELHECEU CALADA.
  * ------------------------------------------------------------------
- * Isto responde "de onde vem esse número", não "o que eu faço com ele". Quem
- * abre o painel para decidir não precisa disso; quem abre para conferir, ou
- * para apresentar, precisa muito -- e é a primeira pergunta que aparece numa
- * sala quando alguém desconfia do dado.
+ * Até 18/08/2026 as ondas eram uma constante dentro deste arquivo. A terceira
+ * entrada dizia "Julho / 2026 · Em campo · fecha em 13 de agosto" -- e
+ * continuou dizendo isso depois de a pesquisa fechar e de a onda seguinte
+ * existir. O painel anunciava uma coleta em andamento que já tinha terminado.
  *
- * O formato vem do deck que a diretoria já viu (slide "About the survey"), de
- * propósito: quem esteve naquela apresentação reconhece a estrutura e não
- * precisa reaprender nada.
+ * É exatamente o defeito que o resto da aba evita: a leitura no topo é
+ * calculada justamente para que texto fixo não envelheça. Aqui eu tinha
+ * deixado um.
+ *
+ * Agora ela se desenha do banco. Uma onda nova aparece sozinha; uma onda sem
+ * dado aparece dizendo que não tem dado.
+ *
+ * O FORMATO vem do deck que a diretoria já viu (slide "About the survey"), de
+ * propósito: quem esteve naquela apresentação reconhece a estrutura.
  */
 
-interface Onda {
-  periodo: string;
-  titulo: string;
-  descricao: string;
-  metricas: string[];
-  respostas: number | null;
-  participacao: number | null;
-  estado: 'passada' | 'atual' | 'futura';
-}
-
-const ONDAS: Onda[] = [
-  {
-    periodo: 'Junho e Julho / 2025',
-    titulo: 'A primeira régua',
-    descricao:
-      'Aplicada em duas partes, com um mês de diferença: o eNPS em junho, os drivers em julho. É tratada como uma onda só, e chamada de Julho/25.',
-    metricas: ['3 métricas de engajamento', '10 perguntas de driver'],
-    respostas: 295,
-    participacao: 76,
-    estado: 'passada',
-  },
-  {
-    periodo: 'Janeiro / 2026',
-    titulo: 'O questionário completo',
-    descricao:
-      'Tudo num instrumento só, e o triplo de perguntas. É a onda que o painel mostra hoje — e a primeira em que Betfair participou, por isso ela não tem comparação com a anterior.',
-    metricas: ['3 métricas de engajamento', '31 perguntas em 8 drivers', 'função, marca e tempo de casa'],
-    respostas: 367,
-    participacao: 79,
-    estado: 'atual',
-  },
-  {
-    periodo: 'Julho / 2026',
-    titulo: 'Em campo',
-    descricao:
-      'Fecha em 13 de agosto. Com o mesmo questionário de janeiro, quase tudo passa a ter comparação — inclusive as 22 perguntas que hoje estão sem.',
-    metricas: ['mesma estrutura de janeiro'],
-    respostas: null,
-    participacao: null,
-    estado: 'futura',
-  },
-];
-
-const COR: Record<Onda['estado'], string> = {
+const COR = {
   passada: COLORS.gray400,
   atual: COLORS.flutter,
-  futura: COLORS.nsx,
+  vazia: COLORS.warning,
+} as const;
+
+/**
+ * Uma onda registrada sem nenhum recorte e nenhum driver não é uma onda que
+ * "tem poucos dados" -- é uma onda que nunca foi carregada. jul/25 está assim
+ * desde sempre: 295 respostas anotadas e nada por trás.
+ *
+ * Dizer isso é melhor que exibi-la como as outras: quem lê a série precisa
+ * saber que o buraco existe, senão conclui que a pesquisa não foi feita.
+ */
+const estadoDe = (o: OndaResumo): 'atual' | 'vazia' | 'passada' =>
+  o.recortes === 0 && o.drivers === 0 ? 'vazia' : o.atual ? 'atual' : 'passada';
+
+const mesAno = (iso: string): string => {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return iso;
+  const M = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  return `${M[d.getUTCMonth()]}/${String(d.getUTCFullYear()).slice(2)}`;
 };
 
-export default function SurveyTimeline() {
+export default function SurveyTimeline({ ondas }: { ondas?: OndaResumo[] }) {
+  const lista = [...(ondas ?? [])].sort((a, b) =>
+    a.referenceDate < b.referenceDate ? -1 : 1);
+
+  if (lista.length === 0) {
+    return (
+      <div className="rounded-lg border border-border bg-card p-4">
+        <p className="text-sm text-muted-foreground">
+          Nenhuma onda de pesquisa cadastrada ainda.
+        </p>
+      </div>
+    );
+  }
+
+  const semDado = lista.filter((o) => estadoDe(o) === 'vazia');
+
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
         De onde vem este número
       </p>
       <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-        A pesquisa mudou de tamanho duas vezes em um ano. É isso que explica por que algumas
+        O questionário mudou de tamanho entre as ondas. É isso que explica por que algumas
         perguntas têm comparação com a onda anterior e outras não.
       </p>
 
@@ -95,74 +91,75 @@ export default function SurveyTimeline() {
         <div className="absolute left-[7px] top-2 bottom-2 w-px bg-border" aria-hidden />
 
         <div className="space-y-5">
-          {ONDAS.map((o) => (
-            <div key={o.periodo} className="relative pl-7">
-              <span
-                className={cn(
-                  'absolute left-0 top-1 h-[15px] w-[15px] rounded-full border-[3px] border-card',
-                  o.estado === 'futura' && 'border-dashed',
-                )}
-                style={{
-                  background: o.estado === 'futura' ? 'transparent' : COR[o.estado],
-                  borderColor: o.estado === 'futura' ? COR[o.estado] : undefined,
-                  boxShadow: o.estado === 'atual' ? `0 0 0 4px ${COLORS.flutter}22` : undefined,
-                }}
-                aria-hidden
-              />
-              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                  {o.periodo}
-                </span>
-                {o.estado === 'atual' && (
-                  <span
-                    className="text-[10px] px-1.5 py-px rounded-full font-medium"
-                    style={{ background: `${COLORS.flutter}1f`, color: COLORS.flutter }}
-                  >
-                    no painel
-                  </span>
-                )}
-                {o.estado === 'futura' && (
-                  <span
-                    className="text-[10px] px-1.5 py-px rounded-full font-medium"
-                    style={{ background: `${COLORS.nsx}1f`, color: COLORS.nsx }}
-                  >
-                    respondendo agora
-                  </span>
-                )}
-              </div>
-              <p className="text-sm font-medium mt-0.5">{o.titulo}</p>
-              <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{o.descricao}</p>
+          {lista.map((o) => {
+            const estado = estadoDe(o);
+            return (
+              <div key={o.wave} className="relative pl-7">
+                <span
+                  className={cn(
+                    'absolute left-0 top-1 h-[15px] w-[15px] rounded-full border-[3px] border-card',
+                    estado === 'vazia' && 'border-dashed',
+                  )}
+                  style={{
+                    background: estado === 'vazia' ? 'transparent' : COR[estado],
+                    borderColor: estado === 'vazia' ? COR.vazia : undefined,
+                    boxShadow: estado === 'atual' ? `0 0 0 4px ${COLORS.flutter}22` : undefined,
+                  }}
+                  aria-hidden
+                />
 
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5">
-                {o.metricas.map((m) => (
-                  <span
-                    key={m}
-                    className="text-[11px] px-1.5 py-0.5 rounded border border-border text-muted-foreground"
-                  >
-                    {m}
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    {mesAno(o.referenceDate)}
                   </span>
-                ))}
-                {o.respostas != null && (
-                  <span className="text-[11px] text-muted-foreground">
-                    <strong className="text-foreground">{o.respostas}</strong> responderam
-                    {o.participacao != null && ` · ${o.participacao}% de participação`}
-                  </span>
-                )}
+                  {estado === 'atual' && (
+                    <span
+                      className="text-[10px] px-1.5 py-px rounded-full font-medium"
+                      style={{ background: `${COLORS.flutter}1f`, color: COLORS.flutter }}
+                    >
+                      é o que a aba mostra
+                    </span>
+                  )}
+                  {estado === 'vazia' && (
+                    <span
+                      className="text-[10px] px-1.5 py-px rounded-full font-medium"
+                      style={{ background: `${COLORS.warning}22`, color: COLORS.warning }}
+                    >
+                      registrada, sem dados
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-sm font-semibold">{o.label}</p>
+
+                <p className="text-[13px] text-muted-foreground leading-relaxed">
+                  {estado === 'vazia' ? (
+                    <>
+                      {o.respondents ?? '—'} respostas anotadas, mas nenhum recorte e nenhuma
+                      pergunta de driver carregados. Ela não entra em comparação nenhuma.
+                    </>
+                  ) : (
+                    <>
+                      {o.respondents ?? '—'} respostas
+                      {o.eligible ? ` de ${o.eligible} elegíveis` : ''}
+                      {o.participacao != null ? ` · ${o.participacao}% de participação` : ''}
+                      {' · '}{o.drivers} perguntas de driver em {o.recortes} recortes
+                    </>
+                  )}
+                </p>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      <p className="text-[11px] text-muted-foreground mt-4 pt-3 border-t border-border/60 leading-relaxed">
-        <strong className="text-foreground">Como cada número é calculado.</strong>{' '}
-        eNPS = % de quem deu 9 ou 10 na pergunta de recomendação, menos % de quem deu 6 ou menos.
-        Risco de saída = % que respondeu 6 ou menos em &quot;permaneceria se recebesse uma oferta
-        idêntica&quot;. Nas perguntas de 1 a 5, <strong className="text-foreground">% favorável</strong> conta
-        quem respondeu 4 ou 5 — é a leitura do deck da diretoria; a média aparece ao lado como
-        detalhe. Todos os números do painel são recalculados do arquivo original da pesquisa, não
-        digitados.
-      </p>
+      {semDado.length > 0 && (
+        <p className="mt-4 text-[11px] text-muted-foreground leading-relaxed">
+          Onda marcada como <strong>registrada, sem dados</strong> aparece na série porque
+          aconteceu de verdade — mas nada dela foi carregado, então ela não sustenta nenhuma
+          comparação. Escondê-la faria a série parecer completa quando não é.
+        </p>
+      )}
     </div>
   );
 }

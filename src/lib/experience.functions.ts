@@ -116,6 +116,31 @@ export interface ExperienceData {
    * rótulo dentro de uma tela filtrada por área seria lido como sendo da área.
    */
   escopo: { restrito: boolean; departamento: string | null };
+  /**
+   * As ondas que existem no banco, da mais recente para a mais antiga.
+   *
+   * A linha do tempo era uma lista escrita a mao dentro do componente. Ela
+   * envelheceu exatamente como o painel inteiro evita: continuou anunciando
+   * jul/26 como "em campo" depois de a pesquisa fechar, e nunca soube da onda
+   * seguinte. Agora ela se desenha do que existe.
+   */
+  ondas?: OndaResumo[];
+}
+
+export interface OndaResumo {
+  wave: string;
+  label: string;
+  referenceDate: string;
+  respondents: number | null;
+  eligible: number | null;
+  /** Calculada, nao guardada -- respondentes sobre elegiveis. */
+  participacao: number | null;
+  /** Quantas perguntas de driver aquela onda mediu. */
+  drivers: number;
+  /** Quantos recortes (area, tempo, funcao, marca, modelo) ela tem. */
+  recortes: number;
+  /** true na mais recente: e a que a aba esta mostrando. */
+  atual: boolean;
 }
 
 export const getExperienceData = createServerFn({ method: 'GET' })
@@ -157,11 +182,44 @@ export const getExperienceData = createServerFn({ method: 'GET' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
 
-    const [eng, drv, onb, dist] = await Promise.all([
-      db.from('engagement_scores').select('*').order('position', { ascending: true }),
+    // ======================================================================
+    // QUAL ONDA A ABA MOSTRA
+    // ======================================================================
+    // Ate ago/2026 existia UMA onda em `engagement_scores`, entao ler a tabela
+    // inteira dava o resultado certo por acidente. Na segunda onda o mesmo
+    // codigo passa a devolver as duas juntas: a lista por area aparece com
+    // "Technology" duas vezes, com numeros diferentes, sem nada explicando.
+    //
+    // A ordenacao e por `position`, entao as linhas ate se intercalariam --
+    // e o total da empresa apareceria duas vezes. Nada quebraria; a tela
+    // simplesmente mentiria.
+    //
+    // Corrigido ANTES de a segunda onda entrar, e nao depois.
+    const { data: ondas, error: eOnda } = await db
+      .from('survey_waves')
+      .select('wave, label, reference_date, respondents, eligible')
+      .order('reference_date', { ascending: false });
+    if (eOnda) throw new Error(`Falha ao listar ondas: ${eOnda.message}`);
+
+    const ordenadas = (ondas ?? []) as Array<{
+      wave: string; label: string; reference_date: string;
+      respondents: number | null; eligible: number | null;
+    }>;
+    const ondaAtual = ordenadas[0]?.wave ?? null;
+    const ondaAnterior = ordenadas[1]?.wave ?? null;
+
+    const [eng, engAnt, drv, onb, dist] = await Promise.all([
+      ondaAtual
+        ? db.from('engagement_scores').select('*').eq('wave', ondaAtual).order('position', { ascending: true })
+        : db.from('engagement_scores').select('*').order('position', { ascending: true }),
+      // A onda anterior entra so para o delta ser CALCULADO. Ver abaixo.
+      ondaAnterior
+        ? db.from('engagement_scores').select('scope, enps, retention_risk, satisfaction').eq('wave', ondaAnterior)
+        : Promise.resolve({ data: [], error: null }),
       db
         .from('engagement_drivers')
         .select('wave, driver, driver_desc, question, score_current, score_prev, evaluation, driver_pos, q_pos')
+        .eq('wave', ondaAtual ?? '')
         .order('driver_pos', { ascending: true })
         .order('q_pos', { ascending: true }),
       db
@@ -224,8 +282,49 @@ export const getExperienceData = createServerFn({ method: 'GET' })
     // parte é a correção do que a Carolina viu. Os quatro cartões do topo são
     // desenhados a partir dela; ao filtrar, o filtro a removia junto com as
     // outras áreas e os cartões simplesmente sumiam da tela.
+    // ======================================================================
+    // O DELTA PASSA A SER CALCULADO, E NAO LIDO DA CARGA
+    // ======================================================================
+    // `enps_delta` veio pronto do deck do CEO na carga de jan/26. Enquanto
+    // havia uma onda so, era a unica forma possivel -- e tambem uma promessa
+    // que ninguem podia conferir: o numero na coluna nao tinha relacao nenhuma
+    // com os outros dois numeros da mesma tela.
+    //
+    // Com duas ondas no banco da para subtrair. Um delta calculado nao
+    // consegue discordar dos valores que ele compara; um delta digitado
+    // consegue, e o desacordo passa despercebido porque ninguem faz a conta de
+    // cabeca ao olhar um painel.
+    //
+    // Onde nao houver onda anterior para a mesma area (area nova, ou area que
+    // nao respondeu antes), o delta fica NULO -- e nulo aparece como "—". Zero
+    // seria mentira: diria "nao mudou" quando a verdade e "nao havia com o que
+    // comparar".
+    const anterior = new Map<string, { enps: number | null; rr: number | null; sat: number | null }>();
+    for (const r of ((engAnt.data ?? []) as Array<{
+      scope: string; enps: number | null; retention_risk: number | null; satisfaction: number | null;
+    }>)) {
+      anterior.set((r.scope ?? '').trim().toLowerCase(), {
+        enps: r.enps, rr: r.retention_risk, sat: r.satisfaction,
+      });
+    }
+    const dif = (agora: number | null, antes: number | null | undefined): number | null =>
+      agora == null || antes == null ? null : Math.round((agora - antes) * 10) / 10;
+
+    const comDelta = ((eng.data ?? []) as EngagementScore[]).map((r) => {
+      const a = anterior.get((r.scope ?? '').trim().toLowerCase());
+      // Sem onda anterior no banco, mantem o que veio na carga -- e o caso de
+      // jan/26 sozinha, que continua funcionando como antes.
+      if (!anterior.size) return r;
+      return {
+        ...r,
+        enps_delta: dif(r.enps, a?.enps),
+        rr_delta: dif(r.retention_risk, a?.rr),
+        sat_delta: dif(r.satisfaction, a?.sat),
+      };
+    });
+
     const ehEmpresa = (r: EngagementScore) => (r.scope ?? '').trim().toLowerCase() === 'company';
-    const engagement = ((eng.data ?? []) as EngagementScore[]).filter((r) => {
+    const engagement = (comDelta as EngagementScore[]).filter((r) => {
       if (ehEmpresa(r)) return true;
       if (!podeVerTudo) return daArea(r.scope) && isInScope(scope, deptForScope(r.scope ?? '') ?? null);
       return !sel || daArea(r.scope);
@@ -255,8 +354,36 @@ export const getExperienceData = createServerFn({ method: 'GET' })
     const subs = visibleExperienceSubTabs(scope.profile);
     const soEngajamento = !subs.includes('onboarding') && !subs.includes('inclusao');
 
+    // Contagem REAL por onda, em vez de um rotulo escrito a mao.
+    //
+    // E o que revela o caso de jul/25: ela existe em `survey_waves` com 295
+    // respostas e ZERO recortes e ZERO drivers -- foi registrada e nunca
+    // carregada. A lista fixa dizia "10 perguntas de driver" e ninguem tinha
+    // como perceber que nao havia nenhuma.
+    const [cnt, cntDrv] = await Promise.all([
+      db.from('survey_cut_scores').select('wave'),
+      db.from('survey_driver_importance').select('wave'),
+    ]);
+    const contar = (linhas: unknown, w: string) =>
+      ((linhas ?? []) as Array<{ wave: string }>).filter((r) => r.wave === w).length;
+
+    const resumoOndas: OndaResumo[] = ordenadas.map((o, i) => ({
+      wave: o.wave,
+      label: o.label,
+      referenceDate: o.reference_date,
+      respondents: o.respondents ?? null,
+      eligible: o.eligible ?? null,
+      participacao: o.respondents && o.eligible
+        ? Math.round((o.respondents / o.eligible) * 1000) / 10
+        : null,
+      drivers: contar(cntDrv.data, o.wave),
+      recortes: contar(cnt.data, o.wave),
+      atual: i === 0,
+    }));
+
     return {
       engagement,
+      ondas: resumoOndas,
       drivers: (drv.error ? [] : drv.data ?? []) as EngagementDriver[],
       onboarding: soEngajamento ? [] : onboarding,
       distributions: soEngajamento ? [] : ((dist.data ?? []) as ExperienceDistribution[]),
