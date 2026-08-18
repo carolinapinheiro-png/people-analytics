@@ -138,7 +138,19 @@ export const listCompRatio = createServerFn({ method: 'GET' })
 
     const scoped = (rows ?? [])
       .filter((r) => r.in_comp_scope !== false)
-      .filter((r) => isInScope(scope, r.area, r.job_type_family))
+      // UMA REGRA DE AREA SO, E E ESTA.
+      //
+      // Aqui havia tambem um `isInScope(scope, area, job_type_family)`, que e a
+      // regra do painel inteiro: departamento OU job family. Somada a esta, a
+      // mais estrita vencia -- entao nunca vazou nada. Mas duas regras no mesmo
+      // ponto sao duas chances de alguem mexer na errada, e a errada aqui
+      // libera salario.
+      //
+      // A decisao (18/08/2026) e que remuneracao segue DEPARTAMENTO, ponto: e o
+      // que a regra escrita diz ("remuneracao de toda a sua area"). Escopo por
+      // job family continua valendo em Meu Time, Atricao e Talent Mobility --
+      // e nao abre a folha de gente de outro departamento.
+      //
       // RECORTE POR NIVEL -- aplicado ANTES de qualquer filtro de tela, e
       // antes de a linha existir na resposta HTTP. Filtrar depois, ou na tela,
       // deixaria o salario no payload: escondido por CSS continua entregue.
@@ -643,6 +655,71 @@ export const getCompByLevelRole = createServerFn({ method: 'GET' })
     };
 
     return { gestao: cells('g|'), lideranca: cells('l|') };
+  });
+
+/**
+ * ===========================================================================
+ * CONTAGEM DE GENTE NAO E AGREGADO DE SALARIO
+ * ===========================================================================
+ * O Overview mostra uma linha "CLT / PJ" no quadro do headcount. Ela e
+ * contagem pura: quantas pessoas tem cada tipo de contrato. Nao ha salario
+ * nenhum ali -- nem valor, nem faixa, nem media.
+ *
+ * Ate 18/08/2026 esse numero vinha de `getCompAggregates`, porque a fonte
+ * (`comp_ratio`) e a mesma. Quando a aba Compensation virou permissao, a
+ * funcao inteira passou a exigi-la, e o Overview de quem nao tem Compensation
+ * -- lider de departamento, HRBP -- ficou com "…" eterno naquela linha. Nao
+ * era erro visivel: era um carregamento que nunca terminava.
+ *
+ * Vir da mesma TABELA nao faz duas coisas terem a mesma sensibilidade. Esta
+ * funcao existe para separar o que a origem tinha juntado: contagem de
+ * contrato sai por aqui, sob a permissao do Overview; qualquer numero que
+ * carregue salario continua so em `getCompAggregates`, sob a de Compensation.
+ *
+ * O recorte de AREA vale (o escopo normal do painel: departamento ou job
+ * family). O recorte por CAMADA N nao vale aqui, e de proposito: ele existe
+ * para nao expor a remuneracao dos pares e dos superiores. Saber que a empresa
+ * tem 400 CLT e 90 PJ nao expoe a remuneracao de ninguem.
+ */
+export interface HeadcountContractAgg {
+  company: string;
+  contract: string;
+  n: number;
+}
+export interface HeadcountMix {
+  contracts: HeadcountContractAgg[];
+}
+
+export const getHeadcountMix = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<HeadcountMix> => {
+    const { resolverEscopo } = await import('@/lib/escopo.server');
+    const e = await resolverEscopo(context.claims.email as string | undefined, 'overview');
+
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const db = supabaseAdmin as unknown as UntypedClient;
+
+    // So as colunas que a contagem precisa. Nao selecionar `salary` aqui e
+    // deliberado: o que nao e lido nao pode escapar por um `...rest` distraido
+    // numa mudanca futura.
+    const { data: rows, error } = await db
+      .from('comp_ratio')
+      .select('company, area, contract, job_type_family, in_comp_scope');
+    if (error) throw new Error(`Falha ao carregar composicao de contrato: ${error.message}`);
+
+    const cMap = new Map<string, HeadcountContractAgg>();
+    for (const r of (rows ?? []).filter(
+      (r) => r.in_comp_scope !== false && isInScope(e.scope, r.area, r.job_type_family),
+    )) {
+      const company = (r.company ?? '—') as string;
+      const contract = (r.contract ?? '—') as string;
+      const k = `${company}||${contract}`;
+      const c = cMap.get(k) ?? { company, contract, n: 0 };
+      c.n++;
+      cMap.set(k, c);
+    }
+
+    return { contracts: [...cMap.values()] };
   });
 
 export const getCompAggregates = createServerFn({ method: 'GET' })

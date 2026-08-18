@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { useDashboard } from '@/data/DashboardContext';
 import { getExperienceData } from '@/lib/experience.functions';
-import { getCompAggregates, type CompAggregates } from '@/lib/comp.functions';
+import { getHeadcountMix, type HeadcountMix } from '@/lib/comp.functions';
 import { calcTurnover, promoRate, mLabel, fmt } from '@/data/helpers';
 
 const NSX_COS = ['NSX BRASIL RECIFE', 'NSX BRASIL SÃO PAULO', 'NSX MARECHAL'];
@@ -98,12 +98,25 @@ export default function OverviewTab() {
     return () => { cancelled = true; };
   }, [fetchExp]);
 
-  // Composicao CLT/PJ (snapshot atual, agregado leve) para o quadro do HC.
-  const [comp, setComp] = useState<CompAggregates | null>(null);
-  const fetchComp = useServerFn(getCompAggregates);
+  // Composicao CLT/PJ (snapshot atual, contagem pura) para o quadro do HC.
+  //
+  // Vinha de `getCompAggregates`, que passou a exigir a aba Compensation. Quem
+  // nao tem a aba ficava com "…" para sempre nesta linha -- um carregamento que
+  // nunca termina se parece com lentidao, nao com falta de acesso, e ninguem
+  // abre chamado por uma tela lenta. Agora vem de `getHeadcountMix`, que so
+  // conta contrato e responde sob a permissao do proprio Overview.
+  const [comp, setComp] = useState<HeadcountMix | null>(null);
+  const [compErro, setCompErro] = useState<string | null>(null);
+  const fetchComp = useServerFn(getHeadcountMix);
   useEffect(() => {
     let cancelled = false;
-    fetchComp().then((d) => { if (!cancelled) setComp(d as CompAggregates); }).catch(() => {});
+    fetchComp()
+      .then((d) => { if (!cancelled) setComp(d as HeadcountMix); })
+      // Engolir o erro deixava a linha em "…" indefinidamente. Guardar a
+      // mensagem custa uma linha e transforma "parece travado" em "deu erro".
+      .catch((e: unknown) => {
+        if (!cancelled) setCompErro(e instanceof Error ? e.message : 'erro');
+      });
     return () => { cancelled = true; };
   }, [fetchComp]);
   const contractMix = (() => {
@@ -494,7 +507,12 @@ export default function OverviewTab() {
                 <span className="font-semibold">
                   {contractMix && contractMix.total > 0
                     ? `${contractMix.clt} / ${contractMix.pj}`
-                    : comp ? '—' : '…'}
+                    : comp ? '—'
+                    // Tres estados distintos, e nao dois. "…" so significa
+                    // "ainda carregando"; falha vira "erro", nao um "…" que
+                    // dura para sempre.
+                    : compErro ? <span className="text-muted-foreground font-normal" title={compErro}>erro</span>
+                    : '…'}
                 </span>
               </div>
               <div className="flex justify-between">

@@ -4,6 +4,7 @@ import {
   camadaDe, descreverRecorte, filtrarLinhas, podeVerLinha, temCamadaNosDados,
   type EscopoComp,
 } from './comp-scope';
+import { isInScope, type AccessScope } from './permissions';
 
 /** N-1 = C-level, reporta ao CEO. */
 const C_LEVEL_TECH: EscopoComp = { global: false, camada: 1, areas: ['TECHNOLOGY'] };
@@ -93,6 +94,43 @@ test('perfil global passa por cima de tudo', () => {
 
 test('área compara sem depender de caixa, acento ou espaço', () => {
   assert.equal(podeVerLinha(C_LEVEL_TECH, { area: ' technology ', n_layer: 'N-2' }), true);
+});
+
+// ------------------------------------------------------ uma regra de área só
+
+/**
+ * O painel inteiro escopa por departamento OU job family (`isInScope`).
+ * Remuneração escopa só por departamento (`podeVerLinha`). Isso é decisão,
+ * não descuido -- 18/08/2026, a partir da regra escrita: "remuneração de toda
+ * a sua área".
+ *
+ * Até aqui as duas conviviam no mesmo filtro de `listCompRatio`. Somadas, a
+ * mais estrita vencia, então nunca vazou nada. Mas quem lesse aquele trecho
+ * não tinha como saber qual das duas estava mandando -- e a chance de alguém
+ * remover "a redundante" errada era real. Ficou uma só; este teste é o que
+ * impede a outra de voltar por engano.
+ */
+test('escopo por job family abre o painel, mas NÃO abre a folha', () => {
+  const porFamilia: AccessScope = {
+    profile: 'dept_leader',
+    departments: [],
+    jobFamilies: ['Product & Technology'],
+  };
+  const pessoa = { area: 'TECHNOLOGY', job_type_family: 'Product & Technology', n_layer: 'N-4' };
+
+  // Meu Time, Atrição, Talent Mobility: a pessoa aparece.
+  assert.equal(isInScope(porFamilia, pessoa.area, pessoa.job_type_family), true);
+
+  // Compensation: não aparece. `areas` vem só dos departamentos, e está vazio.
+  const comp: EscopoComp = { global: false, camada: 1, areas: [] };
+  assert.equal(podeVerLinha(comp, pessoa), false);
+});
+
+test('o mesmo departamento na lista abre as duas', () => {
+  const porDepto: AccessScope = { profile: 'dept_leader', departments: ['TECHNOLOGY'] };
+  const pessoa = { area: 'TECHNOLOGY', job_type_family: 'Product & Technology', n_layer: 'N-4' };
+  assert.equal(isInScope(porDepto, pessoa.area, pessoa.job_type_family), true);
+  assert.equal(podeVerLinha(C_LEVEL_TECH, pessoa), true);
 });
 
 // ------------------------------------------- dado ausente x regra funcionando

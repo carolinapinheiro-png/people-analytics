@@ -75,11 +75,35 @@ export default function LeaversTab() {
   // Ativos por faixa salarial (snapshot atual, agregado leve) -> denominador da
   // taxa de atricao por faixa (#23). Company-wide, coerente com a lista de
   // desligados (que nao e por marca).
+  //
+  // O DENOMINADOR PODE FALTAR, E ISSO PRECISA APARECER
+  //
+  // Quantos ativos ha em cada faixa salarial e informacao de salario, mesmo
+  // agregada -- entao vem de `getCompAggregates` e continua exigindo a aba
+  // Compensation. Decisao de 18/08/2026.
+  //
+  // O problema nao era esse. Era que, sem o denominador, o grafico continuava
+  // desenhado e o tooltip trocava de significado em silencio: "12 · 4,3% dos
+  // 280 ativos na faixa" virava "12 · 9% do total". Duas frases parecidas, duas
+  // contas diferentes, nada dizendo que mudou. Quem le uma vez por mes nao
+  // percebe -- so acha que o numero mexeu.
+  //
+  // Agora o estado e explicito e o subtitulo do quadro conta qual conta esta
+  // sendo feita.
   const [comp, setComp] = useState<CompAggregates | null>(null);
+  const [semAcesso, setSemAcesso] = useState(false);
   const fetchComp = useServerFn(getCompAggregates);
   useEffect(() => {
     let cancelled = false;
-    fetchComp().then((d) => { if (!cancelled) setComp(d as CompAggregates); }).catch(() => {});
+    fetchComp()
+      .then((d) => { if (!cancelled) setComp(d as CompAggregates); })
+      .catch((e: unknown) => {
+        // Recusa por perfil e um fato sobre o acesso, nao uma falha. As duas
+        // pedem frases diferentes: uma se resolve com o admin, a outra com o
+        // suporte.
+        const msg = e instanceof Error ? e.message : '';
+        if (!cancelled) setSemAcesso(/forbidden|acesso a esta se/i.test(msg));
+      });
     return () => { cancelled = true; };
   }, [fetchComp]);
   const activeByBand = useMemo(() => {
@@ -87,6 +111,13 @@ export default function LeaversTab() {
     comp?.bands.forEach((b) => { acc[b.band] = (acc[b.band] ?? 0) + b.n; });
     return acc;
   }, [comp]);
+  // O que o subtitulo promete tem que ser o que o tooltip faz.
+  //
+  // Ligar isto a "a chamada deu certo" nao basta: um perfil com Compensation
+  // concedida mas sem a camada N importada recebe a resposta com `bands` vazio.
+  // A chamada foi bem-sucedida e mesmo assim nao ha denominador -- o subtitulo
+  // prometeria uma taxa que o tooltip nao tem como calcular.
+  const temDenominador = Object.keys(activeByBand).length > 0;
 
   const filteredLeavers = useMemo(() => {
     return leavers.filter(r => {
@@ -211,7 +242,16 @@ export default function LeaversTab() {
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Desligamentos por Faixa Salarial" subtitle="Absoluto · no tooltip, taxa sobre os ativos da faixa">
+        <ChartCard
+          title="Desligamentos por Faixa Salarial"
+          subtitle={
+            temDenominador
+              ? 'Absoluto · no tooltip, taxa sobre os ativos da faixa'
+              : semAcesso
+                ? 'Absoluto · no tooltip, % do total — a taxa sobre os ativos da faixa exige acesso a Compensation'
+                : 'Absoluto · no tooltip, % do total'
+          }
+        >
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={salaryBandData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
