@@ -97,6 +97,16 @@ export async function executarSyncConvenia(
   db: Db,
   { confirm, origem }: { confirm: boolean; origem: string },
 ): Promise<ResumoSyncConvenia> {
+  // FORA DO `try` DE PROPOSITO. Antes esta variavel vivia dentro dele, e o
+  // `catch` final nao a enxergava -- entao o log de uma carga que falhou
+  // gravava so a mensagem de erro, com `requests` no default.
+  //
+  // Em 17/08 isso fez a carga parecer que nunca tinha chamado o Convenia
+  // (`requests = 0`) quando na verdade tinha feito centenas de chamadas e
+  // morrido na ultima etapa. Um log que mente sobre o que aconteceu custa
+  // mais caro que a falha que ele deveria descrever.
+  let requisicoes = 0;
+
   const { data: logRow } = await db.from('integration_sync_log').insert({
     provider: 'convenia', status: 'running', triggered_by: origem,
   }).select('id').maybeSingle();
@@ -161,7 +171,6 @@ export async function executarSyncConvenia(
       department: string | null; nome: string | null;
     }> = [];
     const empresas: ResumoSyncConvenia['empresas'] = [];
-    let requisicoes = 0;
     let desligadosSemCadastro = 0;
 
     for (const f of fontesConfiguradas()) {
@@ -403,9 +412,20 @@ export async function executarSyncConvenia(
     // requisição por pessoa. Com 638 ativos seriam ~13 minutos, o que estoura o
     // tempo do agendador. Ficam de fora por ora, e o aviso existe para que a
     // ausência seja uma decisão visível e não um esquecimento.
-    const totalAtivos = [...porMarca.values()].flat().filter((x) => x.dataSaida == null).length;
-    const comGenero = [...porMarca.values()].flat().filter((x) => x.genero != null).length;
-    const pendentes = Math.max(0, totalAtivos - [...cacheGenero.keys()].length);
+    //
+    // AS TRES CONTAGENS SAEM DA MESMA POPULACAO -- E ISSO E O PONTO.
+    // Antes o numerador contava gênero em TODO MUNDO (802, desligados
+    // inclusive) e o denominador só nos ativos (635), o que imprimia
+    // "Gênero: 778 de 635 resolvidos". Um numerador maior que o denominador
+    // nao e so feio: faz o leitor duvidar do resto do resumo, que estava certo.
+    //
+    // A resolucao em si CONTINUA incluindo quem ja saiu -- isso e deliberado,
+    // ver o comentario no laco de genero. O que se alinha aqui e apenas a
+    // contagem exibida.
+    const ativos = [...porMarca.values()].flat().filter((x) => x.dataSaida == null);
+    const totalAtivos = ativos.length;
+    const comGenero = ativos.filter((x) => x.genero != null).length;
+    const pendentes = Math.max(0, totalAtivos - ativos.filter((x) => cacheGenero.has(x.id)).length);
 
     if (pendentes > 0) {
       avisos.push(`Gênero: ${comGenero} de ${totalAtivos} pessoas resolvidas, ${pendentes} pendentes. A resolução é em lotes de ${LOTE_GENERO} por execução — rode de novo para avançar, ou deixe o agendamento semanal convergir. Enquanto a cobertura estiver abaixo de 90%, as CONTAGENS aparecem mas os PERCENTUAIS ficam nulos, porque percentual sobre amostra parcial é afirmação sobre o todo.`);
@@ -446,50 +466,16 @@ export async function executarSyncConvenia(
     }
 
     // ======================================================================
-    // ORGANOGRAMA: A CAMADA DE CADA UM, RECALCULADA A CADA SINCRONIZACAO
+    // A SERIE MENSAL VEM PRIMEIRO -- E A ORDEM E O PONTO
     // ======================================================================
-    // E o que faz o acesso a remuneracao acompanhar promocao e troca de
-    // gestor sem ninguem editar cadastro nenhum. Gravado com `upsert`, entao
-    // quem mudou de chefe muda de camada na proxima rodada.
+    // Este bloco ja esteve DEPOIS do organograma. Em 17/08 o organograma
+    // falhou (a `org_pessoas` nao existia no banco), o `throw` abortou a
+    // funcao inteira, e a serie nao foi gravada -- com as cinco empresas ja
+    // listadas, os desligados ja resolvidos um a um e o lote de genero ja
+    // processado. Zero linhas, painel parado seis dias.
     //
-    // Quem cai em ciclo ou em cadeia quebrada fica com camada nula -- e nulo
-    // ESCONDE. Uma cadeia mal preenchida no Convenia vira tela vazia na aba
-    // de Salarios, nunca acesso a mais.
-    if (orgTodos.length) {
-      const { calcularCamadas, diagnosticar } = await import('@/lib/organograma');
-      const camadas = calcularCamadas(orgTodos);
-      const porPessoa = new Map(camadas.map((c) => [c.id, c]));
-      const diag = diagnosticar(orgTodos, camadas);
-
-      if (diag.semCamada > 0) {
-        avisos.push(
-          `${diag.semCamada} de ${diag.total} pessoas ficaram sem camada N (cadeia de reporte quebrada ou em ciclo no Convenia). Elas nao aparecem na aba de Salarios de ninguem, e quem for cadastrado com esses e-mails nao vai enxergar remuneracao.`,
-        );
-      }
-      if (diag.topos > 8) {
-        avisos.push(
-          `${diag.topos} pessoas sem supervisor conhecido. Cada uma vira um "topo" e recebe N-2, o que achata a escada -- vale conferir o preenchimento de gestor no Convenia.`,
-        );
-      }
-
-      const linhasOrg = orgTodos.map((p) => ({
-        convenia_id: p.id,
-        email: p.email ? p.email.trim().toLowerCase() : null,
-        nome: p.nome,
-        supervisor_id: p.supervisorId,
-        department: p.department,
-        camada: porPessoa.get(p.id)?.camada ?? null,
-        profundidade: porPessoa.get(p.id)?.profundidade ?? null,
-        atualizado_em: new Date().toISOString(),
-      }));
-
-      for (let i = 0; i < linhasOrg.length; i += 500) {
-        const { error } = await db.from('org_pessoas')
-          .upsert(linhasOrg.slice(i, i + 500) as never, { onConflict: 'convenia_id' });
-        if (error) throw new Error(`Falha ao gravar o organograma: ${error.message}`);
-      }
-    }
-
+    // A serie e o produto da carga: headcount, entradas, saidas, atricao.
+    // O organograma e acessorio. Acessorio nao precede essencial.
     if (todasLinhas.length) {
       const registros = todasLinhas.map((l) => ({
         month: l.month,
@@ -519,6 +505,68 @@ export async function executarSyncConvenia(
       if (error) throw new Error(`Falha ao gravar a série do Convenia: ${error.message}`);
     }
 
+    // ======================================================================
+    // ORGANOGRAMA: A CAMADA DE CADA UM, RECALCULADA A CADA SINCRONIZACAO
+    // ======================================================================
+    // E o que faz o acesso a remuneracao acompanhar promocao e troca de
+    // gestor sem ninguem editar cadastro nenhum. Gravado com `upsert`, entao
+    // quem mudou de chefe muda de camada na proxima rodada.
+    //
+    // Quem cai em ciclo ou em cadeia quebrada fica com camada nula -- e nulo
+    // ESCONDE. Uma cadeia mal preenchida no Convenia vira tela vazia na aba
+    // de Salarios, nunca acesso a mais.
+    //
+    // NAO DERRUBA A CARGA, E A ESCOLHA E DESIGUAL DE PROPOSITO.
+    // Falhar aqui congela a camada N no valor da ultima execucao boa: quem
+    // foi promovido no meio-tempo fica com o acesso antigo. Isso e ruim, mas
+    // e silencioso E seguro -- camada nula esconde, nunca libera a mais.
+    // Perder a serie mensal inteira e pior e barulhento. Entre os dois, o
+    // acessorio cede.
+    if (orgTodos.length) {
+      try {
+        const { calcularCamadas, diagnosticar } = await import('@/lib/organograma');
+        const camadas = calcularCamadas(orgTodos);
+        const porPessoa = new Map(camadas.map((c) => [c.id, c]));
+        const diag = diagnosticar(orgTodos, camadas);
+
+        if (diag.semCamada > 0) {
+          avisos.push(
+            `${diag.semCamada} de ${diag.total} pessoas ficaram sem camada N (cadeia de reporte quebrada ou em ciclo no Convenia). Elas nao aparecem na aba de Salarios de ninguem, e quem for cadastrado com esses e-mails nao vai enxergar remuneracao.`,
+          );
+        }
+        if (diag.topos > 8) {
+          avisos.push(
+            `${diag.topos} pessoas sem supervisor conhecido. Cada uma vira um "topo" e recebe N-2, o que achata a escada -- vale conferir o preenchimento de gestor no Convenia.`,
+          );
+        }
+
+        const linhasOrg = orgTodos.map((p) => ({
+          convenia_id: p.id,
+          email: p.email ? p.email.trim().toLowerCase() : null,
+          nome: p.nome,
+          supervisor_id: p.supervisorId,
+          department: p.department,
+          camada: porPessoa.get(p.id)?.camada ?? null,
+          profundidade: porPessoa.get(p.id)?.profundidade ?? null,
+          atualizado_em: new Date().toISOString(),
+        }));
+
+        for (let i = 0; i < linhasOrg.length; i += 500) {
+          const { error } = await db.from('org_pessoas')
+            .upsert(linhasOrg.slice(i, i + 500) as never, { onConflict: 'convenia_id' });
+          if (error) throw new Error(`Falha ao gravar o organograma: ${error.message}`);
+        }
+      } catch (e) {
+        // O aviso precisa dizer o que congelou, e nao so que algo falhou.
+        // "Organograma nao gravado" sozinho nao conta a quem le que a aba de
+        // Salarios vai mostrar a hierarquia da semana passada.
+        const msgOrg = e instanceof Error ? e.message : String(e);
+        avisos.push(
+          `Organograma nao gravado: ${msgOrg}. A serie mensal entrou normalmente -- headcount, entradas, saidas e atricao estao atualizados. O que ficou parado foi a camada N, que continua com o valor da ultima execucao bem-sucedida: quem mudou de gestor ou foi promovido desde entao esta com a camada antiga na aba de Salarios. Nao ha risco de acesso indevido, porque camada nula esconde e nunca libera a mais.`,
+        );
+      }
+    }
+
     await encerrar('success', {
       requests: requisicoes,
       rows_written: todasLinhas.length,
@@ -527,7 +575,7 @@ export async function executarSyncConvenia(
     return { ...out, gravado: true };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    await encerrar('error', { error: msg.slice(0, 500) });
+    await encerrar('error', { error: msg.slice(0, 500), requests: requisicoes });
     throw e;
   }
 }
