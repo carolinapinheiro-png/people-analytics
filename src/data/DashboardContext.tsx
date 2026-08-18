@@ -4,7 +4,7 @@ import type { MonthRecord } from './raw-data';
 import type { LeaverRecord } from './leaver-types';
 import { listLeavers } from '@/lib/leavers.functions';
 import { getMonthlyMetrics } from '@/lib/metrics.functions';
-import { composeMonthlyMetrics } from './compose-metrics';
+import { composeMonthlyMetrics, diagnosticarSerie, type DiagnosticoSerie } from './compose-metrics';
 import { useAuth } from '@/contexts/AuthContext';
 import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
 import { readNavState, writeNavState } from '@/lib/nav-state';
@@ -60,6 +60,12 @@ interface DashboardState {
   /** A serie mensal agora vem do banco (nao mais do mock), entao tem carga. */
   dataLoading: boolean;
   dataError: string | null;
+  /**
+   * Qual série está no ar. `congelada` significa que a oficial não chegou e o
+   * painel está mostrando a cópia antiga -- coisa que já aconteceu por dois
+   * meses sem ninguém saber. Ver compose-metrics.ts.
+   */
+  serie: DiagnosticoSerie | null;
   /** Dado individual de desligados vem do servidor, entao tem estado de carga. */
   leaversLoading: boolean;
   leaversError: string | null;
@@ -138,6 +144,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<MonthRecord[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [serie, setSerie] = useState<DiagnosticoSerie | null>(null);
   const fetchMetrics = useServerFn(getMonthlyMetrics);
 
   useEffect(() => {
@@ -151,6 +158,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       .then((rows) => {
         if (cancelled) return;
         setData(composeMonthlyMetrics(rows));
+        setSerie(diagnosticarSerie(rows));
       })
       .catch((e: unknown) => {
         if (cancelled) return;
@@ -358,7 +366,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       activeTab, setActiveTab, activeSubTab, setActiveSubTab, view, setView, filters, setFilters,
       yearFilter, setYearFilter, availableYears, activeYear,
       monthsOrder, currentMonth, currentData, prevData, allMonthsData,
-      filteredDeptKey, dataLoading, dataError,
+      filteredDeptKey, dataLoading, dataError, serie,
       leaversLoading, leaversError, reloadLeavers,
     }}>
       {children}

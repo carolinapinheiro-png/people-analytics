@@ -476,6 +476,32 @@ export async function executarSyncConvenia(
     //
     // A serie e o produto da carga: headcount, entradas, saidas, atricao.
     // O organograma e acessorio. Acessorio nao precede essencial.
+    // ======================================================================
+    // A MARCA DE QUALIDADE ESTAVA NO CONTADOR ERRADO
+    // ======================================================================
+    // Isto era `desligadosSemCadastro > 0 ? 'parcial' : null`. E esse contador
+    // e sempre maior que zero POR CONSTRUCAO: o comentario la em cima, no
+    // proprio laco que o incrementa, diz que sao bases separadas e que "0 de
+    // 164 cruzaram". Todo desligado cai naquele ramo. Sempre.
+    //
+    // Consequencia: as 272 linhas da serie oficial, de marco/2013 a agosto de
+    // 2026, nasciam marcadas como 'parcial'. E `getMonthlyMetrics` filtra
+    // `quality_flag IS NULL`. A serie inteira era descartada na leitura, e o
+    // painel caia -- em silencio -- para a copia congelada do raw-data.ts, que
+    // termina em jun/26. Foi assim que o seletor de mes ficou dois meses atras
+    // do banco: nao faltava dado, faltava ele passar pelo filtro.
+    //
+    // `naoResolvidos` e o contador certo. Ele conta quem nem a busca no
+    // detalhe individual resolveu -- os unicos que de fato deixam a serie
+    // incompleta. Precisar de busca no detalhe e o caminho normal desta
+    // integracao, nao um defeito dela.
+    //
+    // Uma marca que acende sempre nao informa nada; so desliga o que ela
+    // deveria proteger.
+    const marcaQualidade = naoResolvidos > 0
+      ? `parcial: ${naoResolvidos} desligado(s) sem admissao/area mesmo apos o detalhe individual`
+      : null;
+
     if (todasLinhas.length) {
       const registros = todasLinhas.map((l) => ({
         month: l.month,
@@ -498,7 +524,7 @@ export async function executarSyncConvenia(
         state_mix: l.state_mix,
         tenure_base: l.tenure_base,
         demographics: l.demographics,
-        quality_flag: desligadosSemCadastro > 0 ? 'parcial' : null,
+        quality_flag: marcaQualidade,
       }));
       const { error } = await db.from('monthly_metrics')
         .upsert(registros, { onConflict: 'month,brand,source' });

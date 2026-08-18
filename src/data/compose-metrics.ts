@@ -98,6 +98,49 @@ const OFFICIAL = 'convenia';
 const FALLBACK = 'raw-data.ts';
 
 /**
+ * ===========================================================================
+ * QUAL SERIE ESTA NO AR
+ * ===========================================================================
+ * `composeMonthlyMetrics` cai para a congelada inteira quando nao encontra
+ * nenhuma linha da oficial. A queda em si e certa -- painel vazio e pior que
+ * painel velho. O que estava errado era ela ser MUDA.
+ *
+ * Em 18/08/2026 a serie do Convenia nasceu inteira marcada como 'parcial' (ver
+ * o contador errado em convenia/sync.server.ts). `getMonthlyMetrics` filtra
+ * `quality_flag IS NULL`, entao as 272 linhas sumiram na leitura e o painel
+ * passou a mostrar a copia congelada, que termina em jun/26 -- dois meses
+ * atras do que o banco tinha. Nada avisou. O sintoma que chegou ate mim foi
+ * "por que em cima ainda aparece junho?", e dali ate a causa foram quatro
+ * consultas.
+ *
+ * Uma queda silenciosa nao e um plano B: e um jeito de o painel envelhecer sem
+ * ninguem perceber. Esta funcao existe para a tela poder dizer em que pe esta.
+ */
+export type FonteSerie = 'oficial' | 'congelada' | 'vazia';
+
+export interface DiagnosticoSerie {
+  fonte: FonteSerie;
+  /** Ultimo mes disponivel na serie que esta sendo exibida, AAAA-MM. */
+  ultimoMes: string | null;
+  /** Quantas linhas da oficial chegaram. Zero e o caso que dispara a queda. */
+  linhasOficial: number;
+}
+
+export function diagnosticarSerie(rows: MonthlyMetricRow[]): DiagnosticoSerie {
+  const mes = (r: MonthlyMetricRow) => String(r.month).slice(0, 7);
+  const oficiais = rows.filter((r) => r.source === OFFICIAL);
+  const usadas = oficiais.length ? oficiais : rows.filter((r) => r.source === FALLBACK);
+  const ultimoMes = usadas.length
+    ? usadas.map(mes).sort().at(-1) ?? null
+    : null;
+  return {
+    fonte: oficiais.length ? 'oficial' : usadas.length ? 'congelada' : 'vazia',
+    ultimoMes,
+    linhasOficial: oficiais.length,
+  };
+}
+
+/**
  * @param rows linhas das duas fontes (ja filtradas por quality_flag IS NULL).
  * @returns MonthRecord[] com a reconstruida oficial + congelada nos 3 buracos.
  */

@@ -21,6 +21,35 @@ import AttritionTab from '@/components/tabs/AttritionTab';
 import RecruitmentTab from '@/components/tabs/RecruitmentTab';
 
 
+/**
+ * A queda para a série congelada deixa de ser muda.
+ *
+ * O painel prefere série velha a tela vazia -- isso está certo. O que estava
+ * errado era não dizer. Em agosto/2026 a série do Convenia inteira nasceu
+ * marcada como 'parcial', sumiu no filtro de leitura, e o painel passou a
+ * exibir a cópia congelada, que termina em jun/26. Ficou assim até alguém
+ * reparar que o seletor de mês não avançava.
+ *
+ * A faixa aparece SÓ quando a queda acontece. Aviso que fica sempre na tela
+ * deixa de ser lido em uma semana.
+ */
+function AvisoSerie() {
+  const { serie } = useDashboard();
+  if (!serie || serie.fonte !== 'congelada') return null;
+  return (
+    <div className="mx-4 md:mx-6 mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+      <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-400">
+        <strong>Série de reserva no ar.</strong> A série oficial (Convenia) não
+        retornou nenhuma linha, então o painel está mostrando a cópia congelada,
+        que vai até {serie.ultimoMes ?? '—'}. Os números continuam válidos até
+        essa data — mas não incluem os meses seguintes. Rode a sincronização do
+        Convenia; se o problema persistir, é filtro de qualidade descartando a
+        série inteira.
+      </p>
+    </div>
+  );
+}
+
 function DashboardContent() {
   const { activeTab, dataLoading, dataError } = useDashboard();
 
@@ -58,6 +87,7 @@ function DashboardContent() {
       </div>
       <div className="min-w-0 flex-1">
         <TopBar />
+        <AvisoSerie />
         <Breadcrumbs />
         <FilterBar />
         <div className="md:hidden">
