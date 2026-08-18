@@ -144,6 +144,12 @@ export interface OndaResumo {
   recortes: number;
   /** true na mais recente: e a que a aba esta mostrando. */
   atual: boolean;
+  /**
+   * O que esta onda tem de diferente, escrito na carga. jul/25 veio em duas
+   * partes com `n` diferente em cada painel -- sem esta frase na tela, o
+   * numero que muda de um quadro para o outro parece defeito.
+   */
+  observacao: string | null;
 }
 
 export const getExperienceData = createServerFn({ method: 'GET' })
@@ -200,7 +206,7 @@ export const getExperienceData = createServerFn({ method: 'GET' })
     // Corrigido ANTES de a segunda onda entrar, e nao depois.
     const { data: ondas, error: eOnda } = await db
       .from('survey_waves')
-      .select('wave, label, reference_date, respondents, eligible');
+      .select('wave, label, reference_date, respondents, eligible, notes');
     if (eOnda) throw new Error(`Falha ao listar ondas: ${eOnda.message}`);
 
     const { atual, anterior: ondaAnt, ordenadas } = escolherOndas((ondas ?? []) as OndaLinha[]);
@@ -347,6 +353,7 @@ export const getExperienceData = createServerFn({ method: 'GET' })
       drivers: contar(cntDrv.data, o.wave),
       recortes: contar(cnt.data, o.wave),
       atual: i === 0,
+      observacao: o.notes?.trim() || null,
     }));
 
     return {
@@ -447,7 +454,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     //
     // A regra agora mora em lib/onda.ts. Nao existe mais "a outra copia".
     const { data: ondasBrutas, error: eOndas } = await db
-      .from('survey_waves').select('wave, label, reference_date, respondents, eligible');
+      .from('survey_waves').select('wave, label, reference_date, respondents, eligible, notes');
     if (eOndas) throw new Error(`Falha ao listar ondas: ${eOndas.message}`);
     const { atual: ondaAtual, anterior: ondaAnterior } =
       escolherOndas((ondasBrutas ?? []) as OndaLinha[]);

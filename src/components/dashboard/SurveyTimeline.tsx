@@ -147,6 +147,18 @@ export default function SurveyTimeline({ ondas }: { ondas?: OndaResumo[] }) {
                     </>
                   )}
                 </p>
+
+                {/* A ressalva da própria onda, escrita na carga.
+                    jul/25 é o caso que trouxe isto até aqui: ela foi aplicada
+                    em duas partes, com respondentes anônimos diferentes, e o
+                    `n` muda de um painel para o outro. Sem a frase, o número
+                    que muda parece defeito de carga -- e a explicação já
+                    existia no banco, só não saía de lá. */}
+                {o.observacao && (
+                  <p className="text-[12px] text-muted-foreground/80 leading-relaxed mt-0.5 italic">
+                    {o.observacao}
+                  </p>
+                )}
               </div>
             );
           })}

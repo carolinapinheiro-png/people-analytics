@@ -32,6 +32,16 @@ export interface OndaLinha {
   reference_date: string;
   respondents?: number | null;
   eligible?: number | null;
+  /**
+   * O que esta onda tem de diferente das outras, em português.
+   *
+   * jul/25 é o caso que obrigou este campo a chegar até a tela: ela foi
+   * aplicada em DUAS partes -- eNPS em junho (233 respostas), drivers em julho
+   * (295) -- por coletas anônimas separadas. O `n` muda de um painel para o
+   * outro, e sem explicação isso parece defeito de carga. A explicação existia
+   * no banco e não saía de lá.
+   */
+  notes?: string | null;
 }
 
 /** O mínimo que uma linha de `engagement_scores` precisa ter para entrar aqui. */
