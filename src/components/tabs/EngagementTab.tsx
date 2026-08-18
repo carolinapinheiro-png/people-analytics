@@ -220,7 +220,13 @@ function EngagementSection({
 
       {cross && <AreaPriority areas={cross.rows} cuts={survey?.cuts ?? []} />}
 
-      {cross && <EnpsSlope rows={cross.rows} />}
+      {cross && (
+        <EnpsSlope
+          rows={cross.rows}
+          ondaAnterior={cross.ondaAnteriorLabel}
+          ondaAtual={cross.ondaAtualLabel}
+        />
+      )}
 
       {survey && survey.importancia.length > 0 && <DriverPriority rows={survey.importancia} />}
 

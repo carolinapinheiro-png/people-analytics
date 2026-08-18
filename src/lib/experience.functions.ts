@@ -7,6 +7,9 @@ import {
   type AccessScope, type ExperienceSubTab,
 } from '@/lib/permissions';
 import { deptForScope } from '@/lib/engagement-context';
+import {
+  escolherOndas, comDeltaCalculado, type OndaLinha, type LinhaComEscopo,
+} from '@/lib/onda';
 
 /**
  * A área que um perfil restrito enxerga quando não pede nada.
@@ -197,16 +200,12 @@ export const getExperienceData = createServerFn({ method: 'GET' })
     // Corrigido ANTES de a segunda onda entrar, e nao depois.
     const { data: ondas, error: eOnda } = await db
       .from('survey_waves')
-      .select('wave, label, reference_date, respondents, eligible')
-      .order('reference_date', { ascending: false });
+      .select('wave, label, reference_date, respondents, eligible');
     if (eOnda) throw new Error(`Falha ao listar ondas: ${eOnda.message}`);
 
-    const ordenadas = (ondas ?? []) as Array<{
-      wave: string; label: string; reference_date: string;
-      respondents: number | null; eligible: number | null;
-    }>;
-    const ondaAtual = ordenadas[0]?.wave ?? null;
-    const ondaAnterior = ordenadas[1]?.wave ?? null;
+    const { atual, anterior: ondaAnt, ordenadas } = escolherOndas((ondas ?? []) as OndaLinha[]);
+    const ondaAtual = atual?.wave ?? null;
+    const ondaAnterior = ondaAnt?.wave ?? null;
 
     const [eng, engAnt, drv, onb, dist] = await Promise.all([
       ondaAtual
@@ -282,46 +281,15 @@ export const getExperienceData = createServerFn({ method: 'GET' })
     // parte é a correção do que a Carolina viu. Os quatro cartões do topo são
     // desenhados a partir dela; ao filtrar, o filtro a removia junto com as
     // outras áreas e os cartões simplesmente sumiam da tela.
-    // ======================================================================
-    // O DELTA PASSA A SER CALCULADO, E NAO LIDO DA CARGA
-    // ======================================================================
-    // `enps_delta` veio pronto do deck do CEO na carga de jan/26. Enquanto
-    // havia uma onda so, era a unica forma possivel -- e tambem uma promessa
-    // que ninguem podia conferir: o numero na coluna nao tinha relacao nenhuma
-    // com os outros dois numeros da mesma tela.
-    //
-    // Com duas ondas no banco da para subtrair. Um delta calculado nao
-    // consegue discordar dos valores que ele compara; um delta digitado
-    // consegue, e o desacordo passa despercebido porque ninguem faz a conta de
-    // cabeca ao olhar um painel.
-    //
-    // Onde nao houver onda anterior para a mesma area (area nova, ou area que
-    // nao respondeu antes), o delta fica NULO -- e nulo aparece como "—". Zero
-    // seria mentira: diria "nao mudou" quando a verdade e "nao havia com o que
-    // comparar".
-    const anterior = new Map<string, { enps: number | null; rr: number | null; sat: number | null }>();
-    for (const r of ((engAnt.data ?? []) as Array<{
-      scope: string; enps: number | null; retention_risk: number | null; satisfaction: number | null;
-    }>)) {
-      anterior.set((r.scope ?? '').trim().toLowerCase(), {
-        enps: r.enps, rr: r.retention_risk, sat: r.satisfaction,
-      });
-    }
-    const dif = (agora: number | null, antes: number | null | undefined): number | null =>
-      agora == null || antes == null ? null : Math.round((agora - antes) * 10) / 10;
-
-    const comDelta = ((eng.data ?? []) as EngagementScore[]).map((r) => {
-      const a = anterior.get((r.scope ?? '').trim().toLowerCase());
-      // Sem onda anterior no banco, mantem o que veio na carga -- e o caso de
-      // jan/26 sozinha, que continua funcionando como antes.
-      if (!anterior.size) return r;
-      return {
-        ...r,
-        enps_delta: dif(r.enps, a?.enps),
-        rr_delta: dif(r.retention_risk, a?.rr),
-        sat_delta: dif(r.satisfaction, a?.sat),
-      };
-    });
+    // O delta e CALCULADO entre as ondas, nao lido da carga. A regra -- e o
+    // porque -- vivem em lib/onda.ts, com teste. Esta funcao e a irma
+    // `getEngagementCross` usam a mesma; a primeira versao disto ficou so aqui,
+    // e a aba apareceu metade certa (drivers de agosto, lista por area com as
+    // duas ondas empilhadas).
+    const comDelta = comDeltaCalculado(
+      (eng.data ?? []) as EngagementScore[],
+      (engAnt.data ?? []) as LinhaComEscopo[],
+    );
 
     const ehEmpresa = (r: EngagementScore) => (r.scope ?? '').trim().toLowerCase() === 'company';
     const engagement = (comDelta as EngagementScore[]).filter((r) => {
@@ -426,6 +394,17 @@ export interface EngagementCrossData extends EngagementContextResult {
    * sumir sem que o problema tivesse sido resolvido.
    */
   ressalvas: string[];
+  /**
+   * Rótulos das duas ondas comparadas, para o slope chart escrever no
+   * subtítulo. Ele tinha "jul/2025" e "jan/2026" escritos à mão como default,
+   * e continuou anunciando essa comparação depois de ago/26 entrar -- o mesmo
+   * defeito da linha do tempo, no componente ao lado.
+   *
+   * `ondaAnteriorLabel` é null quando não há com o que comparar; nesse caso o
+   * gráfico não tem o que desenhar e não aparece.
+   */
+  ondaAtualLabel: string | null;
+  ondaAnteriorLabel: string | null;
 }
 
 export const getEngagementCross = createServerFn({ method: 'GET' })
@@ -438,11 +417,34 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
 
-    const [eng, mm, lv] = await Promise.all([
+    // ======================================================================
+    // ESTA FUNCAO TAMBEM PRECISA ESCOLHER A ONDA
+    // ======================================================================
+    // Em 18/08/2026 eu corrigi a leitura de onda em `getExperienceData` e
+    // esqueci esta, que le a MESMA tabela para alimentar a fila por area, o
+    // slope chart e a frase "onde agir primeiro". A aba ficou metade certa: os
+    // drivers vieram de agosto e a lista por area veio com as duas ondas
+    // empilhadas -- "Marketing 48" e "Marketing 62" na mesma tela, uma de
+    // agosto e outra de janeiro, sem nada dizendo qual era qual.
+    //
+    // A regra agora mora em lib/onda.ts. Nao existe mais "a outra copia".
+    const { data: ondasBrutas, error: eOndas } = await db
+      .from('survey_waves').select('wave, label, reference_date, respondents, eligible');
+    if (eOndas) throw new Error(`Falha ao listar ondas: ${eOndas.message}`);
+    const { atual: ondaAtual, anterior: ondaAnterior } =
+      escolherOndas((ondasBrutas ?? []) as OndaLinha[]);
+
+    const [eng, engAnt, mm, lv] = await Promise.all([
       db
         .from('engagement_scores')
         .select('scope, enps, enps_delta, retention_risk, satisfaction, participation, status, gap_ent_enps')
+        .eq('wave', ondaAtual?.wave ?? '')
         .order('position', { ascending: true }),
+      ondaAnterior
+        ? db.from('engagement_scores')
+            .select('scope, enps, retention_risk, satisfaction')
+            .eq('wave', ondaAnterior.wave)
+        : Promise.resolve({ data: [], error: null }),
       // Só NSX/reconstruido tem dept_breakdown. Ver ressalva abaixo: a pesquisa
       // cobre a Flutter Brazil inteira, a quebra por área só existe para NSX.
       db
@@ -509,7 +511,16 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     }
     const sel = pedido ?? (podeVerTudo ? null : normalizarPrimeiroDept(scope));
 
-    const scores = ((eng.data ?? []) as EngagementScoreLike[]).filter((s) => {
+    // O delta aqui alimenta o slope chart (`enpsPrev` é reconstruído de
+    // `enps - enps_delta` em engagement-context). Com o delta vindo da carga,
+    // o gráfico comparava agosto com o que o deck do CEO dizia de jan/26 --
+    // que era a comparação jul/25 → jan/26. Duas ondas erradas de distância.
+    const comDelta = comDeltaCalculado(
+      (eng.data ?? []) as unknown as LinhaComEscopo[],
+      (engAnt.data ?? []) as LinhaComEscopo[],
+    ) as unknown as EngagementScoreLike[];
+
+    const scores = comDelta.filter((s) => {
       const dept = deptForScope(s.scope ?? '');
       // Linhas que não são departamento (`company`, `Betfair`) seguem a mesma
       // regra do resto: perfil restrito não as recebe, perfil global recebe.
@@ -540,5 +551,10 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       );
     }
 
-    return { ...result, ressalvas };
+    return {
+      ...result,
+      ressalvas,
+      ondaAtualLabel: ondaAtual?.label ?? null,
+      ondaAnteriorLabel: ondaAnterior?.label ?? null,
+    };
   });

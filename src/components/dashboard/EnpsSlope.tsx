@@ -30,19 +30,26 @@ const PAD_BOTTOM = 30;
 const LABEL_W = 118;
 
 /**
- * A onda anterior foi aplicada em duas partes, com um mês de diferença: o eNPS
- * saiu em junho/25 e os drivers em julho/25. É uma pesquisa só, e a área trata
- * como "Julho/25" -- é assim que ela é chamada nas reuniões. Rotular "jun/25"
- * aqui e "jul/25" na conversa criaria duas ondas onde existe uma.
+ * OS RÓTULOS VÊM DO BANCO, E NÃO DAQUI
+ *
+ * Isto era `ondaAnterior = 'jul/2025'` e `ondaAtual = 'jan/2026'` -- defaults
+ * escritos à mão, e ninguém passava nada por cima. Quando ago/26 entrou, o
+ * gráfico continuou anunciando a comparação jul/2025 → jan/2026 enquanto
+ * desenhava outra coisa. É o mesmo defeito que a linha do tempo tinha, no
+ * componente ao lado: texto fixo descrevendo dado que se move.
+ *
+ * (O nome da onda de meados de 2025 tem uma peculiaridade que o banco já
+ * resolve: o eNPS saiu em junho/25 e os drivers em julho/25, e a área trata as
+ * duas partes como uma pesquisa só, "Julho/25". O `label` guardado é esse.)
  */
 export default function EnpsSlope({
   rows,
-  ondaAnterior = 'jul/2025',
-  ondaAtual = 'jan/2026',
+  ondaAnterior,
+  ondaAtual,
 }: {
   rows: EngagementContextRow[];
-  ondaAnterior?: string;
-  ondaAtual?: string;
+  ondaAnterior: string | null;
+  ondaAtual: string | null;
 }) {
   const dados = useMemo(() => {
     const validas = rows.filter(
@@ -61,7 +68,9 @@ export default function EnpsSlope({
     return { min: Math.min(...vals) - 6, max: Math.max(...vals) + 6 };
   }, [dados]);
 
-  if (dados.length < 2) return null;
+  // Sem as duas pontas nomeadas o gráfico não sabe o que está comparando --
+  // e um slope chart sem os dois rótulos é só um emaranhado de traços.
+  if (dados.length < 2 || !ondaAtual || !ondaAnterior) return null;
 
   const y = (v: number) => PAD_TOP + ((max - v) / (max - min)) * (H - PAD_TOP - PAD_BOTTOM);
 
