@@ -14,6 +14,7 @@ import Detalhe from '@/components/dashboard/Detalhe';
 import SurveyTimeline from '@/components/dashboard/SurveyTimeline';
 import EngagementMatrix from '@/components/dashboard/EngagementMatrix';
 import EnpsSlope from '@/components/dashboard/EnpsSlope';
+import EnpsSerie from '@/components/dashboard/EnpsSerie';
 import RiskVsAttrition from '@/components/dashboard/RiskVsAttrition';
 import DriversDeepDive from '@/components/dashboard/DriversDeepDive';
 import KpiCard from '@/components/dashboard/KpiCard';
@@ -220,13 +221,19 @@ function EngagementSection({
 
       {cross && <AreaPriority areas={cross.rows} cuts={survey?.cuts ?? []} />}
 
-      {cross && (
-        <EnpsSlope
-          rows={cross.rows}
-          ondaAnterior={cross.ondaAnteriorLabel}
-          ondaAtual={cross.ondaAtualLabel}
-        />
-      )}
+      {/* Duas ondas: slope, que responde "o que mudou desde a última pesquisa".
+          Três ou mais: série, porque o slope só enxerga as duas pontas e uma
+          área que caiu, subiu e voltou apareceria idêntica a uma parada.
+          Quem decide é o banco, não uma constante para alguém lembrar. */}
+      {cross && (cross.serieEnps.length >= 3
+        ? <EnpsSerie ondas={cross.serieEnps} />
+        : (
+          <EnpsSlope
+            rows={cross.rows}
+            ondaAnterior={cross.ondaAnteriorLabel}
+            ondaAtual={cross.ondaAtualLabel}
+          />
+        ))}
 
       {survey && survey.importancia.length > 0 && <DriverPriority rows={survey.importancia} />}
 

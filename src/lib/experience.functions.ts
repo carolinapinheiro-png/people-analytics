@@ -405,6 +405,24 @@ export interface EngagementCrossData extends EngagementContextResult {
    */
   ondaAtualLabel: string | null;
   ondaAnteriorLabel: string | null;
+  /**
+   * eNPS por área ao longo de TODAS as ondas com dado, da mais antiga para a
+   * mais nova. Só entram ondas que têm linhas de verdade -- jul/25 está
+   * cadastrada com 295 respostas e zero linhas, e uma onda que nunca foi
+   * carregada não vira ponto no gráfico.
+   *
+   * Com duas ondas, a tela desenha o slope (a pergunta da reunião é "o que
+   * mudou desde a última pesquisa"). Com três ou mais, vira linha do tempo.
+   */
+  serieEnps: OndaEnps[];
+}
+
+export interface OndaEnps {
+  wave: string;
+  label: string;
+  referenceDate: string;
+  /** Uma entrada por área presente naquela onda. `company` fica de fora. */
+  pontos: Array<{ scope: string; enps: number }>;
 }
 
 export const getEngagementCross = createServerFn({ method: 'GET' })
@@ -434,7 +452,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     const { atual: ondaAtual, anterior: ondaAnterior } =
       escolherOndas((ondasBrutas ?? []) as OndaLinha[]);
 
-    const [eng, engAnt, mm, lv] = await Promise.all([
+    const [eng, engAnt, todasOndas, mm, lv] = await Promise.all([
       db
         .from('engagement_scores')
         .select('scope, enps, enps_delta, retention_risk, satisfaction, participation, status, gap_ent_enps')
@@ -445,6 +463,10 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
             .select('scope, enps, retention_risk, satisfaction')
             .eq('wave', ondaAnterior.wave)
         : Promise.resolve({ data: [], error: null }),
+      // O eNPS de TODAS as ondas, para a série histórica. Só três colunas: o
+      // resto de cada onda não interessa a uma linha do tempo, e trazer menos
+      // é a diferença entre uma consulta e um dump.
+      db.from('engagement_scores').select('wave, scope, enps'),
       // Só NSX/reconstruido tem dept_breakdown. Ver ressalva abaixo: a pesquisa
       // cobre a Flutter Brazil inteira, a quebra por área só existe para NSX.
       db
@@ -536,6 +558,44 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       JANELA,
     );
 
+    // ======================================================================
+    // A SÉRIE HISTÓRICA, COM O MESMO RECORTE DE ÁREA
+    // ======================================================================
+    // O escopo tem que valer aqui também, e pela razão de sempre: uma linha do
+    // tempo com nove áreas é o mesmo ranking que o recorte por departamento
+    // fecha nas outras visões, entrando por uma porta nova.
+    //
+    // `company` fica de fora porque uma linha de empresa junto das de área
+    // dominaria a leitura -- e o número da empresa já está nos cartões do topo.
+    const podeVerArea = (nome: string): boolean => {
+      const dept = deptForScope(nome);
+      if (dept == null) return false;              // 'company', 'Betfair'
+      if (!podeVerTudo && !isInScope(scope, dept)) return false;
+      return !sel || dept === sel;
+    };
+    const porOnda = new Map<string, Array<{ scope: string; enps: number }>>();
+    for (const r of ((todasOndas.data ?? []) as Array<{
+      wave: string; scope: string; enps: number | null;
+    }>)) {
+      if (r.enps == null || !podeVerArea(r.scope ?? '')) continue;
+      const lista = porOnda.get(r.wave) ?? [];
+      lista.push({ scope: r.scope, enps: Number(r.enps) });
+      porOnda.set(r.wave, lista);
+    }
+    // Da mais antiga para a mais nova, e só as que têm ponto. Uma onda
+    // cadastrada e nunca carregada -- jul/25, com 295 respostas anotadas e zero
+    // linhas -- não vira ponto: viraria um buraco no meio da linha, que o olho
+    // lê como queda.
+    const serieEnps: OndaEnps[] = [...(ondasBrutas ?? [] as OndaLinha[])]
+      .sort((a, b) => (a.reference_date < b.reference_date ? -1 : 1))
+      .filter((o) => (porOnda.get(o.wave)?.length ?? 0) > 0)
+      .map((o) => ({
+        wave: o.wave,
+        label: o.label,
+        referenceDate: o.reference_date,
+        pontos: porOnda.get(o.wave) ?? [],
+      }));
+
     const ressalvas: string[] = [
       'A pesquisa cobre a Flutter Brazil inteira; a quebra de headcount por área só existe para a NSX. Se as linhas por departamento da pesquisa incluírem gente da Betfair, o denominador está subestimado e a atrição sai um pouco alta.',
     ];
@@ -556,5 +616,6 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       ressalvas,
       ondaAtualLabel: ondaAtual?.label ?? null,
       ondaAnteriorLabel: ondaAnterior?.label ?? null,
+      serieEnps,
     };
   });
