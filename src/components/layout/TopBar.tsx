@@ -131,18 +131,57 @@ export default function TopBar() {
           opcoes={views.map((v) => ({ k: v.value, label: v.label }))}
         />
 
-        {/* Month nav */}
-        <div className="flex items-center gap-2">
+        {/* ------------------------------------------------------------------
+            MÊS: LISTA, MAS AS SETAS FICAM
+            ------------------------------------------------------------------
+            O rótulo do mês era texto fixo entre duas setas. Funcionava quando
+            a série tinha dezoito meses; agora tem 272, e chegar em 2015 pela
+            seta seriam mais de duzentos cliques. A lista resolve isso.
+
+            As setas NÃO saem junto, e é a única diferença de tratamento entre
+            este controle e os outros três. Marca, ano e visão mudam raramente;
+            mês é a interação central de um painel mensal -- comparar com o
+            anterior é o gesto que se repete o tempo todo. Trocar um clique por
+            "abrir lista, procurar, escolher" nesse caso custaria mais do que o
+            espaço economizado.
+
+            Elas ficam desabilitadas nas pontas, em vez de clicáveis sem
+            efeito: um botão que não faz nada e não diz que não faz nada é pior
+            que um botão apagado.
+        ------------------------------------------------------------------ */}
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => currentMonthIdx > 0 && setCurrentMonthIdx(currentMonthIdx - 1)}
-            className="p-1 rounded border border-border hover:border-border transition-colors"
+            disabled={currentMonthIdx <= 0}
+            aria-label="Mês anterior"
+            title="Mês anterior"
+            className="p-1 rounded border border-border hover:bg-secondary disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
-          <span className="text-sm font-semibold min-w-[80px] text-center">{mLabel(currentMonth)}</span>
+          <select
+            value={currentMonth}
+            onChange={(e) => {
+              const i = monthsOrder.indexOf(e.target.value);
+              if (i >= 0) setCurrentMonthIdx(i);
+            }}
+            aria-label="Mês"
+            title="Mês"
+            className="border border-border rounded-md bg-card py-1.5 pl-2 pr-6 text-[11px] font-semibold text-foreground cursor-pointer hover:bg-secondary transition-colors focus:outline-none focus:ring-1"
+            style={{ '--tw-ring-color': brandColor } as React.CSSProperties}
+          >
+            {/* Do mais recente para o mais antigo, como o filtro de ano: com
+                272 meses, o mês corrente não pode estar no fim da rolagem. */}
+            {[...monthsOrder].reverse().map((m) => (
+              <option key={m} value={m}>{mLabel(m)}</option>
+            ))}
+          </select>
           <button
             onClick={() => currentMonthIdx < monthsOrder.length - 1 && setCurrentMonthIdx(currentMonthIdx + 1)}
-            className="p-1 rounded border border-border hover:border-border transition-colors"
+            disabled={currentMonthIdx >= monthsOrder.length - 1}
+            aria-label="Próximo mês"
+            title="Próximo mês"
+            className="p-1 rounded border border-border hover:bg-secondary disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
