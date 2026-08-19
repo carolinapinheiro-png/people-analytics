@@ -1,4 +1,3 @@
-import { cn } from '@/lib/utils';
 import { useDashboard, BrandType, ViewType } from '@/data/DashboardContext';
 import { mLabel } from '@/data/helpers';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -63,7 +62,10 @@ export default function TopBar() {
       .filter((y) => y !== latestYear)
       .sort((a, b) => (a < b ? 1 : -1))
       .map((y) => ({ k: y, label: rotuloAno(y, cobertura) })),
-    { k: 'Todos', label: 'Todos' },
+    // "Todos" sozinho num campo sem rótulo visível não diz do que. Agora que o
+    // controle pode ficar sem legenda em tela estreita, o valor precisa se
+    // sustentar lido de fora.
+    { k: 'Todos', label: 'Todos os anos' },
   ];
 
   return (
@@ -82,78 +84,52 @@ export default function TopBar() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3 min-w-0 overflow-x-auto">
-        {/* Brand toggle */}
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden md:inline">Marca</span>
-          <div className="flex border border-border rounded-md overflow-hidden">
-            {brands.map(b => (
-              <button
-                key={b.value}
-                onClick={() => setBrand(b.value)}
-                className={cn(
-                  'px-3 py-1.5 text-[11px] font-semibold transition-all',
-                  brand === b.value
-                    ? 'text-white'
-                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                )}
-                style={brand === b.value ? { backgroundColor: brandColor } : undefined}
-              >
-                {b.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
+      <div className="flex items-center gap-2 min-w-0 overflow-x-auto">
         {/* ------------------------------------------------------------------
-            ANO: LISTA, NÃO BOTÕES LADO A LADO
+            OS TRÊS FILTROS GLOBAIS, TODOS COMO LISTA
             ------------------------------------------------------------------
-            Isto era um controle segmentado, e funcionava bem enquanto a série
-            tinha dois anos. Em 19/08/2026 a série do Convenia deixou de ser
-            descartada na leitura e o painel passou a ter março/2013 em diante:
-            quinze opções num controle desenhado para três, transbordando a
-            barra e espremendo o seletor de marca.
+            Os três eram controles segmentados: quatro marcas, quinze anos e
+            duas visões, mais os rótulos, mais a navegação de mês, glossário,
+            tema e usuário -- tudo na mesma linha. Somados, ocupavam a barra
+            inteira e empurravam a navegação de mês para fora da tela em telas
+            de notebook.
 
-            Um controle segmentado promete "as opções cabem na sua frente".
-            Quando não cabem, ele não fica só feio -- ele passa a mentir. Lista
-            escala, e ainda dá espaço para dizer o que cada ano tem.
+            Um controle segmentado é melhor que uma lista quando as opções
+            cabem lado a lado E a comparação entre elas importa na hora de
+            escolher. Aqui nenhuma das duas coisas se sustenta: ninguém compara
+            "Mensal" com "Trimestral" olhando, escolhe. O que o segmentado
+            entrega em troca do espaço é ver a opção não escolhida -- e isso
+            vale pouco em filtro global, que muda raramente e fica visível no
+            valor selecionado.
+
+            Um componente só para os três, para não divergirem no próximo
+            ajuste. Foi a lição das treze cópias de `authorize()`, em escala
+            menor: duas listas iguais escritas em dois lugares viram duas
+            listas diferentes.
         ------------------------------------------------------------------ */}
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden md:inline">Ano</span>
-          <select
-            value={yearFilter}
-            onChange={(e) => setYearFilter(e.target.value)}
-            aria-label="Filtrar por ano"
-            className="border border-border rounded-md bg-card px-2.5 py-1.5 text-[11px] font-semibold text-foreground focus:outline-none focus:ring-1"
-            style={{ '--tw-ring-color': brandColor } as React.CSSProperties}
-          >
-            {yearOptions.map((y) => (
-              <option key={y.k} value={y.k}>{y.label}</option>
-            ))}
-          </select>
-        </div>
+        <Seletor
+          rotulo="Marca"
+          valor={brand}
+          onChange={(v) => setBrand(v as BrandType)}
+          cor={brandColor}
+          opcoes={brands.map((b) => ({ k: b.value, label: b.label }))}
+        />
 
-        {/* View toggle */}
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden md:inline">Visão</span>
-          <div className="flex border border-border rounded-md overflow-hidden">
-            {views.map(v => (
-              <button
-                key={v.value}
-                onClick={() => setView(v.value)}
-                className={cn(
-                  'px-3 py-1.5 text-[11px] font-semibold transition-all',
-                  view === v.value
-                    ? 'text-white'
-                    : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-                )}
-                style={view === v.value ? { backgroundColor: brandColor } : undefined}
-              >
-                {v.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <Seletor
+          rotulo="Ano"
+          valor={yearFilter}
+          onChange={setYearFilter}
+          cor={brandColor}
+          opcoes={yearOptions}
+        />
+
+        <Seletor
+          rotulo="Visão"
+          valor={view}
+          onChange={(v) => setView(v as ViewType)}
+          cor={brandColor}
+          opcoes={views.map((v) => ({ k: v.value, label: v.label }))}
+        />
 
         {/* Month nav */}
         <div className="flex items-center gap-2">
@@ -182,6 +158,48 @@ export default function TopBar() {
         <UserMenu />
       </div>
     </header>
+  );
+}
+
+/**
+ * Um filtro global do topo.
+ *
+ * O rótulo ("Marca", "Ano", "Visão") só aparece em telas largas: em notebook
+ * ele é o primeiro a sair, porque o valor selecionado já diz do que se trata
+ * -- "Combinado", "Trimestral" e "Ano atual (2026)" não precisam de legenda.
+ * O `aria-label` fica sempre, então quem usa leitor de tela não perde nada
+ * quando o texto some.
+ *
+ * `title` repete o rótulo no hover: é o resgate para quem está numa tela
+ * estreita e não reconheceu o controle de cara.
+ */
+function Seletor({
+  rotulo, valor, onChange, opcoes, cor,
+}: {
+  rotulo: string;
+  valor: string;
+  onChange: (v: string) => void;
+  opcoes: { k: string; label: string }[];
+  cor: string;
+}) {
+  return (
+    <div className="flex items-center gap-1.5 shrink-0">
+      <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden 2xl:inline">
+        {rotulo}
+      </span>
+      <select
+        value={valor}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={rotulo}
+        title={rotulo}
+        className="border border-border rounded-md bg-card py-1.5 pl-2 pr-6 text-[11px] font-semibold text-foreground max-w-[168px] truncate cursor-pointer hover:bg-secondary transition-colors focus:outline-none focus:ring-1"
+        style={{ '--tw-ring-color': cor } as React.CSSProperties}
+      >
+        {opcoes.map((o) => (
+          <option key={o.k} value={o.k}>{o.label}</option>
+        ))}
+      </select>
+    </div>
   );
 }
 
