@@ -429,7 +429,36 @@ export interface OndaEnps {
   label: string;
   referenceDate: string;
   /** Uma entrada por área presente naquela onda. `company` fica de fora. */
-  pontos: Array<{ scope: string; enps: number }>;
+  pontos: PontoOnda[];
+}
+
+/**
+ * Um ponto da série, com a composição por trás do número.
+ *
+ * ------------------------------------------------------------------
+ * POR QUE O eNPS SOZINHO NÃO BASTA
+ * ------------------------------------------------------------------
+ * eNPS é uma subtração de porcentagens, e subtração perde informação: 60 pode
+ * ser "80% promotores e 20% detratores" ou "60% promotores, 40% passivos e
+ * nenhum detrator". As duas situações pedem conversas diferentes -- a primeira
+ * tem gente ativamente insatisfeita, a segunda tem gente morna.
+ *
+ * Some a isso o tamanho: Finance caiu 34 pontos com 24 respostas. Uma pessoa
+ * ali move o índice em 4 pontos. Sem o `n` ao lado, uma queda de área pequena
+ * e uma de área grande parecem o mesmo fato.
+ *
+ * Tudo isto já está em `survey_cut_scores`, medido na carga. Só não estava
+ * saindo do banco.
+ */
+export interface PontoOnda {
+  scope: string;
+  enps: number;
+  n: number | null;
+  promotores: number | null;
+  passivos: number | null;
+  detratores: number | null;
+  risco: number | null;
+  satisfacao: number | null;
 }
 
 export const getEngagementCross = createServerFn({ method: 'GET' })
@@ -470,10 +499,17 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
             .select('scope, enps, retention_risk, satisfaction')
             .eq('wave', ondaAnterior.wave)
         : Promise.resolve({ data: [], error: null }),
-      // O eNPS de TODAS as ondas, para a série histórica. Só três colunas: o
-      // resto de cada onda não interessa a uma linha do tempo, e trazer menos
-      // é a diferença entre uma consulta e um dump.
-      db.from('engagement_scores').select('wave, scope, enps'),
+      // A série histórica sai de `survey_cut_scores`, e não de
+      // `engagement_scores`, por um motivo só: é lá que está a COMPOSIÇÃO.
+      //
+      // Os dois têm o eNPS por área e por onda. Mas promotores, passivos,
+      // detratores e o `n` só existem no primeiro -- e são justamente eles que
+      // transformam o ponto do gráfico em explicação quando alguém para o
+      // mouse em cima. Ler do outro lugar significaria uma segunda consulta
+      // para os mesmos pontos.
+      db.from('survey_cut_scores')
+        .select('wave, cut_value, n, enps, promotores, passivos, detratores, risco, satisfacao')
+        .eq('cut_type', 'area'),
       // Só NSX/reconstruido tem dept_breakdown. Ver ressalva abaixo: a pesquisa
       // cobre a Flutter Brazil inteira, a quebra por área só existe para NSX.
       db
@@ -580,13 +616,28 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       if (!podeVerTudo && !isInScope(scope, dept)) return false;
       return !sel || dept === sel;
     };
-    const porOnda = new Map<string, Array<{ scope: string; enps: number }>>();
+    const numero = (v: unknown): number | null =>
+      v == null ? null : Number.isFinite(Number(v)) ? Number(v) : null;
+
+    const porOnda = new Map<string, PontoOnda[]>();
     for (const r of ((todasOndas.data ?? []) as Array<{
-      wave: string; scope: string; enps: number | null;
+      wave: string; cut_value: string; n: number | null; enps: number | null;
+      promotores: number | null; passivos: number | null; detratores: number | null;
+      risco: number | null; satisfacao: number | null;
     }>)) {
-      if (r.enps == null || !podeVerArea(r.scope ?? '')) continue;
+      const nome = r.cut_value ?? '';
+      if (r.enps == null || !podeVerArea(nome)) continue;
       const lista = porOnda.get(r.wave) ?? [];
-      lista.push({ scope: r.scope, enps: Number(r.enps) });
+      lista.push({
+        scope: nome,
+        enps: Number(r.enps),
+        n: numero(r.n),
+        promotores: numero(r.promotores),
+        passivos: numero(r.passivos),
+        detratores: numero(r.detratores),
+        risco: numero(r.risco),
+        satisfacao: numero(r.satisfacao),
+      });
       porOnda.set(r.wave, lista);
     }
     // Da mais antiga para a mais nova, e só as que têm ponto. Uma onda

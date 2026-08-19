@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils';
 import {
   Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
-import type { SurveyImportance } from '@/lib/survey.functions';
+import type { SurveyImportance, DriverPorRecorte } from '@/lib/survey.functions';
+import { areasNaPergunta, temQuebraPorArea } from '@/lib/drill';
 
 /**
  * As perguntas onde mexer tende a render mais, como lista.
@@ -60,8 +61,76 @@ function forca(r: number, cortes: { alto: number; medio: number }): string {
   return r >= cortes.alto ? 'puxa muito' : r >= cortes.medio ? 'puxa' : 'puxa pouco';
 }
 
-export default function DriverPriority({ rows }: { rows: SurveyImportance[] }) {
+/**
+ * As áreas mais distantes da empresa numa pergunta, nas duas direções.
+ *
+ * Mostra as duas pontas e não a lista inteira: com nove áreas, o meio quase
+ * nunca muda decisão, e a lista completa aqui viraria uma segunda tabela
+ * dentro da primeira -- justamente o que a versão em lista veio resolver.
+ */
+function PorArea({ drivers, p }: { drivers: DriverPorRecorte[]; p: SurveyImportance }) {
+  const linhas = areasNaPergunta(drivers, p.driver, p.question).filter((a) => a.gap != null);
+
+  // Onda medida só no nível da empresa (jan/26). Silêncio aqui seria lido como
+  // "todas as áreas iguais", que é afirmação -- e ninguém mediu isso.
+  if (!temQuebraPorArea(drivers)) {
+    return (
+      <p className="mt-1 ml-[74px] text-[11px] text-muted-foreground italic">
+        Esta onda não foi quebrada por área.
+      </p>
+    );
+  }
+  if (!linhas.length) return null;
+
+  const Chip = ({ a }: { a: (typeof linhas)[number] }) => (
+    <span className="inline-flex items-baseline gap-1 rounded px-1.5 py-0.5 bg-background border border-border/60">
+      <span
+        className="tabular-nums font-semibold"
+        style={{ color: (a.gap ?? 0) < 0 ? COLORS.danger : COLORS.success }}
+      >
+        {(a.gap ?? 0) > 0 ? '+' : ''}{a.gap}
+      </span>
+      <span>{a.area}</span>
+      <span className="text-muted-foreground">n={a.n}</span>
+    </span>
+  );
+
+  const piores = linhas.slice(0, 3);
+  const melhores = [...linhas].reverse().slice(0, 2).filter((a) => (a.gap ?? 0) > 0);
+
+  return (
+    <div className="mt-1 ml-[74px] flex flex-wrap items-center gap-1.5 text-[11px]">
+      <span className="text-muted-foreground">puxam para baixo:</span>
+      {piores.map((a) => <Chip key={a.area} a={a} />)}
+      {melhores.length > 0 && (
+        <>
+          <span className="text-muted-foreground ml-1">sustentam:</span>
+          {melhores.map((a) => <Chip key={a.area} a={a} />)}
+        </>
+      )}
+      <span className="text-muted-foreground">· pontos de % contra a empresa</span>
+    </div>
+  );
+}
+
+export default function DriverPriority({
+  rows,
+  drivers = [],
+}: {
+  rows: SurveyImportance[];
+  /**
+   * Notas por área, para o hover inverter o eixo da leitura.
+   *
+   * "Remuneração tem as piores notas da empresa" é um fato sobre a empresa e
+   * não leva a lugar nenhum -- não há com quem conversar. "Remuneração está 17
+   * pontos abaixo em Marketing e no nível da empresa em Technology" indica
+   * onde a conversa acontece. É a MESMA matriz que o painel de área usa, lida
+   * pelo outro eixo (ver lib/drill.ts).
+   */
+  drivers?: DriverPorRecorte[];
+}) {
   const [verTodas, setVerTodas] = useState(false);
+  const [sobre, setSobre] = useState<string | null>(null);
 
   const { prioridade, sustentar, cortes, temaDominante } = useMemo(() => {
     const cr = median(rows.map((i) => i.r)) ?? 0;
@@ -109,7 +178,16 @@ export default function DriverPriority({ rows }: { rows: SurveyImportance[] }) {
         {lista.map((p) => {
           const alta = p.r >= cortes.alto;
           return (
-            <div key={p.question} className="flex items-start gap-3 py-1.5 border-b border-border/40 last:border-0">
+            <div
+              key={p.question}
+              className={cn(
+                'py-1.5 border-b border-border/40 last:border-0 -mx-1 px-1 rounded transition-colors',
+                sobre === p.question && 'bg-secondary/60',
+              )}
+              onMouseEnter={() => setSobre(p.question)}
+              onMouseLeave={() => setSobre(null)}
+            >
+            <div className="flex items-start gap-3">
               <span
                 className="tabular-nums w-[62px] shrink-0 text-right"
                 title={`média ${fmt2(p.score)} de 5`}
@@ -133,6 +211,13 @@ export default function DriverPriority({ rows }: { rows: SurveyImportance[] }) {
               >
                 {forca(p.r, cortes)}
               </span>
+            </div>
+
+            {/* O outro eixo da mesma matriz: quem puxa esta pergunta para
+                baixo e quem a sustenta. Só as duas pontas -- o meio raramente
+                muda decisão, e a lista inteira aqui viraria uma segunda tabela
+                dentro da primeira. */}
+            {sobre === p.question && <PorArea drivers={drivers} p={p} />}
             </div>
           );
         })}

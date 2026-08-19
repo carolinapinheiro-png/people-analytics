@@ -185,6 +185,31 @@ export interface SurveyImportance {
   n: number;
 }
 
+/**
+ * Uma nota de pergunta dentro de um recorte.
+ *
+ * ------------------------------------------------------------------
+ * O MESMO DADO SERVE ÀS DUAS PERGUNTAS DA REUNIÃO
+ * ------------------------------------------------------------------
+ * "Como está Marketing?" e "quem tem problema com remuneração?" são o mesmo
+ * conjunto de números lido em eixos diferentes -- pergunta × área. Guardar
+ * duas consultas para isso criaria duas verdades que divergem no primeiro
+ * ajuste; é a lição das treze cópias de `authorize()` outra vez.
+ *
+ * `cutValue = 'company'` é a régua: sem ela, "4,04" não diz se a área está bem
+ * ou mal, e comparar de cabeça com um número que está em outro quadro da tela
+ * é exatamente o esforço que o painel existe para poupar.
+ */
+export interface DriverPorRecorte {
+  driver: string;
+  question: string;
+  cutType: string;
+  cutValue: string;
+  n: number;
+  score: number | null;
+  favoravel: number | null;
+}
+
 export interface SurveyWaveData {
   wave: string;
   label: string;
@@ -193,6 +218,16 @@ export interface SurveyWaveData {
   participacao: number | null;
   cuts: SurveyCut[];
   importancia: SurveyImportance[];
+  /**
+   * Notas de driver por área, mais a linha da empresa como régua.
+   *
+   * Vazio quando a onda não tem esse nível -- jan/26 foi carregada só no nível
+   * da empresa, então clicar numa área naquela onda não teria o que abrir. A
+   * tela precisa saber a diferença entre "esta área vai bem" e "esta onda não
+   * mediu por área", que é o mesmo par de leituras já separado em Salários e
+   * na linha do tempo.
+   */
+  driversPorArea: DriverPorRecorte[];
   /** Quantos recortes tiveram a nota escondida para este perfil. */
   suprimidos: number;
   minimoExibicao: number;
@@ -235,9 +270,16 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       : (waves ?? [])[0];
     if (!wave) return null;
 
-    const [cutRes, impRes] = await Promise.all([
+    const [cutRes, impRes, drvRes] = await Promise.all([
       db.from('survey_cut_scores').select('*').eq('wave', wave.wave),
       db.from('survey_driver_importance').select('*').eq('wave', wave.wave).order('r', { ascending: false }),
+      // Só empresa e área. Os recortes por tempo de casa, marca e modelo
+      // existem na mesma tabela e triplicariam o payload sem que nada na tela
+      // os use hoje -- 748 linhas viram 340.
+      db.from('survey_driver_scores')
+        .select('driver, question, cut_type, cut_value, n, score, favoravel')
+        .eq('wave', wave.wave)
+        .in('cut_type', ['company', 'area']),
     ]);
     if (cutRes.error) throw new Error(`Falha ao carregar recortes: ${cutRes.error.message}`);
 
@@ -286,6 +328,43 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       : a.cutType === 'tempo' ? ordemTempo(a.cutValue) - ordemTempo(b.cutValue)
       : b.n - a.n);
 
+    // ======================================================================
+    // O DRILL POR ÁREA PASSA PELA MESMA PORTA
+    // ======================================================================
+    // Este é o caminho novo -- clicar numa área abre as notas dela. Um caminho
+    // novo para o mesmo dado é exatamente onde o escopo costuma ficar para
+    // trás: o filtro acima seria inútil se este trecho devolvesse as nove
+    // áreas por outro campo do mesmo JSON.
+    //
+    // A regra é reutilizada, não reescrita. `company` passa sempre: é a régua,
+    // e o número da empresa já está visível em todos os outros quadros.
+    //
+    // A supressão por n baixo vale aqui também: uma área com três respostas
+    // não pode ter a nota exposta porque quem olha clicou em vez de ler a
+    // tabela.
+    const driversNoEscopo = ((drvRes.error ? [] : drvRes.data ?? []) as Array<Record<string, unknown>>)
+      .filter((d) => {
+        const tipo = String(d.cut_type);
+        if (tipo === 'company') return true;
+        const dept = deptForScope(String(d.cut_value));
+        if (dept == null) return podeVerTudoEscopo;
+        if (!podeVerTudoEscopo && !isInScope(scope, dept)) return false;
+        return !sel || dept === sel;
+      })
+      .map((d) => ({
+        driver: String(d.driver),
+        question: String(d.question),
+        cutType: String(d.cut_type),
+        cutValue: String(d.cut_value),
+        n: Number(d.n),
+        score: d.score == null ? null : Number(d.score),
+        favoravel: d.favoravel == null ? null : Number(d.favoravel),
+      }));
+
+    const driversPorArea = applySuppression(
+      driversNoEscopo, podeVerTudo, ['score', 'favoravel'],
+    ) as DriverPorRecorte[];
+
     return {
       wave: String(wave.wave),
       label: String(wave.label),
@@ -301,6 +380,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
         favoravel: i.favoravel == null ? null : Number(i.favoravel),
         n: Number(i.n),
       })),
+      driversPorArea,
       suprimidos: cuts.filter((c) => c.suprimido).length,
       minimoExibicao: N_MINIMO_EXIBICAO,
     };

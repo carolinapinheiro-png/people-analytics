@@ -1,5 +1,7 @@
-import { useMemo } from 'react';
-import { Info } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Info, ChevronDown } from 'lucide-react';
+import AreaDriverPanel from '@/components/dashboard/AreaDriverPanel';
+import type { DriverPorRecorte } from '@/lib/survey.functions';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
@@ -71,19 +73,33 @@ const VEREDITO: Record<Veredito, { label: string; cor: string; explica: string }
 export default function AreaPriority({
   areas,
   cuts,
+  drivers = [],
+  minimoExibicao = 5,
 }: {
   areas: EngagementContextRow[];
-  /** Recortes por área da carga bruta, só para saber o n de respondentes. */
+  /** Recortes por área da carga bruta: n de respondentes E a composição. */
   cuts: SurveyCut[];
+  /** Notas por pergunta e por área, para o painel que abre no clique. */
+  drivers?: DriverPorRecorte[];
+  minimoExibicao?: number;
 }) {
-  const { itens, nPorArea, gapPorArea, medianas } = useMemo(() => {
-    const nPorArea = new Map(
-      cuts.filter((c) => c.cutType === 'area').map((c) => [c.cutValue, c.n]),
-    );
+  /**
+   * A área com o painel aberto. Uma de cada vez, e não um acordeão múltiplo:
+   * a lista existe para dar ORDEM, e três painéis abertos empurram o resto
+   * para fora da tela justamente quando a pessoa está comparando.
+   */
+  const [aberta, setAberta] = useState<string | null>(null);
+  const [sobre, setSobre] = useState<string | null>(null);
+
+  const { itens, cutPorArea, nPorArea, gapPorArea, medianas } = useMemo(() => {
+    const doTipoArea = cuts.filter((c) => c.cutType === 'area');
+    const cutPorArea = new Map(doTipoArea.map((c) => [c.cutValue, c]));
+    const nPorArea = new Map(doTipoArea.map((c) => [c.cutValue, c.n]));
     const c = classifyAreas(areas);
     const gapPorArea = new Map(areas.map((a) => [a.scope, a.gapEntEnps]));
     return {
       itens: c.itens,
+      cutPorArea,
       nPorArea,
       gapPorArea,
       medianas: {
@@ -126,8 +142,38 @@ export default function AreaPriority({
                   </TooltipProvider>
                 </div>
               )}
-              <div className="flex items-center gap-3 py-1">
-                <span className="w-[118px] shrink-0 text-xs truncate" title={i.scope}>{i.scope}</span>
+              {/* ----------------------------------------------------------
+                  A LINHA INTEIRA VIRA BOTÃO
+                  ----------------------------------------------------------
+                  E não um ícone de "expandir" no canto: alvo pequeno em lista
+                  densa é acerto por sorte. A linha toda é o alvo, o cursor
+                  muda, e a seta à esquerda diz que há mais por baixo.
+
+                  `button` de verdade, e não `div` com onClick: teclado e
+                  leitor de tela vêm junto sem código extra, e o `aria-expanded`
+                  informa o estado a quem não vê a seta girar.
+              ---------------------------------------------------------- */}
+              <button
+                type="button"
+                onClick={() => setAberta(aberta === i.scope ? null : i.scope)}
+                onMouseEnter={() => setSobre(i.scope)}
+                onMouseLeave={() => setSobre(null)}
+                aria-expanded={aberta === i.scope}
+                aria-label={`Ver as perguntas de ${i.scope}`}
+                className={cn(
+                  'w-full flex items-center gap-3 py-1 px-1 -mx-1 rounded text-left transition-colors',
+                  (sobre === i.scope || aberta === i.scope) && 'bg-secondary/60',
+                )}
+              >
+                <span className="w-[118px] shrink-0 text-xs truncate flex items-center gap-1" title={i.scope}>
+                  <ChevronDown
+                    className={cn(
+                      'h-3 w-3 shrink-0 text-muted-foreground transition-transform',
+                      aberta === i.scope ? 'rotate-0' : '-rotate-90',
+                    )}
+                  />
+                  <span className="truncate">{i.scope}</span>
+                </span>
                 <div className="flex-1 min-w-0 h-5 flex items-center">
                   {/* Cor = o que fazer (veredito); intensidade = magnitude do
                       eNPS. A opacidade fixa de antes achatava a percepção de
@@ -168,7 +214,37 @@ export default function AreaPriority({
                     ? '—'
                     : `${(gapPorArea.get(i.scope) as number) > 0 ? '+' : ''}${gapPorArea.get(i.scope)} glob.`}
                 </span>
-              </div>
+              </button>
+
+              {/* A composição, sem precisar clicar. O eNPS é uma subtração, e
+                  subtração perde informação: 60 pode ser "80 promotores e 20
+                  detratores" ou "60 promotores e 40 passivos" -- duas
+                  conversas diferentes com o mesmo número. */}
+              {sobre === i.scope && aberta !== i.scope && (() => {
+                const c = cutPorArea.get(i.scope);
+                if (!c || c.promotores == null) return null;
+                return (
+                  <div className="ml-[130px] -mt-0.5 mb-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+                    <span>
+                      <strong className="text-emerald-600 dark:text-emerald-500">{c.promotores}</strong> promotores
+                    </span>
+                    <span><strong className="text-foreground">{c.passivos ?? '—'}</strong> passivos</span>
+                    <span>
+                      <strong className="text-red-600 dark:text-red-500">{c.detratores ?? '—'}</strong> detratores
+                    </span>
+                    <span>satisfação <strong className="text-foreground">{c.satisfacao ?? '—'}</strong></span>
+                    <span className="italic">clique para ver as perguntas</span>
+                  </div>
+                );
+              })()}
+
+              {aberta === i.scope && (
+                <AreaDriverPanel
+                  area={i.scope}
+                  drivers={drivers}
+                  minimoExibicao={minimoExibicao}
+                />
+              )}
             </div>
           );
         })}

@@ -219,7 +219,14 @@ function EngagementSection({
         importancia={survey?.importancia ?? []}
       />
 
-      {cross && <AreaPriority areas={cross.rows} cuts={survey?.cuts ?? []} />}
+      {cross && (
+        <AreaPriority
+          areas={cross.rows}
+          cuts={survey?.cuts ?? []}
+          drivers={survey?.driversPorArea ?? []}
+          minimoExibicao={survey?.minimoExibicao ?? 5}
+        />
+      )}
 
       {/* Duas ondas: slope, que responde "o que mudou desde a última pesquisa".
           Três ou mais: série, porque o slope só enxerga as duas pontas e uma
@@ -235,7 +242,9 @@ function EngagementSection({
           />
         ))}
 
-      {survey && survey.importancia.length > 0 && <DriverPriority rows={survey.importancia} />}
+      {survey && survey.importancia.length > 0 && (
+        <DriverPriority rows={survey.importancia} drivers={survey.driversPorArea} />
+      )}
 
       {survey && <SurveyCuts cuts={survey.cuts} />}
 
