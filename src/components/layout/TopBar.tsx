@@ -3,6 +3,7 @@ import { useDashboard, BrandType, ViewType } from '@/data/DashboardContext';
 import { mLabel } from '@/data/helpers';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { COLORS } from '@/lib/colors';
+import { rotuloAno } from '@/lib/cobertura';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/lib/theme';
@@ -41,16 +42,27 @@ const views: { label: string; value: ViewType }[] = [
 
 export default function TopBar() {
   const { brand, setBrand, view, setView, currentMonthIdx, setCurrentMonthIdx, monthsOrder, currentMonth,
-    yearFilter, setYearFilter, availableYears } = useDashboard();
+    yearFilter, setYearFilter, availableYears, cobertura } = useDashboard();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const latestYear = availableYears[availableYears.length - 1] ?? '';
   // "Ano atual (2026)" e "2026" eram dois botoes lado a lado fazendo a mesma
   // coisa -- so divergiriam na virada do ano, o que ninguem deduz olhando.
   // O ano mais recente sai da lista numerada: quem quer o atual clica em
   // "Ano atual", que continua se movendo sozinho quando o ano vira.
+  //
+  // Do mais recente para o mais antigo: com quinze anos na lista, 2026 nao
+  // pode estar no fim de uma rolagem. Quase toda escolha real e nos ultimos
+  // dois anos.
+  //
+  // O rotulo diz o que o ano tem ("2017 · so quadro"), para a decisao
+  // acontecer ANTES do clique -- e nao virar a interpretacao de tres abas
+  // vazias depois dele. Ver lib/cobertura.ts.
   const yearOptions: { k: string; label: string }[] = [
     { k: 'atual', label: `Ano atual${latestYear ? ` (${latestYear})` : ''}` },
-    ...availableYears.filter((y) => y !== latestYear).map((y) => ({ k: y, label: y })),
+    ...[...availableYears]
+      .filter((y) => y !== latestYear)
+      .sort((a, b) => (a < b ? 1 : -1))
+      .map((y) => ({ k: y, label: rotuloAno(y, cobertura) })),
     { k: 'Todos', label: 'Todos' },
   ];
 
@@ -93,24 +105,32 @@ export default function TopBar() {
           </div>
         </div>
 
-        {/* Year toggle (global) */}
+        {/* ------------------------------------------------------------------
+            ANO: LISTA, NÃO BOTÕES LADO A LADO
+            ------------------------------------------------------------------
+            Isto era um controle segmentado, e funcionava bem enquanto a série
+            tinha dois anos. Em 19/08/2026 a série do Convenia deixou de ser
+            descartada na leitura e o painel passou a ter março/2013 em diante:
+            quinze opções num controle desenhado para três, transbordando a
+            barra e espremendo o seletor de marca.
+
+            Um controle segmentado promete "as opções cabem na sua frente".
+            Quando não cabem, ele não fica só feio -- ele passa a mentir. Lista
+            escala, e ainda dá espaço para dizer o que cada ano tem.
+        ------------------------------------------------------------------ */}
         <div className="flex items-center gap-2">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden md:inline">Ano</span>
-          <div className="flex border border-border rounded-md overflow-hidden">
+          <select
+            value={yearFilter}
+            onChange={(e) => setYearFilter(e.target.value)}
+            aria-label="Filtrar por ano"
+            className="border border-border rounded-md bg-card px-2.5 py-1.5 text-[11px] font-semibold text-foreground focus:outline-none focus:ring-1"
+            style={{ '--tw-ring-color': brandColor } as React.CSSProperties}
+          >
             {yearOptions.map((y) => (
-              <button
-                key={y.k}
-                onClick={() => setYearFilter(y.k)}
-                className={cn(
-                  'px-3 py-1.5 text-[11px] font-semibold transition-all',
-                  yearFilter === y.k ? 'text-white' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
-                )}
-                style={yearFilter === y.k ? { backgroundColor: brandColor } : undefined}
-              >
-                {y.label}
-              </button>
+              <option key={y.k} value={y.k}>{y.label}</option>
             ))}
-          </div>
+          </select>
         </div>
 
         {/* View toggle */}

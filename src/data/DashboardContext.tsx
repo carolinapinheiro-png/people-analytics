@@ -3,7 +3,8 @@ import { useServerFn } from '@tanstack/react-start';
 import type { MonthRecord } from './raw-data';
 import type { LeaverRecord } from './leaver-types';
 import { listLeavers } from '@/lib/leavers.functions';
-import { getMonthlyMetrics } from '@/lib/metrics.functions';
+import { getMonthlyMetrics, getCoberturaAnos } from '@/lib/metrics.functions';
+import type { CoberturaBase } from '@/lib/cobertura';
 import { composeMonthlyMetrics, diagnosticarSerie, type DiagnosticoSerie } from './compose-metrics';
 import { useAuth } from '@/contexts/AuthContext';
 import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
@@ -66,6 +67,11 @@ interface DashboardState {
    * meses sem ninguém saber. Ver compose-metrics.ts.
    */
   serie: DiagnosticoSerie | null;
+  /**
+   * Até onde cada base alcança. O filtro de ano usa para rotular os anos que
+   * só têm parte do painel -- 2013 a 2023 só têm a série de quadro.
+   */
+  cobertura: CoberturaBase[];
   /** Dado individual de desligados vem do servidor, entao tem estado de carga. */
   leaversLoading: boolean;
   leaversError: string | null;
@@ -145,6 +151,17 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [dataLoading, setDataLoading] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
   const [serie, setSerie] = useState<DiagnosticoSerie | null>(null);
+  // Cobertura por base. Falha aqui não derruba nada: sem ela o filtro de ano
+  // volta a ser uma lista simples, que é o comportamento anterior.
+  const [cobertura, setCobertura] = useState<CoberturaBase[]>([]);
+  const fetchCobertura = useServerFn(getCoberturaAnos);
+  useEffect(() => {
+    let cancelled = false;
+    fetchCobertura()
+      .then((c) => { if (!cancelled) setCobertura((c ?? []) as CoberturaBase[]); })
+      .catch((e: unknown) => console.error('cobertura por ano indisponivel:', e));
+    return () => { cancelled = true; };
+  }, [fetchCobertura]);
   const fetchMetrics = useServerFn(getMonthlyMetrics);
 
   useEffect(() => {
@@ -366,7 +383,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       activeTab, setActiveTab, activeSubTab, setActiveSubTab, view, setView, filters, setFilters,
       yearFilter, setYearFilter, availableYears, activeYear,
       monthsOrder, currentMonth, currentData, prevData, allMonthsData,
-      filteredDeptKey, dataLoading, dataError, serie,
+      filteredDeptKey, dataLoading, dataError, serie, cobertura,
       leaversLoading, leaversError, reloadLeavers,
     }}>
       {children}

@@ -1,5 +1,6 @@
 import React from 'react';
 import { DashboardProvider, useDashboard } from '@/data/DashboardContext';
+import { basesSemDado } from '@/lib/cobertura';
 import { Button } from '@/components/ui/button';
 import TopBar from '@/components/layout/TopBar';
 import FilterBar from '@/components/layout/FilterBar';
@@ -50,6 +51,37 @@ function AvisoSerie() {
   );
 }
 
+/**
+ * Ano escolhido que não alcança todas as bases.
+ *
+ * O rótulo da lista já avisa antes do clique ("2017 · só quadro"). Isto é o
+ * lembrete depois: quem chega por link, por atalho ou volta à sessão de ontem
+ * não passou pela lista, e encontraria três abas vazias sem explicação.
+ *
+ * Vazio por não ter sido coletado e vazio por não ter acontecido são a mesma
+ * tela e pedem reações opostas -- a primeira é buscar o dado, a segunda é
+ * comemorar. É o terceiro lugar deste painel onde essa distinção precisou
+ * virar texto.
+ */
+function AvisoAno() {
+  const { activeYear, cobertura } = useDashboard();
+  const faltando = basesSemDado(activeYear, cobertura);
+  if (!faltando.length) return null;
+  const abas = [...new Set(faltando.flatMap((c) => c.abas))];
+  return (
+    <div className="mx-4 md:mx-6 mt-3 rounded-lg border border-border bg-secondary/40 px-3 py-2">
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        Em <strong className="text-foreground">{activeYear}</strong> só existe a
+        série de quadro. {abas.length === 1 ? 'A aba' : 'As abas'}{' '}
+        <strong className="text-foreground">{abas.join(', ')}</strong>{' '}
+        {abas.length === 1 ? 'aparece vazia' : 'aparecem vazias'} — a coleta
+        começou depois ({faltando.map((c) => `${c.label.toLowerCase()} em ${c.primeiroAno ?? '—'}`).join('; ')}).
+        Vazio aqui é dado que não existe, não ausência de acontecimento.
+      </p>
+    </div>
+  );
+}
+
 function DashboardContent() {
   const { activeTab, dataLoading, dataError } = useDashboard();
 
@@ -88,6 +120,7 @@ function DashboardContent() {
       <div className="min-w-0 flex-1">
         <TopBar />
         <AvisoSerie />
+        <AvisoAno />
         <Breadcrumbs />
         <FilterBar />
         <div className="md:hidden">

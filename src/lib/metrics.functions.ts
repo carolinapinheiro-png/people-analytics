@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { CoberturaBase } from '@/lib/cobertura';
 
 /**
  * Serie reconstruida: escrita e leitura de monthly_metrics.
@@ -44,6 +45,58 @@ async function authorize(userEmail: string | undefined) {
   const podeVerSerie = canSeeTab(e.profile, 'overview');
   return { email: e.email, role: e.role, podeVerSerie };
 }
+
+/**
+ * Até onde cada base alcança, medido no banco.
+ *
+ * Existe porque o filtro de ano passou a oferecer 14 anos -- a série de quadro
+ * vai a março/2013 -- enquanto desligados começam em 2024 e pesquisa e
+ * recrutamento em 2025. Sem isto a tela ofereceria 2017 como se fosse um ano
+ * como outro qualquer, e devolveria três abas vazias sem explicar.
+ *
+ * MEDIDO, e não escrito numa constante: uma base que passar a cobrir mais
+ * tempo some do aviso sozinha, e uma que atrasar aparece nele. Constante
+ * envelhece calada -- foi o que aconteceu com a linha do tempo das pesquisas e
+ * com os rótulos do slope chart, os dois na mesma semana.
+ */
+export const getCoberturaAnos = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<CoberturaBase[]> => {
+    const { podeVerSerie } = await authorize(context.claims.email as string | undefined);
+    if (!podeVerSerie) return [];
+
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const db = supabaseAdmin as unknown as UntypedClient;
+
+    // Só a coluna de data de cada base. Os limites saem daqui, em memória --
+    // são poucas centenas de linhas e evita quatro pares de consultas.
+    const [mm, lv, sw, rc] = await Promise.all([
+      db.from('monthly_metrics').select('month').is('quality_flag', null),
+      db.from('leavers').select('mes_desligamento'),
+      db.from('survey_waves').select('reference_date'),
+      db.from('recruitment_monthly').select('month'),
+    ]);
+
+    const anos = (linhas: unknown, campo: string): [string | null, string | null] => {
+      const vs = ((linhas ?? []) as Array<Record<string, unknown>>)
+        .map((r) => String(r[campo] ?? '').slice(0, 4))
+        .filter((a) => /^\d{4}$/.test(a))
+        .sort();
+      return [vs[0] ?? null, vs.at(-1) ?? null];
+    };
+
+    const [qDe, qAte] = anos(mm.data, 'month');
+    const [dDe, dAte] = anos(lv.data, 'mes_desligamento');
+    const [pDe, pAte] = anos(sw.data, 'reference_date');
+    const [rDe, rAte] = anos(rc.data, 'month');
+
+    return [
+      { base: 'quadro', label: 'Quadro', abas: ['Quadro', 'Estrutura & Span'], primeiroAno: qDe, ultimoAno: qAte },
+      { base: 'desligados', label: 'Desligados', abas: ['Atrição'], primeiroAno: dDe, ultimoAno: dAte },
+      { base: 'pesquisa', label: 'Pesquisa', abas: ['Experiência'], primeiroAno: pDe, ultimoAno: pAte },
+      { base: 'recrutamento', label: 'Recrutamento', abas: ['Recrutamento'], primeiroAno: rDe, ultimoAno: rAte },
+    ];
+  });
 
 const DeptAggregateSchema = z.object({
   hc: z.number().int().nonnegative(),
