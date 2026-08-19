@@ -213,13 +213,24 @@ export function statusBucket(status: string | null | undefined): StatusBucket {
  * como fechamento no mesmo dia.
  */
 export function tempoDeFechamento(job: InhireJob): { dias: number | null; fechadaEm: string | null } {
-  // SEM HISTÓRICO: a API REST não expõe `statusHistory`. Dá para saber em que
-  // mês a vaga fechou (via `updatedAt`), mas não por quanto tempo ela ficou
-  // congelada -- e sem isso o tempo sairia maior que o do InHire.
+  // SEM HISTÓRICO -- que é caso de vaga, e não da API.
   //
-  // Devolver o mês e NÃO devolver os dias é a escolha certa aqui: o volume
-  // mensal fica exato e o tempo fica visivelmente ausente, em vez de presente
-  // e errado.
+  // ATENÇÃO: este comentário já afirmou que "a API REST não expõe
+  // statusHistory". Era falso. O `GET /jobs/:id` devolve o campo, com status e
+  // data de cada transição; o InHire confirmou por escrito em 12/08/2026 e o
+  // dado prova: o TTH publicado só existe porque o histórico chega.
+  //
+  // A afirmação errada sobreviveu num comentário E num teste, os dois se
+  // apoiando um no outro. Um teste que codifica uma crença falsa sobre um
+  // sistema externo é pior que nenhum teste: ele vira a fonte que a próxima
+  // pessoa consulta antes de decidir não tentar.
+  //
+  // O ramo abaixo continua valendo, e por outro motivo: uma vaga pode ter o
+  // histórico vazio. Aí dá para saber em que MÊS ela fechou (via `updatedAt`),
+  // mas não por quanto tempo ficou congelada -- e sem isso o tempo sairia
+  // maior que o do InHire. Devolver o mês e não devolver os dias mantém o
+  // volume mensal exato e deixa o tempo visivelmente ausente, em vez de
+  // presente e errado.
   if (!(job.statusHistory ?? []).length) {
     if (statusBucket(job.status) !== 'fechada') return { dias: null, fechadaEm: null };
     const quando = job.updatedAt ?? job.createdAt;

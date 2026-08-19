@@ -126,13 +126,22 @@ test('vaga sem fechamento no histórico não vira tempo zero', () => {
   assert.equal(fechadaEm, null);
 });
 
-test('sem histórico, vaga fechada rende o MÊS mas não o tempo', () => {
-  // A API REST não expõe `statusHistory` (confirmado na primeira execução real
-  // e no schema de GET /jobs/:id). Sem ele não dá para descontar congelamento,
-  // e um tempo sem desconto sairia maior que o do InHire.
+test('vaga com histórico VAZIO rende o MÊS mas não o tempo', () => {
+  // Este teste já se chamava "sem histórico" e trazia escrito que a API REST
+  // não expunha `statusHistory`. Era falso: o GET /jobs/:id devolve o campo, o
+  // InHire confirmou por escrito em 12/08/2026, e o TTH que o painel publica
+  // só existe porque o histórico chega.
   //
-  // A escolha: publicar o mês (exato, via updatedAt) e deixar o tempo NULO --
-  // visivelmente ausente em vez de presente e errado.
+  // Fica registrado porque o erro custou uma pergunta ao fornecedor e uma
+  // semana de espera por algo que já funcionava. Teste que afirma um fato
+  // falso sobre sistema externo é pior que teste nenhum: ele vira a fonte que
+  // a próxima pessoa consulta antes de decidir não tentar.
+  //
+  // O caso coberto aqui é outro, e é real: uma vaga pode vir com o histórico
+  // vazio. Sem ele não dá para descontar congelamento, e um tempo sem desconto
+  // sairia maior que o do InHire. A escolha é publicar o mês (exato, via
+  // updatedAt) e deixar o tempo NULO -- visivelmente ausente em vez de
+  // presente e errado.
   const r = tempoDeFechamento(job({
     statusHistory: null,
     status: 'closed',
