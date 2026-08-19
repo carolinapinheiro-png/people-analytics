@@ -17,6 +17,7 @@ import InhireSyncCard from '@/components/admin/InhireSyncCard';
 import ConveniaCard from '@/components/admin/ConveniaCard';
 import VinculoCamadaCard from '@/components/admin/VinculoCamadaCard';
 import QohCard from '@/components/admin/QohCard';
+import MigracoesCard from '@/components/admin/MigracoesCard';
 
 interface UserPaginationState {
   items: AllowedEmail[];
@@ -215,6 +216,9 @@ export default function AdminPage() {
                   organograma de onde a camada sai. */}
               <VinculoCamadaCard />
               <QohCard />
+              {/* Por ultimo porque nao e rotina: e a pergunta que se faz
+                  quando algo parece quebrado sem motivo. */}
+              <MigracoesCard />
             </TabsContent>
           )}
         </Tabs>
