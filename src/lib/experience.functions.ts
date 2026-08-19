@@ -10,6 +10,10 @@ import { deptForScope } from '@/lib/engagement-context';
 import {
   escolherOndas, comDeltaCalculado, type OndaLinha, type LinhaComEscopo,
 } from '@/lib/onda';
+import {
+  aderenciaDoRisco,
+  type FaixaOnda, type RiscoObservado, type AderenciaRisco,
+} from '@/lib/analise-engajamento';
 
 /**
  * A área que um perfil restrito enxerga quando não pede nada.
@@ -422,6 +426,31 @@ export interface EngagementCrossData extends EngagementContextResult {
    * mudou desde a última pesquisa"). Com três ou mais, vira linha do tempo.
    */
   serieEnps: OndaEnps[];
+  /**
+   * As faixas de tempo de casa das duas ondas mais recentes que têm esse
+   * recorte -- que podem NÃO ser as duas últimas ondas: jan/26 não tem quebra
+   * por tempo, então hoje a comparação é jul/25 x ago/26. Por isso os rótulos
+   * vêm junto, em vez de a tela deduzir.
+   *
+   * `null` quando não há duas ondas com o recorte, e aí o painel não aparece.
+   */
+  tempoDeCasa: {
+    atualLabel: string;
+    anteriorLabel: string;
+    atual: FaixaOnda[];
+    anterior: FaixaOnda[];
+  } | null;
+  /**
+   * O risco que cada área declarou na onda ANTERIOR à janela de saídas,
+   * contra quem de fato pediu demissão dentro dela.
+   *
+   * `null` quando não existe onda antes da janela -- sem ela não há previsão a
+   * testar, só coincidência.
+   */
+  risco: (AderenciaRisco & {
+    ondaLabel: string;
+    janela: { inicio: string; fim: string };
+  }) | null;
 }
 
 export interface OndaEnps {
@@ -507,9 +536,14 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       // transformam o ponto do gráfico em explicação quando alguém para o
       // mouse em cima. Ler do outro lugar significaria uma segunda consulta
       // para os mesmos pontos.
+      // 'tempo' vem junto com 'area' na mesma consulta: é o mesmo recorte, a
+      // mesma tabela, e separá-los seria uma ida a mais ao banco pelo que já
+      // estava vindo. O tempo de casa NÃO identifica ninguém, então ele segue
+      // inteiro para qualquer perfil -- a mesma regra dos outros recortes não
+      // nominais.
       db.from('survey_cut_scores')
-        .select('wave, cut_value, n, enps, promotores, passivos, detratores, risco, satisfacao')
-        .eq('cut_type', 'area'),
+        .select('wave, cut_type, cut_value, n, enps, promotores, passivos, detratores, risco, satisfacao')
+        .in('cut_type', ['area', 'tempo']),
       // Só NSX/reconstruido tem dept_breakdown. Ver ressalva abaixo: a pesquisa
       // cobre a Flutter Brazil inteira, a quebra por área só existe para NSX.
       db
@@ -619,12 +653,16 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     const numero = (v: unknown): number | null =>
       v == null ? null : Number.isFinite(Number(v)) ? Number(v) : null;
 
-    const porOnda = new Map<string, PontoOnda[]>();
-    for (const r of ((todasOndas.data ?? []) as Array<{
-      wave: string; cut_value: string; n: number | null; enps: number | null;
+    type LinhaCut = {
+      wave: string; cut_type: string; cut_value: string; n: number | null; enps: number | null;
       promotores: number | null; passivos: number | null; detratores: number | null;
       risco: number | null; satisfacao: number | null;
-    }>)) {
+    };
+    const todosCuts = (todasOndas.data ?? []) as LinhaCut[];
+
+    const porOnda = new Map<string, PontoOnda[]>();
+    for (const r of todosCuts) {
+      if (r.cut_type !== 'area') continue;
       const nome = r.cut_value ?? '';
       if (r.enps == null || !podeVerArea(nome)) continue;
       const lista = porOnda.get(r.wave) ?? [];
@@ -640,6 +678,29 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       });
       porOnda.set(r.wave, lista);
     }
+
+    // ======================================================================
+    // O RECORTE POR TEMPO DE CASA, ONDA A ONDA
+    // ======================================================================
+    // A tela mostrava as faixas de tempo da onda atual e nunca as comparava
+    // entre ondas. Foi comparando que apareceu o achado de 19/08: a queda de
+    // 13 pontos do eNPS não está distribuída -- ela se concentra em quem tem
+    // mais de um ano de casa (-20, -14, -17), enquanto quem chegou nos últimos
+    // três meses praticamente não mudou (-3).
+    //
+    // Isso muda para onde se olha: aponta para longe de contratação e
+    // onboarding, e para o que acontece depois do primeiro ano.
+    //
+    // Sem escopo por área de propósito: tempo de casa é recorte da empresa
+    // inteira e não identifica ninguém. É a mesma regra que já vale para
+    // marca, função e modelo de trabalho.
+    const porOndaTempo = new Map<string, FaixaOnda[]>();
+    for (const r of todosCuts) {
+      if (r.cut_type !== 'tempo') continue;
+      const lista = porOndaTempo.get(r.wave) ?? [];
+      lista.push({ faixa: r.cut_value, n: Number(r.n ?? 0), enps: numero(r.enps) });
+      porOndaTempo.set(r.wave, lista);
+    }
     // Da mais antiga para a mais nova, e só as que têm ponto. Uma onda
     // cadastrada e nunca carregada -- jul/25, com 295 respostas anotadas e zero
     // linhas -- não vira ponto: viraria um buraco no meio da linha, que o olho
@@ -653,6 +714,73 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
         referenceDate: o.reference_date,
         pontos: porOnda.get(o.wave) ?? [],
       }));
+
+    // A comparação por tempo de casa entre as duas ondas mais recentes que
+    // TÊM esse recorte. jan/26 não tem -- então a comparação é jul/25 x ago/26,
+    // e o rótulo precisa dizer isso, senão a tela sugere uma janela que não é
+    // a que está sendo medida.
+    const comTempo = [...(ondasBrutas ?? [] as OndaLinha[])]
+      .sort((a, b) => (a.reference_date < b.reference_date ? 1 : -1))
+      .filter((o) => (porOndaTempo.get(o.wave)?.length ?? 0) > 0);
+
+    const tempoDeCasa = comTempo.length >= 2
+      ? {
+          atualLabel: comTempo[0].label,
+          anteriorLabel: comTempo[1].label,
+          atual: porOndaTempo.get(comTempo[0].wave) ?? [],
+          anterior: porOndaTempo.get(comTempo[1].wave) ?? [],
+        }
+      : null;
+
+    // ======================================================================
+    // O PAINEL AVALIANDO A SI MESMO
+    // ======================================================================
+    // A coluna "risco de saída" aparece em toda visão de engajamento e carrega
+    // uma promessa implícita: que antecipa quem vai embora. Ninguém nunca
+    // conferiu.
+    //
+    // Dá para conferir. A janela de saídas que esta função já carrega
+    // (fev-jul/2026) é exatamente o intervalo ENTRE jan/26 e ago/26. Então:
+    // pega o risco que cada área declarou na onda ANTERIOR à janela, e compara
+    // com quem de fato pediu demissão dentro dela.
+    //
+    // A onda tem que ser a anterior, e não a atual: usar ago/26 seria comparar
+    // uma declaração de julho com saídas de fevereiro -- o efeito antes da
+    // causa. Foi por pouco que essa inversão não entrou aqui.
+    const ondaAntesDaJanela = [...(ondasBrutas ?? [] as OndaLinha[])]
+      .filter((o) => o.reference_date < `${JANELA.inicio}-01`)
+      .sort((a, b) => (a.reference_date < b.reference_date ? 1 : -1))[0] ?? null;
+
+    const risco = ondaAntesDaJanela
+      ? (() => {
+          const declarado = new Map(
+            (porOnda.get(ondaAntesDaJanela.wave) ?? [])
+              .filter((p) => p.risco != null)
+              .map((p) => [p.scope.trim().toLowerCase(), p]),
+          );
+          const linhas: RiscoObservado[] = [];
+          for (const r of result.rows) {
+            const d = declarado.get((r.scope ?? '').trim().toLowerCase());
+            if (!d || d.risco == null) continue;
+            linhas.push({
+              area: r.scope,
+              riscoDeclarado: d.risco,
+              respostas: d.n ?? 0,
+              pediramDemissao: r.saidasVoluntarias ?? 0,
+              headcount: r.headcountMedio,
+              // A taxa anualizada que a aba já calcula. Anualizada dos dois
+              // lados evita comparar seis meses de saída com um percentual
+              // que não tem prazo.
+              saidaObservada: r.atricaoVoluntariaAnual,
+            });
+          }
+          return {
+            ondaLabel: ondaAntesDaJanela.label,
+            janela: JANELA,
+            ...aderenciaDoRisco(linhas, result.mesesObservados),
+          };
+        })()
+      : null;
 
     const ressalvas: string[] = [
       'A pesquisa cobre a Flutter Brazil inteira; a quebra de headcount por área só existe para a NSX. Se as linhas por departamento da pesquisa incluírem gente da Betfair, o denominador está subestimado e a atrição sai um pouco alta.',
@@ -675,5 +803,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       ondaAtualLabel: ondaAtual?.label ?? null,
       ondaAnteriorLabel: ondaAnterior?.label ?? null,
       serieEnps,
+      tempoDeCasa,
+      risco,
     };
   });

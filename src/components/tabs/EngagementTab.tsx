@@ -15,6 +15,9 @@ import SurveyTimeline from '@/components/dashboard/SurveyTimeline';
 import EngagementMatrix from '@/components/dashboard/EngagementMatrix';
 import EnpsSlope from '@/components/dashboard/EnpsSlope';
 import EnpsSerie from '@/components/dashboard/EnpsSerie';
+import TempoDeCasa from '@/components/dashboard/TempoDeCasa';
+import DispersaoAreas from '@/components/dashboard/DispersaoAreas';
+import RiscoPreviu from '@/components/dashboard/RiscoPreviu';
 import RiskVsAttrition from '@/components/dashboard/RiskVsAttrition';
 import DriversDeepDive from '@/components/dashboard/DriversDeepDive';
 import KpiCard from '@/components/dashboard/KpiCard';
@@ -242,9 +245,24 @@ function EngagementSection({
           />
         ))}
 
+      {/* ONDE a queda aconteceu. Logo depois da série, porque é a resposta à
+          pergunta que a série provoca: o número da empresa mexeu, e daí? */}
+      {cross?.tempoDeCasa && (
+        <TempoDeCasa
+          atual={cross.tempoDeCasa.atual}
+          anterior={cross.tempoDeCasa.anterior}
+          atualLabel={cross.tempoDeCasa.atualLabel}
+          anteriorLabel={cross.tempoDeCasa.anteriorLabel}
+        />
+      )}
+
       {survey && survey.importancia.length > 0 && (
         <DriverPriority rows={survey.importancia} drivers={survey.driversPorArea} />
       )}
+
+      {/* Depois da lista de perguntas, porque responde a pergunta seguinte:
+          esta nota baixa é de todo mundo ou de alguém? */}
+      {survey && <DispersaoAreas drivers={survey.driversPorArea} />}
 
       {survey && <SurveyCuts cuts={survey.cuts} />}
 
@@ -256,6 +274,13 @@ function EngagementSection({
             apareceriam depois, e responde a pergunta que sempre abre a conversa
             quando alguém desconfia de um número. */}
         <SurveyTimeline ondas={data.ondas} />
+
+        {/* Dentro do detalhe, e não no corpo da aba: é o painel conferindo a
+            si mesmo, e quem abre esta seção é justamente quem quer saber se
+            pode confiar no que leu acima. */}
+        {cross?.risco && (
+          <RiscoPreviu dados={cross.risco} ondaLabel={cross.risco.ondaLabel} />
+        )}
 
         <ChartCard title="Detalhe por departamento" subtitle={cross ? `pesquisa × saídas em ${janela}` : undefined} icon={Users}>
           <div className="overflow-x-auto">
