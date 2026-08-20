@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   variacaoPorFaixa, efeitoComposicao, dispersaoEntreAreas, aderenciaDoRisco,
-  trajetoriaPorFaixa,
+  trajetoriaPorFaixa, instavel,
   type FaixaOnda, type NotaPorArea, type RiscoObservado,
 } from './analise-engajamento';
 
@@ -217,6 +217,56 @@ test('quando a ordem se inverte, o rho é negativo -- e isso é uma resposta', (
     linha('A', 30, 2), linha('B', 20, 5), linha('C', 10, 9), linha('D', 5, 12),
   ], 7);
   assert.equal(r.rho, -1);
+});
+
+test('o resultado instável é reconhecido como instável', () => {
+  // Os números REAIS de jan/26 x fev-jul/26, com o tamanho de cada área.
+  // O rho com as oito é 0,02 -- e some se qualquer linha sair. Foi um
+  // comentário do Caio ("Legal é a menor área e uma saída ali representa
+  // muito") que trouxe esta verificação para dentro do código.
+  const real = (area: string, risco: number, saidas: number, tam: number): RiscoObservado => ({
+    area, riscoDeclarado: risco, respostas: tam, pediramDemissao: saidas,
+    headcount: tam, saidaObservada: (saidas / tam) * 100,
+  });
+  const r = aderenciaDoRisco([
+    real('Customer Service', 26.2, 3, 86), real('Marketing', 23.4, 8, 81),
+    real('Human Resources', 17.6, 1, 20), real('Technology', 13.1, 3, 149),
+    real('Commercial', 12.0, 1, 48), real('Finance', 10.5, 0, 24),
+    real('Product', 7.9, 3, 41), real('Legal', 6.7, 1, 16),
+  ], 6);
+
+  assert.ok(Math.abs((r.rho as number)) < 0.1, `rho central deu ${r.rho}`);
+  assert.ok(r.jackknife != null, 'com oito áreas o teste tem que existir');
+  assert.ok((r.jackknife as { amplitude: number }).amplitude > 0.5,
+    `a amplitude deu ${r.jackknife?.amplitude} -- esperado > 0,5`);
+  assert.equal(instavel(r.jackknife), true,
+    'tirar uma linha muda a leitura de ponta a ponta');
+  assert.equal(r.areasComPoucaSaida, 4, 'quatro áreas com menos de duas saídas');
+});
+
+test('resultado estável NÃO é marcado como instável', () => {
+  // Relação forte e sem depender de uma linha só: o jackknife tem que ficar
+  // quieto, senão o aviso perde o sentido por aparecer sempre.
+  const l = (area: string, risco: number, saida: number): RiscoObservado => ({
+    area, riscoDeclarado: risco, respostas: 100, pediramDemissao: 10,
+    headcount: 100, saidaObservada: saida,
+  });
+  const r = aderenciaDoRisco([
+    l('A', 30, 15), l('B', 26, 13), l('C', 22, 11),
+    l('D', 18, 9), l('E', 14, 7), l('F', 10, 5),
+  ], 6);
+  assert.equal(r.rho, 1);
+  assert.equal(instavel(r.jackknife), false);
+});
+
+test('com menos de cinco áreas não há jackknife -- e ausência dele não vira "estável"', () => {
+  const l = (a: string, risco: number, saida: number): RiscoObservado => ({
+    area: a, riscoDeclarado: risco, respostas: 40, pediramDemissao: 4,
+    headcount: 100, saidaObservada: saida,
+  });
+  const r = aderenciaDoRisco([l('A', 30, 12), l('B', 20, 9), l('C', 10, 5), l('D', 5, 2)], 6);
+  assert.equal(r.jackknife, null, 'tirar uma deixaria três pontos');
+  assert.equal(instavel(r.jackknife), false, 'sem teste não se afirma instabilidade');
 });
 
 test('com menos de quatro áreas não devolve correlação nenhuma', () => {

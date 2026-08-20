@@ -1,7 +1,7 @@
 import { Target } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
-import type { AderenciaRisco } from '@/lib/analise-engajamento';
+import { instavel, type AderenciaRisco } from '@/lib/analise-engajamento';
 
 /**
  * O painel avaliando a si mesmo.
@@ -40,6 +40,8 @@ import type { AderenciaRisco } from '@/lib/analise-engajamento';
 
 const fmt1 = (v: number | null) =>
   v == null ? '—' : v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+const fmt2 = (v: number | null) =>
+  v == null ? '—' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * A leitura do rho em palavras.
@@ -49,12 +51,36 @@ const fmt1 = (v: number | null) =>
  * resposta honesta é "não dá para afirmar", e não "não prevê" -- ausência de
  * sinal com n pequeno não é prova de ausência.
  */
-function leitura(rho: number | null, pares: number): { titulo: string; cor: string; texto: string } {
+function leitura(
+  rho: number | null,
+  pares: number,
+  jack: AderenciaRisco['jackknife'],
+  poucaSaida: number,
+): { titulo: string; cor: string; texto: string } {
   if (rho == null) {
     return {
       titulo: 'Ainda não dá para dizer',
       cor: COLORS.gray400,
       texto: `São ${pares} áreas com os dois números. Com menos de quatro, qualquer padrão que aparecesse seria acaso com aparência de medição.`,
+    };
+  }
+
+  // ------------------------------------------------------------------
+  // A ESTABILIDADE VEM ANTES DO VALOR
+  // ------------------------------------------------------------------
+  // Este bloco existe porque a versão anterior deste painel dizia "não
+  // acompanhou" com rho 0,02 -- e estava afirmando demais. Refazendo a conta
+  // sem cada área, o resultado ia de -0,32 a +0,29: tirar UMA linha mudava a
+  // conclusão de ponta a ponta.
+  //
+  // Ausência de correlação com oito pontos, e a maioria das áreas com zero ou
+  // uma saída, não é evidência de ausência. "Não dá para dizer" e "não prevê"
+  // levam a decisões diferentes, e só a primeira é honesta aqui.
+  if (instavel(jack)) {
+    return {
+      titulo: 'Esta conta ainda não sustenta conclusão',
+      cor: COLORS.gray400,
+      texto: `Refazendo sem cada área, o resultado vai de ${fmt2(jack?.min ?? null)} a ${fmt2(jack?.max ?? null)} — tirar uma única linha muda a leitura de ponta a ponta.${poucaSaida ? ` ${poucaSaida} das ${pares} áreas tiveram menos de duas saídas no período, e numa área pequena uma pessoa move o índice inteiro.` : ''} Não é que o risco não preveja: é que com este volume ainda não dá para saber.`,
     };
   }
   if (rho >= 0.7) return {
@@ -87,7 +113,7 @@ export default function RiscoPreviu({
 }) {
   if (dados.linhas.length < 3) return null;
 
-  const l = leitura(dados.rho, dados.pares);
+  const l = leitura(dados.rho, dados.pares, dados.jackknife, dados.areasComPoucaSaida);
   const maxRisco = Math.max(...dados.linhas.map((x) => x.riscoDeclarado), 1);
   const maxSaida = Math.max(...dados.linhas.map((x) => x.saidaObservada ?? 0), 1);
 
@@ -152,6 +178,11 @@ export default function RiscoPreviu({
         não comparar {dados.mesesObservados} meses de saída com um percentual sem
         prazo. São {dados.pares} áreas com os dois números: é pouco, e um rho sobre
         {' '}{dados.pares} pontos é indício, não prova.
+        {dados.jackknife && (
+          <> Refazendo a conta sem cada área, o rho vai de {fmt2(dados.jackknife.min)} a{' '}
+          {fmt2(dados.jackknife.max)} — é essa amplitude, e não o valor central, que diz
+          se o número descreve alguma coisa.</>
+        )}
       </p>
     </ChartCard>
   );

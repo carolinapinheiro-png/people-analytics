@@ -314,6 +314,41 @@ export interface AderenciaRisco {
   /** Áreas com os dois números. É o n da correlação, e ele é pequeno. */
   pares: number;
   mesesObservados: number;
+  /**
+   * O rho recalculado tirando UMA área de cada vez.
+   *
+   * ------------------------------------------------------------------
+   * POR QUE ISTO É MAIS IMPORTANTE QUE O PRÓPRIO RHO
+   * ------------------------------------------------------------------
+   * Com oito áreas e a maioria delas registrando zero ou uma saída no período,
+   * uma pessoa que pede demissão numa área de dezesseis move o índice inteiro.
+   * O rho publicado pode ser um artefato de quem estava naquela linha.
+   *
+   * O teste é barato: refaz a conta oito vezes, cada uma sem uma área. Se o
+   * resultado ficar mais ou menos no lugar, ele descreve alguma coisa. Se
+   * balançar de ponta a ponta, ele descreve o acaso -- e a resposta honesta
+   * passa a ser "não dá para dizer", que NÃO é a mesma coisa que "não prevê".
+   *
+   * No dado de 19/08/2026 ele balança: 0,02 com as oito, -0,32 sem Marketing,
+   * +0,29 sem Product ou sem Legal. Foi um comentário do Caio no guia --
+   * "Legal é a menor área e uma saída ali representa muito" -- que fez esta
+   * verificação existir. Ele estava certo, e por uma razão ainda maior do que
+   * a que apontou.
+   */
+  jackknife: { min: number; max: number; amplitude: number } | null;
+  /** Áreas com menos de duas saídas observadas. São as que mais desestabilizam. */
+  areasComPoucaSaida: number;
+}
+
+/**
+ * O resultado se sustenta, ou depende de quem está na amostra?
+ *
+ * `amplitude` acima de 0,4 numa escala que vai de -1 a 1 significa que trocar
+ * uma linha muda a conclusão. Aí o número não é leitura, é ruído com casas
+ * decimais.
+ */
+export function instavel(j: AderenciaRisco['jackknife']): boolean {
+  return j != null && j.amplitude > 0.4;
 }
 
 /** Posto médio, para empate não distorcer o Spearman. */
@@ -376,16 +411,39 @@ export function aderenciaDoRisco(
   mesesObservados: number,
 ): AderenciaRisco {
   const pares = linhas.filter((l) => l.saidaObservada != null);
-  const rho = pares.length >= 4
-    ? pearson(
-        postos(pares.map((p) => p.riscoDeclarado)),
-        postos(pares.map((p) => p.saidaObservada as number)),
-      )
+
+  const calcular = (rows: RiscoObservado[]): number | null =>
+    rows.length >= 4
+      ? pearson(
+          postos(rows.map((p) => p.riscoDeclarado)),
+          postos(rows.map((p) => p.saidaObservada as number)),
+        )
+      : null;
+
+  const rho = calcular(pares);
+
+  // O rho refeito sem cada uma das áreas. Precisa sobrar pelo menos quatro
+  // pontos depois de tirar uma -- ou seja, cinco áreas para o teste existir.
+  const semCada = pares.length >= 5
+    ? pares
+        .map((_, i) => calcular(pares.filter((__, k) => k !== i)))
+        .filter((v): v is number => v != null)
+    : [];
+
+  const jackknife = semCada.length
+    ? {
+        min: arred(Math.min(...semCada) * 100) / 100,
+        max: arred(Math.max(...semCada) * 100) / 100,
+        amplitude: arred((Math.max(...semCada) - Math.min(...semCada)) * 100) / 100,
+      }
     : null;
+
   return {
     linhas: [...linhas].sort((a, b) => b.riscoDeclarado - a.riscoDeclarado),
     rho: rho == null ? null : arred(rho * 100) / 100,
     pares: pares.length,
     mesesObservados,
+    jackknife,
+    areasComPoucaSaida: pares.filter((p) => p.pediramDemissao < 2).length,
   };
 }
