@@ -247,14 +247,7 @@ function EngagementSection({
 
       {/* ONDE a queda aconteceu. Logo depois da série, porque é a resposta à
           pergunta que a série provoca: o número da empresa mexeu, e daí? */}
-      {cross?.tempoDeCasa && (
-        <TempoDeCasa
-          atual={cross.tempoDeCasa.atual}
-          anterior={cross.tempoDeCasa.anterior}
-          atualLabel={cross.tempoDeCasa.atualLabel}
-          anteriorLabel={cross.tempoDeCasa.anteriorLabel}
-        />
-      )}
+      {cross?.tempoDeCasa && <TempoDeCasa ondas={cross.tempoDeCasa.ondas} />}
 
       {survey && survey.importancia.length > 0 && (
         <DriverPriority rows={survey.importancia} drivers={survey.driversPorArea} />

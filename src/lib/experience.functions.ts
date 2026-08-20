@@ -435,10 +435,8 @@ export interface EngagementCrossData extends EngagementContextResult {
    * `null` quando não há duas ondas com o recorte, e aí o painel não aparece.
    */
   tempoDeCasa: {
-    atualLabel: string;
-    anteriorLabel: string;
-    atual: FaixaOnda[];
-    anterior: FaixaOnda[];
+    /** Da mais antiga para a mais nova. Só ondas que TÊM o recorte por tempo. */
+    ondas: Array<{ label: string; faixas: FaixaOnda[] }>;
   } | null;
   /**
    * O risco que cada área declarou na onda ANTERIOR à janela de saídas,
@@ -723,12 +721,20 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       .sort((a, b) => (a.reference_date < b.reference_date ? 1 : -1))
       .filter((o) => (porOndaTempo.get(o.wave)?.length ?? 0) > 0);
 
+    // TODAS as ondas com o recorte, da mais antiga para a mais nova.
+    //
+    // A primeira versão disto mandava só as DUAS mais recentes, e a tela
+    // comparava duas pontas. Com três ondas dá para separar queda contínua de
+    // oscilação -- e a diferença não é cosmética: uma queda de 20 pontos em
+    // três medições seguidas é um processo em curso, e uma oscilação que por
+    // acaso terminou 20 abaixo é ruído com uma ponta infeliz. As duas
+    // produziam o mesmo número na versão anterior.
     const tempoDeCasa = comTempo.length >= 2
       ? {
-          atualLabel: comTempo[0].label,
-          anteriorLabel: comTempo[1].label,
-          atual: porOndaTempo.get(comTempo[0].wave) ?? [],
-          anterior: porOndaTempo.get(comTempo[1].wave) ?? [],
+          ondas: [...comTempo].reverse().map((o) => ({
+            label: o.label,
+            faixas: porOndaTempo.get(o.wave) ?? [],
+          })),
         }
       : null;
 

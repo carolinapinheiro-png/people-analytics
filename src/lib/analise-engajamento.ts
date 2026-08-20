@@ -66,6 +66,76 @@ export function variacaoPorFaixa(
   return linhas.sort((x, y) => (pos.get(x.faixa) ?? 99) - (pos.get(y.faixa) ?? 99));
 }
 
+export type Trajetoria = 'queda' | 'subida' | 'oscila' | 'indefinida';
+
+export interface FaixaTrajetoria {
+  faixa: string;
+  /** Uma entrada por onda, na ordem cronológica. `null` onde a faixa faltou. */
+  valores: Array<number | null>;
+  /** Do primeiro ao último ponto com valor. */
+  variacaoTotal: number | null;
+  trajetoria: Trajetoria;
+}
+
+/**
+ * A faixa caiu de forma contínua, subiu, ou apenas oscilou?
+ *
+ * ------------------------------------------------------------------
+ * POR QUE ISTO VALE MAIS QUE A VARIAÇÃO ENTRE DUAS PONTAS
+ * ------------------------------------------------------------------
+ * Com duas ondas, uma queda de 20 pontos e uma oscilação que por acaso terminou
+ * 20 abaixo são o MESMO número. São coisas diferentes: a primeira é um processo
+ * em curso, a segunda é ruído com uma ponta infeliz.
+ *
+ * Com três ondas dá para separar, e a separação muda a conversa. Em 19/08/2026
+ * ela mostrou que as três faixas acima de um ano de casa caem sem interrupção
+ * desde jul/25, enquanto as quatro faixas iniciais sobem e descem sem
+ * tendência. Uma queda contínua em três medições seguidas é um processo; quatro
+ * faixas oscilando é a variação normal de amostras pequenas.
+ *
+ * Exige pelo menos três pontos com valor -- com dois, toda faixa seria
+ * "contínua" por definição, e o rótulo não informaria nada.
+ */
+export function trajetoriaPorFaixa(
+  ondas: ReadonlyArray<{ faixas: readonly FaixaOnda[] }>,
+  ordem?: readonly string[],
+): FaixaTrajetoria[] {
+  const nomes: string[] = [];
+  for (const o of ondas) {
+    for (const f of o.faixas) if (!nomes.includes(f.faixa)) nomes.push(f.faixa);
+  }
+
+  const linhas = nomes.map((faixa) => {
+    const valores = ondas.map((o) => o.faixas.find((f) => f.faixa === faixa)?.enps ?? null);
+    const comValor = valores.filter((v): v is number => v != null);
+
+    let trajetoria: Trajetoria = 'indefinida';
+    if (comValor.length >= 3) {
+      let desce = true, sobe = true;
+      for (let i = 1; i < comValor.length; i++) {
+        if (comValor[i] > comValor[i - 1]) desce = false;
+        if (comValor[i] < comValor[i - 1]) sobe = false;
+      }
+      // Empate em todas as pontas cai em 'oscila': uma faixa parada não é
+      // queda contínua, e chamá-la assim seria alarme sobre nada.
+      trajetoria = desce && !sobe ? 'queda' : sobe && !desce ? 'subida' : 'oscila';
+    }
+
+    return {
+      faixa,
+      valores,
+      variacaoTotal: comValor.length >= 2
+        ? arred(comValor[comValor.length - 1] - comValor[0])
+        : null,
+      trajetoria,
+    };
+  });
+
+  if (!ordem?.length) return linhas;
+  const pos = new Map(ordem.map((f, i) => [f, i]));
+  return linhas.sort((x, y) => (pos.get(x.faixa) ?? 99) - (pos.get(y.faixa) ?? 99));
+}
+
 export interface EfeitoComposicao {
   /** eNPS da onda atual, como média ponderada das faixas. */
   atual: number | null;

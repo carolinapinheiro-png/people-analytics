@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   variacaoPorFaixa, efeitoComposicao, dispersaoEntreAreas, aderenciaDoRisco,
+  trajetoriaPorFaixa,
   type FaixaOnda, type NotaPorArea, type RiscoObservado,
 } from './analise-engajamento';
 
@@ -93,6 +94,63 @@ test('quando a queda É composição, a conta mostra isso', () => {
   const e = efeitoComposicao(agora, antes);
   assert.equal(e.variacaoTotal, -24);
   assert.equal(e.efeitoMix, 24, 'o mix explica a queda inteira');
+});
+
+// --------------------------------- a terceira onda separa queda de oscilação
+
+/** jan/26 também tem o recorte por tempo. Os três pontos reais. */
+const JAN26: FaixaOnda[] = [
+  { faixa: '0-3 meses', n: 46, enps: 76 },
+  { faixa: '3-6 meses', n: 60, enps: 87 },
+  { faixa: '6-9 meses', n: 41, enps: 73 },
+  { faixa: '9-12 meses', n: 39, enps: 77 },
+  { faixa: '12-18 meses', n: 45, enps: 69 },
+  { faixa: '18-24 meses', n: 35, enps: 74 },
+  { faixa: '24+ meses', n: 101, enps: 75 },
+];
+const TRES = [{ faixas: JUL25 }, { faixas: JAN26 }, { faixas: AGO26 }];
+
+test('as três faixas acima de um ano caem em TODAS as medições', () => {
+  // É o argumento inteiro do quadro. Com duas ondas, uma queda contínua e uma
+  // oscilação que terminou baixo dão o mesmo número.
+  const t = trajetoriaPorFaixa(TRES);
+  const traj = (f: string) => t.find((x) => x.faixa === f)?.trajetoria;
+  assert.equal(traj('12-18 meses'), 'queda');
+  assert.equal(traj('18-24 meses'), 'queda');
+  assert.equal(traj('24+ meses'), 'queda');
+});
+
+test('as faixas iniciais oscilam -- e é isso que derruba a hipótese de contratação', () => {
+  // Se estivéssemos contratando pior, as faixas que acabaram de passar por
+  // seleção e integração mostrariam tendência de queda. Elas sobem e descem.
+  const t = trajetoriaPorFaixa(TRES);
+  for (const f of ['0-3 meses', '3-6 meses', '6-9 meses', '9-12 meses']) {
+    assert.equal(t.find((x) => x.faixa === f)?.trajetoria, 'oscila', `${f} deveria oscilar`);
+  }
+});
+
+test('com duas ondas não existe trajetória -- toda faixa seria "contínua"', () => {
+  const t = trajetoriaPorFaixa([{ faixas: JUL25 }, { faixas: AGO26 }]);
+  assert.equal(t[0].trajetoria, 'indefinida');
+  assert.equal(t.find((x) => x.faixa === '24+ meses')?.variacaoTotal, -17,
+    'a variação total continua valendo');
+});
+
+test('faixa parada não vira queda contínua', () => {
+  const igual = (enps: number) => [{ faixa: 'x', n: 30, enps }];
+  const t = trajetoriaPorFaixa([{ faixas: igual(70) }, { faixas: igual(70) }, { faixas: igual(70) }]);
+  assert.equal(t[0].trajetoria, 'oscila', 'chamar de queda seria alarme sobre nada');
+  assert.equal(t[0].variacaoTotal, 0);
+});
+
+test('a variação total ignora onda em que a faixa não existia', () => {
+  const t = trajetoriaPorFaixa([
+    { faixas: [{ faixa: 'nova', n: 10, enps: null }] },
+    { faixas: [{ faixa: 'nova', n: 10, enps: 60 }] },
+    { faixas: [{ faixa: 'nova', n: 10, enps: 50 }] },
+  ]);
+  assert.equal(t[0].variacaoTotal, -10, 'conta do primeiro ponto COM valor');
+  assert.equal(t[0].trajetoria, 'indefinida', 'dois pontos não sustentam trajetória');
 });
 
 // ------------------------------------- 2. problema da empresa ou de alguém
