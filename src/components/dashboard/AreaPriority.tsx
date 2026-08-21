@@ -44,6 +44,18 @@ import type { SurveyCut } from '@/lib/survey.functions';
  * da mesma regra divergem no primeiro ajuste.
  */
 
+/**
+ * O n vem de survey_cut_scores e o nome da area de engagement_scores. As duas
+ * fontes escrevem o mesmo departamento com grafias que so coincidem por sorte
+ * -- espaco extra, caixa, acento. Quando nao coincidiam, a coluna inteira
+ * exibia "--", com o rodape logo abaixo mandando reparar no n.
+ *
+ * Comparar pela forma normalizada e inofensivo quando os nomes ja batem, e
+ * resolve quando nao batem.
+ */
+const chave = (s: string) =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+
 const fmt1 = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 
@@ -93,10 +105,10 @@ export default function AreaPriority({
 
   const { itens, cutPorArea, nPorArea, gapPorArea, medianas } = useMemo(() => {
     const doTipoArea = cuts.filter((c) => c.cutType === 'area');
-    const cutPorArea = new Map(doTipoArea.map((c) => [c.cutValue, c]));
-    const nPorArea = new Map(doTipoArea.map((c) => [c.cutValue, c.n]));
+    const cutPorArea = new Map(doTipoArea.map((c) => [chave(c.cutValue), c]));
+    const nPorArea = new Map(doTipoArea.map((c) => [chave(c.cutValue), c.n]));
     const c = classifyAreas(areas);
-    const gapPorArea = new Map(areas.map((a) => [a.scope, a.gapEntEnps]));
+    const gapPorArea = new Map(areas.map((a) => [chave(a.scope), a.gapEntEnps]));
     return {
       itens: c.itens,
       cutPorArea,
@@ -196,7 +208,7 @@ export default function AreaPriority({
                   {fmt1(i.risco)}%
                 </span>
                 <span className="text-[11px] text-muted-foreground tabular-nums w-12 text-right">
-                  n={nPorArea.get(i.scope) ?? '—'}
+                  n={nPorArea.get(chave(i.scope)) ?? '—'}
                 </span>
                 {/* Segunda régua: como a área está contra a Flutter International.
                     Legal é a de pior eNPS aqui E a mais distante da entidade
@@ -205,14 +217,14 @@ export default function AreaPriority({
                 <span
                   className={cn(
                     'text-[11px] tabular-nums w-[54px] text-right shrink-0',
-                    (gapPorArea.get(i.scope) ?? 0) < 0
+                    (gapPorArea.get(chave(i.scope)) ?? 0) < 0
                       ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground',
                   )}
                   title="Diferença de eNPS para a Flutter International, informada no deck de jan/26"
                 >
-                  {gapPorArea.get(i.scope) == null
+                  {gapPorArea.get(chave(i.scope)) == null
                     ? '—'
-                    : `${(gapPorArea.get(i.scope) as number) > 0 ? '+' : ''}${gapPorArea.get(i.scope)} glob.`}
+                    : `${(gapPorArea.get(chave(i.scope)) as number) > 0 ? '+' : ''}${gapPorArea.get(chave(i.scope))} glob.`}
                 </span>
               </button>
 
@@ -221,7 +233,7 @@ export default function AreaPriority({
                   detratores" ou "60 promotores e 40 passivos" -- duas
                   conversas diferentes com o mesmo número. */}
               {sobre === i.scope && aberta !== i.scope && (() => {
-                const c = cutPorArea.get(i.scope);
+                const c = cutPorArea.get(chave(i.scope));
                 if (!c || c.promotores == null) return null;
                 return (
                   <div className="ml-[130px] -mt-0.5 mb-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">

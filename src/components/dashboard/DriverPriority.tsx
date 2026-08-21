@@ -95,16 +95,35 @@ function PorArea({ drivers, p }: { drivers: DriverPorRecorte[]; p: SurveyImporta
     </span>
   );
 
-  const piores = linhas.slice(0, 3);
-  const melhores = [...linhas].reverse().slice(0, 2).filter((a) => (a.gap ?? 0) > 0);
+  // "Puxa para baixo" tem que significar gap NEGATIVO. Sem este filtro a lista
+  // pegava as tres primeiras linhas fossem quais fossem, e uma area acima da
+  // empresa (+17,4) aparecia rotulada como quem puxa para baixo.
+  const piores = linhas.filter((a) => (a.gap ?? 0) < 0).slice(0, 3);
+  // E uma area nao pode estar nos dois lados. Quando a supressao por n<5 deixa
+  // uma unica area de pe -- em ago/26 sobra so "Outros" na maioria das
+  // perguntas -- os dois lados caiam na MESMA linha, e a tela dizia que a area
+  // puxava para baixo e sustentava ao mesmo tempo.
+  const jaUsadas = new Set(piores.map((a) => a.area));
+  const melhores = [...linhas]
+    .reverse()
+    .filter((a) => (a.gap ?? 0) > 0 && !jaUsadas.has(a.area))
+    .slice(0, 2);
+
+  // Nada a dizer é melhor que dizer errado: sem area de um lado nem do outro,
+  // a linha inteira sai.
+  if (!piores.length && !melhores.length) return null;
 
   return (
     <div className="mt-1 ml-[74px] flex flex-wrap items-center gap-1.5 text-[11px]">
-      <span className="text-muted-foreground">puxam para baixo:</span>
-      {piores.map((a) => <Chip key={a.area} a={a} />)}
+      {piores.length > 0 && (
+        <>
+          <span className="text-muted-foreground">puxam para baixo:</span>
+          {piores.map((a) => <Chip key={a.area} a={a} />)}
+        </>
+      )}
       {melhores.length > 0 && (
         <>
-          <span className="text-muted-foreground ml-1">sustentam:</span>
+          <span className={cn('text-muted-foreground', piores.length > 0 && 'ml-1')}>sustentam:</span>
           {melhores.map((a) => <Chip key={a.area} a={a} />)}
         </>
       )}
