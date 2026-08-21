@@ -6,7 +6,7 @@ import {
 import { Compass } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
-import { median } from '@/lib/stats';
+import { classifyPerguntas, type QuadrantePergunta } from '@/lib/pergunta-priority';
 import { cn } from '@/lib/utils';
 import type { SurveyImportance } from '@/lib/survey.functions';
 
@@ -49,52 +49,60 @@ const fmt2 = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2
 const QUADRANTES = {
   prioridade: {
     label: 'Prioridade',
-    desc: 'Nota abaixo da mediana e forte associação com engajamento. É onde um ponto ganho tende a render mais.',
+    desc: 'Menos gente concorda que na pergunta mediana, e forte associação com engajamento. É onde um ponto ganho tende a render mais.',
     color: COLORS.danger,
   },
   sustentar: {
     label: 'Sustentar',
-    desc: 'Nota alta e forte associação. Está funcionando e importa — perder aqui custa caro.',
+    desc: 'Concordância alta e forte associação. Está funcionando e importa — perder aqui custa caro.',
     color: COLORS.success,
   },
   observar: {
     label: 'Incomoda, mas não move',
-    desc: 'Nota baixa e associação fraca. Problema real, só que não é o que separa engajado de desengajado. Merece conversa própria, com outro indicador.',
+    desc: 'Concordância baixa e associação fraca. Problema real, só que não é o que separa engajado de desengajado. Merece conversa própria, com outro indicador.',
     color: COLORS.warning,
   },
   base: {
     label: 'Base tranquila',
-    desc: 'Nota alta e associação fraca. Nada a fazer por ora.',
+    desc: 'Concordância alta e associação fraca. Nada a fazer por ora.',
     color: COLORS.info,
   },
 } as const;
 
-type QuadKey = keyof typeof QUADRANTES;
+type QuadKey = QuadrantePergunta;
 
 interface Ponto {
-  x: number; y: number; driver: string; question: string; quad: QuadKey; curta: string;
+  x: number; y: number; nota: number; driver: string; question: string; quad: QuadKey; curta: string;
 }
 
 export default function DriverImportance({ rows }: { rows: SurveyImportance[] }) {
   const [detalhe, setDetalhe] = useState<QuadKey | null>('prioridade');
 
   const { pontos, corteR, corteNota } = useMemo(() => {
-    const cr = median(rows.map((r) => r.r)) ?? 0;
-    const cn = median(rows.map((r) => r.score)) ?? 0;
-    const pontos: Ponto[] = rows.map((r) => ({
+    // ------------------------------------------------------------------
+    // O EIXO VERTICAL É % FAVORÁVEL, NÃO A MÉDIA
+    // ------------------------------------------------------------------
+    // Este cartão plotava a média (1 a 5) e cortava na mediana das médias. O
+    // cartão logo abaixo, "Por onde começar", cortava na mediana do % favorável.
+    // Duas réguas, os mesmos quatro quadrantes, as mesmas perguntas: mudar de
+    // cartão podia mudar o quadrante de uma pergunta sem nada ter mudado no dado.
+    //
+    // A régua agora é uma só, em `pergunta-priority.ts`, e é o % favorável --
+    // que é o número que a tela mostra e a diretoria usa. Como o corte passou a
+    // vir de lá, o eixo veio junto: desenhar a linha do % sobre pontos plotados
+    // pela média deixaria pontos "de nota baixa" acima da linha de nota.
+    const { itens, corteR, corteFavoravel } = classifyPerguntas(rows);
+    const pontos: Ponto[] = itens.map((r) => ({
       x: r.r,
-      y: r.score,
+      y: r.favEfetivo,
+      nota: r.score,
       driver: r.driver,
       question: r.question,
       // Rótulo curto para o gráfico: a pergunta inteira tem até 150 caracteres.
       curta: r.question.length > 34 ? `${r.question.slice(0, 32)}…` : r.question,
-      quad:
-        r.r >= cr && r.score < cn ? 'prioridade'
-        : r.r >= cr ? 'sustentar'
-        : r.score < cn ? 'observar'
-        : 'base',
+      quad: r.quadrante,
     }));
-    return { pontos, corteR: cr, corteNota: cn };
+    return { pontos, corteR, corteNota: corteFavoravel };
   }, [rows]);
 
   if (rows.length < 6) return null;
@@ -118,9 +126,9 @@ export default function DriverImportance({ rows }: { rows: SurveyImportance[] })
             label={{ value: 'anda mais junto com o eNPS →', position: 'insideBottom', offset: -18, fontSize: 11 }}
           />
           <YAxis
-            type="number" dataKey="y" domain={['dataMin - 0.12', 'dataMax + 0.12']}
-            tick={{ fontSize: 11 }} tickFormatter={(v: number) => fmt2(v)}
-            label={{ value: 'nota (1-5) →', angle: -90, position: 'insideLeft', fontSize: 11 }}
+            type="number" dataKey="y" domain={['dataMin - 3', 'dataMax + 3']}
+            tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${Math.round(v)}%`}
+            label={{ value: '% que concorda →', angle: -90, position: 'insideLeft', fontSize: 11 }}
           />
           <ReferenceLine x={corteR} stroke={COLORS.gray400} strokeDasharray="4 4" />
           <ReferenceLine y={corteNota} stroke={COLORS.gray400} strokeDasharray="4 4" />
@@ -135,7 +143,7 @@ export default function DriverImportance({ rows }: { rows: SurveyImportance[] })
                   <div className="font-medium mb-1 leading-snug">{p.question}</div>
                   <div className="text-muted-foreground">{p.driver}</div>
                   <div className="text-muted-foreground mt-1">
-                    nota {fmt2(p.y)} · associação {fmt2(p.x)}
+                    {Math.round(p.y)}% concordam · nota {fmt2(p.nota)} · associação {fmt2(p.x)}
                   </div>
                   <div className="mt-1.5 pt-1.5 border-t border-border/60" style={{ color: q.color }}>
                     {q.label}
@@ -180,7 +188,7 @@ export default function DriverImportance({ rows }: { rows: SurveyImportance[] })
                     .map((p) => (
                       <li key={p.question} className="text-[11px] leading-snug flex gap-1.5">
                         <span className="tabular-nums text-muted-foreground shrink-0">
-                          {fmt2(p.y)}
+                          {Math.round(p.y)}%
                         </span>
                         <span>{p.question}</span>
                       </li>
@@ -195,9 +203,11 @@ export default function DriverImportance({ rows }: { rows: SurveyImportance[] })
       <div className="mt-3 space-y-1.5">
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           <strong>Como ler:</strong> cada ponto é uma pergunta. Quanto mais à direita, mais as
-          respostas dela acompanham o eNPS da mesma pessoa. Quanto mais acima, melhor a nota. As
-          linhas tracejadas são as medianas das 31 perguntas — clique num quadrante para ver quais
-          caem nele.
+          respostas dela acompanham o eNPS da mesma pessoa. Quanto mais acima, maior a parcela que
+          concorda (respondeu 4 ou 5). As linhas tracejadas são as medianas das {rows.length}{' '}
+          perguntas — clique num quadrante para ver quais caem nele. É a{' '}
+          <strong>mesma régua</strong> usada em &quot;Por onde começar&quot;, logo abaixo: uma
+          pergunta cai no mesmo quadrante nos dois cartões.
         </p>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           <strong>Isto não é relação de causa.</strong> Todas as respostas vêm da mesma pessoa no

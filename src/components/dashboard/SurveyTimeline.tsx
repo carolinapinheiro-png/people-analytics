@@ -9,7 +9,7 @@ import type { OndaResumo } from '@/lib/experience.functions';
  * POR QUE UMA LINHA DO TEMPO RESOLVE UM PROBLEMA REAL
  * ------------------------------------------------------------------
  * Metade das ressalvas espalhadas por esta aba são consequência de uma coisa
- * só: o questionário mudou entre as ondas. "Só 9 das 31 perguntas têm
+ * só: o questionário mudou entre as ondas. "Só 9 das perguntas de jan/26 têm
  * comparação", "Betfair não aparece no movimento", "a onda anterior foi
  * aplicada em duas partes", "esta pergunta é nova" -- são quatro frases
  * diferentes contando o mesmo fato quatro vezes, em quatro lugares.

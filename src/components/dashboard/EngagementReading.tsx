@@ -1,7 +1,7 @@
 import { useMemo, type ReactNode } from 'react';
 import { ArrowRight } from 'lucide-react';
 import { COLORS } from '@/lib/colors';
-import { median } from '@/lib/stats';
+import { classifyPerguntas, temaDominante } from '@/lib/pergunta-priority';
 import { classifyAreas } from '@/lib/area-priority';
 import type { EngagementContextRow } from '@/lib/engagement-context';
 import type { SurveyCut, SurveyImportance } from '@/lib/survey.functions';
@@ -131,21 +131,23 @@ export default function EngagementReading({
     // 4. POR ONDE COMEÇAR ---------------------------------------------------
     // Tema dominante entre as perguntas de nota baixa e associação alta.
     if (importancia.length >= 8) {
-      const cr = median(importancia.map((i) => i.r)) ?? 0;
-      const cn = median(importancia.map((i) => i.score)) ?? 0;
-      const prioridade = importancia.filter((i) => i.r >= cr && i.score < cn);
-      const porTema = new Map<string, number>();
-      for (const p of prioridade) porTema.set(p.driver, (porTema.get(p.driver) ?? 0) + 1);
-      const [tema, qtd] = [...porTema.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
-      if (tema && qtd >= 2) {
+      // Mesma régua dos dois cartões da aba (`pergunta-priority.ts`). Antes esta
+      // frase cortava pela mediana das médias e os cartões pelo % favorável, de
+      // modo que a leitura do topo podia contar uma quantidade de perguntas que
+      // não batia com a lista logo abaixo dela.
+      const { itens } = classifyPerguntas(importancia);
+      const prioridade = itens.filter((i) => i.quadrante === 'prioridade');
+      const { tema, quantas } = temaDominante(prioridade);
+      if (tema && quantas >= 2) {
         out.push({
           rotulo: 'Por onde começar',
           cor: COLORS.nsx,
           texto: (
             <>
-              Das {prioridade.length} perguntas com nota baixa que mais acompanham o engajamento,{' '}
-              <strong>{qtd} são de {tema.toLowerCase()}</strong>. É onde o mesmo esforço tende a
-              render mais — mais que remuneração, que tem as piores notas mas acompanha menos.
+              Das {prioridade.length} perguntas com menor concordância que mais acompanham o
+              engajamento, <strong>{quantas} são de {tema.toLowerCase()}</strong>. É onde o mesmo
+              esforço tende a render mais — mais que remuneração, que tem as piores notas mas
+              acompanha menos.
             </>
           ),
         });

@@ -26,6 +26,22 @@
 export type KpiTone = 'good' | 'warn' | 'bad' | 'neutral';
 
 /**
+ * Tom → classe de cor do texto.
+ *
+ * Vive aqui, junto das faixas que produzem o tom, pelo mesmo motivo do
+ * cabeçalho: a faixa e a cor são a mesma decisão. Estava dentro do KpiCard, e o
+ * UnwantedTab, que não é cartão, escreveu a sua própria com `text-green-400` --
+ * um verde diferente deste, e sem variante para o modo escuro. Dois vereditos
+ * iguais saíam em duas cores.
+ */
+export const TONE_TEXT: Record<KpiTone, string> = {
+  good: 'text-emerald-600 dark:text-emerald-500',
+  warn: 'text-amber-600 dark:text-amber-500',
+  bad: 'text-red-600 dark:text-red-500',
+  neutral: 'text-foreground',
+};
+
+/**
  * Uma faixa vale do seu `min` para cima, e a lista é lida DE CIMA PARA BAIXO.
  * A última deve ter `min: -Infinity`, que é o "todo o resto".
  */
@@ -111,6 +127,31 @@ export const AJUDA = {
     oQueE: 'Saídas do mês ÷ headcount do fim do mês.',
     comoLer: 'Mede só quem saiu.',
     cuidado: 'Não é turnover. Turnover conta entradas e saídas, e num time que cresce será sempre maior — não são versões do mesmo número.',
+    formatar: pct,
+    inverso: true,
+  },
+  /**
+   * As três faixas viviam soltas no UnwantedTab como BENCHMARK_TARGET,
+   * BENCHMARK_MARKET e BENCHMARK_CRITICAL, pintando o número com
+   * `text-green-400` escrito à mão em vez de `toneDe()`. Eram o único lugar do
+   * painel com uma segunda régua de cor -- exatamente o que o cabeçalho deste
+   * arquivo diz para não fazer.
+   *
+   * A faixa do meio (4,2%) não virou `Faixa`: ela não muda cor nenhuma, é uma
+   * referência de mercado que aparece na tabela ao lado. Vive em `premissas.ts`
+   * junto com as outras suposições, porque é isso que ela é.
+   */
+  atricaoNaoDesejada: {
+    titulo: 'Atrição não desejada',
+    oQueE: 'A parcela das saídas que a empresa preferia não ter tido, sobre o headcount.',
+    comoLer: 'É o número que a meta persegue — sair gente que a empresa queria manter.',
+    cuidado:
+      'O numerador é ESTIMADO, não classificado: aplica-se um percentual fixo sobre o total de saídas (ver premissas.ts). Enquanto a origem não marcar cada saída como desejada ou não, este número acompanha o total de saídas e não distingue nada por si.',
+    faixas: [
+      { min: 6.0, tone: 'bad', rotulo: 'acima do limite' },
+      { min: 3.5, tone: 'warn', rotulo: 'acima do alvo' },
+      { min: -Infinity, tone: 'good', rotulo: 'dentro do alvo' },
+    ],
     formatar: pct,
     inverso: true,
   },

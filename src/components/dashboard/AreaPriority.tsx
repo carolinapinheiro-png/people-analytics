@@ -37,10 +37,15 @@ import type { SurveyCut } from "@/lib/survey.functions";
  * ------------------------------------------------------------------
  * COMO A ORDEM É DEFINIDA
  * ------------------------------------------------------------------
- * Não é por eNPS. Ordenar por eNPS puro colocaria Legal no topo -- eNPS 47, o
- * pior da empresa -- quando Legal tem o MENOR risco de saída de todas (6,7%) e
- * são 15 pessoas. Agir ali primeiro seria gastar esforço onde ninguém está de
+ * Não é por eNPS. O exemplo que motivou a regra, em JAN/26: Legal tinha eNPS 47,
+ * o pior da empresa, e ao mesmo tempo o MENOR risco de saída de todas (6,7%),
+ * com 15 pessoas. Agir ali primeiro seria gastar esforço onde ninguém estava de
  * saída.
+ *
+ * Os números acima são de jan/26 e NÃO valem mais -- em ago/26 Legal está em 69
+ * e continua com o menor risco (6,3%). Ficam datados de propósito: o raciocínio
+ * que eles ilustram continua válido, e um exemplo sem data vira, três ondas
+ * depois, uma afirmação errada sobre o presente.
  *
  * A regra de classificação vive em lib/area-priority.ts, compartilhada com a
  * leitura do topo da aba -- as duas precisam dizer a mesma coisa, e duas cópias

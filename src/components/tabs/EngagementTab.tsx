@@ -22,6 +22,8 @@ import DispersaoAreas from "@/components/dashboard/DispersaoAreas";
 import RiscoPreviu from "@/components/dashboard/RiscoPreviu";
 import RiskVsAttrition from "@/components/dashboard/RiskVsAttrition";
 import DriversDeepDive from "@/components/dashboard/DriversDeepDive";
+import MatrizAreaDriver from "@/components/dashboard/MatrizAreaDriver";
+import { temQuebraPorArea } from "@/lib/drill";
 import KpiCard from "@/components/dashboard/KpiCard";
 import Delta from "@/components/dashboard/Delta";
 import { rotuloDe, toneDe } from "@/lib/metric-help";
@@ -348,6 +350,15 @@ function EngagementSection({
       {/* Depois da lista de perguntas, porque responde a pergunta seguinte:
           esta nota baixa é de todo mundo ou de alguém? */}
       {survey && <DispersaoAreas drivers={survey.driversPorArea} />}
+
+      {/* E logo depois a grade inteira, que responde a MESMA pergunta sem
+          precisar escolher uma pergunta antes: quais áreas destoam, em quê, e
+          quais destoam em tudo. Fica aqui e não no topo de propósito -- ela é
+          densa, e só faz sentido depois de a leitura ter estabelecido o que os
+          temas são. */}
+      {survey && temQuebraPorArea(survey.driversPorArea) && (
+        <MatrizAreaDriver linhas={survey.driversPorArea} ondaLabel={survey.label} />
+      )}
 
       {survey && <SurveyCuts cuts={survey.cuts} departamentoSelecionado={deptSel} />}
 

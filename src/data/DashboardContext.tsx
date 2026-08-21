@@ -9,6 +9,7 @@ import { composeMonthlyMetrics, diagnosticarSerie, type DiagnosticoSerie } from 
 import { useAuth } from '@/contexts/AuthContext';
 import { isGlobalProfile, normalizeDept } from '@/lib/permissions';
 import { readNavState, writeNavState } from '@/lib/nav-state';
+import { SEM_FILTRO, semFiltro, valorFiltro } from '@/lib/filtro-sentinela';
 import { getMonthsOrder, getMonthData, getAllMonthsForBrand, aggregateMonthlyToQuarterly } from './helpers';
 
 export type BrandType = 'combined' | 'NSX' | 'Betfair BR' | 'Flutter International';
@@ -235,14 +236,14 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState<TabType>('overview');
   const [view, setView] = useState<ViewType>('monthly');
   const [filters, setFilters] = useState<Filters>({
-    jobFamily: 'Todos',
-    departamento: 'Todos',
-    tempoCasa: 'Todos',
-    centroCusto: 'Todos',
-    tipoContrato: 'Todos',
-    faixaSalarial: 'Todos',
-    tipoDesligamento: 'Todos',
-    level: 'Todos',
+    jobFamily: SEM_FILTRO,
+    departamento: SEM_FILTRO,
+    tempoCasa: SEM_FILTRO,
+    centroCusto: SEM_FILTRO,
+    tipoContrato: SEM_FILTRO,
+    faixaSalarial: SEM_FILTRO,
+    tipoDesligamento: SEM_FILTRO,
+    level: SEM_FILTRO,
   });
 
   // Perfil com escopo (HRBP / Department Leader) nunca ve o consolidado:
@@ -303,7 +304,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, [activeTab]);
   const [yearFilter, setYearFilter] = useState<string>('atual');
   const activeYear =
-    yearFilter === 'Todos'
+    semFiltro(yearFilter)
       ? null
       : yearFilter === 'atual'
         ? (availableYears[availableYears.length - 1] ?? null)
@@ -324,7 +325,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   }, [monthsOrder.length, activeYear]);
 
   const currentMonth = monthsOrder[currentMonthIdx] || monthsOrder[monthsOrder.length - 1] || '';
-  const filteredDeptKey = filters.departamento !== 'Todos' ? filters.departamento : null;
+  const filteredDeptKey = valorFiltro(filters.departamento);
 
   // Get monthly data first (ja restrito ao ano em escopo).
   const monthlyAllData = useMemo(() => {

@@ -25,6 +25,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { getCompAggregates, type CompAggregates } from '@/lib/comp.functions';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
+import { passaFiltro } from '@/lib/filtro-sentinela';
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -122,13 +123,14 @@ export default function LeaversTab() {
   const filteredLeavers = useMemo(() => {
     return leavers.filter(r => {
       if (activeYear && !(r.mes_desligamento || '').startsWith(activeYear)) return false;
-      if (filters.departamento !== 'Todos' && r.departamento !== filters.departamento) return false;
-      if (filters.jobFamily !== 'Todos' && r.job_family !== filters.jobFamily) return false;
-      if (filters.tempoCasa !== 'Todos' && r.tempo_casa_faixa !== filters.tempoCasa) return false;
-      if (filters.tipoContrato !== 'Todos' && r.vinculo !== filters.tipoContrato) return false;
-      if (filters.faixaSalarial !== 'Todos' && r.faixa_salarial !== filters.faixaSalarial) return false;
-      if (filters.tipoDesligamento !== 'Todos' && r.tipo_desligamento_agrupado !== filters.tipoDesligamento) return false;
-      if (filters.level !== 'Todos' && r.level !== filters.level) return false;
+      // 'Todos', vazio e espaços = sem seleção (ver `filtro-sentinela.ts`).
+      if (!passaFiltro(filters.departamento, r.departamento)) return false;
+      if (!passaFiltro(filters.jobFamily, r.job_family)) return false;
+      if (!passaFiltro(filters.tempoCasa, r.tempo_casa_faixa)) return false;
+      if (!passaFiltro(filters.tipoContrato, r.vinculo)) return false;
+      if (!passaFiltro(filters.faixaSalarial, r.faixa_salarial)) return false;
+      if (!passaFiltro(filters.tipoDesligamento, r.tipo_desligamento_agrupado)) return false;
+      if (!passaFiltro(filters.level, r.level)) return false;
       if (searchTerm) {
         const term = searchTerm.toLowerCase();
         return (

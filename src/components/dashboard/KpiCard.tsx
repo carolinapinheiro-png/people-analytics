@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 import { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import MetricHelp from '@/components/dashboard/MetricHelp';
-import type { ChaveMetrica, KpiTone } from '@/lib/metric-help';
+import { TONE_TEXT, type ChaveMetrica, type KpiTone } from '@/lib/metric-help';
 
 /**
  * Cartão de KPI.
@@ -18,13 +18,6 @@ import type { ChaveMetrica, KpiTone } from '@/lib/metric-help';
  * Reexportado aqui porque muitas abas ja o importavam deste arquivo.
  */
 export type { KpiTone };
-
-const TONE_TEXT: Record<KpiTone, string> = {
-  good: 'text-emerald-600 dark:text-emerald-500',
-  warn: 'text-amber-600 dark:text-amber-500',
-  bad: 'text-red-600 dark:text-red-500',
-  neutral: 'text-foreground',
-};
 
 const TONE_RING: Record<KpiTone, string> = {
   good: 'ring-1 ring-emerald-500/25',

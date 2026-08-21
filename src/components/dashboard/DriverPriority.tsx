@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
-import { median } from '@/lib/stats';
+import { classifyPerguntas, temaDominante as temaDeLista } from '@/lib/pergunta-priority';
 import { cn } from '@/lib/utils';
 import {
   Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -17,7 +17,7 @@ import { areasNaPergunta, temQuebraPorArea } from '@/lib/drill';
  * POR QUE LISTA E NÃO A DISPERSÃO QUE ESTAVA AQUI
  * ------------------------------------------------------------------
  * A versão anterior era um gráfico de nota × associação com quatro quadrantes.
- * Estatisticamente é a representação certa: mostra as 31 perguntas de uma vez e
+ * Estatisticamente é a representação certa: mostra todas as perguntas de uma vez e
  * deixa a estrutura aparecer.
  *
  * Só que exige três leituras encadeadas antes de virar decisão -- entender o
@@ -152,25 +152,24 @@ export default function DriverPriority({
   const [sobre, setSobre] = useState<string | null>(null);
 
   const { prioridade, sustentar, cortes, temaDominante } = useMemo(() => {
-    const cr = median(rows.map((i) => i.r)) ?? 0;
-    // O corte de "nota baixa" passa a ser em % favorável: é a leitura principal,
-    // e a mediana da média daria um recorte ligeiramente diferente para a mesma
-    // pergunta -- duas verdades para o mesmo dado na mesma tela.
-    const cn = median(rows.map((i) => i.favoravel ?? i.score * 20)) ?? 0;
-    const ordenado = [...rows].sort((a, b) => b.r - a.r);
-    const fav = (i: SurveyImportance) => i.favoravel ?? i.score * 20;
-    const prioridade = ordenado.filter((i) => i.r >= cr && fav(i) < cn);
-    const sustentar = ordenado.filter((i) => i.r >= cr && fav(i) >= cn).slice(0, 4);
+    // A régua é a de `pergunta-priority.ts`, a mesma do gráfico de quadrantes
+    // logo acima. Este cartão já cortava pelo % favorável e explicava por quê;
+    // o que faltava era os outros dois cartões cortarem igual. Agora a regra
+    // mora num lugar só, com teste, e o comentário virou documentação de lá.
+    const { itens, corteR } = classifyPerguntas(rows);
+    const ordenado = [...itens].sort((a, b) => b.r - a.r);
+    const prioridade = ordenado.filter((i) => i.quadrante === 'prioridade');
+    const sustentar = ordenado.filter((i) => i.quadrante === 'sustentar').slice(0, 4);
 
-    const porTema = new Map<string, number>();
-    for (const p of prioridade) porTema.set(p.driver, (porTema.get(p.driver) ?? 0) + 1);
-    const [tema, qtd] = [...porTema.entries()].sort((a, b) => b[1] - a[1])[0] ?? [];
+    const t = temaDeLista(prioridade);
 
     const rs = rows.map((i) => i.r).sort((a, b) => b - a);
     return {
       prioridade, sustentar,
-      cortes: { alto: rs[Math.floor(rs.length * 0.25)] ?? 0, medio: cr },
-      temaDominante: qtd >= 2 ? { tema, qtd } : null,
+      cortes: { alto: rs[Math.floor(rs.length * 0.25)] ?? 0, medio: corteR },
+      // Duas perguntas do mesmo driver já bastam para a moda; só vira "tema" se
+      // ainda houver mais de uma categoria de onde ela pudesse ter vindo.
+      temaDominante: t.tema && t.quantas >= 2 ? { tema: t.tema, qtd: t.quantas } : null,
     };
   }, [rows]);
 

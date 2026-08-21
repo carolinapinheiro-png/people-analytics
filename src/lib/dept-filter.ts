@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isInScope, normalizeDept, type AccessScope } from '@/lib/permissions';
+import { semFiltro } from '@/lib/filtro-sentinela';
 
 /**
  * Filtro de departamento vindo da tela, aplicado no servidor.
@@ -19,10 +20,10 @@ export const DeptFilterInput = z
 
 export type DeptFilterData = z.infer<typeof DeptFilterInput>;
 
-/** 'Todos', vazio e nulo significam "sem seleção". */
+/** 'Todos', vazio e nulo significam "sem seleção" (ver `filtro-sentinela.ts`). */
 export function selectedDept(data: DeptFilterData): string | null {
-  const d = data?.department?.trim();
-  if (!d || d === 'Todos') return null;
+  const d = data?.department;
+  if (semFiltro(d)) return null;
   return normalizeDept(d);
 }
 
@@ -50,7 +51,11 @@ export function visibleWithFilter(
  * liberava quem não tem departamento ANTES de olhar a seleção de área. O
  * efeito era filtrar Technology e receber Technology mais o balde "Outros".
  *
- * A ordem correta é: seleção primeiro, permissão depois.
+ * A ordem correta é PERMISSÃO PRIMEIRO, seleção depois -- e esta linha já
+ * esteve escrita ao contrário aqui, descrevendo com autoridade o inverso do que
+ * o código faz. Um comentário errado sobre regra de segurança é pior que
+ * nenhum: convida a próxima pessoa a "consertar" o código para casar com ele,
+ * e aí o seletor vira caminho para ler área alheia.
  *
  * @param dept       departamento do recorte, ou null quando ele não é área
  *                   (empresa, marca ou residual)

@@ -7,6 +7,7 @@ import {
   isInScope,
 } from '@/lib/permissions';
 import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
+import { valorFiltro } from '@/lib/filtro-sentinela';
 import {
   camadaDe, filtrarLinhas, podeVerLinha, temCamadaNosDados, type EscopoComp,
 } from '@/lib/comp-scope';
@@ -106,11 +107,8 @@ const ListInput = z
   .optional();
 
 
-/** 'Todos'/vazio = sem selecao. */
-const sel = (v?: string | null): string | null => {
-  const t = v?.trim();
-  return !t || t === 'Todos' ? null : t;
-};
+/** 'Todos'/vazio = sem selecao (ver `filtro-sentinela.ts`). */
+const sel = valorFiltro;
 
 export const listCompRatio = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])

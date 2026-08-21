@@ -1,5 +1,6 @@
 import type { MonthRecord } from './raw-data';
 import type { LeaverRecord } from './leaver-types';
+import { semFiltro, valorFiltro } from '@/lib/filtro-sentinela';
 
 /**
  * Filtro de UMA dimensão sobre a série mensal (nível, tempo de casa, vínculo).
@@ -111,7 +112,11 @@ export function applySeriesFilter(
    *  numerador vinha da empresa toda e o denominador do departamento. */
   department?: string | null,
 ): SeriesFilterResult {
-  if (!key || !value || value === 'Todos') {
+  // `escolhido` é o mesmo `value` já sem espaços e sem o sentinela. Vale a
+  // variável em vez de checar e seguir usando `value`: assim o resto da função
+  // não tem como esbarrar num 'Todos' ou num nulo mais abaixo.
+  const escolhido = key ? valorFiltro(value) : null;
+  if (escolhido == null) {
     return { months, active: false, label: null, suppressed: [], unreliable: false };
   }
 
@@ -121,7 +126,7 @@ export function applySeriesFilter(
   const unreliable = !!department && months.some((m) => m.dept_filter_exact === false);
 
   const labelPrefix = key === 'level' ? 'Nível' : 'Tempo de casa';
-  const dept = department && department !== 'Todos' ? department.trim().toUpperCase() : null;
+  const dept = valorFiltro(department)?.toUpperCase() ?? null;
 
   // Contagem de saídas por mês dentro do recorte. Person-level, então exata.
   const saidasPorMes = new Map<string, number>();
@@ -131,9 +136,9 @@ export function applySeriesFilter(
     // Mesma populacao do headcount: se ha departamento, a saida tem que ser dele.
     if (dept && norm(l.departamento).toUpperCase() !== dept) continue;
     let bate = false;
-    if (key === 'level') bate = norm(l.level) === norm(value);
+    if (key === 'level') bate = norm(l.level) === norm(escolhido);
     else if (key === 'tempoCasa') {
-      const alvo = TENURE_LABEL_TO_KEY[value] ?? value;
+      const alvo = TENURE_LABEL_TO_KEY[escolhido] ?? escolhido;
       bate = tenureBucketFromDays(l.tempo_casa_dias ?? 0) === alvo;
     }
     if (bate) saidasPorMes.set(ym, (saidasPorMes.get(ym) ?? 0) + 1);
@@ -143,8 +148,8 @@ export function applySeriesFilter(
     let hc = 0;
     hc =
       key === 'level'
-        ? (m.level_base?.[value] ?? 0)
-        : (m.tenure_base?.[TENURE_LABEL_TO_KEY[value] ?? value] ?? 0);
+        ? (m.level_base?.[escolhido] ?? 0)
+        : (m.tenure_base?.[TENURE_LABEL_TO_KEY[escolhido] ?? escolhido] ?? 0);
     const saidas = saidasPorMes.get(m.month) ?? 0;
 
     return {
@@ -172,7 +177,7 @@ export function applySeriesFilter(
   return {
     months: out,
     active: true,
-    label: `${labelPrefix}: ${value}`,
+    label: `${labelPrefix}: ${escolhido}`,
     suppressed: SUPRIMIDO,
     unreliable,
   };
@@ -206,9 +211,7 @@ const CUT_PRECEDENCE: SeriesFilterKey[] = ['level', 'tempoCasa'];
 export function resolveSeriesCut(
   filters: Partial<Record<SeriesFilterKey, string>>,
 ): SeriesCut {
-  const selecionados = CUT_PRECEDENCE.filter(
-    (k) => (filters[k] ?? 'Todos') !== 'Todos',
-  );
+  const selecionados = CUT_PRECEDENCE.filter((k) => !semFiltro(filters[k]));
   const [vencedor, ...resto] = selecionados;
   return {
     key: vencedor ?? null,

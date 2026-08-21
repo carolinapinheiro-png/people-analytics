@@ -120,7 +120,7 @@ export const importSurveyWave = createServerFn({ method: 'POST' })
     const up = async (tabela: string, linhas: unknown[], conflito: string) => {
       if (!linhas.length) return;
       // Lotes de 500: o upsert inteiro de driver_scores passa de 1500 linhas
-      // (31 perguntas × ~50 recortes) e estoura o limite de payload.
+      // (uma pergunta por recorte, ~50 recortes) e estoura o limite de payload.
       for (let i = 0; i < linhas.length; i += 500) {
         const { error } = await db.from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: conflito });
         if (error) throw new Error(`Falha ao gravar ${tabela}: ${error.message}`);

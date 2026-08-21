@@ -6,6 +6,9 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { COLORS } from '@/lib/colors';
+import { passaFiltro } from '@/lib/filtro-sentinela';
+import { PREMISSAS } from '@/lib/premissas';
+import { AJUDA, toneDe, TONE_TEXT } from '@/lib/metric-help';
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, Cell, PieChart, Pie
@@ -25,17 +28,23 @@ import {
   DollarSign,
 } from 'lucide-react';
 
-// Heurística configurável: percentual estimado de saídas consideradas não desejadas.
-const UNWANTED_ATTRITION_PCT = 0.65;
+// As seis constantes que estavam aqui saíram do componente:
+//   - as que o painel SUPÕE (65%, R$ 45.000, 6 meses, 4,2%) foram para
+//     `premissas.ts`, cada uma com a origem declarada -- e a origem de todas
+//     as quatro é "não rastreada";
+//   - as duas que pintam cor (3,5% e 6,0%) foram para `AJUDA.atricaoNaoDesejada`,
+//     onde vivem as faixas do resto do painel. Aqui elas coloriam o número com
+//     `text-green-400` escrito à mão, uma segunda régua de cor só nesta aba.
+const UNWANTED_ATTRITION_PCT = PREMISSAS.pctSaidasNaoDesejadas.valor;
+const REPLACEMENT_COST = PREMISSAS.custoReposicao.valor;
+const PRODUCTIVITY_LOSS_MONTHS = PREMISSAS.mesesRampUp.valor;
+const BENCHMARK_MARKET = PREMISSAS.atricaoMercado.valor;
 
-// Benchmarks configuráveis (% do headcount)
-const BENCHMARK_TARGET = 3.5;
-const BENCHMARK_MARKET = 4.2;
-const BENCHMARK_CRITICAL = 6.0;
-
-// Custo médio de substituição e meses de ramp-up (estimativa)
-const REPLACEMENT_COST = 45000;
-const PRODUCTIVITY_LOSS_MONTHS = 6;
+const FAIXAS_ATRICAO = AJUDA.atricaoNaoDesejada.faixas;
+/** 6,0% -- acima disto o cartão fica vermelho. */
+const BENCHMARK_CRITICAL = FAIXAS_ATRICAO[0].min;
+/** 3,5% -- o alvo interno. */
+const BENCHMARK_TARGET = FAIXAS_ATRICAO[1].min;
 
 const SALARY_BAND_ORDER = ['Até 3k', '3k-5k', '5k-8k', '8k-12k', '12k-20k', '20k-50k', '50k+'];
 const PIE_COLORS = [COLORS.danger, COLORS.success, COLORS.warning, COLORS.purple, COLORS.orange];
@@ -76,17 +85,19 @@ export default function UnwantedTab() {
   const brandColor = brand === 'NSX' ? COLORS.nsx : brand === 'Betfair BR' ? COLORS.betfair : COLORS.flutter;
   const brandLabel = brand === 'combined' ? 'Combinado' : brand;
 
-  // Filter real leavers data
-  const filteredLeavers = leavers.filter(r => {
-    if (filters.departamento !== 'Todos' && r.departamento !== filters.departamento) return false;
-    if (filters.jobFamily !== 'Todos' && r.job_family !== filters.jobFamily) return false;
-    if (filters.tempoCasa !== 'Todos' && r.tempo_casa_faixa !== filters.tempoCasa) return false;
-    if (filters.tipoContrato !== 'Todos' && r.vinculo !== filters.tipoContrato) return false;
-    if (filters.faixaSalarial !== 'Todos' && r.faixa_salarial !== filters.faixaSalarial) return false;
-    if (filters.tipoDesligamento !== 'Todos' && r.tipo_desligamento_agrupado !== filters.tipoDesligamento) return false;
-    if (filters.level !== 'Todos' && r.level !== filters.level) return false;
-    return true;
-  });
+  // Filter real leavers data. `passaFiltro` reconhece 'Todos', vazio e espaços
+  // como "sem seleção" -- a comparação literal que estava aqui só reconhecia a
+  // palavra exata (ver `filtro-sentinela.ts`).
+  const filteredLeavers = leavers.filter(
+    (r) =>
+      passaFiltro(filters.departamento, r.departamento) &&
+      passaFiltro(filters.jobFamily, r.job_family) &&
+      passaFiltro(filters.tempoCasa, r.tempo_casa_faixa) &&
+      passaFiltro(filters.tipoContrato, r.vinculo) &&
+      passaFiltro(filters.faixaSalarial, r.faixa_salarial) &&
+      passaFiltro(filters.tipoDesligamento, r.tipo_desligamento_agrupado) &&
+      passaFiltro(filters.level, r.level),
+  );
 
   const realLeaversCount = filteredLeavers.length;
   const realInvoluntary = filteredLeavers.filter(r => r.tipo_desligamento_agrupado === 'Involuntário').length;
@@ -338,7 +349,13 @@ export default function UnwantedTab() {
                   <span className="font-bold text-green-400">{BENCHMARK_TARGET}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Média de Mercado</span>
+                  <span className="text-muted-foreground">
+                    Média de Mercado
+                    {/* Sem fonte anotada -- ver premissas.ts. O asterisco existe
+                        para o número não ficar do lado da meta interna
+                        parecendo ter a mesma procedência. */}
+                    <span className="text-[10px] align-super">*</span>
+                  </span>
                   <span className="font-bold text-yellow-400">{BENCHMARK_MARKET}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
@@ -347,10 +364,16 @@ export default function UnwantedTab() {
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
                   <span className="text-muted-foreground">Taxa Atual</span>
-                  <span className={`font-bold ${unwantedRate > BENCHMARK_CRITICAL ? 'text-red-400' : unwantedRate > BENCHMARK_TARGET ? 'text-yellow-400' : 'text-green-400'}`}>
+                  {/* A cor sai da MESMA lista que define as faixas acima. Antes
+                      era um ternário à mão aqui, com os limites repetidos --
+                      mexer na faixa mudava a tabela e não mudava esta cor. */}
+                  <span className={`font-bold ${TONE_TEXT[toneDe('atricaoNaoDesejada', unwantedRate)]}`}>
                     {unwantedRate.toFixed(2)}%
                   </span>
                 </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed pt-1">
+                  * {PREMISSAS.atricaoMercado.origem}
+                </p>
               </div>
             </div>
 

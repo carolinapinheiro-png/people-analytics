@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isInScope, isGlobalProfile, type AccessScope } from '@/lib/permissions';
 import { selectedDept } from '@/lib/dept-filter';
+import { valorFiltro } from '@/lib/filtro-sentinela';
 import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
 import { z } from 'zod';
 
@@ -20,10 +21,8 @@ const TeamInput = z
   })
   .optional();
 
-const pick = (v?: string | null): string | null => {
-  const t = v?.trim();
-  return !t || t === 'Todos' ? null : t;
-};
+/** 'Todos'/vazio = sem seleção (ver `filtro-sentinela.ts`). */
+const pick = valorFiltro;
 
 
 /**
