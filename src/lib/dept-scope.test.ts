@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { deptForScope, SCOPE_TO_DEPT } from './engagement-context';
+import { deptForScope, ehResidual, tipoDoScope, SCOPE_TO_DEPT } from './engagement-context';
+import { recorteNoEscopo } from './dept-filter';
+import type { AccessScope } from './permissions';
 
 /**
  * O filtro por área da aba de Engajamento depende inteiramente do de-para
@@ -80,4 +82,76 @@ test('todo destino do de-para é um departamento do catálogo', () => {
   for (const destino of Object.values(SCOPE_TO_DEPT)) {
     assert.equal(CATALOGO.has(destino), true, `${destino} não existe no catálogo de departamentos`);
   }
+});
+
+// ===========================================================================
+// "OUTROS" NÃO É "TODOS", E NENHUM DOS DOIS É "SEM DEPARTAMENTO"
+// ===========================================================================
+// Quatro coisas devolviam `null` em deptForScope e eram tratadas como um caso
+// só. Isso produziu dois defeitos silenciosos ao mesmo tempo:
+//
+//   1. "Outros" era reportado como área sem correspondência no de-para -- um
+//      alarme falso, porque ele é um balde conhecido, não uma falha de carga.
+//   2. Recortes sem departamento escapavam da seleção de área: filtrar
+//      Technology devolvia Technology E "Outros".
+//
+// Os testes abaixo fixam a distinção nos dois eixos.
+
+test('os quatro sentidos de "não é um departamento" ficam distintos', () => {
+  assert.equal(tipoDoScope('Technology'), 'area');
+  assert.equal(tipoDoScope('company'), 'empresa');
+  assert.equal(tipoDoScope('Betfair'), 'marca');
+  assert.equal(tipoDoScope('Outros'), 'residual');
+  assert.equal(tipoDoScope('Growth'), 'nao-mapeado');
+});
+
+test('"Outros" é grupo real, não falha de mapeamento', () => {
+  assert.equal(ehResidual('Outros'), true);
+  assert.equal(ehResidual('outros'), true);
+  assert.notEqual(tipoDoScope('Outros'), 'nao-mapeado');
+  // e uma área de verdade que ninguém mapeou continua sendo sinalizada
+  assert.equal(tipoDoScope('Growth'), 'nao-mapeado');
+  assert.equal(ehResidual('Growth'), false);
+});
+
+test('nenhuma área nomeada caiu no saco de não-departamento', () => {
+  for (const k of Object.keys(SCOPE_TO_DEPT)) {
+    assert.equal(tipoDoScope(k), 'area', `${k} deveria ser área`);
+  }
+});
+
+// --------------------------------------------------------------- o filtro
+
+const ADMIN: AccessScope = { profile: 'admin', departments: [], jobFamilies: [] };
+const SO_TECH: AccessScope = {
+  profile: 'dept_leader', departments: ['TECHNOLOGY'], jobFamilies: [],
+};
+
+test('sem seleção, perfil global vê áreas, empresa, marca e residual', () => {
+  for (const s of ['Technology', 'Marketing', 'company', 'Betfair', 'Outros']) {
+    assert.equal(recorteNoEscopo(ADMIN, deptForScope(s), null, true), true, s);
+  }
+});
+
+test('com área selecionada, nada que não seja dela passa junto', () => {
+  assert.equal(recorteNoEscopo(ADMIN, deptForScope('Technology'), 'TECHNOLOGY', true), true);
+  for (const s of ['Marketing', 'Outros', 'Betfair', 'company']) {
+    assert.equal(
+      recorteNoEscopo(ADMIN, deptForScope(s), 'TECHNOLOGY', true), false,
+      `${s} não pode acompanhar um filtro de Technology`,
+    );
+  }
+});
+
+test('perfil restrito não vê empresa, marca nem residual', () => {
+  assert.equal(recorteNoEscopo(SO_TECH, deptForScope('Technology'), null, false), true);
+  for (const s of ['Marketing', 'company', 'Betfair', 'Outros']) {
+    assert.equal(recorteNoEscopo(SO_TECH, deptForScope(s), null, false), false, s);
+  }
+});
+
+test('a seleção só estreita: pedir outra área não amplia o escopo', () => {
+  // A permissão é o teto e é conferida ANTES da seleção. Escrito na ordem
+  // inversa, o seletor viraria um caminho para ler área alheia.
+  assert.equal(recorteNoEscopo(SO_TECH, deptForScope('Marketing'), 'MARKETING', false), false);
 });

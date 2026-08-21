@@ -1,4 +1,5 @@
 import type { DriverPorRecorte } from '@/lib/survey.functions';
+import { ehResidual } from '@/lib/engagement-context';
 
 /**
  * ===========================================================================
@@ -107,7 +108,13 @@ export function areasNaPergunta(
   const empresa = reguaEmpresa(linhas).get(k)?.favoravel ?? null;
 
   return linhas
-    .filter((l) => l.cutType === 'area' && chave(l) === k)
+    // "Outros" tem cutType 'area' na carga, mas não é uma área: é o balde de
+    // quem não pertence a nenhuma das nomeadas. Ele não tem líder a quem
+    // perguntar nem de quem aprender, então liderar um ranking de "quais áreas
+    // puxam esta pergunta" não diz nada acionável -- e ele liderava, porque um
+    // grupo de 20 pessoas oscila muito mais que um de 149. As pessoas
+    // continuam contadas na régua da empresa; o que sai é a comparação.
+    .filter((l) => l.cutType === 'area' && !ehResidual(l.cutValue) && chave(l) === k)
     .map((l) => ({
       area: l.cutValue,
       favoravel: l.favoravel,

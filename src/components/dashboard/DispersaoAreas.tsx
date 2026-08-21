@@ -4,6 +4,7 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
 import { dispersaoEntreAreas } from '@/lib/analise-engajamento';
 import type { DriverPorRecorte } from '@/lib/survey.functions';
+import { ehResidual } from '@/lib/engagement-context';
 
 /**
  * Problema da empresa, ou de alguém?
@@ -54,7 +55,10 @@ export default function DispersaoAreas({
       if (d.cutType === 'company') empresa.set(`${d.driver}||${d.question}`, d.favoravel);
     }
     const notas = drivers
-      .filter((d) => d.cutType === 'area')
+      // Mesmo motivo do drill: o balde residual não é uma área de quem
+      // aprender nem a quem cobrar, e a amplitude "melhor menos pior" fica
+      // inflada quando uma das pontas é um grupo sem dono.
+      .filter((d) => d.cutType === 'area' && !ehResidual(d.cutValue))
       .map((d) => ({
         driver: d.driver, question: d.question, area: d.cutValue,
         favoravel: d.favoravel, n: d.n,

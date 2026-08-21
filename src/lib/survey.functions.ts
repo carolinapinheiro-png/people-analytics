@@ -8,7 +8,7 @@ import {
   computeCuts, computeDriverScores, computeDriverImportance,
   applySuppression, ordemTempo, N_MINIMO_EXIBICAO,
 } from '@/lib/aggregator/polly-survey';
-import { selectedDept } from '@/lib/dept-filter';
+import { selectedDept, recorteNoEscopo } from '@/lib/dept-filter';
 
 /**
  * Carga e leitura da pesquisa de engajamento.
@@ -320,15 +320,23 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // Os recortes por tempo de casa, função e marca NÃO identificam área e
     // seguem inteiros: são da Flutter Brazil e servem de referência. É a mesma
     // regra já usada nos drivers e na inclusão.
-    const noEscopo = brutos.filter((c) => {
-      if (c.cutType !== 'area') return true;
-      const dept = deptForScope(c.cutValue);
-      // Área da pesquisa sem correspondência no catálogo (hoje, "Betfair" —
-      // que é marca) não pode virar linha para perfil restrito por omissão.
-      if (dept == null) return podeVerTudoEscopo;
-      if (!podeVerTudoEscopo && !isInScope(scope, dept)) return false;
-      return !sel || dept === sel;
-    });
+    // ------------------------------------------------------------------
+    // NADA ESCAPA DA SELEÇÃO DE ÁREA
+    // ------------------------------------------------------------------
+    // A ordem das checagens importava e estava errada. `company`, as marcas e
+    // o balde "Outros" devolvem `dept == null`, e a versão anterior os
+    // liberava ANTES de olhar a seleção -- então filtrar Technology trazia
+    // Technology e "Outros" junto, sem dizer que estava fazendo isso.
+    //
+    // Agora a seleção decide primeiro: se há uma área escolhida, só linhas
+    // daquela área passam. Um recorte que não é área não pertence a área
+    // nenhuma, logo não passa. Sem seleção, a permissão volta a mandar.
+    const passaNoRecorte = (nome: string): boolean =>
+      recorteNoEscopo(scope, deptForScope(nome), sel, podeVerTudoEscopo);
+
+    const noEscopo = brutos.filter(
+      (c) => c.cutType !== 'area' || passaNoRecorte(c.cutValue),
+    );
 
     // A supressão é aplicada AQUI, antes de a linha existir na resposta HTTP.
     // Fazer isso na tela deixaria o número real no payload -- visível para
@@ -358,12 +366,10 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // tabela.
     const driversNoEscopo = ((drvRes.error ? [] : drvRes.data ?? []) as Array<Record<string, unknown>>)
       .filter((d) => {
-        const tipo = String(d.cut_type);
-        if (tipo === 'company') return true;
-        const dept = deptForScope(String(d.cut_value));
-        if (dept == null) return podeVerTudoEscopo;
-        if (!podeVerTudoEscopo && !isInScope(scope, dept)) return false;
-        return !sel || dept === sel;
+        // `company` é a régua e passa sempre: sem ela, "4,04" não diz se a
+        // área está bem ou mal. O resto passa pela MESMA porta dos recortes.
+        if (String(d.cut_type) === 'company') return true;
+        return passaNoRecorte(String(d.cut_value));
       })
       .map((d) => ({
         driver: String(d.driver),

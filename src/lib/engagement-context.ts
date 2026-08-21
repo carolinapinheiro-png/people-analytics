@@ -88,8 +88,51 @@ export const SCOPE_TO_DEPT: Record<string, string> = {
   product: 'PRODUCT',
 };
 
+/**
+ * -------------------------------------------------------------------------
+ * QUATRO COISAS DIFERENTES QUE NÃO SÃO UM DEPARTAMENTO
+ * -------------------------------------------------------------------------
+ * `deptForScope` devolve `null` para todas elas, e durante muito tempo os
+ * filtros trataram esse `null` como um caso só. Não é:
+ *
+ *   'empresa'      a régua. Não é um grupo de pessoas a comparar, é o total.
+ *   'marca'        Betfair. Corta a empresa por outro eixo; as pessoas dela
+ *                  também estão dentro das áreas, então somar as duas coisas
+ *                  conta gente duas vezes.
+ *   'residual'     "Outros". É um grupo REAL de pessoas -- 20 respondentes em
+ *                  ago/26 -- que simplesmente não pertence a nenhuma área
+ *                  nomeada. Existe, conta no total, e não tem dono.
+ *   'nao-mapeado'  um nome que a pesquisa trouxe e o de-para não conhece.
+ *                  Isso é um defeito de dado e precisa aparecer como tal.
+ *
+ * Confundir 'residual' com 'nao-mapeado' fazia "Outros" ser reportado como
+ * falha de mapeamento. Confundir qualquer um deles com "sem filtro" fazia
+ * esses recortes escaparem da seleção de área: filtrar Technology trazia
+ * Technology E "Outros" junto.
+ */
+export type TipoDeScope = 'area' | 'empresa' | 'marca' | 'residual' | 'nao-mapeado';
+
+const SCOPES_EMPRESA = new Set(['company']);
+const SCOPES_MARCA = new Set(['betfair', 'betnacional', 'ambas']);
+const SCOPES_RESIDUAIS = new Set(['outros', 'outro', 'others']);
+
 /** Scopes que existem na pesquisa mas não são departamento. */
-export const SCOPES_NAO_DEPARTAMENTO = new Set(['company', 'betfair']);
+export const SCOPES_NAO_DEPARTAMENTO = new Set([
+  ...SCOPES_EMPRESA, ...SCOPES_MARCA, ...SCOPES_RESIDUAIS,
+]);
+
+export function tipoDoScope(scope: string): TipoDeScope {
+  const k = (scope ?? '').trim().toLowerCase();
+  if (SCOPES_EMPRESA.has(k)) return 'empresa';
+  if (SCOPES_MARCA.has(k)) return 'marca';
+  if (SCOPES_RESIDUAIS.has(k)) return 'residual';
+  return SCOPE_TO_DEPT[k] ? 'area' : 'nao-mapeado';
+}
+
+/** true quando o recorte é um grupo real de pessoas sem área nomeada. */
+export function ehResidual(scope: string): boolean {
+  return tipoDoScope(scope) === 'residual';
+}
 
 export function deptForScope(scope: string): string | null {
   const k = (scope ?? '').trim().toLowerCase();
@@ -186,7 +229,9 @@ export function buildEngagementContext(
   const rows: EngagementContextRow[] = scores.map((s) => {
     const dept = deptForScope(s.scope);
     const chave = (s.scope ?? '').trim().toLowerCase();
-    if (!dept && !SCOPES_NAO_DEPARTAMENTO.has(chave)) semCorrespondencia.push(s.scope);
+    // Só é falha de mapeamento o que o de-para de fato não conhece. "Outros"
+    // e as marcas não são: são recortes conhecidos que não têm departamento.
+    if (tipoDoScope(chave) === 'nao-mapeado') semCorrespondencia.push(s.scope);
 
     const hc = dept ? (hcMedio.get(dept) ?? null) : null;
     const sd = dept ? saidas.get(dept) : undefined;
