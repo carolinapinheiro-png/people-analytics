@@ -288,6 +288,17 @@ export default function EngagementMatrix({
               data={porQuadrante(q)}
               fill={QUADRANTES[q].color}
               fillOpacity={0.72}
+              // O clique fica AQUI, e não só no <circle> do shape. O payload
+              // chega certinho dentro do shape (é o que desenha o contorno
+              // tracejado), mas o evento de clique não atravessa até lá -- a
+              // Recharts monta uma camada própria para tooltip por cima. No
+              // Scatter ela entrega o dado e o clique junto.
+              cursor={onEscolherArea ? "pointer" : undefined}
+              onClick={(d: unknown) => {
+                const p = d as { nome?: string; payload?: { nome?: string } };
+                const nome = p?.nome ?? p?.payload?.nome;
+                if (nome) onEscolherArea?.(nome);
+              }}
               // Contorno tracejado = veredito no limite. Preenchimento sólido
               // afirma; tracejado deixa a borda "aberta", que é a leitura certa
               // para um rótulo que uma pessoa a mais viraria.
