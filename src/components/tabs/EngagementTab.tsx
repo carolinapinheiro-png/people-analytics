@@ -172,14 +172,17 @@ function EngagementSection({
   const escolherArea = (area: string | null) => {
     setAreaEscolhida(area);
     if (!area) return;
-    requestAnimationFrame(() => {
-      // Rolagem INSTANTÂNEA, e não `behavior: "smooth"`. Nesta página o modo
-      // suave simplesmente não executa -- medido: o elemento continuava a
-      // 4.444px de distância depois de 2,5s, enquanto a rolagem direta acerta
-      // o alvo na hora. O clique expandia a área e a tela não saía do lugar,
-      // que é o mesmo que não ter funcionado, do ponto de vista de quem clicou.
+    // `setTimeout(0)` e não `requestAnimationFrame`. Dentro de um rAF o
+    // `scrollIntoView` desta página simplesmente NÃO EXECUTA -- reproduzido
+    // fora do React: a mesma chamada direta rola, dentro do rAF o scrollY não
+    // se mexe um pixel. O clique expandia a área e a tela ficava parada, que
+    // do ponto de vista de quem clicou é igual a não ter funcionado.
+    //
+    // O timeout continua cedendo o turno para o React renderizar antes de
+    // medir a posição, que era a razão de haver um adiamento aqui.
+    setTimeout(() => {
       document.getElementById("fila-por-area")?.scrollIntoView({ block: "start" });
-    });
+    }, 0);
   };
 
   const janela = cross ? janelaLabel(cross.janelaInicio, cross.janelaFim) : "";
