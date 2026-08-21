@@ -326,7 +326,7 @@ function EngagementSection({
 
         <div className="space-y-2">
           <EscopoEmpresa escopo={data.escopo} />
-          <DriversDeepDive drivers={data.drivers} />
+          <DriversDeepDive drivers={data.drivers} ondaLabel={cross?.ondaAtualLabel} />
         </div>
 
         {cross && (

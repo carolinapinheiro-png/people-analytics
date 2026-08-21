@@ -85,7 +85,14 @@ function Linha({ p, mostrarDriver = true }: { p: Pergunta; mostrarDriver?: boole
   );
 }
 
-export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver[] }) {
+export default function DriversDeepDive({
+  drivers,
+  ondaLabel,
+}: {
+  drivers: EngagementDriver[];
+  /** Onda a que as perguntas se referem, para o subtitulo nao mentir. */
+  ondaLabel?: string | null;
+}) {
   const [aba, setAba] = useState<'alavancas' | 'forcas' | 'movimento'>('alavancas');
 
   const perguntas = useMemo<Pergunta[]>(
@@ -136,6 +143,26 @@ export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver
   const comHistorico = perguntas.filter((p) => p.delta != null).sort((a, b) => (a.delta ?? 0) - (b.delta ?? 0));
   const novas = perguntas.length - comHistorico.length;
 
+  /**
+   * O texto abaixo de cada aba era prosa fixa, escrita quando a onda era a de
+   * jan/26: afirmava "cinco delas estao em reconhecimento e remuneracao" e
+   * "consistentemente abaixo de 4,0". Em ago/26 as seis piores vem de cinco
+   * categorias, nenhuma delas remuneracao, e duas marcam exatamente 4,0 -- ou
+   * seja, a frase contradizia as linhas logo acima dela.
+   *
+   * O topo desta aba promete que "cada frase sai dos graficos abaixo e muda
+   * sozinha quando o dado mudar". Estas duas nao mudavam. Agora mudam.
+   */
+  const temaDominante = (lista: Pergunta[]) => {
+    const contagem = new Map<string, number>();
+    for (const q of lista) contagem.set(q.driver, (contagem.get(q.driver) ?? 0) + 1);
+    const [nome, quantas] = [...contagem.entries()].sort((a, b) => b[1] - a[1])[0] ?? ['', 0];
+    return { nome, quantas, categorias: contagem.size };
+  };
+  const temaBaixo = temaDominante(alavancas);
+  const temaAlto = temaDominante(forcas);
+  const abaixoDe4 = alavancas.filter((q) => q.score < 4).length;
+
   const escalaMin = Math.min(...dispersao.map((d) => d.min)) - 0.15;
   const escalaMax = Math.max(...dispersao.map((d) => d.max)) + 0.15;
   const pos = (v: number) => ((v - escalaMin) / (escalaMax - escalaMin)) * 100;
@@ -149,8 +176,8 @@ export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver
   return (
     <div className="space-y-4">
       <ChartCard
-        title="As 32 perguntas, ordenadas"
-        subtitle="escala de 1 a 5 · jan/2026"
+        title={`As ${perguntas.length} perguntas, ordenadas`}
+        subtitle={`escala de 1 a 5${ondaLabel ? ` · ${ondaLabel}` : ''} · as abas mostram os extremos, não a lista toda`}
         icon={ListOrdered}
       >
         <div className="flex gap-1 mb-2 border-b border-border">
@@ -176,10 +203,25 @@ export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver
               {alavancas.map((p) => <Linha key={p.question} p={p} />)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
-              As seis notas mais baixas da empresa. Cinco delas estão em{' '}
-              <strong>reconhecimento e remuneração</strong> — é um tema, não perguntas soltas, e é o
-              único bloco que fica consistentemente abaixo de 4,0. Notas nesta faixa não indicam
-              crise; indicam o lugar onde um ponto ganho custa menos esforço.
+              As {alavancas.length} notas mais baixas da empresa.{' '}
+              {temaBaixo.quantas > 1 ? (
+                <>
+                  {temaBaixo.quantas} delas estão em <strong>{temaBaixo.nome}</strong> — é um tema,
+                  não perguntas soltas.
+                </>
+              ) : (
+                <>
+                  Vêm de {temaBaixo.categorias} categorias diferentes — aqui não há um tema único, e
+                  sim perguntas soltas que caem por motivos distintos.
+                </>
+              )}{' '}
+              {abaixoDe4 === 0
+                ? 'Nenhuma fica abaixo de 4,0.'
+                : abaixoDe4 === alavancas.length
+                  ? 'Todas ficam abaixo de 4,0.'
+                  : `${abaixoDe4} de ${alavancas.length} ficam abaixo de 4,0.`}{' '}
+              Notas nesta faixa não indicam crise; indicam o lugar onde um ponto ganho custa menos
+              esforço.
             </p>
           </>
         )}
@@ -190,9 +232,13 @@ export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver
               {forcas.map((p) => <Linha key={p.question} p={p} />)}
             </div>
             <p className="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
-              O topo se concentra em <strong>gestor direto e sentido do trabalho</strong>. Vale como
-              contexto ao ler o risco de retenção: quando as pessoas pensam em sair apesar de
-              avaliarem bem o gestor, o motivo raramente é a liderança imediata.
+              {temaAlto.quantas > 1 ? (
+                <>O topo se concentra em <strong>{temaAlto.nome}</strong>.</>
+              ) : (
+                <>O topo vem de {temaAlto.categorias} categorias diferentes.</>
+              )}{' '}
+              Vale como contexto ao ler o risco de retenção: quando as pessoas pensam em sair apesar
+              de avaliarem bem estes pontos, o motivo está em outro lugar.
             </p>
           </>
         )}
