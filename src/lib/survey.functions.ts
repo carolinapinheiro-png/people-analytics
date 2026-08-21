@@ -8,6 +8,7 @@ import {
   computeCuts, computeDriverScores, computeDriverImportance,
   applySuppression, ordemTempo, N_MINIMO_EXIBICAO,
 } from '@/lib/aggregator/polly-survey';
+import { selectedDept } from '@/lib/dept-filter';
 
 /**
  * Carga e leitura da pesquisa de engajamento.
@@ -247,7 +248,20 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // baixo). Sao duas perguntas diferentes -- "quais areas" e "que nivel de
     // detalhe" -- e confundi-las e como um perfil acaba vendo o que nao deve.
     const podeVerTudoEscopo = isGlobalProfile(profile);
-    const pedido = (data.department ?? '').trim().toUpperCase() || null;
+    // ATENÇÃO AO SENTINELA. O seletor da tela manda a string "Todos" quando
+    // nada está filtrado -- não manda vazio nem null. Este trecho fazia o
+    // parsing à mão e só tratava vazio, então "Todos" virava `sel = "TODOS"`,
+    // um departamento que não existe. O efeito era silencioso e grande: no
+    // estado PADRÃO da aba, as oito áreas nomeadas eram descartadas aqui e no
+    // filtro dos drivers logo abaixo. Sobrava só "Outros", que escapa porque
+    // não tem departamento correspondente e sai antes, no `dept == null`.
+    //
+    // Na tela isso aparecia como a coluna `n` vazia na fila por área e como
+    // "Outros" nos dois lados de "puxam para baixo / sustentam".
+    //
+    // `selectedDept` é o mesmo helper que comp, experience, recruitment, span
+    // e team já usam. Era o único lugar que reimplementava a regra.
+    const pedido = selectedDept({ department: data.department ?? undefined });
     if (!podeVerTudoEscopo && pedido && !isInScope(scope, pedido)) {
       throw new Error('Sem acesso a este departamento.');
     }
