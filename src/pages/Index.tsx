@@ -118,11 +118,25 @@ function DashboardContent() {
         <SideNav />
       </div>
       <div className="min-w-0 flex-1">
-        <TopBar />
-        <AvisoSerie />
-        <AvisoAno />
-        <Breadcrumbs />
-        <FilterBar />
+        {/* ------------------------------------------------------------
+            O CABEÇALHO INTEIRO GRUDA, NÃO SÓ A PRIMEIRA FAIXA
+            ------------------------------------------------------------
+            Só o TopBar era sticky. Ao rolar, o caminho ("Pessoas ›
+            Experiência › Engajamento") e os filtros ativos saíam da tela --
+            e são justamente eles que dizem O QUE você está olhando. Numa aba
+            de 9000px de altura, isso significa esquecer que há um
+            departamento selecionado e ler o número como se fosse da empresa.
+
+            `bg-background` no wrapper porque o breadcrumb usa `bg-card/40`:
+            translúcido sobre nada deixaria o conteúdo passar por baixo
+            enquanto rola. */}
+        <div className="sticky top-0 z-50 bg-background">
+          <TopBar />
+          <AvisoSerie />
+          <AvisoAno />
+          <Breadcrumbs />
+          <FilterBar />
+        </div>
         <div className="md:hidden">
           <TabNavigation />
         </div>
