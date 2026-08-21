@@ -226,6 +226,7 @@ function EngagementSection({
         <AreaPriority
           areas={cross.rows}
           cuts={survey?.cuts ?? []}
+          elegiveisPorArea={survey?.elegiveisPorArea}
           drivers={survey?.driversPorArea ?? []}
           minimoExibicao={survey?.minimoExibicao ?? 5}
         />

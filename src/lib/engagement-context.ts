@@ -116,6 +116,9 @@ const SCOPES_EMPRESA = new Set(['company']);
 const SCOPES_MARCA = new Set(['betfair', 'betnacional', 'ambas']);
 const SCOPES_RESIDUAIS = new Set(['outros', 'outro', 'others']);
 
+/** Como o balde residual se chama na carga da pesquisa. */
+export const AREA_RESIDUAL = 'Outros';
+
 /** Scopes que existem na pesquisa mas não são departamento. */
 export const SCOPES_NAO_DEPARTAMENTO = new Set([
   ...SCOPES_EMPRESA, ...SCOPES_MARCA, ...SCOPES_RESIDUAIS,
@@ -132,6 +135,30 @@ export function tipoDoScope(scope: string): TipoDeScope {
 /** true quando o recorte é um grupo real de pessoas sem área nomeada. */
 export function ehResidual(scope: string): boolean {
   return tipoDoScope(scope) === 'residual';
+}
+
+/**
+ * O caminho inverso: de departamento do organograma para a área da pesquisa.
+ *
+ * Existe para a taxa de resposta por área. O numerador (quantas responderam)
+ * vem da pesquisa, indexado por área; o denominador (quantas podiam responder)
+ * vem do headcount, indexado por departamento. Sem o de-para inverso não há
+ * como dividir um pelo outro.
+ *
+ * Departamento que não tem área na pesquisa -- PORTO, DIRETORIA, GERAL -- cai
+ * no residual, que é para onde essas pessoas vão na carga da pesquisa também.
+ * É isso que faz as duas somas fecharem nos mesmos 634 e 485.
+ */
+const DEPT_TO_SCOPE: Record<string, string> = Object.fromEntries(
+  Object.entries(SCOPE_TO_DEPT).map(([scope, dept]) => [
+    dept,
+    scope.replace(/\b\w/g, (c) => c.toUpperCase()),
+  ]),
+);
+
+/** Área da pesquisa correspondente ao departamento, ou null se ele cai no residual. */
+export function scopeForDept(dept: string): string | null {
+  return DEPT_TO_SCOPE[(dept ?? '').trim().toUpperCase()] ?? null;
 }
 
 export function deptForScope(scope: string): string | null {

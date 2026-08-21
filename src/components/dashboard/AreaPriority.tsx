@@ -85,10 +85,17 @@ const VEREDITO: Record<Veredito, { label: string; cor: string; explica: string }
 export default function AreaPriority({
   areas,
   cuts,
+  elegiveisPorArea,
   drivers = [],
   minimoExibicao = 5,
 }: {
   areas: EngagementContextRow[];
+  /**
+   * Quantas pessoas podiam responder em cada área. Sem isso a coluna mostra só
+   * o n, e um n de 24 não diz se a área toda respondeu ou se metade calou --
+   * que são leituras opostas do mesmo eNPS.
+   */
+  elegiveisPorArea?: Record<string, number>;
   /** Recortes por área da carga bruta: n de respondentes E a composição. */
   cuts: SurveyCut[];
   /** Notas por pergunta e por área, para o painel que abre no clique. */
@@ -207,9 +214,31 @@ export default function AreaPriority({
                 )}>
                   {fmt1(i.risco)}%
                 </span>
-                <span className="text-[11px] text-muted-foreground tabular-nums w-12 text-right">
-                  n={nPorArea.get(chave(i.scope)) ?? '—'}
-                </span>
+                {(() => {
+                  const n = nPorArea.get(chave(i.scope));
+                  const eleg = elegiveisPorArea?.[i.scope];
+                  const taxa = n != null && eleg ? Math.round((n / eleg) * 100) : null;
+                  return (
+                    <span
+                      className={cn(
+                        'text-[11px] tabular-nums w-[92px] text-right shrink-0',
+                        // Abaixo de dois terços, quem calou pesa tanto quanto
+                        // quem respondeu, e a nota da área passa a descrever
+                        // um pedaço dela. Isso precisa saltar aos olhos.
+                        taxa != null && taxa < 67
+                          ? 'text-amber-600 dark:text-amber-500'
+                          : 'text-muted-foreground',
+                      )}
+                      title={
+                        eleg
+                          ? `${n} de ${eleg} pessoas responderam (${taxa}%)`
+                          : 'sem headcount da área para calcular a taxa'
+                      }
+                    >
+                      {n == null ? '—' : eleg ? `${n}/${eleg} · ${taxa}%` : `n=${n}`}
+                    </span>
+                  );
+                })()}
                 {/* Segunda régua: como a área está contra a Flutter International.
                     Legal é a de pior eNPS aqui E a mais distante da entidade
                     global (-29) -- as duas leituras concordam, e isso muda a
@@ -265,7 +294,10 @@ export default function AreaPriority({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-2.5 border-t border-border/60 text-xs text-muted-foreground">
         <span>barra e número = <strong className="text-foreground">eNPS</strong></span>
         <span>coluna do meio = <strong className="text-foreground">risco de saída</strong></span>
-        <span>n = respostas</span>
+        <span>
+          <strong className="text-foreground">respostas / elegíveis</strong> — âmbar quando menos de
+          dois terços responderam
+        </span>
         <span>glob. = <strong className="text-foreground">vs Flutter International</strong></span>
       </div>
 
@@ -274,8 +306,10 @@ export default function AreaPriority({
         primeiro seria gastar esforço onde ninguém está saindo. A fila combina engajamento baixo,
         risco alto e tamanho da área — e só chama de &quot;abaixo&quot; quem está mais distante do
         grupo que o afastamento típico entre as áreas, para diferença de arredondamento não virar
-        alarme. Repare no <strong>n</strong>: nas áreas menores, uma pessoa move o eNPS em vários
-        pontos.
+        alarme. Repare na <strong>taxa de resposta</strong>: uma nota de 24 pessoas
+        significa coisas opostas se a área tem 25 ou 46. Elegíveis é o headcount do mês em que a
+        pesquisa começou — a mesma base do cartão de participação lá em cima, e não o número de
+        convites enviados. Em área pequena, além disso, uma pessoa move o eNPS em vários pontos.
       </p>
     </ChartCard>
   );

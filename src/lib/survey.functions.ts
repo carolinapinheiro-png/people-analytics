@@ -215,6 +215,12 @@ export interface SurveyWaveData {
   wave: string;
   label: string;
   respondentes: number;
+  /**
+   * Quantas pessoas podiam responder em cada área, no mês de referência da
+   * onda. Vem do headcount da Convenia, não da pesquisa: a pesquisa só sabe
+   * quem respondeu. Chave é o nome da ÁREA, não do departamento.
+   */
+  elegiveisPorArea?: Record<string, number>;
   elegiveis: number | null;
   participacao: number | null;
   cuts: SurveyCut[];
@@ -241,7 +247,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
   .handler(async ({ context, data }): Promise<SurveyWaveData | null> => {
     const { profile, scope, podeVerIndividual } = await authorize(context.claims.email as string | undefined);
     const { isGlobalProfile, isInScope } = await import('@/lib/permissions');
-    const { deptForScope } = await import('@/lib/engagement-context');
+    const { deptForScope, scopeForDept, AREA_RESIDUAL } = await import('@/lib/engagement-context');
 
     // Nome distinto de proposito: mais abaixo existe um `podeVerTudo` que
     // significa outra coisa (ver dado INDIVIDUAL, para a supressao por n
@@ -284,7 +290,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       : (waves ?? [])[0];
     if (!wave) return null;
 
-    const [cutRes, impRes, drvRes] = await Promise.all([
+    const [cutRes, impRes, drvRes, hcRes] = await Promise.all([
       db.from('survey_cut_scores').select('*').eq('wave', wave.wave),
       db.from('survey_driver_importance').select('*').eq('wave', wave.wave).order('r', { ascending: false }),
       // Só empresa e área. Os recortes por tempo de casa, marca e modelo
@@ -294,6 +300,27 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
         .select('driver, question, cut_type, cut_value, n, score, favoravel')
         .eq('wave', wave.wave)
         .in('cut_type', ['company', 'area']),
+      // ------------------------------------------------------------------
+      // QUANTAS PODIAM RESPONDER, POR ÁREA
+      // ------------------------------------------------------------------
+      // O denominador da taxa de resposta. Duas escolhas aqui, e as duas
+      // importam:
+      //
+      // `source = 'convenia'` e não 'reconstruido'. A tabela tem as duas
+      // séries para o mesmo mês, com totais diferentes (em jul/26: 634 contra
+      // 680). O cartão do topo publica "76,5% dos elegíveis" sobre 634, que é
+      // a Convenia -- usar a outra faria a soma das áreas discordar do total
+      // que está na mesma tela.
+      //
+      // Todas as marcas, não só NSX. A pesquisa cobre a Flutter Brazil
+      // inteira; somar só NSX deixaria Betfair BR e Flutter International de
+      // fora do denominador e inflaria a taxa.
+      db
+        .from('monthly_metrics')
+        .select('month, brand, dept_breakdown')
+        .eq('source', 'convenia')
+        .is('quality_flag', null)
+        .not('dept_breakdown', 'is', null),
     ]);
     if (cutRes.error) throw new Error(`Falha ao carregar recortes: ${cutRes.error.message}`);
 
@@ -381,6 +408,33 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
         favoravel: d.favoravel == null ? null : Number(d.favoravel),
       }));
 
+    // ------------------------------------------------------------------
+    // ELEGÍVEIS POR ÁREA
+    // ------------------------------------------------------------------
+    // Mês de referência da onda, não o mês corrente: a pesquisa de ago/26
+    // começou em 28/07, e é a foto de julho que soma os 634 publicados. Pegar
+    // agosto daria 635 e a soma das áreas não fecharia com o cartão.
+    const mesRef = String(wave.reference_date ?? '').slice(0, 7);
+    const elegiveisPorArea: Record<string, number> = {};
+    for (const row of (hcRes.error ? [] : hcRes.data ?? []) as Array<{
+      month: string; dept_breakdown: unknown;
+    }>) {
+      if (String(row.month).slice(0, 7) !== mesRef) continue;
+      const blob = row.dept_breakdown as Record<string, { headcount?: number }> | null;
+      if (!blob) continue;
+      for (const [dept, d] of Object.entries(blob)) {
+        const hc = Number(d?.headcount ?? 0);
+        if (!hc) continue;
+        // Departamento sem área na pesquisa (PORTO, DIRETORIA, GERAL) cai no
+        // residual -- que é exatamente para onde essas pessoas vão na carga.
+        const area = scopeForDept(dept) ?? AREA_RESIDUAL;
+        // O denominador é tão nominal quanto o numerador: quem não pode ver a
+        // área não pode ver quantas pessoas ela tem.
+        if (!passaNoRecorte(area)) continue;
+        elegiveisPorArea[area] = (elegiveisPorArea[area] ?? 0) + hc;
+      }
+    }
+
     const driversPorArea = applySuppression(
       driversNoEscopo, podeVerTudo, ['score', 'favoravel'],
     ) as DriverPorRecorte[];
@@ -401,6 +455,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
         n: Number(i.n),
       })),
       driversPorArea,
+      elegiveisPorArea,
       suprimidos: cuts.filter((c) => c.suprimido).length,
       minimoExibicao: N_MINIMO_EXIBICAO,
     };
