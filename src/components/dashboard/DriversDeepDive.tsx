@@ -161,7 +161,10 @@ export default function DriversDeepDive({
   };
   const temaBaixo = temaDominante(alavancas);
   const temaAlto = temaDominante(forcas);
-  const abaixoDe4 = alavancas.filter((q) => q.score < 4).length;
+  // Comparar pelo valor EXIBIDO, nao pelo bruto: `fmt` arredonda para uma casa,
+  // entao 3,96 aparece como "4,0" na linha. Contando pelo bruto, a frase dizia
+  // "todas abaixo de 4,0" com duas linhas mostrando 4,0 na tela ao lado.
+  const abaixoDe4 = alavancas.filter((q) => Math.round(q.score * 10) / 10 < 4).length;
 
   const escalaMin = Math.min(...dispersao.map((d) => d.min)) - 0.15;
   const escalaMax = Math.max(...dispersao.map((d) => d.max)) + 0.15;

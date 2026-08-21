@@ -63,6 +63,17 @@ const ROTULO = {
   indefinida: '',
 } as const;
 
+/**
+ * "Julho/25" -> "jul/25". O cabecalho reserva uma coluna estreita, do tamanho
+ * de um eNPS de dois digitos; os rotulos por extenso transbordavam e os tres
+ * apareciam colados ("JULHO/25JANEIRO/26AGOSTO/26").
+ */
+function rotuloCompacto(label: string): string {
+  const [mes, ano] = label.split('/');
+  if (!ano || mes.length <= 4) return label;
+  return `${mes.slice(0, 3).toLowerCase()}/${ano}`;
+}
+
 export default function TempoDeCasa({
   ondas,
 }: {
@@ -98,7 +109,7 @@ export default function TempoDeCasa({
       <div className="flex items-center gap-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
         <span className="w-[92px] shrink-0">Tempo de casa</span>
         {ondas.map((o) => (
-          <span key={o.label} className="w-11 text-right shrink-0">{o.label}</span>
+          <span key={o.label} className="w-14 text-right shrink-0">{rotuloCompacto(o.label)}</span>
         ))}
         <span className="flex-1" />
         <span className="w-11 text-right shrink-0">total</span>
@@ -118,7 +129,7 @@ export default function TempoDeCasa({
                 <span
                   key={i}
                   className={cn(
-                    'tabular-nums w-11 text-right shrink-0',
+                    'tabular-nums w-14 text-right shrink-0',
                     i === l.valores.length - 1 ? 'font-semibold text-foreground' : 'text-muted-foreground',
                   )}
                 >
