@@ -141,11 +141,10 @@ export default function AreaPriority({
     const doTipoArea = cuts.filter((c) => c.cutType === "area");
     const cutPorArea = new Map(doTipoArea.map((c) => [chave(c.cutValue), c]));
     const nPorArea = new Map(doTipoArea.map((c) => [chave(c.cutValue), c.n]));
-    // O n entra na classificação para o marcador "no limite" saber quanto uma
-    // resposta move o índice. Não muda o veredito, só diz se ele é estável.
-    const c = classifyAreas(
-      areas.map((a) => ({ ...a, respostas: nPorArea.get(chave(a.scope)) ?? null })),
-    );
+    // As linhas já chegam com `respostas` da aba -- ver o comentário lá. Se
+    // este componente voltasse a enriquecer por conta própria, a matriz e a
+    // fila podiam divergir de novo sem ninguém notar.
+    const c = classifyAreas(areas);
     const gapPorArea = new Map(areas.map((a) => [chave(a.scope), a.gapEntEnps]));
     return {
       itens: c.itens,

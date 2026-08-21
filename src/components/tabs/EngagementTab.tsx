@@ -145,6 +145,29 @@ function EngagementSection({
   // O `scrollIntoView` existe porque os dois cartões ficam longe um do outro:
   // sem rolar, o clique abriria um painel fora da tela e pareceria não ter
   // feito nada.
+  // ------------------------------------------------------------------
+  // AS DUAS RECEBEM A MESMA ENTRADA
+  // ------------------------------------------------------------------
+  // Unificar a REGRA não bastava: cada cartão enriquecia as linhas por conta
+  // própria, e a matriz chamava o classificador sem o n de respostas. Sem n,
+  // `noLimite` nunca fica verdadeiro -- a fila marcava quatro áreas como
+  // frágeis e a matriz, nenhuma, com a mesma regra.
+  //
+  // Enriquecer UMA vez aqui e passar para as duas é o que garante que elas
+  // vejam o mesmo dado, e não só o mesmo código.
+  const rowsComN = useMemo(() => {
+    const chave = (t: string) =>
+      t
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .trim()
+        .toUpperCase();
+    const n = new Map(
+      (survey?.cuts ?? []).filter((c) => c.cutType === "area").map((c) => [chave(c.cutValue), c.n]),
+    );
+    return (cross?.rows ?? []).map((r) => ({ ...r, respostas: n.get(chave(r.scope)) ?? null }));
+  }, [cross, survey]);
+
   const [areaEscolhida, setAreaEscolhida] = useState<string | null>(null);
   const escolherArea = (area: string | null) => {
     setAreaEscolhida(area);
@@ -403,7 +426,7 @@ function EngagementSection({
 
         {cross && (
           <EngagementMatrix
-            rows={cross.rows}
+            rows={rowsComN}
             ondaLabel={cross.ondaAtualLabel}
             prioritarias={(survey?.importancia ?? []).slice(0, 10).map((i) => ({
               question: i.question,
