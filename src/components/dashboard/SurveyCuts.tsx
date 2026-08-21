@@ -165,7 +165,26 @@ function Bloco({ titulo, rows, empresa }: { titulo: string; rows: SurveyCut[]; e
 }
 
 
-export default function SurveyCuts({ cuts }: { cuts: SurveyCut[] }) {
+export default function SurveyCuts({
+  cuts,
+  departamentoSelecionado,
+}: {
+  cuts: SurveyCut[];
+  /**
+   * Departamento ativo no filtro, se houver.
+   *
+   * Estes recortes -- gestão, marca, tempo de casa -- NÃO seguem o filtro de
+   * área, e isso é de propósito: eles não identificam área nenhuma e servem
+   * de referência da empresa inteira. Só que a tela não dizia isso. Com
+   * PRODUCT filtrado, o bloco continuava mostrando "Betnacional 327 · Ambas
+   * 122 · Betfair 36" -- 485 pessoas, a empresa toda -- enquanto Product tem
+   * 41 respondentes. Quem rolasse até aqui leria "Gestores −14 pts" achando
+   * que eram os gestores de Product.
+   *
+   * O número está certo; o que faltava era o rótulo dizer de quem ele é.
+   */
+  departamentoSelecionado?: string | null;
+}) {
   const empresa = cuts.find((c) => c.cutType === 'company');
   const blocos = BLOCOS
     .map((b) => ({ ...b, rows: cuts.filter((c) => c.cutType === b.tipo) }))
@@ -184,6 +203,14 @@ export default function SurveyCuts({ cuts }: { cuts: SurveyCut[] }) {
       title="Quem está mais distante da média"
       subtitle={`comparado com a empresa: eNPS ${empresa.enps}, risco ${fmt1(empresa.risco)}%`}
     >
+      {departamentoSelecionado && (
+        <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+          Este bloco <strong>não segue o filtro de {departamentoSelecionado}</strong>. Gestão,
+          marca e tempo de casa são recortes da Flutter Brazil inteira — eles cortam a empresa por
+          outro eixo e não identificam área, então servem de referência. Os números abaixo são das{' '}
+          {empresa.n} pessoas da empresa, não de {departamentoSelecionado}.
+        </p>
+      )}
       {destaque && (empresa.enps as number) - (destaque.enps as number) >= 8 && (
         <p className="text-sm leading-relaxed mb-3">
           <strong>{destaque.cutValue}</strong> está{' '}

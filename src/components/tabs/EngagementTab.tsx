@@ -257,7 +257,7 @@ function EngagementSection({
           esta nota baixa é de todo mundo ou de alguém? */}
       {survey && <DispersaoAreas drivers={survey.driversPorArea} />}
 
-      {survey && <SurveyCuts cuts={survey.cuts} />}
+      {survey && <SurveyCuts cuts={survey.cuts} departamentoSelecionado={deptSel} />}
 
       <Detalhe
         titulo="Detalhe e metodologia"
