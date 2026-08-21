@@ -290,11 +290,15 @@ function EngagementSection({
         </>
       )}
 
+      {/* Recebe a mesma entrada da matriz e da fila. Esta leitura não mostra o
+          marcador de limite hoje, mas os três classificam a partir do mesmo
+          dado -- foi a entrada divergente, e não a regra, que fez a matriz e a
+          fila discordarem antes. */}
       <EngagementReading
         enpsEmpresa={foco?.enps ?? null}
         respondentes={survey?.respondentes ?? null}
         participacao={company?.participation ?? null}
-        areas={cross?.rows ?? []}
+        areas={rowsComN}
         cuts={survey?.cuts ?? []}
         importancia={survey?.importancia ?? []}
       />
