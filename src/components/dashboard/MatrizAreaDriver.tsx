@@ -55,7 +55,15 @@ function corDaCelula(gap: number | null): { bg: string; fg: string } {
   };
 }
 
-const sinal = (g: number) => `${g > 0 ? '+' : ''}${g.toFixed(0)}`;
+/**
+ * `+0` aparecia quando o gap era 0,4: sinal de positivo sobre um zero, que se lê
+ * como erro. Diferença que arredonda para zero é "igual à empresa", e é isso que
+ * a célula deve dizer.
+ */
+const sinal = (g: number) => {
+  const r = Math.round(g);
+  return r === 0 ? '0' : `${r > 0 ? '+' : ''}${r}`;
+};
 
 /** "Comunicação e Transparência Organizacional" não cabe numa coluna. */
 const curto = (d: string) => (d.length > 26 ? `${d.slice(0, 24)}…` : d);
@@ -177,7 +185,7 @@ export default function MatrizAreaDriver({
             <strong>O que a grade mostra e a leitura área a área não mostrava:</strong>{' '}
             {uniformes.map((u, i) => (
               <span key={u.area}>
-                {i > 0 && (i === uniformes.length - 1 ? ' E ' : '; ')}
+                {i > 0 && (i === uniformes.length - 1 ? ' e ' : '; ')}
                 <strong>{u.area}</strong> está {u.direcao} da empresa em{' '}
                 {Math.round(u.proporcao * u.drivers)} dos {u.drivers} temas
               </span>
