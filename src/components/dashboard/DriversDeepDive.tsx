@@ -166,12 +166,34 @@ export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver
         </p>
       </ChartCard>
 
+      {/* ------------------------------------------------------------------
+          A RESSALVA CERTA, DEPOIS DE UMA ERRADA
+          ------------------------------------------------------------------
+          Aqui dizia: "os drivers só foram carregados no nível da empresa -- há
+          um grupo só, sem variação para correlacionar". Isso era falso em
+          agosto/26 e provavelmente já era antes. As NOTAS dos drivers estão
+          quebradas em cinco recortes -- 9 áreas, 7 faixas de tempo de casa, 3
+          marcas, 2 funções e a empresa --, 748 linhas ao todo. Metade da aba
+          depende justamente desse dado.
+          
+          A confusão foi entre duas tabelas: `survey_driver_scores` guarda as
+          notas e é quebrada; `survey_driver_importance` guarda a associação com
+          o eNPS e NÃO é. Alguém pegou a limitação da segunda e escreveu como se
+          fosse da primeira, e a tela passou a negar um dado que ela própria
+          usava três cartões acima. */}
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        <strong>O que ainda não dá para responder:</strong> qual driver mais puxa o eNPS. Isso exige
-        comparar áreas com engajamento diferente, e os drivers só foram carregados no nível da
-        empresa — há um grupo só, sem variação para correlacionar. Quando a próxima onda vier
-        quebrada por área, esta seção ganha um ranking de prioridade de verdade. Até lá, a ordem
-        acima é por amplitude — por onde a média mais engana, não por onde o impacto é maior.
+        <strong>O limite desta leitura:</strong> a associação com o eNPS é calculada na empresa
+        inteira — uma linha por pergunta, sem recorte. Dá para dizer quais perguntas mais acompanham
+        o engajamento na Flutter Brazil, e a aba mostra isso logo acima. O que ainda não dá é dizer
+        se a alavanca de Marketing é a mesma de Technology: para isso a associação precisaria ser
+        calculada dentro de cada área, e ela não é. As notas por área existem; o que falta é o
+        cálculo da associação sobre elas.
+      </p>
+
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        E vale o de sempre: <strong>&quot;acompanha&quot; não é &quot;causa&quot;</strong>. Todas as
+        respostas vêm da mesma pessoa no mesmo momento, e quem está satisfeito marca alto em tudo.
+        Isso ordena os temas entre si; não promete que mexer num levanta o eNPS.
       </p>
     </div>
   );
