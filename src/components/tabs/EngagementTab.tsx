@@ -320,7 +320,7 @@ function EngagementSection({
           </div>
         </ChartCard>
 
-        {cross && <EngagementMatrix rows={cross.rows} />}
+        {cross && <EngagementMatrix rows={cross.rows} ondaLabel={cross.ondaAtualLabel} />}
 
         {survey && survey.importancia.length > 0 && <DriverImportance rows={survey.importancia} />}
 

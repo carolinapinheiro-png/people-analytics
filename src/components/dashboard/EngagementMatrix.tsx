@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import {
-  CartesianGrid, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart,
+  CartesianGrid, ReferenceArea, ReferenceLine, ResponsiveContainer, Scatter, ScatterChart,
   Tooltip, XAxis, YAxis, ZAxis, LabelList,
 } from 'recharts';
 import { Target } from 'lucide-react';
@@ -60,8 +60,19 @@ const QUADRANTES = {
   },
 } as const;
 
-export default function EngagementMatrix({ rows }: { rows: EngagementContextRow[] }) {
-  const { pontos, corteX, corteY } = useMemo(() => {
+export default function EngagementMatrix({
+  rows,
+  ondaLabel,
+}: {
+  rows: EngagementContextRow[];
+  /**
+   * Onda a que os pontos se referem. Vinha escrita "jan/2026" no código
+   * enquanto os dados plotados eram os da onda corrente -- quem cruzasse com a
+   * tabela de risco declarado, essa sim de jan/26, encontrava contradição.
+   */
+  ondaLabel?: string | null;
+}) {
+  const { pontos, corteX, corteY, limX, limY } = useMemo(() => {
     // Só departamentos: "Betfair" é marca e entra em todas as áreas, então
     // posicioná-la ao lado delas compara populações que se sobrepõem. O recorte
     // por marca vive em SurveyCuts.
@@ -89,7 +100,14 @@ export default function EngagementMatrix({ rows }: { rows: EngagementContextRow[
         quadrante,
       };
     });
-    return { pontos, corteX: cx, corteY: cy };
+    // Domínio explícito: o mesmo que 'dataMin - 8'/'dataMax + 8' produziria,
+    // mas em número, para as faixas de quadrante encostarem exatamente na borda.
+    const xs = pontos.map((p) => p.x);
+    const ys = pontos.map((p) => p.y);
+    const limX: [number, number] = [Math.min(...xs) - 8, Math.max(...xs) + 8];
+    const limY: [number, number] = [Math.min(...ys) - 3, Math.max(...ys) + 3];
+
+    return { pontos, corteX: cx, corteY: cy, limX, limY };
   }, [rows]);
 
   if (pontos.length < 3) return null;
@@ -99,23 +117,46 @@ export default function EngagementMatrix({ rows }: { rows: EngagementContextRow[
   return (
     <ChartCard
       title="Matriz de ação"
-      subtitle={`eNPS × risco de retenção · jan/2026 · bolha = tamanho da área`}
+      subtitle={`eNPS × risco de saída${ondaLabel ? ` · ${ondaLabel}` : ''} · bolha = tamanho da área · canto superior direito é o melhor`}
       icon={Target}
     >
       <ResponsiveContainer width="100%" height={330}>
         <ScatterChart margin={{ top: 16, right: 24, bottom: 28, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
           <XAxis
-            type="number" dataKey="x" name="eNPS" domain={['dataMin - 8', 'dataMax + 8']}
+            type="number" dataKey="x" name="eNPS" domain={limX}
             tick={{ fontSize: 11 }}
-            label={{ value: 'eNPS →  mais promotores', position: 'insideBottom', offset: -16, fontSize: 11 }}
+            label={{ value: 'eNPS  →  mais promotores', position: 'insideBottom', offset: -16, fontSize: 11 }}
           />
           <YAxis
             type="number" dataKey="y" name="Risco" unit="%" reversed
-            domain={['dataMin - 3', 'dataMax + 3']} tick={{ fontSize: 11 }}
-            label={{ value: '↑ menos risco', angle: -90, position: 'insideLeft', fontSize: 11 }}
+            domain={limY} tick={{ fontSize: 11 }}
+            label={{ value: 'risco de saída  ↑ menos risco', angle: -90, position: 'insideLeft', fontSize: 11 }}
           />
           <ZAxis type="number" dataKey="z" range={[80, 900]} name="Headcount" />
+
+          {/* Os quatro quadrantes pintados por baixo dos pontos. Sem isso é
+              preciso descer até os cards para saber em que zona cada bolha
+              caiu -- e ninguém faz isso no meio de uma apresentação. */}
+          {([
+            ['ouvir',  limX[0], corteX,  limY[0], corteY,  'insideTopLeft'],
+            ['cuidar', corteX,  limX[1], limY[0], corteY,  'insideTopRight'],
+            ['agir',   limX[0], corteX,  corteY,  limY[1], 'insideBottomLeft'],
+            ['vigiar', corteX,  limX[1], corteY,  limY[1], 'insideBottomRight'],
+          ] as const).map(([q, x1, x2, y1, y2, pos]) => (
+            <ReferenceArea
+              key={q} x1={x1} x2={x2} y1={y1} y2={y2}
+              fill={QUADRANTES[q].color} fillOpacity={0.06} stroke="none"
+              label={{
+                value: QUADRANTES[q].label,
+                position: pos,
+                fontSize: 10.5,
+                fill: QUADRANTES[q].color,
+                offset: 10,
+              }}
+            />
+          ))}
+
           <ReferenceLine x={corteX} stroke={COLORS.gray400} strokeDasharray="4 4" />
           <ReferenceLine y={corteY} stroke={COLORS.gray400} strokeDasharray="4 4" />
           <Tooltip
