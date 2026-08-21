@@ -1,39 +1,34 @@
-import { median } from '@/lib/stats';
+import { median } from "@/lib/stats";
 
 /**
  * Classificação das áreas em fila de prioridade.
  *
  * ------------------------------------------------------------------
- * POR QUE NÃO É UM CORTE NA MEDIANA
+ * O CORTE É A MEDIANA -- E A MARGEM VIROU AVISO, NÃO FILTRO
  * ------------------------------------------------------------------
- * A primeira versão dividia as áreas na mediana de engajamento e na de risco.
- * Simples e defensável -- e errado na prática, porque quem cai na fronteira
- * recebe um rótulo categórico que o dado não sustenta.
+ * Houve uma versão com margem (desvio absoluto mediano): a área só era chamada
+ * de "abaixo" se estivesse abaixo da mediana por mais que o afastamento típico
+ * do grupo. O motivo era real -- em jan/2026, Technology ficou 2,5 pontos de
+ * eNPS abaixo da mediana e 0,55 p.p. de risco acima, e isso bastava para a tela
+ * dizer "AGIR PRIMEIRO" ao lado de Marketing, que estava 19,5 pontos abaixo.
  *
- * Caso real de jan/2026: Technology ficou 2,5 pontos de eNPS abaixo da mediana
- * e 0,55 ponto percentual de risco acima. Isso bastava para a tela dizer
- * "AGIR PRIMEIRO" -- ao lado de Marketing, que estava 19,5 pontos abaixo em
- * engajamento e 10,85 acima em risco. As duas coisas recebiam o mesmo nome e
- * pediam a mesma reação, com uma ordem de grandeza de diferença entre elas.
+ * Só que essa regra vivia AQUI e a matriz de ação cortava pela mediana pura, no
+ * código dela. As duas telas classificavam as mesmas oito áreas e discordavam:
+ * Product aparecia como "agir primeiro" numa e "sem sinal de alerta" na outra,
+ * na mesma rolagem. Duas réguas certas que se contradizem valem menos que uma
+ * régua só, e a liderança lê as duas.
  *
- * Rótulo forte em cima de diferença de ruído é pior que rótulo nenhum: manda
- * um gestor arrumar um problema que talvez não exista, e queima a credibilidade
- * do painel quando ele vai olhar e não acha nada.
+ * Decisão (21/08/2026, com a Carolina): uma régua só, a mediana -- que é a que
+ * já estava na matriz e a que dá para explicar em uma frase.
  *
- * ------------------------------------------------------------------
- * A MARGEM SAI DOS PRÓPRIOS DADOS
- * ------------------------------------------------------------------
- * Uma área só é chamada de "abaixo" se estiver abaixo da mediana por mais que o
- * desvio absoluto mediano (MAD) do grupo -- ou seja, mais que o afastamento
- * típico daquele conjunto de áreas. Dentro disso, ela está onde as outras
- * estão.
+ * A proteção não foi jogada fora, mudou de forma. Em vez de ESCONDER o veredito
+ * frágil, o classificador agora o MARCA: `noLimite` é true quando a distância
+ * até a linha é menor do que uma única resposta moveria. A tela mostra o rótulo
+ * e mostra que ele é frágil, em vez de decidir isso pela pessoa.
  *
- * MAD e não desvio padrão porque a distribuição tem extremos reais (Legal com
- * eNPS 47 contra uma mediana de 81) e desvio padrão é puxado por eles: o
- * próprio outlier alargaria a margem e esconderia os problemas médios.
- *
- * A margem se ajusta sozinha. Se as áreas convergirem numa onda futura, ela
- * encolhe e diferenças menores voltam a contar.
+ * O caso que motivou: Product, ago/26. eNPS 66 contra mediana 67,5 e risco
+ * 14,6% contra 14,3% -- vira "agir primeiro" por 1,5 ponto e 0,3 p.p., com 41
+ * respondentes, onde UMA pessoa vale 2,4 pontos de eNPS.
  *
  * ------------------------------------------------------------------
  * "MANTER" É O PADRÃO, NÃO UM PRÊMIO
@@ -44,7 +39,7 @@ import { median } from '@/lib/stats';
  * categoria de "meio termo" que ninguém saberia usar.
  */
 
-export type Veredito = 'agir' | 'vigiar' | 'ouvir' | 'manter';
+export type Veredito = "agir" | "vigiar" | "ouvir" | "manter";
 
 export interface AreaEntrada {
   scope: string;
@@ -53,6 +48,11 @@ export interface AreaEntrada {
   enps: number | null;
   retentionRisk: number | null;
   headcountMedio: number | null;
+  /**
+   * Quantas pessoas responderam na área. Não entra na classificação -- serve
+   * para saber quanto UMA resposta move o índice, que é a régua do `noLimite`.
+   */
+  respostas?: number | null;
 }
 
 export interface AreaClassificada {
@@ -61,6 +61,18 @@ export interface AreaClassificada {
   risco: number | null;
   headcount: number | null;
   veredito: Veredito;
+  /**
+   * O veredito foi decidido por uma margem menor do que uma única resposta
+   * moveria. Continua sendo o veredito -- mas quem lê precisa saber que ele
+   * pode virar sozinho na próxima onda, sem nada ter mudado de verdade.
+   */
+  noLimite: boolean;
+  /** Distância até a linha que decidiu, em pontos de eNPS. Para o texto. */
+  distanciaEnps: number;
+  /** Distância até a linha de risco, em p.p. */
+  distanciaRisco: number | null;
+  /** Quanto uma resposta move o eNPS da área: 100/n. null sem n. */
+  pesoDeUmaResposta: number | null;
   /** Só para ordenar dentro do grupo. Não é para exibir: não tem unidade. */
   peso: number;
 }
@@ -69,14 +81,6 @@ export interface Classificacao {
   itens: AreaClassificada[];
   medianaEnps: number;
   medianaRisco: number;
-  margemEnps: number;
-  margemRisco: number;
-}
-
-/** Desvio absoluto mediano: o afastamento típico em relação à mediana. */
-function mad(valores: number[], centro: number): number {
-  const desvios = valores.map((v) => Math.abs(v - centro));
-  return median(desvios) ?? 0;
 }
 
 export function classifyAreas(areas: AreaEntrada[]): Classificacao {
@@ -93,24 +97,38 @@ export function classifyAreas(areas: AreaEntrada[]): Classificacao {
 
   const medianaEnps = median(enpsVals) ?? 0;
   const medianaRisco = median(riscoVals) ?? 0;
-  const margemEnps = mad(enpsVals, medianaEnps);
-  const margemRisco = mad(riscoVals, medianaRisco);
 
   const itens: AreaClassificada[] = validas.map((a) => {
     const risco = a.retentionRisk;
-    const engBaixo = a.enps < medianaEnps - margemEnps;
-    const riscoAlto = risco != null && risco > medianaRisco + margemRisco;
+    const engBaixo = a.enps < medianaEnps;
+    const riscoAlto = risco != null && risco > medianaRisco;
 
     const veredito: Veredito =
-      engBaixo && riscoAlto ? 'agir'
-      : riscoAlto ? 'vigiar'
-      : engBaixo ? 'ouvir'
-      : 'manter';
+      engBaixo && riscoAlto ? "agir" : riscoAlto ? "vigiar" : engBaixo ? "ouvir" : "manter";
 
-    // Distância além da margem, não da mediana: uma área que mal ultrapassou o
-    // limite não deve competir em posição com uma que o ultrapassou muito.
-    const gapEng = Math.max(0, medianaEnps - margemEnps - a.enps);
-    const gapRisco = Math.max(0, (risco ?? 0) - medianaRisco - margemRisco);
+    // ------------------------------------------------------------------
+    // O VEREDITO FOI DECIDIDO POR QUANTO?
+    // ------------------------------------------------------------------
+    // Uma resposta a mais ou a menos move o eNPS da área em 100/n pontos --
+    // numa área de 41 pessoas, 2,4 pontos. Se a distância até a linha for
+    // MENOR que isso, o rótulo não descreve a área: descreve quem por acaso
+    // respondeu. Continua sendo o rótulo certo pela regra; só não é estável.
+    //
+    // No risco a régua é a mesma em p.p.: uma pessoa entra ou sai do grupo
+    // "não ficaria" e mexe 100/n pontos percentuais.
+    const distanciaEnps = Math.abs(a.enps - medianaEnps);
+    const distanciaRisco = risco == null ? null : Math.abs(risco - medianaRisco);
+    const n = a.respostas ?? null;
+    const pesoDeUmaResposta = n && n > 0 ? Math.round((100 / n) * 10) / 10 : null;
+
+    const noLimite =
+      pesoDeUmaResposta != null &&
+      (distanciaEnps < pesoDeUmaResposta ||
+        (distanciaRisco != null && distanciaRisco < pesoDeUmaResposta));
+
+    // Distância da mediana: quem está muito longe vem primeiro dentro do grupo.
+    const gapEng = Math.max(0, medianaEnps - a.enps);
+    const gapRisco = Math.max(0, (risco ?? 0) - medianaRisco);
     const tamanho = Math.log10((a.headcountMedio ?? 10) + 1);
 
     return {
@@ -119,6 +137,10 @@ export function classifyAreas(areas: AreaEntrada[]): Classificacao {
       risco,
       headcount: a.headcountMedio,
       veredito,
+      noLimite,
+      distanciaEnps: Math.round(distanciaEnps * 10) / 10,
+      distanciaRisco: distanciaRisco == null ? null : Math.round(distanciaRisco * 10) / 10,
+      pesoDeUmaResposta,
       // Risco pesa o dobro: é o que vira saída. Engajamento baixo sem intenção
       // de sair aparece na entrega, e mais devagar.
       peso: (gapEng + gapRisco * 2) * tamanho,
@@ -126,7 +148,10 @@ export function classifyAreas(areas: AreaEntrada[]): Classificacao {
   });
 
   const ordem: Record<Veredito, number> = { agir: 0, vigiar: 1, ouvir: 2, manter: 3 };
-  itens.sort((a, b) => ordem[a.veredito] - ordem[b.veredito] || b.peso - a.peso || a.scope.localeCompare(b.scope));
+  itens.sort(
+    (a, b) =>
+      ordem[a.veredito] - ordem[b.veredito] || b.peso - a.peso || a.scope.localeCompare(b.scope),
+  );
 
-  return { itens, medianaEnps, medianaRisco, margemEnps, margemRisco };
+  return { itens, medianaEnps, medianaRisco };
 }
