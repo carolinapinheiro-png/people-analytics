@@ -173,10 +173,12 @@ function EngagementSection({
     setAreaEscolhida(area);
     if (!area) return;
     requestAnimationFrame(() => {
-      document.getElementById("fila-por-area")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      // Rolagem INSTANTÂNEA, e não `behavior: "smooth"`. Nesta página o modo
+      // suave simplesmente não executa -- medido: o elemento continuava a
+      // 4.444px de distância depois de 2,5s, enquanto a rolagem direta acerta
+      // o alvo na hora. O clique expandia a área e a tela não saía do lugar,
+      // que é o mesmo que não ter funcionado, do ponto de vista de quem clicou.
+      document.getElementById("fila-por-area")?.scrollIntoView({ block: "start" });
     });
   };
 
