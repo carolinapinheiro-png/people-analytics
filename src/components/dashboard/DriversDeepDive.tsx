@@ -48,46 +48,73 @@ export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver
       if (!m.has(p.driver)) m.set(p.driver, []);
       m.get(p.driver)!.push(p);
     }
-    return [...m.entries()]
-      .map(([driver, ps]) => {
-        const vals = ps.map((p) => p.score);
-        const min = Math.min(...vals);
-        const max = Math.max(...vals);
-        return {
-          driver,
-          n: ps.length,
-          min,
-          max,
-          media: vals.reduce((a, b) => a + b, 0) / vals.length,
-          amplitude: Math.round((max - min) * 10) / 10,
-          pior: ps.reduce((a, b) => (b.score < a.score ? b : a)),
-        };
-      })
-      .sort((a, b) => a.media - b.media);
+    return (
+      [...m.entries()]
+        .map(([driver, ps]) => {
+          const vals = ps.map((p) => p.score);
+          const min = Math.min(...vals);
+          const max = Math.max(...vals);
+          return {
+            driver,
+            n: ps.length,
+            min,
+            max,
+            media: vals.reduce((a, b) => a + b, 0) / vals.length,
+            amplitude: Math.round((max - min) * 10) / 10,
+            pior: ps.reduce((a, b) => (b.score < a.score ? b : a)),
+          };
+        })
+        // ------------------------------------------------------------------
+        // ORDENADO PELA AMPLITUDE, NÃO PELA MÉDIA
+        // ------------------------------------------------------------------
+        // Este cartão existe para dizer "desconfie da média". Ordená-lo PELA
+        // média enterrava exatamente o que ele quer destacar: Colaboração, com a
+        // maior amplitude do painel (1,1) e a pior pergunta da pesquisa dentro
+        // dela, aparecia em sétimo porque a média dela é boa.
+        .sort((a, b) => b.amplitude - a.amplitude || a.media - b.media)
+    );
   }, [perguntas]);
 
   if (!perguntas.length) return null;
 
-  const escalaMin = Math.min(...dispersao.map((d) => d.min)) - 0.15;
-  const escalaMax = Math.max(...dispersao.map((d) => d.max)) + 0.15;
+  // ------------------------------------------------------------------
+  // DRIVER DE UMA PERGUNTA SÓ NÃO TEM DISPERSÃO
+  // ------------------------------------------------------------------
+  // Carga de Trabalho e Crescimento de Carreira têm uma pergunta cada. A barra
+  // virava um ponto e a tela dizia "4,2-4,2 · amplitude 0,0", que se lê como
+  // "driver muito homogêneo" -- quando não há nada em que ser homogêneo.
+  //
+  // Some da lista de barras, mas NÃO some da tela: a nota no rodapé diz quais
+  // são. Sumir em silêncio faria alguém procurar o driver e achar que a carga
+  // não foi medida.
+  const comDispersao = dispersao.filter((d) => d.n >= 2);
+  const perguntaUnica = dispersao.filter((d) => d.n < 2);
+
+  const escalaMin = Math.min(...comDispersao.map((d) => d.min)) - 0.15;
+  const escalaMax = Math.max(...comDispersao.map((d) => d.max)) + 0.15;
   const pos = (v: number) => ((v - escalaMin) / (escalaMax - escalaMin)) * 100;
 
   return (
     <div className="space-y-4">
       <ChartCard
         title="Dispersão dentro de cada driver"
-        subtitle="da pergunta mais baixa à mais alta · ordenado pela média"
+        subtitle="da pergunta mais baixa à mais alta · ordenado pela amplitude"
         icon={Layers}
       >
         <div className="space-y-2.5">
-          {dispersao.map((d) => (
+          {comDispersao.map((d) => (
             <div key={d.driver} className="space-y-1">
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-xs truncate" title={d.driver}>
                   {d.driver}
                 </span>
                 <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
-                  {fmt(d.min)}–{fmt(d.max)} · média {fmt(d.media)}
+                  {/* Quantas perguntas sustentam a barra. Uma amplitude de 1,1
+                      entre DUAS perguntas é a distância entre dois pontos; a
+                      mesma amplitude entre seis é uma distribuição. São
+                      leituras diferentes e o número decide qual é. */}
+                  {d.n} pergunta{d.n === 1 ? "" : "s"} · {fmt(d.min)}–{fmt(d.max)} · média{" "}
+                  {fmt(d.media)}
                 </span>
               </div>
               <div className="relative h-4">
@@ -110,11 +137,27 @@ export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver
                 <p className="text-[10px] text-muted-foreground">
                   Amplitude de {fmt(d.amplitude)} ponto{d.amplitude >= 2 ? "s" : ""} — a média
                   esconde &quot;{d.pior.question}&quot; ({fmt(d.pior.score)}).
+                  {d.n === 2 &&
+                    " Com duas perguntas, a barra é a distância entre elas, não uma distribuição."}
                 </p>
               )}
             </div>
           ))}
         </div>
+        {perguntaUnica.length > 0 && (
+          <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
+            Fora da lista porque têm <strong>uma pergunta só</strong>, e uma pergunta não tem
+            dispersão:{" "}
+            {perguntaUnica.map((d, i) => (
+              <span key={d.driver}>
+                {i > 0 && (i === perguntaUnica.length - 1 ? " e " : ", ")}
+                <span className="text-foreground">{d.driver}</span> ({fmt(d.media)})
+              </span>
+            ))}
+            . A nota delas continua valendo — o que não existe ali é amplitude.
+          </p>
+        )}
+
         <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
           A barra vai da pergunta mais baixa à mais alta do driver; o traço vertical é a média.
           Barras curtas são temas homogêneos: a média descreve bem o driver inteiro. Barras longas
@@ -128,7 +171,7 @@ export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver
         comparar áreas com engajamento diferente, e os drivers só foram carregados no nível da
         empresa — há um grupo só, sem variação para correlacionar. Quando a próxima onda vier
         quebrada por área, esta seção ganha um ranking de prioridade de verdade. Até lá, a ordem
-        acima é por nota, não por impacto.
+        acima é por amplitude — por onde a média mais engana, não por onde o impacto é maior.
       </p>
     </div>
   );
