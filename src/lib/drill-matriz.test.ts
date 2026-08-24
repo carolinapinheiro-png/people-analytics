@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { matrizAreaDriver, perfilUniforme, favoravelDaArea } from "./drill";
+import {
+  matrizAreaDriver, perfilUniforme, linhasDaArea, perguntasNoRecorte,
+} from "./drill";
 import type { DriverPorRecorte } from "./survey.functions";
 
 const l = (
@@ -110,29 +112,29 @@ const COM_AREA: DriverPorRecorte[] = [
 ];
 
 test("a nota da área substitui a da empresa, pergunta a pergunta", () => {
-  const m = favoravelDaArea(COM_AREA, "MARKETING");
-  assert.equal(m.get("Comunicação||c1"), 55);
-  assert.equal(m.get("Comunicação||c2"), 60);
+  const m = linhasDaArea(COM_AREA, "MARKETING");
+  assert.equal(m.get("Comunicação||c1")?.favoravel, 55);
+  assert.equal(m.get("Comunicação||c2")?.favoravel, 60);
   assert.equal(m.size, 2);
 });
 
 test("não vaza a nota de outra área nem a da empresa", () => {
-  const m = favoravelDaArea(COM_AREA, "MARKETING");
+  const favs = [...linhasDaArea(COM_AREA, "MARKETING").values()].map((l) => l.favoravel);
   // 92 é de Technology e 80 é da empresa. Nenhum dos dois pode aparecer aqui.
-  assert.ok(![...m.values()].includes(92));
-  assert.ok(![...m.values()].includes(80));
+  assert.ok(!favs.includes(92));
+  assert.ok(!favs.includes(80));
 });
 
 test("o nome da área compara sem diferenciar caixa nem espaço", () => {
   // O filtro manda "MARKETING"; a carga guarda "Marketing".
-  assert.equal(favoravelDaArea(COM_AREA, "  marketing ").get("Comunicação||c1"), 55);
+  assert.equal(linhasDaArea(COM_AREA, "  marketing ").get("Comunicação||c1")?.favoravel, 55);
 });
 
 test("pergunta suprimida por n baixo fica FORA, não cai na da empresa", () => {
   // Devolver o número da empresa no lugar seria publicar, com o rótulo da
   // área, exatamente o valor que a supressão negou.
   const comNull = [...COM_AREA, l("area", "MARKETING", "Gestão", "g1", null)];
-  const m = favoravelDaArea(comNull, "MARKETING");
+  const m = linhasDaArea(comNull, "MARKETING");
   assert.equal(m.has("Gestão||g1"), false);
   assert.equal(m.size, 2);
 });
@@ -140,5 +142,67 @@ test("pergunta suprimida por n baixo fica FORA, não cai na da empresa", () => {
 test("área sem quebra na onda devolve mapa vazio, não silêncio confuso", () => {
   // Quem chama precisa distinguir "a área respondeu igual à empresa" de "esta
   // onda não foi quebrada por área" -- o vazio é o sinal.
-  assert.equal(favoravelDaArea(COM_AREA, "LEGAL").size, 0);
+  assert.equal(linhasDaArea(COM_AREA, "LEGAL").size, 0);
+});
+
+// ===========================================================================
+// A TROCA QUE OS DOIS CARTÕES COMPARTILHAM
+// ===========================================================================
+// Aplicada num cartão só, ela recriou a divergência que `pergunta-priority.ts`
+// tinha acabado de eliminar: a mesma pergunta caindo em quadrantes diferentes
+// no gráfico e na lista. Por isso a regra vive aqui, e os dois a chamam.
+
+const PERGUNTAS = [
+  { driver: "Comunicação", question: "c1", r: 0.6, score: 4.0, favoravel: 80, n: 485 },
+  { driver: "Comunicação", question: "c2", r: 0.5, score: 3.5, favoravel: 70, n: 485 },
+  { driver: "Gestão", question: "g1", r: 0.4, score: 4.2, favoravel: 85, n: 485 },
+];
+
+const RECORTES: DriverPorRecorte[] = [
+  { ...l("area", "MARKETING", "Comunicação", "c1", 55), n: 81 },
+  { ...l("area", "MARKETING", "Comunicação", "c2", 60), n: 81 },
+  { ...l("area", "MARKETING", "Gestão", "g1", null), n: 81 },
+  { ...l("area", "TECHNOLOGY", "Comunicação", "c1", 92), n: 149 },
+];
+
+test("sem área escolhida, devolve as perguntas intactas", () => {
+  const r = perguntasNoRecorte(PERGUNTAS, RECORTES, null);
+  assert.deepEqual(r.linhas, PERGUNTAS);
+  assert.equal(r.suprimidas, 0);
+});
+
+test("com área, o % e o n passam a ser os dela", () => {
+  // Trocar o % sem trocar o n poria a nota de 81 pessoas com rótulo de 485 --
+  // e é o subtítulo do cartão que publica esse número.
+  const { linhas } = perguntasNoRecorte(PERGUNTAS, RECORTES, "MARKETING");
+  const c1 = linhas.find((p) => p.question === "c1")!;
+  assert.equal(c1.favoravel, 55);
+  assert.equal(c1.n, 81);
+  // A associação NÃO muda: ela só existe medida na empresa.
+  assert.equal(c1.r, 0.6);
+});
+
+test("pergunta sem nota da área sai da lista e é contada", () => {
+  const r = perguntasNoRecorte(PERGUNTAS, RECORTES, "MARKETING");
+  assert.equal(r.linhas.length, 2);
+  assert.equal(r.suprimidas, 1);
+  assert.ok(!r.linhas.some((p) => p.question === "g1"));
+});
+
+test("os dois cartões recebem exatamente a mesma lista", () => {
+  // O teste que descreve o motivo da função existir: chamada duas vezes com a
+  // mesma entrada, ela não pode devolver coisas diferentes -- e enquanto a
+  // lógica estava copiada em um cartão só, devolvia.
+  const a = perguntasNoRecorte(PERGUNTAS, RECORTES, "MARKETING");
+  const b = perguntasNoRecorte(PERGUNTAS, RECORTES, "MARKETING");
+  assert.deepEqual(a.linhas, b.linhas);
+  assert.equal(a.suprimidas, b.suprimidas);
+});
+
+test("área sem quebra nenhuma esvazia a lista, em vez de cair na empresa", () => {
+  // Silêncio aqui viraria "esta área responde igual à empresa", que é
+  // afirmação -- e ninguém mediu isso.
+  const r = perguntasNoRecorte(PERGUNTAS, RECORTES, "LEGAL");
+  assert.equal(r.linhas.length, 0);
+  assert.equal(r.suprimidas, 3);
 });

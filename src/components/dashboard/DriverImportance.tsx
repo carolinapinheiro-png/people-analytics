@@ -10,7 +10,7 @@ import { COLORS } from '@/lib/colors';
 import { classifyPerguntas, type QuadrantePergunta } from '@/lib/pergunta-priority';
 import { cn } from '@/lib/utils';
 import type { SurveyImportance, DriverPorRecorte } from '@/lib/survey.functions';
-import { favoravelDaArea } from '@/lib/drill';
+import { perguntasNoRecorte } from '@/lib/drill';
 
 /**
  * Nota × associação com o eNPS, pergunta a pergunta.
@@ -104,12 +104,15 @@ export default function DriverImportance({
   // "Prioridade" vira: entre as perguntas que movem engajamento NA EMPRESA,
   // quais esta área responde pior. A alavanca vem da empresa porque é a única
   // medida que existe; o alvo vem da área.
-  const notasDaArea = useMemo(
-    () => (departamentoSelecionado ? favoravelDaArea(drivers, departamentoSelecionado) : null),
-    [drivers, departamentoSelecionado],
+  // A troca vive em `drill.ts` e a lista "Por onde começar" chama a MESMA
+  // função. Enquanto ela esteve copiada aqui dentro, os dois cartões voltaram
+  // a discordar sob filtro -- a mesma pergunta em quadrantes diferentes.
+  const escopo = useMemo(
+    () => perguntasNoRecorte(rows, drivers, departamentoSelecionado),
+    [rows, drivers, departamentoSelecionado],
   );
 
-  const { pontos, corteR, corteNota, semNota } = useMemo(() => {
+  const { pontos, corteR, corteNota } = useMemo(() => {
     // ------------------------------------------------------------------
     // O EIXO VERTICAL É % FAVORÁVEL, NÃO A MÉDIA
     // ------------------------------------------------------------------
@@ -122,20 +125,10 @@ export default function DriverImportance({
     // que é o número que a tela mostra e a diretoria usa. Como o corte passou a
     // vir de lá, o eixo veio junto: desenhar a linha do % sobre pontos plotados
     // pela média deixaria pontos "de nota baixa" acima da linha de nota.
-    // Troca o % da empresa pelo da área ANTES de classificar, para o corte
-    // (mediana) sair da mesma população que os pontos. Classificar com a
-    // mediana da empresa sobre pontos da área poria quase tudo de um lado só
-    // numa área que responde abaixo -- e o quadrante deixaria de separar nada.
-    const base = notasDaArea
-      ? rows.flatMap((r) => {
-          const f = notasDaArea.get(`${r.driver}||${r.question}`);
-          // Sem nota da área a pergunta SAI. Cair na da empresa misturaria as
-          // duas populações no mesmo gráfico, sem nada distinguindo os pontos.
-          return f == null ? [] : [{ ...r, favoravel: f }];
-        })
-      : rows;
-
-    const { itens, corteR, corteFavoravel } = classifyPerguntas(base);
+    // A classificação sai da MESMA população que os pontos: com a mediana da
+    // empresa sobre notas da área, quase tudo cairia de um lado só numa área
+    // que responde abaixo, e o quadrante deixaria de separar nada.
+    const { itens, corteR, corteFavoravel } = classifyPerguntas(escopo.linhas);
     const pontos: Ponto[] = itens.map((r) => ({
       x: r.r,
       y: r.favEfetivo,
@@ -146,13 +139,8 @@ export default function DriverImportance({
       curta: r.question.length > 34 ? `${r.question.slice(0, 32)}…` : r.question,
       quad: r.quadrante,
     }));
-    return {
-      pontos,
-      corteR,
-      corteNota: corteFavoravel,
-      semNota: rows.length - base.length,
-    };
-  }, [rows, notasDaArea]);
+    return { pontos, corteR, corteNota: corteFavoravel };
+  }, [escopo]);
 
   if (rows.length < 6) return null;
 
@@ -181,10 +169,10 @@ export default function DriverImportance({
           com o eNPS medida na <strong>empresa inteira</strong> — ela não existe por área, é uma
           linha por pergunta no banco. Então o gráfico responde: entre as perguntas que movem
           engajamento na Flutter Brazil, quais {departamentoSelecionado} responde pior.
-          {semNota > 0 && (
+          {escopo.suprimidas > 0 && (
             <>
               {' '}
-              {semNota} pergunta{semNota === 1 ? '' : 's'} ficou de fora por ter a nota da área
+              {escopo.suprimidas} pergunta{escopo.suprimidas === 1 ? '' : 's'} ficou de fora por ter a nota da área
               suprimida (grupo pequeno demais).
             </>
           )}
@@ -279,31 +267,14 @@ export default function DriverImportance({
           respostas dela acompanham o eNPS da mesma pessoa. Quanto mais acima, maior a parcela que
           concorda (respondeu 4 ou 5). As linhas tracejadas são as medianas das {pontos.length}{' '}
           perguntas — clique num quadrante para ver quais caem nele.{' '}
-          {/* ------------------------------------------------------------------
-              ESTA FRASE PRECISOU VIRAR CONDICIONAL
-              ------------------------------------------------------------------
-              Sem filtro, os dois cartões classificam com a mesma régua e a
-              promessa se sustenta -- foi para isso que `pergunta-priority.ts`
-              existe.
-
-              COM filtro, este cartão passou a usar o % da ÁREA e "Por onde
-              começar" continua usando o da EMPRESA. São réguas diferentes de
-              novo, e uma pergunta pode cair em quadrantes distintos nos dois.
-              Manter a promessa escrita seria repetir exatamente o erro que a
-              régua única veio corrigir -- só que desta vez sabendo. */}
-          {departamentoSelecionado ? (
-            <>
-              <strong>Atenção ao comparar com &quot;Por onde começar&quot;</strong>, logo abaixo:
-              aquele cartão continua mostrando o % da empresa, e este mostra o de{' '}
-              {departamentoSelecionado}. Com o filtro ligado, os dois podem colocar a mesma
-              pergunta em quadrantes diferentes — e não é discordância, são perguntas diferentes.
-            </>
-          ) : (
-            <>
-              É a <strong>mesma régua</strong> usada em &quot;Por onde começar&quot;, logo abaixo:
-              uma pergunta cai no mesmo quadrante nos dois cartões.
-            </>
-          )}
+          {/* Esta frase chegou a ser condicional por meia hora, quando só este
+              cartão tinha passado a usar a nota da área e "Por onde começar"
+              continuava na da empresa. Voltou a ser incondicional porque a
+              troca virou uma função só (`perguntasNoRecorte`) que os dois
+              chamam -- com ou sem filtro, a promessa se sustenta. */}
+          É a <strong>mesma régua</strong> usada em &quot;Por onde começar&quot;, logo abaixo, e
+          sobre a <strong>mesma população</strong>: uma pergunta cai no mesmo quadrante nos dois
+          cartões, filtrado ou não.
         </p>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           <strong>Isto não é relação de causa.</strong> Todas as respostas vêm da mesma pessoa no

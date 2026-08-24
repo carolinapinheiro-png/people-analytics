@@ -373,6 +373,7 @@ function EngagementSection({
         areas={rowsComN}
         cuts={survey?.cuts ?? []}
         importancia={survey?.importancia ?? []}
+        drivers={survey?.driversPorArea ?? []}
         departamento={deptSel}
       />
 

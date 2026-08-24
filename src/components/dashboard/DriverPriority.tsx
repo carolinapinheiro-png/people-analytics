@@ -9,7 +9,7 @@ import {
   Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from '@/components/ui/tooltip';
 import type { SurveyImportance, DriverPorRecorte } from '@/lib/survey.functions';
-import { areasNaPergunta, temQuebraPorArea } from '@/lib/drill';
+import { areasNaPergunta, temQuebraPorArea, perguntasNoRecorte } from '@/lib/drill';
 
 /**
  * As perguntas onde mexer tende a render mais, como lista.
@@ -140,9 +140,10 @@ export default function DriverPriority({
 }: {
   rows: SurveyImportance[];
   /**
-   * Só para o aviso. `survey_driver_importance` guarda UMA linha por pergunta,
-   * sem coluna de recorte: a associação com o eNPS só existe medida na empresa
-   * inteira. Este cartão é idêntico com e sem filtro, e precisa dizer por quê.
+   * Área escolhida no filtro. Não é mais só para o aviso: com ela, o % de cada
+   * linha passa a ser o da área. A associação continua sendo a da empresa,
+   * porque `survey_driver_importance` guarda uma linha por pergunta, sem coluna
+   * de recorte -- essa parte não tem versão por área e não terá.
    */
   departamentoSelecionado?: string | null;
   /**
@@ -159,19 +160,36 @@ export default function DriverPriority({
   const [verTodas, setVerTodas] = useState(false);
   const [sobre, setSobre] = useState<string | null>(null);
 
+  // ------------------------------------------------------------------
+  // O % PASSA A SER O DA ÁREA QUANDO HÁ FILTRO
+  // ------------------------------------------------------------------
+  // A associação com o eNPS continua sendo a da empresa -- é a única medida que
+  // existe. O que muda é o alvo: a lista deixa de ordenar "as perguntas que a
+  // EMPRESA responde pior entre as que movem engajamento" e passa a ordenar "as
+  // que ESTA ÁREA responde pior entre elas".
+  //
+  // A mesma função do gráfico logo acima, de propósito. Por meia hora a troca
+  // esteve só no gráfico, e os dois cartões voltaram a poder colocar a mesma
+  // pergunta em quadrantes diferentes -- exatamente o defeito que a régua única
+  // tinha acabado de eliminar.
+  const escopo = useMemo(
+    () => perguntasNoRecorte(rows, drivers, departamentoSelecionado),
+    [rows, drivers, departamentoSelecionado],
+  );
+
   const { prioridade, sustentar, cortes, temaDominante } = useMemo(() => {
     // A régua é a de `pergunta-priority.ts`, a mesma do gráfico de quadrantes
     // logo acima. Este cartão já cortava pelo % favorável e explicava por quê;
     // o que faltava era os outros dois cartões cortarem igual. Agora a regra
     // mora num lugar só, com teste, e o comentário virou documentação de lá.
-    const { itens, corteR } = classifyPerguntas(rows);
+    const { itens, corteR } = classifyPerguntas(escopo.linhas);
     const ordenado = [...itens].sort((a, b) => b.r - a.r);
     const prioridade = ordenado.filter((i) => i.quadrante === 'prioridade');
     const sustentar = ordenado.filter((i) => i.quadrante === 'sustentar').slice(0, 4);
 
     const t = temaDeLista(prioridade);
 
-    const rs = rows.map((i) => i.r).sort((a, b) => b - a);
+    const rs = escopo.linhas.map((i) => i.r).sort((a, b) => b - a);
     return {
       prioridade, sustentar,
       cortes: { alto: rs[Math.floor(rs.length * 0.25)] ?? 0, medio: corteR },
@@ -179,35 +197,55 @@ export default function DriverPriority({
       // ainda houver mais de uma categoria de onde ela pudesse ter vindo.
       temaDominante: t.tema && t.quantas >= 2 ? { tema: t.tema, qtd: t.quantas } : null,
     };
-  }, [rows]);
+  }, [escopo]);
 
   if (rows.length < 6) return null;
 
-  const lista = verTodas ? [...rows].sort((a, b) => b.r - a.r) : prioridade;
+  const lista = verTodas ? [...escopo.linhas].sort((a, b) => b.r - a.r) : prioridade;
 
   return (
     <ChartCard
       title="Por onde começar, pergunta por pergunta"
       subtitle={
-        // O `n` aqui é o da EMPRESA e não muda com o filtro de departamento:
-        // `survey_driver_importance` guarda uma linha por pergunta, sem recorte.
-        // Escrito só como "485 respostas" ao lado de um painel filtrado em
-        // Marketing, lia-se como se Marketing tivesse 485 -- teve 81.
-        `% que concorda · ${rows.length} perguntas · ${rows[0]?.n ?? 0} respostas da empresa`
+        // O `n` acompanha o % : sob filtro os dois são da área. Trocar um sem o
+        // outro poria a nota de 81 pessoas com o rótulo de 485 -- foi o que a
+        // tela fez por um tempo, escrevendo "485 respostas" ao lado do painel
+        // filtrado em Marketing.
+        departamentoSelecionado
+          ? `% que ${departamentoSelecionado} concorda · ${escopo.linhas.length} perguntas · ${escopo.linhas[0]?.n ?? 0} respostas`
+          : `% que concorda · ${escopo.linhas.length} perguntas · ${escopo.linhas[0]?.n ?? 0} respostas da empresa`
       }
     >
-      <AvisoForaDoFiltro
-        departamento={departamentoSelecionado}
-        motivo="A associação de cada pergunta com o eNPS é calculada uma vez, na empresa inteira — não existe essa medida por área. As NOTAS por área existem e aparecem ao passar o mouse em cada linha."
-        escopo={`das ${rows[0]?.n ?? 0} respostas da empresa`}
-      />
+      {/* Deixou de ser "este bloco não segue o filtro". Metade segue: o % é da
+          área. O que não tem versão por área é a associação -- e é isso, e só
+          isso, que o texto pode alegar. */}
+      {departamentoSelecionado && (
+        <p className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed">
+          <strong>A coluna de % é de {departamentoSelecionado}.</strong> A ordem da lista vem da
+          associação com o eNPS, que é medida uma vez na <strong>empresa inteira</strong> — não
+          existe versão dela por área. Então a lista responde: entre as perguntas que movem
+          engajamento na Flutter Brazil, quais {departamentoSelecionado} responde pior.
+          {escopo.suprimidas > 0 && (
+            <>
+              {' '}
+              {escopo.suprimidas} pergunta{escopo.suprimidas === 1 ? '' : 's'} ficou de fora por
+              ter a nota da área suprimida (grupo pequeno demais).
+            </>
+          )}
+        </p>
+      )}
       {temaDominante && (
         <p className="text-sm leading-relaxed mb-3">
-          Das {prioridade.length} perguntas com menor concordância que mais acompanham o
-          engajamento,{' '}
-          <strong>{temaDominante.qtd} são de {temaDominante.tema.toLowerCase()}</strong>. Remuneração
-          tem as piores notas da empresa, mas acompanha menos — é problema real, e não é o que
-          separa quem está engajado de quem não está.
+          Das {prioridade.length} perguntas que {departamentoSelecionado ?? 'a empresa'} responde
+          com menor concordância entre as que mais acompanham o engajamento,{' '}
+          <strong>{temaDominante.qtd} são de {temaDominante.tema.toLowerCase()}</strong>.{' '}
+          {/* A observação sobre remuneração é sobre a EMPRESA -- as piores notas
+              da Flutter Brazil. Sob filtro ela pode simplesmente não valer para
+              a área, e afirmá-la assim mesmo seria pôr um fato da empresa na
+              boca de uma leitura de área. */}
+          {departamentoSelecionado
+            ? 'A ordem vem da associação medida na empresa; a concordância, desta área.'
+            : 'Remuneração tem as piores notas da empresa, mas acompanha menos — é problema real, e não é o que separa quem está engajado de quem não está.'}
         </p>
       )}
 
@@ -265,7 +303,7 @@ export default function DriverPriority({
           onClick={() => setVerTodas((v) => !v)}
           className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
         >
-          {verTodas ? `mostrar só as ${prioridade.length} de maior prioridade` : `ver todas as ${rows.length} perguntas`}
+          {verTodas ? `mostrar só as ${prioridade.length} de maior prioridade` : `ver todas as ${escopo.linhas.length} perguntas`}
         </button>
         <TooltipProvider delayDuration={200}>
           <UiTooltip>
@@ -277,8 +315,9 @@ export default function DriverPriority({
             </TooltipTrigger>
             <TooltipContent className="max-w-[320px] text-xs leading-relaxed space-y-1.5">
               <p>
-                Mede o quanto a resposta da pergunta acompanha o eNPS <strong>da mesma pessoa</strong>,
-                entre as {rows[0]?.n ?? 0} que responderam na empresa inteira.
+                Mede o quanto a resposta da pergunta acompanha o eNPS <strong>da mesma pessoa</strong>.
+                É calculado uma vez, sobre as respostas da empresa inteira — não existe versão por
+                área desta medida, e por isso ela não muda com o filtro.
               </p>
               <p>
                 O número grande é o <strong>% que respondeu 4 ou 5</strong> — a mesma leitura do

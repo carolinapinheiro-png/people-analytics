@@ -311,13 +311,13 @@ export function perfilUniforme(
 // ser que em Marketing remuneração puxe mais que comunicação -- ninguém mediu.
 // A tela precisa dizer isso, e diz.
 
-/** % de concordância da área em cada pergunta, indexado por driver||pergunta. */
-export function favoravelDaArea(
+/** As linhas da área, indexadas por driver||pergunta. Só as que têm nota. */
+export function linhasDaArea(
   linhas: readonly DriverPorRecorte[],
   area: string,
-): Map<string, number> {
+): Map<string, DriverPorRecorte> {
   const alvo = (area ?? '').trim().toLowerCase();
-  const m = new Map<string, number>();
+  const m = new Map<string, DriverPorRecorte>();
   for (const l of linhas) {
     if (l.cutType !== 'area') continue;
     if (l.cutValue.trim().toLowerCase() !== alvo) continue;
@@ -325,9 +325,48 @@ export function favoravelDaArea(
     // pergunta simplesmente não entra -- plotar a da empresa no lugar seria
     // devolver o número que a supressão negou, com o rótulo da área.
     if (l.favoravel == null) continue;
-    m.set(chave(l), l.favoravel);
+    m.set(chave(l), l);
   }
   return m;
+}
+
+/**
+ * Troca o % da empresa pelo da área, em cada pergunta.
+ *
+ * ------------------------------------------------------------------
+ * POR QUE ISTO É UMA FUNÇÃO E NÃO DUAS CÓPIAS
+ * ------------------------------------------------------------------
+ * Dois cartões mostram as mesmas perguntas classificadas nos mesmos quadrantes:
+ * o gráfico de dispersão e a lista "Por onde começar". Quando só o gráfico
+ * passou a usar a nota da área, os dois voltaram a discordar sob filtro -- a
+ * mesma pergunta podia sair "Prioridade" num e não no outro.
+ *
+ * Já havia acontecido: era exatamente o problema que `pergunta-priority.ts`
+ * resolveu, e reapareceu porque a correção foi aplicada num cartão só. É a
+ * terceira vez que a mesma forma de erro aparece nesta aba (a régua das áreas,
+ * a das perguntas, e agora o escopo delas), então a regra mora aqui e os dois
+ * cartões a consomem.
+ *
+ * `n` vem junto com o `favoravel`: o subtítulo do cartão publica "485
+ * respostas", e sob filtro esse número tem que virar o da área. Trocar um sem
+ * o outro poria a nota de 81 pessoas com o rótulo de 485.
+ */
+export function perguntasNoRecorte<
+  T extends { driver: string; question: string; favoravel: number | null; n: number },
+>(
+  perguntas: readonly T[],
+  porRecorte: readonly DriverPorRecorte[],
+  area: string | null | undefined,
+): { linhas: T[]; suprimidas: number } {
+  if (!area) return { linhas: [...perguntas], suprimidas: 0 };
+  const daArea = linhasDaArea(porRecorte, area);
+  const linhas = perguntas.flatMap((p) => {
+    const l = daArea.get(chave(p));
+    // Sem nota da área a pergunta SAI. Cair na da empresa misturaria as duas
+    // populações na mesma lista, sem nada distinguindo as linhas.
+    return l == null ? [] : [{ ...p, favoravel: l.favoravel, n: l.n }];
+  });
+  return { linhas, suprimidas: perguntas.length - linhas.length };
 }
 
 /**

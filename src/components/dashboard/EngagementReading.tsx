@@ -4,7 +4,8 @@ import { COLORS } from '@/lib/colors';
 import { classifyPerguntas, temaDominante } from '@/lib/pergunta-priority';
 import { classifyAreas } from '@/lib/area-priority';
 import type { EngagementContextRow } from '@/lib/engagement-context';
-import type { SurveyCut, SurveyImportance } from '@/lib/survey.functions';
+import type { SurveyCut, SurveyImportance, DriverPorRecorte } from '@/lib/survey.functions';
+import { perguntasNoRecorte } from '@/lib/drill';
 
 /**
  * A leitura da onda, em quatro frases, calculada dos próprios números.
@@ -51,6 +52,7 @@ export default function EngagementReading({
   areas,
   cuts,
   importancia,
+  drivers = [],
   departamento = null,
 }: {
   enpsEmpresa: number | null;
@@ -59,6 +61,8 @@ export default function EngagementReading({
   areas: EngagementContextRow[];
   cuts: SurveyCut[];
   importancia: SurveyImportance[];
+  /** Notas por recorte, para a frase seguir o filtro como os cartões seguem. */
+  drivers?: DriverPorRecorte[];
   /**
    * Área escolhida no filtro, ou null.
    *
@@ -157,11 +161,14 @@ export default function EngagementReading({
     // 4. POR ONDE COMEÇAR ---------------------------------------------------
     // Tema dominante entre as perguntas de nota baixa e associação alta.
     if (importancia.length >= 8) {
-      // Mesma régua dos dois cartões da aba (`pergunta-priority.ts`). Antes esta
-      // frase cortava pela mediana das médias e os cartões pelo % favorável, de
-      // modo que a leitura do topo podia contar uma quantidade de perguntas que
-      // não batia com a lista logo abaixo dela.
-      const { itens } = classifyPerguntas(importancia);
+      // Mesma régua E mesma população dos dois cartões da aba. Foram dois
+      // desencontros seguidos aqui: primeiro esta frase cortava pela mediana
+      // das médias e os cartões pelo % favorável; depois os cartões passaram a
+      // usar a nota da área e a frase continuou na da empresa. As duas vezes o
+      // sintoma foi o mesmo -- a leitura do topo contando uma quantidade de
+      // perguntas que não batia com a lista logo abaixo dela.
+      const { linhas: noRecorte } = perguntasNoRecorte(importancia, drivers, departamento);
+      const { itens } = classifyPerguntas(noRecorte);
       const prioridade = itens.filter((i) => i.quadrante === 'prioridade');
       const { tema, quantas } = temaDominante(prioridade);
       if (tema && quantas >= 2) {
@@ -174,11 +181,13 @@ export default function EngagementReading({
                   -- `survey_driver_importance` não tem coluna de recorte. Com
                   filtro ligado, a frase precisa dizer isso, senão se lê como se
                   fossem as perguntas daquela área. */}
-              Das {prioridade.length} perguntas com menor concordância que mais acompanham o
-              engajamento <strong>na empresa toda</strong>,{' '}
+              Das {prioridade.length} perguntas que {departamento ?? 'a empresa'} responde com
+              menor concordância entre as que mais acompanham o engajamento,{' '}
               <strong>{quantas} são de {tema.toLowerCase()}</strong>. É onde o mesmo esforço tende
-              a render mais — mais que remuneração, que tem as piores notas mas acompanha menos.
-              {departamento && ' Esta leitura não muda com o filtro: a associação só existe medida na empresa.'}
+              a render mais.
+              {departamento
+                ? ' A ordem vem da associação medida na empresa inteira — não existe versão dela por área.'
+                : ' Mais que remuneração, que tem as piores notas mas acompanha menos.'}
             </>
           ),
         });
@@ -214,7 +223,7 @@ export default function EngagementReading({
     }
 
     return out;
-  }, [enpsEmpresa, respondentes, participacao, areas, cuts, importancia, departamento]);
+  }, [enpsEmpresa, respondentes, participacao, areas, cuts, importancia, drivers, departamento]);
 
   if (!linhas.length) return null;
 
