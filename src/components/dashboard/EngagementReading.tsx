@@ -6,6 +6,7 @@ import { classifyAreas } from '@/lib/area-priority';
 import type { EngagementContextRow } from '@/lib/engagement-context';
 import type { SurveyCut, SurveyImportance, DriverPorRecorte } from '@/lib/survey.functions';
 import { perguntasNoRecorte } from '@/lib/drill';
+import { ehCruzamento } from '@/lib/aggregator/polly-survey';
 
 /**
  * A leitura da onda, em quatro frases, calculada dos próprios números.
@@ -200,7 +201,11 @@ export default function EngagementReading({
     const empresa = cuts.find((c) => c.cutType === 'company');
     if (empresa?.enps != null) {
       const candidatos = cuts.filter(
-        (c) => c.cutType !== 'company' && c.cutType !== 'area' && !c.suprimido && c.enps != null && c.n >= 20,
+        // Fora os cruzados: esta frase nomeia o recorte, e o nome deles é
+        // composto ("Commercial || Ambas"). Ela fala de recortes da empresa.
+        (c) =>
+          c.cutType !== 'company' && c.cutType !== 'area' && !ehCruzamento(c.cutType)
+          && !c.suprimido && c.enps != null && c.n >= 20,
       );
       const pior = candidatos.sort(
         (a, b) => (a.enps as number) - (b.enps as number),

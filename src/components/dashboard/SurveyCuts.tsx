@@ -5,6 +5,7 @@ import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import type { SurveyCut } from '@/lib/survey.functions';
+import { partesDoCruzamento, ehCruzamento } from '@/lib/aggregator/polly-survey';
 
 /**
  * Gestor/contribuidor, marca e tempo de casa -- recortes que só existem depois
@@ -33,6 +34,10 @@ import type { SurveyCut } from '@/lib/survey.functions';
  * perguntar o número por fora, que é o caminho sem controle nenhum.
  */
 
+/** O filtro manda "COMMERCIAL"; a carga guarda "Commercial". */
+const chaveArea = (t: string) =>
+  (t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+
 const fmt1 = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 
@@ -58,11 +63,11 @@ const fmt1 = (n: number | null | undefined) =>
  * A lição para a próxima carga: uma lista escrita à mão sobre dado que cresce
  * falha em silêncio. O `naoMapeados` abaixo é a proteção -- ele grita.
  */
-const BLOCOS: Array<{ tipo: string; titulo: string; curto: string }> = [
-  { tipo: 'funcao', titulo: 'Gestores e contribuidores', curto: 'gestão' },
-  { tipo: 'marca', titulo: 'Por marca', curto: 'marca' },
-  { tipo: 'modelo', titulo: 'Por modelo de trabalho', curto: 'modelo de trabalho' },
-  { tipo: 'tempo', titulo: 'Por tempo de casa', curto: 'tempo de casa' },
+const BLOCOS: Array<{ tipo: string; titulo: string; curto: string; cruzado: string }> = [
+  { tipo: 'funcao', titulo: 'Gestores e contribuidores', curto: 'gestão', cruzado: 'area+funcao' },
+  { tipo: 'marca', titulo: 'Por marca', curto: 'marca', cruzado: 'area+marca' },
+  { tipo: 'modelo', titulo: 'Por modelo de trabalho', curto: 'modelo de trabalho', cruzado: 'area+modelo' },
+  { tipo: 'tempo', titulo: 'Por tempo de casa', curto: 'tempo de casa', cruzado: 'area+tempo' },
 ];
 
 /** "a, b e c" -- para o aviso listar só os blocos que a onda de fato tem. */
@@ -214,9 +219,34 @@ export default function SurveyCuts({
   departamentoSelecionado?: string | null;
 }) {
   const empresa = cuts.find((c) => c.cutType === 'company');
-  const blocos = BLOCOS
-    .map((b) => ({ ...b, rows: cuts.filter((c) => c.cutType === b.tipo) }))
-    .filter((b) => b.rows.length > 0);
+
+  // ------------------------------------------------------------------
+  // COM ÁREA SELECIONADA, CADA BLOCO PROCURA PRIMEIRO O CRUZAMENTO
+  // ------------------------------------------------------------------
+  // O aviso deste cartão dizia que estes recortes "cortam a empresa por outro
+  // eixo e não identificam área". A primeira metade é verdade e a segunda era
+  // conclusão errada: cada resposta traz área E marca E tempo E função juntas,
+  // então "Commercial na Betnacional" sempre foi calculável. Não era.
+  //
+  // Onde a onda foi carregada com o cruzamento, o bloco vira o da área e o
+  // nome perde o prefixo ("Commercial || Ambas" aparece como "Ambas"). Onde não
+  // foi, cai no recorte da empresa e o aviso explica a diferença entre "não
+  // calculado nesta carga" e "não dá".
+  const blocos = BLOCOS.map((b) => {
+    const cruzadas = departamentoSelecionado
+      ? cuts.flatMap((c) => {
+          if (c.cutType !== b.cruzado) return [];
+          const p = partesDoCruzamento(c.cutValue);
+          if (!p || chaveArea(p.area) !== chaveArea(departamentoSelecionado)) return [];
+          return [{ ...c, cutValue: p.valor }];
+        })
+      : [];
+    return cruzadas.length > 0
+      ? { ...b, rows: cruzadas, daArea: true }
+      : { ...b, rows: cuts.filter((c) => c.cutType === b.tipo), daArea: false };
+  }).filter((b) => b.rows.length > 0);
+
+  const semCruzamento = blocos.filter((b) => !b.daArea);
 
   // ------------------------------------------------------------------
   // O QUE VEIO NA CARGA E NÃO TEM BLOCO
@@ -230,7 +260,10 @@ export default function SurveyCuts({
   const naoMapeados = [
     ...new Set(
       cuts
-        .filter((c) => c.cutType !== 'company' && c.cutType !== 'area')
+        // Cruzado não é "recorte sem bloco": ele TEM bloco, é a versão por
+        // área de um dos quatro. Sem esta exclusão o aviso pediria um nome
+        // para 'area+tempo' logo abaixo do bloco de tempo de casa.
+        .filter((c) => c.cutType !== 'company' && c.cutType !== 'area' && !ehCruzamento(c.cutType))
         .map((c) => c.cutType)
         .filter((t) => !BLOCOS.some((b) => b.tipo === t)),
     ),
@@ -241,7 +274,16 @@ export default function SurveyCuts({
   // A frase de leitura sai do próprio dado: o maior afastamento entre grupos
   // grandes o bastante para o afastamento significar alguma coisa.
   const destaque = cuts
-    .filter((c) => c.cutType !== 'company' && c.cutType !== 'area' && !c.suprimido && c.enps != null && c.n >= 20)
+    // ------------------------------------------------------------------
+    // A FRASE DE DESTAQUE NÃO OLHA OS CRUZADOS
+    // ------------------------------------------------------------------
+    // Ela nomeia o recorte no texto: "Ambas está 16 pontos abaixo". Com os
+    // cruzados no conjunto, ela escreveria "Commercial || Ambas está...", com
+    // o separador cru na tela -- e falaria de um subgrupo de uma área como se
+    // fosse um recorte da empresa, que é o que este cartão compara.
+    .filter((c) =>
+      c.cutType !== 'company' && c.cutType !== 'area' && !ehCruzamento(c.cutType)
+      && !c.suprimido && c.enps != null && c.n >= 20)
     .sort((a, b) => (a.enps as number) - (b.enps as number))[0];
 
   return (
@@ -249,16 +291,21 @@ export default function SurveyCuts({
       title="Quem está mais distante da média"
       subtitle={`comparado com a empresa: eNPS ${empresa.enps}, risco ${fmt1(empresa.risco)}%`}
     >
-      <AvisoForaDoFiltro
-        departamento={departamentoSelecionado}
-        motivo={(() => {
-          // A lista é montada dos blocos que a onda tem, então a primeira
-          // palavra muda -- não dá para deixar a maiúscula escrita à mão.
-          const f = `${listar(blocos.map((b) => b.curto))} são recortes da Flutter Brazil inteira — eles cortam a empresa por outro eixo e não identificam área, então servem de referência.`;
-          return f.charAt(0).toUpperCase() + f.slice(1);
-        })()}
-        escopo={`das ${empresa.n} pessoas da empresa`}
-      />
+      {/* O aviso agora cobre só os blocos que REALMENTE não seguem o filtro.
+          Quando todos seguem, ele some -- e é isso que deve acontecer depois
+          de a onda ser reimportada com os cruzamentos. */}
+      {semCruzamento.length > 0 && (
+        <AvisoForaDoFiltro
+          departamento={departamentoSelecionado}
+          motivo={(() => {
+            const lista = listar(semCruzamento.map((b) => b.curto));
+            const plural = semCruzamento.length > 1;
+            const f = `${lista} ${plural ? 'aparecem' : 'aparece'} da empresa inteira: o cruzamento com área não foi calculado nas ondas já carregadas. Não é limite do dado — cada resposta traz os dois campos juntos —, e reimportar as ondas ${plural ? 'passa a trazê-los' : 'passa a trazê-lo'} por área.`;
+            return f.charAt(0).toUpperCase() + f.slice(1);
+          })()}
+          escopo={`das ${empresa.n} pessoas da empresa`}
+        />
+      )}
       {naoMapeados.length > 0 && (
         <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
           A carga trouxe {naoMapeados.length === 1 ? 'um recorte' : 'recortes'} que esta tela ainda
@@ -278,7 +325,15 @@ export default function SurveyCuts({
       )}
       <div className="space-y-3">
         {blocos.map((b) => (
-          <Bloco key={b.tipo} titulo={b.titulo} rows={b.rows} empresa={empresa} />
+          <Bloco
+            key={b.tipo}
+            // O título diz de quem é o bloco. Sem isso, "Por marca" com os
+            // números de Commercial e "Por marca" com os da empresa ficam
+            // idênticos na tela e diferentes no dado.
+            titulo={b.daArea ? `${b.titulo} · ${departamentoSelecionado}` : b.titulo}
+            rows={b.rows}
+            empresa={empresa}
+          />
         ))}
       </div>
       <p className="text-xs text-muted-foreground mt-3 leading-relaxed">

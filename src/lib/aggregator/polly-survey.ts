@@ -231,24 +231,102 @@ export function computeMetrics(rs: PollyResponse[]): CutMetrics {
   };
 }
 
-export type CutType = 'company' | 'area' | 'funcao' | 'marca' | 'tempo' | 'modelo';
+// ===========================================================================
+// OS CRUZAMENTOS COM ÁREA
+// ===========================================================================
+// Esta função sempre percorreu UMA dimensão por vez. Cada resposta carrega
+// área, tempo de casa, marca, função e modelo na MESMA linha, então o cruzamento
+// sempre foi possível -- só nunca foi calculado.
+//
+// A consequência aparecia na tela como impossibilidade. Filtrado em Commercial,
+// o bloco de tempo de casa exibia "não existe a quebra por área nesta série" e
+// mostrava os números da empresa. A frase estava errada: o certo era "esta
+// quebra não foi calculada na carga". Uma limitação de agregação virou
+// explicação, e explicação congela a limitação -- é o terceiro caso do mesmo
+// tipo neste painel.
+//
+// ---------------------------------------------------------------------------
+// O QUE MUDA, E O QUE NÃO MUDA
+// ---------------------------------------------------------------------------
+// O que muda é só isto: mais entradas em CUT_KEY. Nenhuma estatística nova,
+// nenhuma inferência -- as mesmas contas de `computeMetrics` sobre um grupo
+// menor.
+//
+// O que NÃO muda é a supressão, e é ela o limite de verdade. Commercial tem 48
+// respondentes; espalhados por 7 faixas de tempo de casa, duas ficam abaixo de
+// cinco pessoas e não podem ir para a tela. Em RH, com 20 respostas, sobra uma
+// faixa de sete. O cruzamento é viável e desigual, e quem lê precisa ver quais
+// células sumiram e por quê -- não uma tabela com buracos silenciosos.
+
+/**
+ * Separa a área do outro recorte dentro de `cutValue`.
+ *
+ * Vive num `cutValue` composto em vez de numa coluna nova porque assim a regra
+ * de permissão FALHA FECHADA: quem tentar tratar "Commercial || 12-18 meses"
+ * como um nome de área comum não acha o departamento, `deptForScope` devolve
+ * null, e `recorteNoEscopo` esconde a linha. Uma coluna nova falharia aberta
+ * para quem esquecesse de lê-la.
+ */
+export const SEPARADOR_CRUZAMENTO = ' || ';
+
+export type CutTypeSimples = 'company' | 'area' | 'funcao' | 'marca' | 'tempo' | 'modelo';
+export type CutTypeCruzado = 'area+tempo' | 'area+marca' | 'area+funcao' | 'area+modelo';
+export type CutType = CutTypeSimples | CutTypeCruzado;
+
+export const CRUZAMENTOS: CutTypeCruzado[] = [
+  'area+tempo', 'area+marca', 'area+funcao', 'area+modelo',
+];
+
+export function ehCruzamento(cutType: string): cutType is CutTypeCruzado {
+  return (CRUZAMENTOS as string[]).includes(cutType);
+}
+
+/** "Commercial || 12-18 meses" -> { area, valor }. null se não for cruzamento. */
+export function partesDoCruzamento(
+  cutValue: string,
+): { area: string; valor: string } | null {
+  const i = (cutValue ?? '').indexOf(SEPARADOR_CRUZAMENTO);
+  if (i < 0) return null;
+  const area = cutValue.slice(0, i).trim();
+  const valor = cutValue.slice(i + SEPARADOR_CRUZAMENTO.length).trim();
+  return area && valor ? { area, valor } : null;
+}
 
 export interface CutRow extends CutMetrics {
   cutType: CutType;
   cutValue: string;
 }
 
+const funcaoDe = (r: PollyResponse): string | null =>
+  r.gestor == null ? null : r.gestor ? 'Gestores' : 'Contribuidores individuais';
+
+/** Só cruza quando OS DOIS lados existem. Meia chave viraria um grupo falso. */
+const cruzar =
+  (segundo: (r: PollyResponse) => string | null) =>
+  (r: PollyResponse): string | null => {
+    const b = segundo(r);
+    return r.area && b ? `${r.area}${SEPARADOR_CRUZAMENTO}${b}` : null;
+  };
+
 /** Chave de agrupamento de cada recorte. null = a resposta não entra naquele corte. */
 const CUT_KEY: Record<CutType, (r: PollyResponse) => string | null> = {
   company: () => 'company',
   area: (r) => r.area,
-  funcao: (r) => (r.gestor == null ? null : r.gestor ? 'Gestores' : 'Contribuidores individuais'),
+  funcao: funcaoDe,
   marca: (r) => r.marca,
   tempo: (r) => r.tempoCasa,
   modelo: (r) => r.modelo,
+  'area+tempo': cruzar((r) => r.tempoCasa),
+  'area+marca': cruzar((r) => r.marca),
+  'area+funcao': cruzar(funcaoDe),
+  'area+modelo': cruzar((r) => r.modelo),
 };
 
-export function computeCuts(rs: PollyResponse[], tipos: CutType[] = ['company', 'area', 'funcao', 'marca', 'tempo', 'modelo']): CutRow[] {
+export const CUTS_PADRAO: CutType[] = [
+  'company', 'area', 'funcao', 'marca', 'tempo', 'modelo', ...CRUZAMENTOS,
+];
+
+export function computeCuts(rs: PollyResponse[], tipos: CutType[] = CUTS_PADRAO): CutRow[] {
   const out: CutRow[] = [];
   for (const t of tipos) {
     const grupos = new Map<string, PollyResponse[]>();

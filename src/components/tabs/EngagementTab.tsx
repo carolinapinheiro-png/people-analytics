@@ -409,7 +409,11 @@ function EngagementSection({
       {/* ONDE a queda aconteceu. Logo depois da série, porque é a resposta à
           pergunta que a série provoca: o número da empresa mexeu, e daí? */}
       {cross?.tempoDeCasa && (
-        <TempoDeCasa ondas={cross.tempoDeCasa.ondas} departamentoSelecionado={deptSel} />
+        <TempoDeCasa
+          ondas={cross.tempoDeCasa.ondas}
+          departamentoSelecionado={deptSel}
+          daArea={cross.tempoDeCasa.daArea}
+        />
       )}
 
       {survey && survey.importancia.length > 0 && (
@@ -447,7 +451,13 @@ function EngagementSection({
         {/* Dentro do detalhe, e não no corpo da aba: é o painel conferindo a
             si mesmo, e quem abre esta seção é justamente quem quer saber se
             pode confiar no que leu acima. */}
-        {cross?.risco && <RiscoPreviu dados={cross.risco} ondaLabel={cross.risco.ondaLabel} />}
+        {cross?.risco && (
+          <RiscoPreviu
+            dados={cross.risco}
+            ondaLabel={cross.risco.ondaLabel}
+            departamentoSelecionado={deptSel}
+          />
+        )}
 
         <ChartCard
           title="Detalhe por departamento"

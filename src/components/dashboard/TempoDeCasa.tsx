@@ -78,15 +78,27 @@ function rotuloCompacto(label: string): string {
 export default function TempoDeCasa({
   ondas,
   departamentoSelecionado = null,
+  daArea = null,
 }: {
   ondas: Array<{ label: string; faixas: FaixaOnda[] }>;
-  /**
-   * Só para o aviso. Esta série é carregada no nível da empresa e não muda com
-   * o filtro -- e era exatamente isso o problema: filtrada em Marketing, ela
-   * mostrava 83/76/80 igualzinho, e quem lia entendia que era o tempo de casa
-   * de Marketing. Um bloco que não obedece ao filtro precisa dizer isso.
-   */
   departamentoSelecionado?: string | null;
+  /**
+   * Nome da área quando a série É dela, null quando é a da empresa.
+   *
+   * ------------------------------------------------------------------
+   * O AVISO PRECISA DISTINGUIR DUAS COISAS QUE PARECEM UMA
+   * ------------------------------------------------------------------
+   * Antes o texto dizia "não existe a quebra por área nesta série". Era falso:
+   * cada resposta sempre carregou área e tempo de casa juntos, e o cruzamento
+   * passou a ser calculado. O que pode faltar é a ONDA ter sido carregada com
+   * ele -- e isso se resolve reimportando, não é limite do dado.
+   *
+   * Três estados, e a tela precisa dos três separados:
+   *   sem filtro          -> série da empresa, sem aviso
+   *   filtro + cruzamento -> série da área, sem aviso
+   *   filtro sem carga    -> série da empresa, com aviso dizendo o que fazer
+   */
+  daArea?: string | null;
 }) {
   const { linhas, comp, quedas } = useMemo(() => {
     const linhas = trajetoriaPorFaixa(ondas, TEMPO_ORDEM);
@@ -112,13 +124,17 @@ export default function TempoDeCasa({
   return (
     <ChartCard
       title="Onde a queda aconteceu"
-      subtitle={`eNPS por tempo de casa · ${ondas.map((o) => o.label).join(' → ')}`}
+      subtitle={`eNPS por tempo de casa${daArea ? ` em ${daArea}` : ''} · ${ondas
+        .map((o) => o.label)
+        .join(' → ')}`}
       icon={Hourglass}
     >
-      <AvisoForaDoFiltro
-        departamento={departamentoSelecionado}
-        motivo="O eNPS por tempo de casa foi carregado só no nível da empresa — não existe a quebra por área nesta série."
-      />
+      {daArea == null && (
+        <AvisoForaDoFiltro
+          departamento={departamentoSelecionado}
+          motivo="O cruzamento entre área e tempo de casa não foi calculado nas ondas já carregadas — não é limite do dado, e sim da agregação: cada resposta traz os dois campos juntos. Reimportar as ondas passa a trazer a série desta área."
+        />
+      )}
       <div className="flex items-center gap-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
         <span className="w-[92px] shrink-0">Tempo de casa</span>
         {ondas.map((o) => (

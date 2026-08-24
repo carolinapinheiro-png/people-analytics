@@ -2,6 +2,8 @@ import { Target } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
 import { instavel, type AderenciaRisco } from '@/lib/analise-engajamento';
+import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
+import { cn } from '@/lib/utils';
 
 /**
  * O painel avaliando a si mesmo.
@@ -106,12 +108,26 @@ function leitura(
 }
 
 export default function RiscoPreviu({
-  dados, ondaLabel,
+  dados, ondaLabel, departamentoSelecionado = null,
 }: {
   dados: AderenciaRisco;
   ondaLabel: string;
+  /**
+   * Só para o aviso e para o destaque na lista. Este cartão NÃO segue o filtro
+   * de propósito: ele responde "a coluna de risco antecipa quem vai embora?",
+   * que é uma pergunta sobre o instrumento e uma correlação entre áreas.
+   *
+   * Enquanto ele se alimentou das linhas filtradas, escolher um departamento o
+   * fazia desaparecer da tela -- o `return null` abaixo. Silêncio se lê como
+   * "não há nada aqui"; o certo é "esta pergunta não é sobre a sua área".
+   */
+  departamentoSelecionado?: string | null;
 }) {
   if (dados.linhas.length < 3) return null;
+
+  const chave = (t: string) =>
+    t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  const alvo = departamentoSelecionado ? chave(departamentoSelecionado) : null;
 
   const l = leitura(dados.rho, dados.pares, dados.jackknife, dados.areasComPoucaSaida);
   const maxRisco = Math.max(...dados.linhas.map((x) => x.riscoDeclarado), 1);
@@ -123,6 +139,11 @@ export default function RiscoPreviu({
       subtitle={`declarado em ${ondaLabel} · saídas nos ${dados.mesesObservados} meses seguintes`}
       icon={Target}
     >
+      <AvisoForaDoFiltro
+        departamento={departamentoSelecionado}
+        motivo="Esta pergunta não é sobre uma área: é sobre a coluna de risco. A resposta é uma correlação ENTRE as áreas, e com uma só ela não existe — por isso o quadro mostra todas."
+        escopo="de todas as áreas"
+      />
       <div className="rounded-md border px-3 py-2.5 mb-3" style={{ borderColor: `${l.cor}55`, background: `${l.cor}12` }}>
         <p className="text-sm font-semibold" style={{ color: l.cor }}>
           {l.titulo}
@@ -141,8 +162,24 @@ export default function RiscoPreviu({
         </div>
 
         {dados.linhas.map((r) => (
-          <div key={r.area} className="flex items-center gap-2 py-1 text-[12px]">
-            <span className="w-[112px] shrink-0 truncate" title={r.area}>{r.area}</span>
+          <div
+            key={r.area}
+            className={cn(
+              'flex items-center gap-2 py-1 text-[12px]',
+              // A área filtrada continua na lista e ganha destaque: tirá-la
+              // seria esconder justamente a linha que quem filtrou quer ver.
+              alvo && chave(r.area) === alvo && 'rounded bg-muted/60 -mx-1 px-1',
+            )}
+          >
+            <span
+              className={cn(
+                'w-[112px] shrink-0 truncate',
+                alvo && chave(r.area) === alvo && 'font-semibold',
+              )}
+              title={r.area}
+            >
+              {r.area}
+            </span>
 
             <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
               <span className="tabular-nums text-muted-foreground">{fmt1(r.riscoDeclarado)}%</span>

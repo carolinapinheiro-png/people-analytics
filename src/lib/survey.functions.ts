@@ -7,6 +7,7 @@ import { parsePollyExport } from '@/lib/aggregator/polly-parser';
 import {
   computeCuts, computeDriverScores, computeDriverImportance,
   applySuppression, ordemTempo, N_MINIMO_EXIBICAO,
+  ehCruzamento, partesDoCruzamento,
 } from '@/lib/aggregator/polly-survey';
 import { selectedDept, recorteNoEscopo } from '@/lib/dept-filter';
 
@@ -361,9 +362,32 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     const passaNoRecorte = (nome: string): boolean =>
       recorteNoEscopo(scope, deptForScope(nome), sel, podeVerTudoEscopo);
 
-    const noEscopo = brutos.filter(
-      (c) => c.cutType !== 'area' || passaNoRecorte(c.cutValue),
-    );
+    // ======================================================================
+    // OS RECORTES CRUZADOS CARREGAM UMA ÁREA DENTRO DO NOME
+    // ======================================================================
+    // "Commercial || 12-18 meses" é um recorte de ÁREA para efeito de
+    // permissão: quem não pode ver Commercial não pode ver esta linha. Sem esta
+    // extração, `deptForScope` não reconheceria o nome composto e a linha
+    // cairia no ramo "não é área" -- que é o mesmo ramo de marca e tempo, e
+    // esses passam para perfil global.
+    //
+    // Ou seja: sem tratar o caso, um cruzamento por área vazaria justamente
+    // pela porta que o recorte por departamento existe para fechar. O `||` no
+    // nome faz a checagem falhar fechada por acidente; esta função a faz falhar
+    // fechada de propósito, que é diferente.
+    const areaDoCut = (c: { cutType: string; cutValue: string }): string | null =>
+      ehCruzamento(c.cutType) ? (partesDoCruzamento(c.cutValue)?.area ?? null)
+      : c.cutType === 'area' ? c.cutValue
+      : null;
+
+    const noEscopo = brutos.filter((c) => {
+      const area = areaDoCut(c);
+      // Recorte que não é de área nenhuma (empresa, marca, tempo, função,
+      // modelo) segue a regra de sempre: só perfil global o recebe, e a
+      // seleção não se aplica porque ele não pertence a área alguma.
+      if (area == null) return c.cutType !== 'area';
+      return passaNoRecorte(area);
+    });
 
     // A supressão é aplicada AQUI, antes de a linha existir na resposta HTTP.
     // Fazer isso na tela deixaria o número real no payload -- visível para

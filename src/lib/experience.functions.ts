@@ -7,6 +7,7 @@ import {
   type AccessScope, type ExperienceSubTab,
 } from '@/lib/permissions';
 import { deptForScope } from '@/lib/engagement-context';
+import { partesDoCruzamento } from '@/lib/aggregator/polly-survey';
 import {
   escolherOndas, comDeltaCalculado, type OndaLinha, type LinhaComEscopo,
 } from '@/lib/onda';
@@ -437,6 +438,8 @@ export interface EngagementCrossData extends EngagementContextResult {
   tempoDeCasa: {
     /** Da mais antiga para a mais nova. Só ondas que TÊM o recorte por tempo. */
     ondas: Array<{ label: string; faixas: FaixaOnda[] }>;
+    /** Nome da área quando a série é dela; null quando é da empresa. */
+    daArea: string | null;
   } | null;
   /**
    * O risco que cada área declarou na onda ANTERIOR à janela de saídas,
@@ -634,6 +637,36 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     );
 
     // ======================================================================
+    // O CRUZAMENTO RISCO × SAÍDA NÃO SEGUE A SELEÇÃO -- E ISSO NÃO É DESCUIDO
+    // ======================================================================
+    // Todo o resto desta função responde "como está esta área". Aquele
+    // cruzamento responde outra coisa: "a coluna de risco de saída antecipa
+    // quem vai embora?". É uma pergunta sobre o INSTRUMENTO, e a resposta é
+    // uma correlação ENTRE áreas -- com uma área só ela não existe.
+    //
+    // Enquanto ele se alimentou de `result.rows`, filtrar um departamento o
+    // fazia sumir da tela inteiro (o componente devolve null abaixo de três
+    // linhas). Sumir em silêncio se lê como "não há nada aqui", quando o certo
+    // é "esta pergunta não é sobre a sua área".
+    //
+    // A PERMISSÃO CONTINUA VALENDO, e é a única coisa que continua. Quem tem
+    // escopo restrito segue vendo só o que pode: o que cai é a SELEÇÃO, não o
+    // teto. É a mesma ordem de `recorteNoEscopo` -- permissão primeiro, e aqui
+    // a seleção simplesmente não se aplica.
+    const semSelecao = sel
+      ? buildEngagementContext(
+          comDelta.filter((s) => {
+            const dept = deptForScope(s.scope ?? '');
+            if (dept == null) return podeVerTudo;
+            return podeVerTudo || isInScope(scope, dept);
+          }),
+          leavers,
+          hcPorMesDept,
+          JANELA,
+        )
+      : result;
+
+    // ======================================================================
     // A SÉRIE HISTÓRICA, COM O MESMO RECORTE DE ÁREA
     // ======================================================================
     // O escopo tem que valer aqui também, e pela razão de sempre: uma linha do
@@ -689,15 +722,50 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     // Isso muda para onde se olha: aponta para longe de contratação e
     // onboarding, e para o que acontece depois do primeiro ano.
     //
-    // Sem escopo por área de propósito: tempo de casa é recorte da empresa
-    // inteira e não identifica ninguém. É a mesma regra que já vale para
-    // marca, função e modelo de trabalho.
+    // ------------------------------------------------------------------
+    // COM ÁREA SELECIONADA, USA O CRUZAMENTO -- QUANDO ELE EXISTE
+    // ------------------------------------------------------------------
+    // Este bloco dizia na tela "não existe a quebra por área nesta série", e a
+    // frase estava errada: cada resposta sempre carregou área e tempo de casa
+    // na mesma linha. O que não existia era o cruzamento CALCULADO, porque o
+    // agregador percorria uma dimensão por vez.
+    //
+    // Agora `area+tempo` é um recorte como outro qualquer. Onde a onda foi
+    // carregada com ele, o bloco segue o filtro; onde não foi, cai na série da
+    // empresa e a tela diz que não foi calculado NAQUELA carga -- que é
+    // diferente de dizer que não dá.
+    //
+    // A supressão continua sendo o limite real: Commercial tem 48 respondentes
+    // espalhados por 7 faixas, e duas ficam abaixo de cinco pessoas. O
+    // componente mostra quais sumiram; sumir calado é que não pode.
     const porOndaTempo = new Map<string, FaixaOnda[]>();
+    let tempoPorArea = false;
     for (const r of todosCuts) {
-      if (r.cut_type !== 'tempo') continue;
+      let faixa: string | null = null;
+      if (sel && r.cut_type === 'area+tempo') {
+        const p = partesDoCruzamento(r.cut_value ?? '');
+        // A permissão já foi aplicada na consulta; aqui é só a seleção.
+        if (p && deptForScope(p.area) === sel) {
+          faixa = p.valor;
+          tempoPorArea = true;
+        }
+      } else if (!sel && r.cut_type === 'tempo') {
+        faixa = r.cut_value;
+      }
+      if (faixa == null) continue;
       const lista = porOndaTempo.get(r.wave) ?? [];
-      lista.push({ faixa: r.cut_value, n: Number(r.n ?? 0), enps: numero(r.enps) });
+      lista.push({ faixa, n: Number(r.n ?? 0), enps: numero(r.enps) });
       porOndaTempo.set(r.wave, lista);
+    }
+    // Com área selecionada e nenhum cruzamento na carga, volta para a série da
+    // empresa: um bloco vazio se lê como "esta área não tem tempo de casa".
+    if (sel && !tempoPorArea) {
+      for (const r of todosCuts) {
+        if (r.cut_type !== 'tempo') continue;
+        const lista = porOndaTempo.get(r.wave) ?? [];
+        lista.push({ faixa: r.cut_value, n: Number(r.n ?? 0), enps: numero(r.enps) });
+        porOndaTempo.set(r.wave, lista);
+      }
     }
     // Da mais antiga para a mais nova, e só as que têm ponto. Uma onda
     // cadastrada e nunca carregada -- jul/25, com 295 respostas anotadas e zero
@@ -735,6 +803,13 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
             label: o.label,
             faixas: porOndaTempo.get(o.wave) ?? [],
           })),
+          /**
+           * A série mostrada é da área selecionada, ou da empresa?
+           *
+           * Sem isto o componente teria que adivinhar, e adivinhar aqui
+           * significa rotular números da empresa com o nome de uma área.
+           */
+          daArea: sel && tempoPorArea ? sel : null,
         }
       : null;
 
@@ -765,7 +840,8 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
               .map((p) => [p.scope.trim().toLowerCase(), p]),
           );
           const linhas: RiscoObservado[] = [];
-          for (const r of result.rows) {
+          // `semSelecao.rows`, não `result.rows` -- ver o bloco acima.
+          for (const r of semSelecao.rows) {
             const d = declarado.get((r.scope ?? '').trim().toLowerCase());
             if (!d || d.risco == null) continue;
             linhas.push({
@@ -783,7 +859,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
           return {
             ondaLabel: ondaAntesDaJanela.label,
             janela: JANELA,
-            ...aderenciaDoRisco(linhas, result.mesesObservados),
+            ...aderenciaDoRisco(linhas, semSelecao.mesesObservados),
           };
         })()
       : null;
