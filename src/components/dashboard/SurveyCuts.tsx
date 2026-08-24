@@ -251,7 +251,12 @@ export default function SurveyCuts({
     >
       <AvisoForaDoFiltro
         departamento={departamentoSelecionado}
-        motivo={`${listar(blocos.map((b) => b.curto))} são recortes da Flutter Brazil inteira — eles cortam a empresa por outro eixo e não identificam área, então servem de referência.`}
+        motivo={(() => {
+          // A lista é montada dos blocos que a onda tem, então a primeira
+          // palavra muda -- não dá para deixar a maiúscula escrita à mão.
+          const f = `${listar(blocos.map((b) => b.curto))} são recortes da Flutter Brazil inteira — eles cortam a empresa por outro eixo e não identificam área, então servem de referência.`;
+          return f.charAt(0).toUpperCase() + f.slice(1);
+        })()}
         escopo={`das ${empresa.n} pessoas da empresa`}
       />
       {naoMapeados.length > 0 && (
