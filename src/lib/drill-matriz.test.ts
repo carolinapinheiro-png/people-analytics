@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { matrizAreaDriver, perfilUniforme } from "./drill";
+import { matrizAreaDriver, perfilUniforme, favoravelDaArea } from "./drill";
 import type { DriverPorRecorte } from "./survey.functions";
 
 const l = (
@@ -92,4 +92,53 @@ test("perfil uniforme separa quem está abaixo em tudo de quem está misto", () 
   assert.equal(p[0].area, "MARKETING");
   assert.equal(p[0].direcao, "abaixo");
   assert.equal(p[0].drivers, 6);
+});
+
+// ===========================================================================
+// O EIXO Y DO GRÁFICO DE QUADRANTES
+// ===========================================================================
+// A associação com o eNPS só existe na empresa; o % que concorda existe por
+// área. O cartão avisava que "os números abaixo são da empresa inteira" --
+// metade verdade, e a metade falsa escondia dado que estava no banco.
+
+const COM_AREA: DriverPorRecorte[] = [
+  l("company", "Flutter Brazil", "Comunicação", "c1", 80),
+  l("company", "Flutter Brazil", "Comunicação", "c2", 70),
+  l("area", "MARKETING", "Comunicação", "c1", 55),
+  l("area", "MARKETING", "Comunicação", "c2", 60),
+  l("area", "TECHNOLOGY", "Comunicação", "c1", 92),
+];
+
+test("a nota da área substitui a da empresa, pergunta a pergunta", () => {
+  const m = favoravelDaArea(COM_AREA, "MARKETING");
+  assert.equal(m.get("Comunicação||c1"), 55);
+  assert.equal(m.get("Comunicação||c2"), 60);
+  assert.equal(m.size, 2);
+});
+
+test("não vaza a nota de outra área nem a da empresa", () => {
+  const m = favoravelDaArea(COM_AREA, "MARKETING");
+  // 92 é de Technology e 80 é da empresa. Nenhum dos dois pode aparecer aqui.
+  assert.ok(![...m.values()].includes(92));
+  assert.ok(![...m.values()].includes(80));
+});
+
+test("o nome da área compara sem diferenciar caixa nem espaço", () => {
+  // O filtro manda "MARKETING"; a carga guarda "Marketing".
+  assert.equal(favoravelDaArea(COM_AREA, "  marketing ").get("Comunicação||c1"), 55);
+});
+
+test("pergunta suprimida por n baixo fica FORA, não cai na da empresa", () => {
+  // Devolver o número da empresa no lugar seria publicar, com o rótulo da
+  // área, exatamente o valor que a supressão negou.
+  const comNull = [...COM_AREA, l("area", "MARKETING", "Gestão", "g1", null)];
+  const m = favoravelDaArea(comNull, "MARKETING");
+  assert.equal(m.has("Gestão||g1"), false);
+  assert.equal(m.size, 2);
+});
+
+test("área sem quebra na onda devolve mapa vazio, não silêncio confuso", () => {
+  // Quem chama precisa distinguir "a área respondeu igual à empresa" de "esta
+  // onda não foi quebrada por área" -- o vazio é o sinal.
+  assert.equal(favoravelDaArea(COM_AREA, "LEGAL").size, 0);
 });

@@ -36,11 +36,38 @@ import type { SurveyCut } from '@/lib/survey.functions';
 const fmt1 = (n: number | null | undefined) =>
   n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 
-const BLOCOS: Array<{ tipo: string; titulo: string }> = [
-  { tipo: 'funcao', titulo: 'Gestores e contribuidores' },
-  { tipo: 'marca', titulo: 'Por marca' },
-  { tipo: 'tempo', titulo: 'Por tempo de casa' },
+/**
+ * ------------------------------------------------------------------
+ * ESTA LISTA ERA UMA LISTA DE PERMISSÃO, E ESCONDIA UM RECORTE INTEIRO
+ * ------------------------------------------------------------------
+ * `modelo` (Remoto / Híbrido / Presencial) existe em `survey_cut_scores` desde
+ * ago/26 e nunca chegou à tela, porque esta lista tinha três itens escritos à
+ * mão e ninguém a revisitou quando a carga passou a trazer o quarto.
+ *
+ * O que torna a omissão grave não é o recorte faltar -- é ele ser o mais
+ * destoante da onda: Híbrido em eNPS 53 (16 abaixo da empresa) com risco 24,5%,
+ * o mais alto dos três, e 98 pessoas.
+ *
+ * E a frase "O que observar", no topo da aba, JÁ considerava `modelo` entre os
+ * candidatos: ela varre todos os recortes que não são empresa nem área. Em
+ * ago/26 ela citou "Ambas" (eNPS 53) e não "Híbrido" (eNPS 53) porque os dois
+ * empataram e o desempate foi a ordem da lista. Bastava um ponto de diferença
+ * para a leitura do topo apontar um recorte que não aparece em lugar nenhum
+ * abaixo dela.
+ *
+ * A lição para a próxima carga: uma lista escrita à mão sobre dado que cresce
+ * falha em silêncio. O `naoMapeados` abaixo é a proteção -- ele grita.
+ */
+const BLOCOS: Array<{ tipo: string; titulo: string; curto: string }> = [
+  { tipo: 'funcao', titulo: 'Gestores e contribuidores', curto: 'gestão' },
+  { tipo: 'marca', titulo: 'Por marca', curto: 'marca' },
+  { tipo: 'modelo', titulo: 'Por modelo de trabalho', curto: 'modelo de trabalho' },
+  { tipo: 'tempo', titulo: 'Por tempo de casa', curto: 'tempo de casa' },
 ];
+
+/** "a, b e c" -- para o aviso listar só os blocos que a onda de fato tem. */
+const listar = (v: string[]) =>
+  v.length <= 1 ? (v[0] ?? '') : `${v.slice(0, -1).join(', ')} e ${v[v.length - 1]}`;
 
 /** Barra divergente: distância até a empresa, para a esquerda ou para a direita. */
 function Divergente({
@@ -191,6 +218,24 @@ export default function SurveyCuts({
     .map((b) => ({ ...b, rows: cuts.filter((c) => c.cutType === b.tipo) }))
     .filter((b) => b.rows.length > 0);
 
+  // ------------------------------------------------------------------
+  // O QUE VEIO NA CARGA E NÃO TEM BLOCO
+  // ------------------------------------------------------------------
+  // `modelo` ficou fora da tela por meses porque BLOCOS é escrito à mão e o
+  // dado cresceu sozinho. Silêncio é o pior comportamento aqui: some sem deixar
+  // rastro, e a frase do topo da aba continua podendo citar o recorte sumido.
+  //
+  // Agora um recorte novo se anuncia. Feio de propósito -- é para alguém
+  // dar-lhe um nome, não para virar paisagem.
+  const naoMapeados = [
+    ...new Set(
+      cuts
+        .filter((c) => c.cutType !== 'company' && c.cutType !== 'area')
+        .map((c) => c.cutType)
+        .filter((t) => !BLOCOS.some((b) => b.tipo === t)),
+    ),
+  ];
+
   if (!blocos.length || !empresa) return null;
 
   // A frase de leitura sai do próprio dado: o maior afastamento entre grupos
@@ -206,9 +251,19 @@ export default function SurveyCuts({
     >
       <AvisoForaDoFiltro
         departamento={departamentoSelecionado}
-        motivo="Gestão, marca e tempo de casa são recortes da Flutter Brazil inteira — eles cortam a empresa por outro eixo e não identificam área, então servem de referência."
+        motivo={`${listar(blocos.map((b) => b.curto))} são recortes da Flutter Brazil inteira — eles cortam a empresa por outro eixo e não identificam área, então servem de referência.`}
         escopo={`das ${empresa.n} pessoas da empresa`}
       />
+      {naoMapeados.length > 0 && (
+        <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+          A carga trouxe {naoMapeados.length === 1 ? 'um recorte' : 'recortes'} que esta tela ainda
+          não sabe nomear: <strong>{naoMapeados.join(', ')}</strong>. {naoMapeados.length === 1
+            ? 'Ele não está'
+            : 'Eles não estão'}{' '}
+          nos blocos abaixo — dê {naoMapeados.length === 1 ? 'a ele' : 'a eles'} um título em{' '}
+          <code>BLOCOS</code>.
+        </p>
+      )}
       {destaque && (empresa.enps as number) - (destaque.enps as number) >= 8 && (
         <p className="text-sm leading-relaxed mb-3">
           <strong>{destaque.cutValue}</strong> está{' '}

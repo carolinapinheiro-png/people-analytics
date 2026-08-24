@@ -544,7 +544,11 @@ function EngagementSection({
         )}
 
         {survey && survey.importancia.length > 0 && (
-          <DriverImportance rows={survey.importancia} departamentoSelecionado={deptSel} />
+          <DriverImportance
+            rows={survey.importancia}
+            drivers={survey.driversPorArea}
+            departamentoSelecionado={deptSel}
+          />
         )}
 
         <div className="space-y-2">

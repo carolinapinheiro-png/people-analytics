@@ -286,6 +286,50 @@ export function perfilUniforme(
   return out.sort((a, b) => b.proporcao - a.proporcao);
 }
 
+// ===========================================================================
+// A NOTA DA ÁREA, NA PERGUNTA — PARA CRUZAR COM A ASSOCIAÇÃO DA EMPRESA
+// ===========================================================================
+// O gráfico de quadrantes cruza dois eixos com origens diferentes, e essa
+// assimetria estava sendo escondida em vez de explicada:
+//
+//   eixo X   associação com o eNPS   SÓ existe na empresa (uma linha por
+//                                    pergunta, sem recorte no banco)
+//   eixo Y   % que concorda          existe POR ÁREA (survey_driver_scores,
+//                                    306 linhas em ago/26 = 9 × 34)
+//
+// Com o filtro ligado, o cartão exibia um aviso dizendo que "os números abaixo
+// são da empresa inteira". Metade era verdade. O eixo Y podia seguir o filtro e
+// não seguia -- o aviso informava que o dado não existe quando o certo era que
+// o cartão não o usava.
+//
+// Cruzar os dois é a leitura mais útil que a aba consegue produzir para um
+// gestor: "entre as perguntas que movem engajamento NA EMPRESA, quais a MINHA
+// área responde pior". A alavanca vem da empresa (é a única medida disponível);
+// o alvo vem da área.
+//
+// O que isso NÃO autoriza dizer: que a alavanca é a mesma dentro da área. Pode
+// ser que em Marketing remuneração puxe mais que comunicação -- ninguém mediu.
+// A tela precisa dizer isso, e diz.
+
+/** % de concordância da área em cada pergunta, indexado por driver||pergunta. */
+export function favoravelDaArea(
+  linhas: readonly DriverPorRecorte[],
+  area: string,
+): Map<string, number> {
+  const alvo = (area ?? '').trim().toLowerCase();
+  const m = new Map<string, number>();
+  for (const l of linhas) {
+    if (l.cutType !== 'area') continue;
+    if (l.cutValue.trim().toLowerCase() !== alvo) continue;
+    // `favoravel` vem null quando a supressão por n baixo apagou a nota. A
+    // pergunta simplesmente não entra -- plotar a da empresa no lugar seria
+    // devolver o número que a supressão negou, com o rótulo da área.
+    if (l.favoravel == null) continue;
+    m.set(chave(l), l.favoravel);
+  }
+  return m;
+}
+
 /**
  * A onda mediu por área?
  *
