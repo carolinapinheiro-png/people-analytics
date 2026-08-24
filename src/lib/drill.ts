@@ -347,12 +347,25 @@ export function linhasDaArea(
  * a das perguntas, e agora o escopo delas), então a regra mora aqui e os dois
  * cartões a consomem.
  *
- * `n` vem junto com o `favoravel`: o subtítulo do cartão publica "485
- * respostas", e sob filtro esse número tem que virar o da área. Trocar um sem
- * o outro poria a nota de 81 pessoas com o rótulo de 485.
+ * TUDO que descreve a resposta vem junto: `favoravel`, `n` e `score`. Trocar
+ * uns e não outros é pior que não trocar nenhum, porque a linha passa a
+ * misturar populações sem nada avisando. Aconteceu duas vezes seguidas aqui:
+ * primeiro o subtítulo publicava "485 respostas" ao lado da nota de 81
+ * pessoas; depois, corrigido o `n`, a linha ficou mostrando "53%" (Marketing)
+ * encostado em "4,06" (a média da empresa) -- dois números vizinhos, duas
+ * populações, nenhum rótulo.
+ *
+ * O que NÃO vem é `r`, a associação com o eNPS: essa não tem versão por área
+ * e não terá. É o que a tela precisa explicar em vez de esconder.
  */
 export function perguntasNoRecorte<
-  T extends { driver: string; question: string; favoravel: number | null; n: number },
+  T extends {
+    driver: string;
+    question: string;
+    favoravel: number | null;
+    n: number;
+    score: number;
+  },
 >(
   perguntas: readonly T[],
   porRecorte: readonly DriverPorRecorte[],
@@ -364,7 +377,11 @@ export function perguntasNoRecorte<
     const l = daArea.get(chave(p));
     // Sem nota da área a pergunta SAI. Cair na da empresa misturaria as duas
     // populações na mesma lista, sem nada distinguindo as linhas.
-    return l == null ? [] : [{ ...p, favoravel: l.favoravel, n: l.n }];
+    if (l == null) return [];
+    // `score` da área pode vir null mesmo com `favoravel` preenchido; nesse
+    // caso o da empresa fica, porque some da tela é pior que um detalhe
+    // aproximado -- e ele é detalhe: a leitura principal é o %.
+    return [{ ...p, favoravel: l.favoravel, n: l.n, score: l.score ?? p.score }];
   });
   return { linhas, suprimidas: perguntas.length - linhas.length };
 }

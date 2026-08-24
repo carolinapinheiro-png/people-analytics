@@ -159,10 +159,10 @@ const PERGUNTAS = [
 ];
 
 const RECORTES: DriverPorRecorte[] = [
-  { ...l("area", "MARKETING", "Comunicação", "c1", 55), n: 81 },
-  { ...l("area", "MARKETING", "Comunicação", "c2", 60), n: 81 },
-  { ...l("area", "MARKETING", "Gestão", "g1", null), n: 81 },
-  { ...l("area", "TECHNOLOGY", "Comunicação", "c1", 92), n: 149 },
+  { ...l("area", "MARKETING", "Comunicação", "c1", 55), n: 81, score: 3.1 },
+  { ...l("area", "MARKETING", "Comunicação", "c2", 60), n: 81, score: 3.3 },
+  { ...l("area", "MARKETING", "Gestão", "g1", null), n: 81, score: 3.9 },
+  { ...l("area", "TECHNOLOGY", "Comunicação", "c1", 92), n: 149, score: 4.6 },
 ];
 
 test("sem área escolhida, devolve as perguntas intactas", () => {
@@ -171,15 +171,27 @@ test("sem área escolhida, devolve as perguntas intactas", () => {
   assert.equal(r.suprimidas, 0);
 });
 
-test("com área, o % e o n passam a ser os dela", () => {
-  // Trocar o % sem trocar o n poria a nota de 81 pessoas com rótulo de 485 --
-  // e é o subtítulo do cartão que publica esse número.
+test("com área, TUDO que descreve a resposta passa a ser dela", () => {
+  // Trocar uns e não outros é pior que não trocar nenhum: a linha mistura
+  // populações sem avisar. Foi o que aconteceu duas vezes -- primeiro o `n`
+  // ficou em 485 ao lado da nota de 81 pessoas, depois o `score` da empresa
+  // (4,06) ficou encostado no % de Marketing (53%) na mesma linha da tela.
   const { linhas } = perguntasNoRecorte(PERGUNTAS, RECORTES, "MARKETING");
   const c1 = linhas.find((p) => p.question === "c1")!;
   assert.equal(c1.favoravel, 55);
   assert.equal(c1.n, 81);
+  assert.equal(c1.score, 3.1);
   // A associação NÃO muda: ela só existe medida na empresa.
   assert.equal(c1.r, 0.6);
+});
+
+test("sem score da área, o da empresa fica -- é detalhe, não a leitura", () => {
+  const semScore: DriverPorRecorte[] = [
+    { ...l("area", "MARKETING", "Comunicação", "c1", 55), n: 81, score: null },
+  ];
+  const { linhas } = perguntasNoRecorte(PERGUNTAS, semScore, "MARKETING");
+  assert.equal(linhas[0].favoravel, 55);
+  assert.equal(linhas[0].score, 4.0);
 });
 
 test("pergunta sem nota da área sai da lista e é contada", () => {
