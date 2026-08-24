@@ -65,18 +65,20 @@ export default function EngagementReading({
    * ------------------------------------------------------------------
    * POR QUE A LEITURA PRECISA SABER DISSO
    * ------------------------------------------------------------------
-   * Nem tudo que chega aqui responde ao filtro, e a diferença não é visível na
-   * assinatura: `enpsEmpresa` vira o eNPS da ÁREA quando há filtro, enquanto
-   * `respondentes` continua sendo o total da empresa (é `wave.respondents`, um
-   * número da onda inteira) e `importancia` também (a tabela de associação com
-   * o eNPS não tem recorte nenhum no banco).
+   * Isto NÃO é para escolher números -- quem chama já manda tudo no escopo
+   * certo. É só para o texto: dizer "em MARKETING" e avisar quais frases
+   * continuam sendo da empresa mesmo com o filtro ligado.
    *
-   * Sem esta prop, a primeira frase saía assim, filtrada em Marketing:
+   * A frase de abertura já saiu errada assim, filtrada em Marketing:
    *
    *     "eNPS 48, patamar baixo, com 485 respostas (76,5% dos elegíveis)."
    *
-   * O 48 é de Marketing; as 485 são da empresa. Marketing teve 81. A frase
-   * juntava os dois com uma vírgula e não avisava nada.
+   * O 48 era de Marketing; as 485, da empresa. Marketing teve 81. Uma vírgula
+   * separava os dois e nada avisava. A correção que ficou não foi o texto
+   * desviar do número -- foi a aba passar o número da área.
+   *
+   * O que continua sendo da empresa em qualquer filtro é `importancia`: a
+   * tabela de associação com o eNPS não tem coluna de recorte no banco.
    */
   departamento?: string | null;
 }) {
@@ -93,20 +95,15 @@ export default function EngagementReading({
         rotulo: 'Onde estamos',
         cor: COLORS.flutter,
         texto: (
-          departamento ? (
-            <>
-              eNPS <strong>{enpsEmpresa}</strong> em {departamento}, patamar {qualidade}. A
-              contagem de respostas fica na fila abaixo, que é onde ela é por área — o cartão de
-              participação lá em cima é da empresa inteira.
-            </>
-          ) : (
-            <>
-              eNPS <strong>{enpsEmpresa}</strong>, patamar {qualidade}
-              {respondentes ? `, com ${respondentes} respostas` : ''}
-              {participacao ? ` (${fmt1(participacao)}% dos elegíveis)` : ''}. A média esconde
-              diferença grande entre áreas — é onde a conversa começa.
-            </>
-          )
+          <>
+            eNPS <strong>{enpsEmpresa}</strong>
+            {departamento ? ` em ${departamento}` : ''}, patamar {qualidade}
+            {respondentes ? `, com ${respondentes} respostas` : ''}
+            {participacao ? ` (${fmt1(participacao)}% dos elegíveis)` : ''}.{' '}
+            {departamento
+              ? 'A leitura abaixo compara esta área com o resto da casa.'
+              : 'A média esconde diferença grande entre áreas — é onde a conversa começa.'}
+          </>
         ),
       });
     }

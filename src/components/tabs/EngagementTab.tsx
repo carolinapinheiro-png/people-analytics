@@ -157,6 +157,37 @@ function EngagementSection({
   //
   // Enriquecer UMA vez aqui e passar para as duas é o que garante que elas
   // vejam o mesmo dado, e não só o mesmo código.
+  // ------------------------------------------------------------------
+  // A PARTICIPAÇÃO DA ÁREA SELECIONADA
+  // ------------------------------------------------------------------
+  // Os mesmos dois números que a fila usa na coluna de taxa: o `n` do recorte
+  // da pesquisa e o headcount elegível do organograma. Calculado aqui, e não
+  // dentro do cartão, para o cartão do topo e a linha da fila nunca poderem
+  // discordar sobre quantas pessoas responderam na mesma área -- foi assim que
+  // a matriz e a fila divergiram antes.
+  const participacaoDaArea = useMemo(() => {
+    if (!areaSel) return null;
+    const chave = (t: string) =>
+      t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase();
+    const cut = (survey?.cuts ?? []).find(
+      (c) => c.cutType === "area" && chave(c.cutValue) === chave(areaSel.scope),
+    );
+    if (!cut) return null;
+    const elegiveis = survey?.elegiveisPorArea?.[cut.cutValue] ?? null;
+    return {
+      n: cut.n,
+      elegiveis,
+      // Sem elegíveis não há taxa. Zero seria pior que nada: pintaria o cartão
+      // de vermelho como se a área não tivesse respondido.
+      //
+      // Arredondado para inteiro, igual à coluna da fila. 81/97 dá 83,5 e a
+      // fila publica 84 -- deixar o cartão com uma casa a mais poria dois
+      // números diferentes para a mesma taxa na mesma tela, e a diferença
+      // pareceria significar alguma coisa.
+      taxa: elegiveis ? Math.round((cut.n / elegiveis) * 100) : null,
+    };
+  }, [areaSel, survey]);
+
   const rowsComN = useMemo(() => {
     const chave = (t: string) =>
       t
@@ -275,24 +306,55 @@ function EngagementSection({
               help="riscoSaida"
               helpValue={foco.retention_risk}
             />
-            {/* A participação é medida da onda inteira, não da área: a pesquisa
-                não guarda quantos elegíveis cada área tinha. Com filtro ligado
-                o cartão diz de quem é o número, em vez de sugerir que é da
-                área. */}
-            <KpiCard
-              label={areaSel ? "Responderam (empresa)" : "Responderam"}
-              value={survey ? String(survey.respondentes) : `${fmt1(company?.participation)}%`}
-              color={COLORS.info}
-              icon={Users}
-              tone={toneDe("participacao", company?.participation)}
-              hint={
-                company?.participation == null
-                  ? undefined
-                  : `${fmt1(company.participation)}% dos elegíveis`
-              }
-              help="participacao"
-              helpValue={company?.participation}
-            />
+            {/* ------------------------------------------------------------------
+                ESTE CARTÃO PASSOU A SEGUIR O FILTRO
+                ------------------------------------------------------------------
+                O comentário que estava aqui dizia: "a pesquisa não guarda
+                quantos elegíveis cada área tinha". Era verdade -- e deixou de
+                ser quando `elegiveisPorArea` entrou, tirando o headcount do
+                organograma no mês de referência da onda. A fila logo abaixo já
+                publica "81/97 · 84%" para Marketing desde então.
+
+                Enquanto o comentário ficou, o cartão continuou se rotulando
+                "(empresa)" e mostrando 485 debaixo de um filtro de Marketing --
+                honesto, mas dizendo "não sei" sobre um número que a mesma tela
+                mostrava dois blocos abaixo. Justificativa que envelheceu tem o
+                mesmo efeito de justificativa errada: congela a limitação.
+
+                Quando a área não tem headcount no organograma (PORTO, DIRETORIA
+                e outros que caem no residual), a taxa não existe e o cartão
+                volta a mostrar o número da empresa, rotulado. */}
+            {(() => {
+              const nDaArea = areaSel ? participacaoDaArea?.n : null;
+              const segueFiltro = areaSel != null && nDaArea != null;
+              const taxa = segueFiltro ? participacaoDaArea!.taxa : company?.participation ?? null;
+              return (
+                <KpiCard
+                  label={areaSel && !segueFiltro ? "Responderam (empresa)" : "Responderam"}
+                  value={
+                    segueFiltro
+                      ? String(nDaArea)
+                      : survey
+                        ? String(survey.respondentes)
+                        : `${fmt1(company?.participation)}%`
+                  }
+                  color={COLORS.info}
+                  icon={Users}
+                  tone={toneDe("participacao", taxa)}
+                  hint={
+                    segueFiltro
+                      ? participacaoDaArea!.elegiveis != null
+                        ? `${fmt1(taxa)}% dos ${participacaoDaArea!.elegiveis} elegíveis de ${deptSel}`
+                        : `${nDaArea} respostas em ${deptSel}`
+                      : company?.participation == null
+                        ? undefined
+                        : `${fmt1(company.participation)}% dos elegíveis`
+                  }
+                  help="participacao"
+                  helpValue={taxa}
+                />
+              );
+            })()}
           </div>
         </>
       )}
@@ -301,10 +363,13 @@ function EngagementSection({
           marcador de limite hoje, mas os três classificam a partir do mesmo
           dado -- foi a entrada divergente, e não a regra, que fez a matriz e a
           fila discordarem antes. */}
+      {/* `respondentes` e `participacao` chegam JÁ no escopo certo: da área
+          quando há filtro, da empresa quando não há. A leitura não repete a
+          regra de escopo -- repetir é o que faz duas versões divergirem. */}
       <EngagementReading
         enpsEmpresa={foco?.enps ?? null}
-        respondentes={survey?.respondentes ?? null}
-        participacao={company?.participation ?? null}
+        respondentes={participacaoDaArea?.n ?? survey?.respondentes ?? null}
+        participacao={participacaoDaArea?.taxa ?? company?.participation ?? null}
         areas={rowsComN}
         cuts={survey?.cuts ?? []}
         importancia={survey?.importancia ?? []}
