@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
+import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { classifyPerguntas, temaDominante as temaDeLista } from '@/lib/pergunta-priority';
 import { cn } from '@/lib/utils';
@@ -135,8 +136,15 @@ function PorArea({ drivers, p }: { drivers: DriverPorRecorte[]; p: SurveyImporta
 export default function DriverPriority({
   rows,
   drivers = [],
+  departamentoSelecionado = null,
 }: {
   rows: SurveyImportance[];
+  /**
+   * Só para o aviso. `survey_driver_importance` guarda UMA linha por pergunta,
+   * sem coluna de recorte: a associação com o eNPS só existe medida na empresa
+   * inteira. Este cartão é idêntico com e sem filtro, e precisa dizer por quê.
+   */
+  departamentoSelecionado?: string | null;
   /**
    * Notas por área, para o hover inverter o eixo da leitura.
    *
@@ -180,8 +188,19 @@ export default function DriverPriority({
   return (
     <ChartCard
       title="Por onde começar, pergunta por pergunta"
-      subtitle={`% que concorda · ${rows.length} perguntas · ${rows[0]?.n ?? 0} respostas`}
+      subtitle={
+        // O `n` aqui é o da EMPRESA e não muda com o filtro de departamento:
+        // `survey_driver_importance` guarda uma linha por pergunta, sem recorte.
+        // Escrito só como "485 respostas" ao lado de um painel filtrado em
+        // Marketing, lia-se como se Marketing tivesse 485 -- teve 81.
+        `% que concorda · ${rows.length} perguntas · ${rows[0]?.n ?? 0} respostas da empresa`
+      }
     >
+      <AvisoForaDoFiltro
+        departamento={departamentoSelecionado}
+        motivo="A associação de cada pergunta com o eNPS é calculada uma vez, na empresa inteira — não existe essa medida por área. As NOTAS por área existem e aparecem ao passar o mouse em cada linha."
+        escopo={`das ${rows[0]?.n ?? 0} respostas da empresa`}
+      />
       {temaDominante && (
         <p className="text-sm leading-relaxed mb-3">
           Das {prioridade.length} perguntas com menor concordância que mais acompanham o
@@ -259,7 +278,7 @@ export default function DriverPriority({
             <TooltipContent className="max-w-[320px] text-xs leading-relaxed space-y-1.5">
               <p>
                 Mede o quanto a resposta da pergunta acompanha o eNPS <strong>da mesma pessoa</strong>,
-                entre as {rows[0]?.n ?? 0} que responderam.
+                entre as {rows[0]?.n ?? 0} que responderam na empresa inteira.
               </p>
               <p>
                 O número grande é o <strong>% que respondeu 4 ou 5</strong> — a mesma leitura do

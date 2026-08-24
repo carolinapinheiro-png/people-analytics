@@ -308,6 +308,7 @@ function EngagementSection({
         areas={rowsComN}
         cuts={survey?.cuts ?? []}
         importancia={survey?.importancia ?? []}
+        departamento={deptSel}
       />
 
       {cross && (
@@ -341,10 +342,16 @@ function EngagementSection({
 
       {/* ONDE a queda aconteceu. Logo depois da série, porque é a resposta à
           pergunta que a série provoca: o número da empresa mexeu, e daí? */}
-      {cross?.tempoDeCasa && <TempoDeCasa ondas={cross.tempoDeCasa.ondas} />}
+      {cross?.tempoDeCasa && (
+        <TempoDeCasa ondas={cross.tempoDeCasa.ondas} departamentoSelecionado={deptSel} />
+      )}
 
       {survey && survey.importancia.length > 0 && (
-        <DriverPriority rows={survey.importancia} drivers={survey.driversPorArea} />
+        <DriverPriority
+          rows={survey.importancia}
+          drivers={survey.driversPorArea}
+          departamentoSelecionado={deptSel}
+        />
       )}
 
       {/* Depois da lista de perguntas, porque responde a pergunta seguinte:
@@ -471,7 +478,9 @@ function EngagementSection({
           />
         )}
 
-        {survey && survey.importancia.length > 0 && <DriverImportance rows={survey.importancia} />}
+        {survey && survey.importancia.length > 0 && (
+          <DriverImportance rows={survey.importancia} departamentoSelecionado={deptSel} />
+        )}
 
         <div className="space-y-2">
           <EscopoEmpresa escopo={data.escopo} />

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Hourglass } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
+import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import {
@@ -76,8 +77,16 @@ function rotuloCompacto(label: string): string {
 
 export default function TempoDeCasa({
   ondas,
+  departamentoSelecionado = null,
 }: {
   ondas: Array<{ label: string; faixas: FaixaOnda[] }>;
+  /**
+   * Só para o aviso. Esta série é carregada no nível da empresa e não muda com
+   * o filtro -- e era exatamente isso o problema: filtrada em Marketing, ela
+   * mostrava 83/76/80 igualzinho, e quem lia entendia que era o tempo de casa
+   * de Marketing. Um bloco que não obedece ao filtro precisa dizer isso.
+   */
+  departamentoSelecionado?: string | null;
 }) {
   const { linhas, comp, quedas } = useMemo(() => {
     const linhas = trajetoriaPorFaixa(ondas, TEMPO_ORDEM);
@@ -106,6 +115,10 @@ export default function TempoDeCasa({
       subtitle={`eNPS por tempo de casa · ${ondas.map((o) => o.label).join(' → ')}`}
       icon={Hourglass}
     >
+      <AvisoForaDoFiltro
+        departamento={departamentoSelecionado}
+        motivo="O eNPS por tempo de casa foi carregado só no nível da empresa — não existe a quebra por área nesta série."
+      />
       <div className="flex items-center gap-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
         <span className="w-[92px] shrink-0">Tempo de casa</span>
         {ondas.map((o) => (

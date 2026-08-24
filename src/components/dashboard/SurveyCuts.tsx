@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { EyeOff } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
+import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import type { SurveyCut } from '@/lib/survey.functions';
@@ -203,14 +204,11 @@ export default function SurveyCuts({
       title="Quem está mais distante da média"
       subtitle={`comparado com a empresa: eNPS ${empresa.enps}, risco ${fmt1(empresa.risco)}%`}
     >
-      {departamentoSelecionado && (
-        <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
-          Este bloco <strong>não segue o filtro de {departamentoSelecionado}</strong>. Gestão,
-          marca e tempo de casa são recortes da Flutter Brazil inteira — eles cortam a empresa por
-          outro eixo e não identificam área, então servem de referência. Os números abaixo são das{' '}
-          {empresa.n} pessoas da empresa, não de {departamentoSelecionado}.
-        </p>
-      )}
+      <AvisoForaDoFiltro
+        departamento={departamentoSelecionado}
+        motivo="Gestão, marca e tempo de casa são recortes da Flutter Brazil inteira — eles cortam a empresa por outro eixo e não identificam área, então servem de referência."
+        escopo={`das ${empresa.n} pessoas da empresa`}
+      />
       {destaque && (empresa.enps as number) - (destaque.enps as number) >= 8 && (
         <p className="text-sm leading-relaxed mb-3">
           <strong>{destaque.cutValue}</strong> está{' '}

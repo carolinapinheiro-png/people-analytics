@@ -200,3 +200,86 @@ test("área sem risco informado não é tratada como risco zero", () => {
   // eNPS baixo entra em "ouvir"; sem risco conhecido não pode virar "agir".
   assert.equal(por(c, "SemRisco")?.veredito, "ouvir");
 });
+
+// ===========================================================================
+// SEM GRUPO NÃO HÁ VEREDITO
+// ===========================================================================
+// Este bloco existe por causa de um erro que chegou na tela: filtrar Marketing
+// no painel fazia Marketing sair de "Agir primeiro" e virar "Sem sinal de
+// alerta", com os mesmos números. A mediana virava o próprio valor da área.
+
+/**
+ * Números reais de ago/2026, conferidos contra a prévia: mediana de eNPS 67,5 e
+ * de risco 14,3% — os mesmos que o subtítulo da fila publica.
+ */
+const AGO26: AreaEntrada[] = [
+  { scope: "Marketing", dept: "MARKETING", enps: 48, retentionRisk: 29.6, headcountMedio: 97, respostas: 81 },
+  { scope: "Finance", dept: "FINANCE", enps: 50, retentionRisk: 20.8, headcountMedio: 46, respostas: 24 },
+  { scope: "Human Resources", dept: "HR", enps: 60, retentionRisk: 10.0, headcountMedio: 23, respostas: 20 },
+  { scope: "Product", dept: "PRODUCT", enps: 66, retentionRisk: 14.6, headcountMedio: 43, respostas: 41 },
+  { scope: "Legal", dept: "LEGAL & COMPLIANCE", enps: 69, retentionRisk: 6.3, headcountMedio: 20, respostas: 16 },
+  { scope: "Commercial", dept: "COMMERCIAL", enps: 75, retentionRisk: 16.7, headcountMedio: 57, respostas: 48 },
+  { scope: "Technology", dept: "TECHNOLOGY", enps: 77, retentionRisk: 8.7, headcountMedio: 172, respostas: 149 },
+  { scope: "Customer Service", dept: "OPERATION", enps: 78, retentionRisk: 14.0, headcountMedio: 150, respostas: 86 },
+];
+
+const soMarketing: AreaEntrada[] = [
+  { scope: "Marketing", dept: "MARKETING", enps: 48, retentionRisk: 29.6, headcountMedio: 97, respostas: 81 },
+];
+
+test("uma área só não recebe veredito -- ela seria comparada consigo mesma", () => {
+  const c = classifyAreas(soMarketing);
+  assert.equal(c.comparavel, false);
+  assert.equal(por(c, "Marketing")?.veredito, "sem-comparacao");
+});
+
+test("o veredito da área NÃO muda quando o filtro a isola", () => {
+  // O caso concreto. No grupo inteiro, Marketing é "agir primeiro". Sozinha, a
+  // regra antiga devolvia "manter" -- 48 < 48 e 29,6 > 29,6 são ambos falsos.
+  // O certo não é outro veredito: é nenhum.
+  const noGrupo = por(classifyAreas(AGO26), "Marketing")?.veredito;
+  const sozinha = por(classifyAreas(soMarketing), "Marketing")?.veredito;
+  assert.equal(noGrupo, "agir");
+  assert.notEqual(sozinha, "manter");
+  assert.equal(sozinha, "sem-comparacao");
+});
+
+test("duas áreas também não bastam: a mediana cai entre elas", () => {
+  // Com duas, uma é sempre "abaixo" e a outra sempre "acima", estejam a 1 ponto
+  // ou a 40 de distância. Isso é sorteio com cara de leitura.
+  const duas: AreaEntrada[] = [
+    { scope: "A", dept: "A", enps: 70, retentionRisk: 10, headcountMedio: 50 },
+    { scope: "B", dept: "B", enps: 69, retentionRisk: 11, headcountMedio: 50 },
+  ];
+  const c = classifyAreas(duas);
+  assert.equal(c.comparavel, false);
+  assert.ok(c.itens.every((i) => i.veredito === "sem-comparacao"));
+});
+
+test("três áreas já comparam", () => {
+  const tres: AreaEntrada[] = [
+    { scope: "A", dept: "A", enps: 90, retentionRisk: 5, headcountMedio: 50 },
+    { scope: "B", dept: "B", enps: 70, retentionRisk: 10, headcountMedio: 50 },
+    { scope: "C", dept: "C", enps: 40, retentionRisk: 30, headcountMedio: 50 },
+  ];
+  const c = classifyAreas(tres);
+  assert.equal(c.comparavel, true);
+  assert.equal(por(c, "C")?.veredito, "agir");
+  assert.equal(por(c, "A")?.veredito, "manter");
+});
+
+test("sem comparação, não marca fragilidade tampouco", () => {
+  // `limite` qualifica um veredito. Sem veredito, não há o que qualificar --
+  // e o selo apareceria sempre, já que a distância até a própria mediana é 0.
+  const c = classifyAreas(soMarketing);
+  assert.equal(por(c, "Marketing")?.noLimite, false);
+  assert.equal(por(c, "Marketing")?.distanciaEnps, 0);
+});
+
+test("sem comparação, os números da área continuam intactos", () => {
+  // A fila deixa de classificar, mas não deixa de informar.
+  const i = por(classifyAreas(soMarketing), "Marketing")!;
+  assert.equal(i.enps, 48);
+  assert.equal(i.risco, 29.6);
+  assert.equal(i.headcount, 97);
+});

@@ -51,6 +51,7 @@ export default function EngagementReading({
   areas,
   cuts,
   importancia,
+  departamento = null,
 }: {
   enpsEmpresa: number | null;
   respondentes: number | null;
@@ -58,6 +59,26 @@ export default function EngagementReading({
   areas: EngagementContextRow[];
   cuts: SurveyCut[];
   importancia: SurveyImportance[];
+  /**
+   * Área escolhida no filtro, ou null.
+   *
+   * ------------------------------------------------------------------
+   * POR QUE A LEITURA PRECISA SABER DISSO
+   * ------------------------------------------------------------------
+   * Nem tudo que chega aqui responde ao filtro, e a diferença não é visível na
+   * assinatura: `enpsEmpresa` vira o eNPS da ÁREA quando há filtro, enquanto
+   * `respondentes` continua sendo o total da empresa (é `wave.respondents`, um
+   * número da onda inteira) e `importancia` também (a tabela de associação com
+   * o eNPS não tem recorte nenhum no banco).
+   *
+   * Sem esta prop, a primeira frase saía assim, filtrada em Marketing:
+   *
+   *     "eNPS 48, patamar baixo, com 485 respostas (76,5% dos elegíveis)."
+   *
+   * O 48 é de Marketing; as 485 são da empresa. Marketing teve 81. A frase
+   * juntava os dois com uma vírgula e não avisava nada.
+   */
+  departamento?: string | null;
 }) {
   const linhas = useMemo<Linha[]>(() => {
     const out: Linha[] = [];
@@ -72,12 +93,20 @@ export default function EngagementReading({
         rotulo: 'Onde estamos',
         cor: COLORS.flutter,
         texto: (
-          <>
-            eNPS <strong>{enpsEmpresa}</strong>, patamar {qualidade}
-            {respondentes ? `, com ${respondentes} respostas` : ''}
-            {participacao ? ` (${fmt1(participacao)}% dos elegíveis)` : ''}. A média esconde
-            diferença grande entre áreas — é onde a conversa começa.
-          </>
+          departamento ? (
+            <>
+              eNPS <strong>{enpsEmpresa}</strong> em {departamento}, patamar {qualidade}. A
+              contagem de respostas fica na fila abaixo, que é onde ela é por área — o cartão de
+              participação lá em cima é da empresa inteira.
+            </>
+          ) : (
+            <>
+              eNPS <strong>{enpsEmpresa}</strong>, patamar {qualidade}
+              {respondentes ? `, com ${respondentes} respostas` : ''}
+              {participacao ? ` (${fmt1(participacao)}% dos elegíveis)` : ''}. A média esconde
+              diferença grande entre áreas — é onde a conversa começa.
+            </>
+          )
         ),
       });
     }
@@ -144,10 +173,15 @@ export default function EngagementReading({
           cor: COLORS.nsx,
           texto: (
             <>
+              {/* A associação com o eNPS é calculada uma vez, na empresa inteira
+                  -- `survey_driver_importance` não tem coluna de recorte. Com
+                  filtro ligado, a frase precisa dizer isso, senão se lê como se
+                  fossem as perguntas daquela área. */}
               Das {prioridade.length} perguntas com menor concordância que mais acompanham o
-              engajamento, <strong>{quantas} são de {tema.toLowerCase()}</strong>. É onde o mesmo
-              esforço tende a render mais — mais que remuneração, que tem as piores notas mas
-              acompanha menos.
+              engajamento <strong>na empresa toda</strong>,{' '}
+              <strong>{quantas} são de {tema.toLowerCase()}</strong>. É onde o mesmo esforço tende
+              a render mais — mais que remuneração, que tem as piores notas mas acompanha menos.
+              {departamento && ' Esta leitura não muda com o filtro: a associação só existe medida na empresa.'}
             </>
           ),
         });
@@ -174,7 +208,8 @@ export default function EngagementReading({
             <>
               <strong>{nome}{pior.cutValue}</strong> tem eNPS {pior.enps},{' '}
               {(empresa.enps as number) - (pior.enps as number)} pontos abaixo da empresa, e são{' '}
-              {pior.n} pessoas. Recorte que não aparece na leitura por área.
+              {pior.n} pessoas. Recorte que não aparece na leitura por área
+              {departamento && ' — e que corta a empresa inteira, não só ' + departamento}.
             </>
           ),
         });
@@ -182,7 +217,7 @@ export default function EngagementReading({
     }
 
     return out;
-  }, [enpsEmpresa, respondentes, participacao, areas, cuts, importancia]);
+  }, [enpsEmpresa, respondentes, participacao, areas, cuts, importancia, departamento]);
 
   if (!linhas.length) return null;
 

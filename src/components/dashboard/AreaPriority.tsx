@@ -96,6 +96,16 @@ const VEREDITO: Record<Veredito, { label: string; cor: string; explica: string }
     explica:
       "Nem engajamento claramente abaixo do grupo, nem risco claramente acima. Não quer dizer que está tudo ótimo — quer dizer que nada aqui se destaca a ponto de pedir ação agora.",
   },
+  // Este rótulo aparece quando o filtro deixa uma área só. Antes, a mesma área
+  // caía em "Sem sinal de alerta" -- a mediana era o próprio valor dela, então
+  // nada ficava abaixo de nada. Filtrar Marketing transformava "agir primeiro"
+  // em "sem sinal", com os números idênticos na tela.
+  "sem-comparacao": {
+    label: "Sem grupo para comparar",
+    cor: COLORS.gray400,
+    explica:
+      "A fila classifica comparando as áreas entre si, e o filtro deixou poucas na tela. Os números abaixo continuam corretos; o que não dá para dizer é se são altos ou baixos para esta empresa. Tire o filtro de departamento para ver a fila.",
+  },
 };
 
 export default function AreaPriority({
@@ -142,7 +152,7 @@ export default function AreaPriority({
   };
   const [sobre, setSobre] = useState<string | null>(null);
 
-  const { itens, cutPorArea, nPorArea, gapPorArea, medianas } = useMemo(() => {
+  const { itens, cutPorArea, nPorArea, gapPorArea, medianas, comparavel } = useMemo(() => {
     const doTipoArea = cuts.filter((c) => c.cutType === "area");
     const cutPorArea = new Map(doTipoArea.map((c) => [chave(c.cutValue), c]));
     const nPorArea = new Map(doTipoArea.map((c) => [chave(c.cutValue), c.n]));
@@ -157,6 +167,7 @@ export default function AreaPriority({
       nPorArea,
       gapPorArea,
       medianas: { enps: c.medianaEnps, risco: c.medianaRisco },
+      comparavel: c.comparavel,
     };
   }, [areas, cuts]);
 
@@ -167,7 +178,13 @@ export default function AreaPriority({
   return (
     <ChartCard
       title="Por onde começar, área por área"
-      subtitle={`ordenado por prioridade · grupo: eNPS ${fmt1(medianas.enps)}, risco ${fmt1(medianas.risco)}%`}
+      subtitle={
+        comparavel
+          ? `ordenado por prioridade · grupo: eNPS ${fmt1(medianas.enps)}, risco ${fmt1(medianas.risco)}%`
+          : // Sem grupo, "grupo: eNPS 48" seria o eNPS da própria área devolvido
+            // como se fosse a régua -- a área comparada consigo mesma.
+            'sem grupo para comparar · a régua da fila são as outras áreas'
+      }
     >
       <div className="space-y-1">
         {itens.map((i, idx) => {
@@ -277,7 +294,9 @@ export default function AreaPriority({
                 <span
                   className={cn(
                     "text-[11px] tabular-nums w-14 text-right",
-                    (i.risco ?? 0) > medianas.risco
+                    // Só pinta de âmbar contra um grupo de verdade. Com uma
+                    // área só, `risco > mediana` é o valor contra ele mesmo.
+                    comparavel && (i.risco ?? 0) > medianas.risco
                       ? "text-amber-600 dark:text-amber-500"
                       : "text-muted-foreground",
                   )}
@@ -388,14 +407,39 @@ export default function AreaPriority({
       </div>
 
       <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-        A ordem não é por eNPS: a área de pior eNPS é também a de menor risco de saída, e agir ali
-        primeiro seria gastar esforço onde ninguém está saindo. A fila combina engajamento baixo,
-        risco alto e tamanho da área — e só chama de &quot;abaixo&quot; quem está mais distante do
-        grupo que o afastamento típico entre as áreas, para diferença de arredondamento não virar
-        alarme. Repare na <strong>taxa de resposta</strong>: uma nota de 24 pessoas significa coisas
-        opostas se a área tem 25 ou 46. Elegíveis é o headcount do mês em que a pesquisa começou — a
-        mesma base do cartão de participação lá em cima, e não o número de convites enviados. Em
-        área pequena, além disso, uma pessoa move o eNPS em vários pontos.
+        {/* ------------------------------------------------------------------
+            DUAS CORREÇÕES NESTE PARÁGRAFO
+            ------------------------------------------------------------------
+            1. Ele afirmava coisas sobre "as áreas" com uma área só na tela. A
+               frase de abertura -- "a área de pior eNPS é também a de menor
+               risco" -- é uma observação sobre o conjunto, e some com o filtro.
+
+            2. Ele descrevia a régua ANTIGA: "só chama de 'abaixo' quem está
+               mais distante do grupo que o afastamento típico entre as áreas"
+               era o desvio absoluto mediano, trocado em 21/08/26 pela mediana
+               pura com o marcador `limite`. O texto continuou prometendo uma
+               proteção que o código não faz mais -- e prometer proteção
+               inexistente é pior que não ter proteção. */}
+        {comparavel ? (
+          <>
+            A ordem não é por eNPS: a área de pior eNPS é também a de menor risco de saída, e agir
+            ali primeiro seria gastar esforço onde ninguém está saindo. A fila combina engajamento
+            baixo, risco alto e tamanho da área. O corte é a <strong>mediana das áreas</strong> —
+            metade fica de cada lado por construção, então &quot;abaixo&quot; quer dizer abaixo do
+            resto da casa, não ruim. Onde a distância até a linha é menor do que uma única resposta
+            moveria, a área leva o selo <strong>limite</strong>.{" "}
+          </>
+        ) : (
+          <>
+            Esta fila ordena <strong>comparando as áreas entre si</strong>, e o filtro deixou poucas
+            na tela — por isso não há veredito. Os números continuam corretos; o que falta é a régua
+            para dizer se são altos ou baixos.{" "}
+          </>
+        )}
+        Repare na <strong>taxa de resposta</strong>: uma nota de 24 pessoas significa coisas opostas
+        se a área tem 25 ou 46. Elegíveis é o headcount do mês em que a pesquisa começou — a mesma
+        base do cartão de participação lá em cima, e não o número de convites enviados. Em área
+        pequena, além disso, uma pessoa move o eNPS em vários pontos.
       </p>
     </ChartCard>
   );

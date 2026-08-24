@@ -83,13 +83,16 @@ export default function MatrizAreaDriver({
 
   const comValor = m.celulas.filter((c) => c.favoravel != null).length;
   const suprimidas = m.celulas.length - comValor;
+  // Várias frases abaixo comparam as áreas entre si. Com uma só -- o que o
+  // filtro de departamento produz -- elas descrevem um cálculo que não houve.
+  const varias = m.areas.length > 1;
 
   return (
     <ChartCard
       title="Cada área, tema por tema"
-      subtitle={`${m.drivers.length} temas × ${m.areas.length} áreas${
-        ondaLabel ? ` · ${ondaLabel}` : ''
-      } · distância da empresa, em pontos de % que concorda`}
+      subtitle={`${m.drivers.length} temas × ${m.areas.length} ${
+        m.areas.length === 1 ? 'área' : 'áreas'
+      }${ondaLabel ? ` · ${ondaLabel}` : ''} · distância da empresa, em pontos de % que concorda`}
       icon={Grid3x3}
     >
       <div className="overflow-x-auto">
@@ -199,16 +202,43 @@ export default function MatrizAreaDriver({
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           <strong>Como ler:</strong> cada célula é a distância daquela área para a empresa, em
           pontos de % que concorda. Vermelho é abaixo, verde é acima; o tom forte começa em{' '}
-          {FORTE} pontos. Clique numa célula para ver a pergunta que mais pesa nela. As linhas estão
-          ordenadas pelos temas que <strong>mais separam as áreas</strong> — os de baixo são
-          parecidos em todo lugar, e por isso são decisão de empresa, não conversa de gestor.
+          {FORTE} pontos. Clique numa célula para ver a pergunta que mais pesa nela.
+          {/* A ordem das linhas é a amplitude ENTRE áreas. Com uma área só na
+              tela não há amplitude nenhuma -- a ordem vira arbitrária, e
+              anunciá-la como "os temas que mais separam as áreas" seria
+              descrever um cálculo que não aconteceu. */}
+          {varias ? (
+            <>
+              {' '}As linhas estão ordenadas pelos temas que{' '}
+              <strong>mais separam as áreas</strong> — os de baixo são parecidos em todo lugar, e
+              por isso são decisão de empresa, não conversa de gestor.
+            </>
+          ) : (
+            <>
+              {' '}A ordem das linhas vem da comparação entre as áreas, que o filtro tirou da
+              tela — aqui ela não quer dizer nada. Tire o filtro de departamento para ver a grade
+              inteira.
+            </>
+          )}
         </p>
 
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          A régua é a empresa, então <strong>metade das células fica em vermelho por
-          construção</strong> — é assim que uma comparação com a média funciona. Vermelho aqui
-          significa &quot;abaixo do resto da casa&quot;, não &quot;ruim&quot;: uma área pode estar
-          −8 num tema em que ela própria tem 78% de concordância.
+          {/* "Metade fica em vermelho" descreve a GRADE INTEIRA, onde as áreas
+              se distribuem em volta da mediana. Filtrada em Marketing, a tela
+              mostrava 11 células vermelhas de 11 embaixo de uma frase dizendo
+              que metade fica assim por construção -- a ressalva contradizia o
+              que estava logo acima dela. */}
+          A régua é a empresa
+          {varias ? (
+            <>
+              , então <strong>metade das células fica em vermelho por construção</strong> — é assim
+              que uma comparação com a média funciona.
+            </>
+          ) : (
+            <>, e não esta área — o vermelho mede distância do resto da casa, não do bom.</>
+          )}{' '}
+          Vermelho aqui significa &quot;abaixo do resto da casa&quot;, não &quot;ruim&quot;: uma
+          área pode estar −8 num tema em que ela própria tem 78% de concordância.
           {suprimidas > 0 && (
             <>
               {' '}

@@ -15,7 +15,7 @@ import {
 import { Target } from "lucide-react";
 import ChartCard from "@/components/dashboard/ChartCard";
 import { COLORS } from "@/lib/colors";
-import { classifyAreas } from "@/lib/area-priority";
+import { classifyAreas, MINIMO_PARA_COMPARAR } from "@/lib/area-priority";
 import {
   cruzarAreasComPerguntas,
   type PerguntaPrioritaria,
@@ -163,7 +163,11 @@ export default function EngagementMatrix({
     return cruzarAreasComPerguntas(prioritariasDaMatriz, prioritarias, notasPorArea, notaDaEmpresa);
   }, [pontos, prioritarias, notasPorArea, notaDaEmpresa]);
 
-  if (pontos.length < 3) return null;
+  // O mesmo mínimo do classificador, e não um 3 escrito à mão aqui. Com menos
+  // áreas que isso a mediana é a própria área, e a matriz desenharia quadrantes
+  // em volta de um ponto só -- ver o topo de `area-priority.ts`. Amarrado na
+  // constante para os dois não divergirem no dia em que o número mudar.
+  if (pontos.length < MINIMO_PARA_COMPARAR) return null;
 
   const porQuadrante = (q: string) => pontos.filter((p) => p.quadrante === q);
 

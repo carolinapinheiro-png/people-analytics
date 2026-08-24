@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { Compass } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
+import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { classifyPerguntas, type QuadrantePergunta } from '@/lib/pergunta-priority';
 import { cn } from '@/lib/utils';
@@ -75,7 +76,14 @@ interface Ponto {
   x: number; y: number; nota: number; driver: string; question: string; quad: QuadKey; curta: string;
 }
 
-export default function DriverImportance({ rows }: { rows: SurveyImportance[] }) {
+export default function DriverImportance({
+  rows,
+  departamentoSelecionado = null,
+}: {
+  rows: SurveyImportance[];
+  /** Mesma origem sem recorte do cartão em lista -- ver DriverPriority. */
+  departamentoSelecionado?: string | null;
+}) {
   const [detalhe, setDetalhe] = useState<QuadKey | null>('prioridade');
 
   const { pontos, corteR, corteNota } = useMemo(() => {
@@ -117,6 +125,10 @@ export default function DriverImportance({ rows }: { rows: SurveyImportance[] })
       subtitle={`${rows.length} perguntas · ${nMin === nMax ? `n=${nMax}` : `n de ${nMin} a ${nMax}`} pessoas`}
       icon={Compass}
     >
+      <AvisoForaDoFiltro
+        departamento={departamentoSelecionado}
+        motivo="A associação de cada pergunta com o eNPS é calculada uma vez, na empresa inteira — não existe essa medida por área."
+      />
       <ResponsiveContainer width="100%" height={340}>
         <ScatterChart margin={{ top: 12, right: 20, bottom: 30, left: 4 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />

@@ -37,9 +37,35 @@ import { median } from "@/lib/stats";
  * ótima -- significa que nada nela se destaca do grupo o suficiente para pedir
  * ação. Exigir sinal positivo claro para entrar aqui criaria uma quinta
  * categoria de "meio termo" que ninguém saberia usar.
+ *
+ * ------------------------------------------------------------------
+ * SEM GRUPO NÃO HÁ VEREDITO -- E ESTE ERRO CHEGOU NA TELA
+ * ------------------------------------------------------------------
+ * Todo o veredito é uma comparação: "abaixo" significa abaixo das OUTRAS áreas.
+ * Quando o filtro de departamento deixa uma área só, a mediana passa a ser o
+ * próprio valor dela, e as duas comparações viram falsas por definição:
+ *
+ *     48 < 48   ->  falso     29,6 > 29,6  ->  falso
+ *
+ * O resultado é "manter". Ou seja: sem filtro, Marketing aparecia em AGIR
+ * PRIMEIRO; filtrando Marketing, o mesmo Marketing, com os mesmos números,
+ * virava SEM SINAL DE ALERTA. A comparação sumiu junto com as outras áreas, mas
+ * a caixinha continuou lá afirmando o contrário do que o dado diz.
+ *
+ * A correção não é escolher outro corte -- é a função admitir que não tem o que
+ * comparar. Com menos de `MINIMO_PARA_COMPARAR` áreas o veredito é
+ * 'sem-comparacao' e a tela mostra os números sem rótulo. Um painel que se cala
+ * quando não sabe vale mais que um que sempre responde.
+ *
+ * Três é o mínimo porque com duas a mediana fica entre elas: uma é sempre
+ * "abaixo" e a outra sempre "acima", independentemente de estarem a 1 ponto ou
+ * a 40 de distância. Isso é sorteio, não leitura.
  */
 
-export type Veredito = "agir" | "vigiar" | "ouvir" | "manter";
+/** Abaixo disto, comparar entre áreas não significa nada. Ver o topo. */
+export const MINIMO_PARA_COMPARAR = 3;
+
+export type Veredito = "agir" | "vigiar" | "ouvir" | "manter" | "sem-comparacao";
 
 export interface AreaEntrada {
   scope: string;
@@ -81,6 +107,12 @@ export interface Classificacao {
   itens: AreaClassificada[];
   medianaEnps: number;
   medianaRisco: number;
+  /**
+   * Havia áreas suficientes para comparar? Quando false, os vereditos são todos
+   * 'sem-comparacao' e as medianas não devem ser exibidas como "o grupo" --
+   * elas são o próprio valor da única área.
+   */
+  comparavel: boolean;
 }
 
 export function classifyAreas(areas: AreaEntrada[]): Classificacao {
@@ -97,14 +129,23 @@ export function classifyAreas(areas: AreaEntrada[]): Classificacao {
 
   const medianaEnps = median(enpsVals) ?? 0;
   const medianaRisco = median(riscoVals) ?? 0;
+  const comparavel = validas.length >= MINIMO_PARA_COMPARAR;
 
   const itens: AreaClassificada[] = validas.map((a) => {
     const risco = a.retentionRisk;
     const engBaixo = a.enps < medianaEnps;
     const riscoAlto = risco != null && risco > medianaRisco;
 
-    const veredito: Veredito =
-      engBaixo && riscoAlto ? "agir" : riscoAlto ? "vigiar" : engBaixo ? "ouvir" : "manter";
+    // Sem grupo, nenhum dos dois testes acima quer dizer nada -- ver o topo.
+    const veredito: Veredito = !comparavel
+      ? "sem-comparacao"
+      : engBaixo && riscoAlto
+        ? "agir"
+        : riscoAlto
+          ? "vigiar"
+          : engBaixo
+            ? "ouvir"
+            : "manter";
 
     // ------------------------------------------------------------------
     // O VEREDITO FOI DECIDIDO POR QUANTO?
@@ -121,7 +162,10 @@ export function classifyAreas(areas: AreaEntrada[]): Classificacao {
     const n = a.respostas ?? null;
     const pesoDeUmaResposta = n && n > 0 ? Math.round((100 / n) * 10) / 10 : null;
 
+    // Sem veredito não há o que marcar como frágil: `noLimite` qualifica uma
+    // classificação, e ali não existe classificação nenhuma.
     const noLimite =
+      comparavel &&
       pesoDeUmaResposta != null &&
       (distanciaEnps < pesoDeUmaResposta ||
         (distanciaRisco != null && distanciaRisco < pesoDeUmaResposta));
@@ -147,11 +191,13 @@ export function classifyAreas(areas: AreaEntrada[]): Classificacao {
     };
   });
 
-  const ordem: Record<Veredito, number> = { agir: 0, vigiar: 1, ouvir: 2, manter: 3 };
+  const ordem: Record<Veredito, number> = {
+    agir: 0, vigiar: 1, ouvir: 2, manter: 3, "sem-comparacao": 4,
+  };
   itens.sort(
     (a, b) =>
       ordem[a.veredito] - ordem[b.veredito] || b.peso - a.peso || a.scope.localeCompare(b.scope),
   );
 
-  return { itens, medianaEnps, medianaRisco };
+  return { itens, medianaEnps, medianaRisco, comparavel };
 }
