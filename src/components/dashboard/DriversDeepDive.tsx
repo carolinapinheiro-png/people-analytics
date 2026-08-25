@@ -4,6 +4,8 @@ import ChartCard from "@/components/dashboard/ChartCard";
 import { COLORS } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import type { EngagementDriver } from "@/lib/experience.functions";
+import type { DriverPorRecorte } from "@/lib/survey.functions";
+import { linhasDaArea } from "@/lib/drill";
 
 const ESCALA_MAX = 5;
 
@@ -20,27 +22,55 @@ interface Pergunta {
   driver: string;
   question: string;
   score: number;
-  prev: number | null;
-  delta: number | null;
 }
 
-export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver[] }) {
-  const perguntas = useMemo<Pergunta[]>(
-    () =>
-      drivers
-        .filter((d) => d.score_current != null)
-        .map((d) => ({
-          driver: d.driver,
-          question: d.question,
-          score: Number(d.score_current),
-          prev: d.score_prev == null ? null : Number(d.score_prev),
-          delta:
-            d.score_prev == null || d.score_current == null
-              ? null
-              : Math.round((Number(d.score_current) - Number(d.score_prev)) * 10) / 10,
-        })),
-    [drivers],
-  );
+export default function DriversDeepDive({
+  drivers,
+  porArea = [],
+  departamentoSelecionado = null,
+}: {
+  drivers: EngagementDriver[];
+  /**
+   * Notas por recorte. É daqui que sai a dispersão da ÁREA.
+   *
+   * ------------------------------------------------------------------
+   * ESTE BLOCO DIZIA "NÃO TEM RECORTE POR ÁREA"
+   * ------------------------------------------------------------------
+   * Era a sexta vez que a mesma frase aparecia neste painel sobre uma coisa
+   * que existia. A dispersão é min, máx e média das notas das perguntas de um
+   * driver -- e as notas por área estão em `survey_driver_scores` desde
+   * sempre, 306 linhas em ago/26.
+   *
+   * O que fazia parecer impossível foi a FONTE: o componente lia
+   * `engagement_drivers`, que é carregada só no nível da empresa. Nenhum dado
+   * faltava; faltava trocar de tabela.
+   */
+  porArea?: DriverPorRecorte[];
+  departamentoSelecionado?: string | null;
+}) {
+  const daArea = departamentoSelecionado
+    ? linhasDaArea(porArea, departamentoSelecionado)
+    : null;
+
+  const perguntas = useMemo<Pergunta[]>(() => {
+    // Com filtro, as notas da área substituem as da empresa. A dispersão passa
+    // a descrever o que ACONTECE ALI -- que é o ponto do cartão: "a média
+    // esconde uma pergunta ruim" só vira ação se a média for a da sua área.
+    if (daArea && daArea.size > 0) {
+      return [...daArea.values()]
+        .filter((l) => l.score != null)
+        .map((l) => ({ driver: l.driver, question: l.question, score: Number(l.score) }));
+    }
+    return drivers
+      .filter((d) => d.score_current != null)
+      .map((d) => ({
+        driver: d.driver,
+        question: d.question,
+        score: Number(d.score_current),
+      }));
+  }, [drivers, daArea]);
+
+  const daEmpresa = !daArea || daArea.size === 0;
 
   const dispersao = useMemo(() => {
     const m = new Map<string, Pergunta[]>();
@@ -98,7 +128,9 @@ export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver
     <div className="space-y-4">
       <ChartCard
         title="Dispersão dentro de cada driver"
-        subtitle="da pergunta mais baixa à mais alta · ordenado pela amplitude"
+        subtitle={`da pergunta mais baixa à mais alta · ordenado pela amplitude${
+          daEmpresa ? '' : ` · ${departamentoSelecionado}`
+        }`}
         icon={Layers}
       >
         <div className="space-y-2.5">
@@ -182,12 +214,19 @@ export default function DriversDeepDive({ drivers }: { drivers: EngagementDriver
           fosse da primeira, e a tela passou a negar um dado que ela própria
           usava três cartões acima. */}
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        <strong>O limite desta leitura:</strong> a associação com o eNPS é calculada na empresa
-        inteira — uma linha por pergunta, sem recorte. Dá para dizer quais perguntas mais acompanham
-        o engajamento na Flutter Brazil, e a aba mostra isso logo acima. O que ainda não dá é dizer
-        se a alavanca de Marketing é a mesma de Technology: para isso a associação precisaria ser
-        calculada dentro de cada área, e ela não é. As notas por área existem; o que falta é o
-        cálculo da associação sobre elas.
+        {/* ------------------------------------------------------------------
+            ESTE PARÁGRAFO PEDIA EXATAMENTE O QUE HOJE EXISTE
+            ------------------------------------------------------------------
+            Ele terminava em "as notas por área existem; o que falta é o cálculo
+            da associação sobre elas" -- e descrevia o trabalho que foi feito
+            depois. A frase estava certa quando escrita e virou errada sem que
+            ninguém a revisitasse, que é a mesma forma dos outros cinco casos
+            deste painel. */}
+        <strong>O limite desta leitura:</strong> a associação com o eNPS passou a ser calculada
+        dentro de cada área que tem respostas suficientes — cinco das nove em ago/26. Dá para
+        dizer se a alavanca de Marketing é a mesma de Technology, e a aba mostra isso logo acima
+        ao filtrar por área. Nas quatro áreas menores a associação continua sendo a da empresa,
+        porque uma correlação sobre 16 ou 20 respostas ordena perguntas por acaso.
       </p>
 
       <p className="text-[11px] text-muted-foreground leading-relaxed">

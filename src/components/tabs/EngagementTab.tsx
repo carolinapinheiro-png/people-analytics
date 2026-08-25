@@ -563,8 +563,18 @@ function EngagementSection({
         )}
 
         <div className="space-y-2">
-          <EscopoEmpresa escopo={data.escopo} />
-          <DriversDeepDive drivers={data.drivers} />
+          {/* O rótulo só aparece se o bloco de fato não seguir o filtro. Com
+              as notas por área carregadas, ele segue -- e a frase some junto,
+              em vez de contradizer o que está logo abaixo dela. */}
+          <EscopoEmpresa
+            escopo={data.escopo}
+            daEmpresa={!deptSel || !(survey?.driversPorArea ?? []).some((d) => d.cutType === "area")}
+          />
+          <DriversDeepDive
+            drivers={data.drivers}
+            porArea={survey?.driversPorArea ?? []}
+            departamentoSelecionado={deptSel}
+          />
         </div>
 
         {cross && (
@@ -590,14 +600,25 @@ function EngagementSection({
  */
 function EscopoEmpresa({
   escopo,
+  /**
+   * false quando o bloco abaixo JÁ segue o filtro.
+   *
+   * Este rótulo dizia "esta seção não tem recorte por área" acima da dispersão
+   * por driver, que passou a ter. Repetir a frase ali seria a sexta vez que o
+   * painel afirma impossibilidade sobre algo calculável -- e desta vez com o
+   * dado já na tela logo abaixo, contradizendo o texto.
+   */
+  daEmpresa = true,
 }: {
   escopo?: { restrito: boolean; departamento: string | null };
+  daEmpresa?: boolean;
 }) {
   if (!escopo?.restrito && !escopo?.departamento) return null;
+  if (!daEmpresa) return null;
   return (
     <p className="text-[11px] text-muted-foreground">
-      Números da <strong>Flutter Brazil</strong> inteira — esta seção não tem recorte por área.
-      Serve de referência para comparar
+      Números da <strong>Flutter Brazil</strong> inteira — esta seção ainda não foi carregada com
+      recorte por área. Serve de referência para comparar
       {escopo?.departamento ? ` com ${escopo.departamento}` : " com a sua"}.
     </p>
   );
