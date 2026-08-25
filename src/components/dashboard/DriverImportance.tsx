@@ -8,6 +8,7 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { classifyPerguntas, type QuadrantePergunta } from '@/lib/pergunta-priority';
+import { N_MINIMO_CORRELACAO } from '@/lib/aggregator/polly-survey';
 import { cn } from '@/lib/utils';
 import type { SurveyImportance, DriverPorRecorte } from '@/lib/survey.functions';
 import { perguntasNoRecorte } from '@/lib/drill';
@@ -90,20 +91,19 @@ export default function DriverImportance({
   const [detalhe, setDetalhe] = useState<QuadKey | null>('prioridade');
 
   // ------------------------------------------------------------------
-  // OS DOIS EIXOS TÊM ORIGENS DIFERENTES, E ISSO PASSA A SER DITO
+  // OS DOIS EIXOS, E O QUE JÁ SE DISSE DE ERRADO SOBRE ELES
   // ------------------------------------------------------------------
-  // Horizontal: associação com o eNPS. Só existe na empresa -- uma linha por
-  // pergunta em `survey_driver_importance`, sem coluna de recorte.
-  // Vertical: % que concorda. Existe por área em `survey_driver_scores`.
+  // Vertical: % que concorda. Horizontal: associação com o eNPS.
   //
-  // O cartão plotava os dois da empresa e exibia um aviso dizendo que "os
-  // números abaixo são da empresa inteira". A frase informava que o dado não
-  // existe quando o certo era que este cartão não o usava.
+  // Este comentário já afirmou, em duas versões seguidas, que a associação "só
+  // existe na empresa" e "é a única medida que existe". As duas eram falsas
+  // pelo mesmo motivo: ela nunca tinha sido agrupada por área, e isso virou
+  // impossibilidade na cabeça de quem escreveu -- eu.
   //
-  // Com o filtro ligado, o eixo vertical passa a ser o da ÁREA. O quadrante
-  // "Prioridade" vira: entre as perguntas que movem engajamento NA EMPRESA,
-  // quais esta área responde pior. A alavanca vem da empresa porque é a única
-  // medida que existe; o alvo vem da área.
+  // Hoje os dois eixos seguem o filtro quando a área tem respostas suficientes
+  // para uma correlação. Quando não tem, só o vertical segue, e o texto na tela
+  // diz qual é o caso COM o número, em vez de alegar que o dado não existe.
+  //
   // A troca vive em `drill.ts` e a lista "Por onde começar" chama a MESMA
   // função. Enquanto ela esteve copiada aqui dentro, os dois cartões voltaram
   // a discordar sob filtro -- a mesma pergunta em quadrantes diferentes.
@@ -153,7 +153,7 @@ export default function DriverImportance({
       title="O que anda junto com o engajamento"
       subtitle={
         departamentoSelecionado
-          ? `${pontos.length} perguntas · nota de ${departamentoSelecionado} × associação da empresa`
+          ? `${pontos.length} perguntas · ${escopo.assocDaEmpresa ? `nota de ${departamentoSelecionado} × associação da empresa` : `tudo de ${departamentoSelecionado}`}`
           : `${rows.length} perguntas · ${nMin === nMax ? `n=${nMax}` : `n de ${nMin} a ${nMax}`} pessoas`
       }
       icon={Compass}
@@ -164,11 +164,23 @@ export default function DriverImportance({
           agora é ele que está plotado. */}
       {departamentoSelecionado && (
         <p className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed">
-          <strong>Os dois eixos têm origens diferentes.</strong> A altura é o que{' '}
-          <strong>{departamentoSelecionado}</strong> respondeu. A posição horizontal é a associação
-          com o eNPS medida na <strong>empresa inteira</strong> — ela não existe por área, é uma
-          linha por pergunta no banco. Então o gráfico responde: entre as perguntas que movem
-          engajamento na Flutter Brazil, quais {departamentoSelecionado} responde pior.
+          {escopo.assocDaEmpresa ? (
+            <>
+              <strong>Os dois eixos têm origens diferentes.</strong> A altura é o que{' '}
+              <strong>{departamentoSelecionado}</strong> respondeu. A posição horizontal é a
+              associação com o eNPS medida na <strong>empresa inteira</strong>, porque{' '}
+              {departamentoSelecionado} tem menos que as {N_MINIMO_CORRELACAO} respostas que uma
+              correlação precisa. Então o gráfico responde: entre as perguntas que movem
+              engajamento na Flutter Brazil, quais {departamentoSelecionado} responde pior.
+            </>
+          ) : (
+            <>
+              <strong>Os dois eixos são de {departamentoSelecionado}.</strong> A altura é o que a
+              área respondeu; a posição horizontal é a associação com o eNPS calculada{' '}
+              <strong>dentro dela</strong>. Então o gráfico responde: o que move engajamento nesta
+              área — que pode não ser o que move na empresa.
+            </>
+          )}
           {escopo.suprimidas > 0 && (
             <>
               {' '}

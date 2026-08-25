@@ -4,6 +4,7 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { classifyPerguntas, temaDominante as temaDeLista } from '@/lib/pergunta-priority';
+import { N_MINIMO_CORRELACAO } from '@/lib/aggregator/polly-survey';
 import { cn } from '@/lib/utils';
 import {
   Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger,
@@ -140,10 +141,10 @@ export default function DriverPriority({
 }: {
   rows: SurveyImportance[];
   /**
-   * Área escolhida no filtro. Não é mais só para o aviso: com ela, o % de cada
-   * linha passa a ser o da área. A associação continua sendo a da empresa,
-   * porque `survey_driver_importance` guarda uma linha por pergunta, sem coluna
-   * de recorte -- essa parte não tem versão por área e não terá.
+   * Área escolhida no filtro. Com ela, o % E a ordem passam a ser da área --
+   * a associação com o eNPS é calculada dentro dela quando há respostas
+   * suficientes (ver `N_MINIMO_CORRELACAO`). Abaixo disso, a ordem cai na da
+   * empresa e a tela diz isso com o número.
    */
   departamentoSelecionado?: string | null;
   /**
@@ -161,12 +162,14 @@ export default function DriverPriority({
   const [sobre, setSobre] = useState<string | null>(null);
 
   // ------------------------------------------------------------------
-  // O % PASSA A SER O DA ÁREA QUANDO HÁ FILTRO
+  // COM FILTRO, A LISTA INTEIRA PASSA A SER DA ÁREA
   // ------------------------------------------------------------------
-  // A associação com o eNPS continua sendo a da empresa -- é a única medida que
-  // existe. O que muda é o alvo: a lista deixa de ordenar "as perguntas que a
-  // EMPRESA responde pior entre as que movem engajamento" e passa a ordenar "as
-  // que ESTA ÁREA responde pior entre elas".
+  // Primeiro só o % passou a ser da área, e este comentário dizia que a
+  // associação "é a única medida que existe" na empresa. Não era: ela nunca
+  // tinha sido agrupada por área. Agora é, quando a área tem respostas
+  // suficientes -- e aí a lista responde o que move engajamento NAQUELA área,
+  // que pode ser outra coisa. Em Technology, gestão é a segunda que mais puxa;
+  // na empresa ela não entra no topo.
   //
   // A mesma função do gráfico logo acima, de propósito. Por meia hora a troca
   // esteve só no gráfico, e os dois cartões voltaram a poder colocar a mesma
@@ -212,7 +215,7 @@ export default function DriverPriority({
         // tela fez por um tempo, escrevendo "485 respostas" ao lado do painel
         // filtrado em Marketing.
         departamentoSelecionado
-          ? `% que ${departamentoSelecionado} concorda · ${escopo.linhas.length} perguntas · ${escopo.linhas[0]?.n ?? 0} respostas`
+          ? `${escopo.assocDaEmpresa ? 'ordem da empresa' : 'tudo de ' + departamentoSelecionado} · ${escopo.linhas.length} perguntas · ${escopo.linhas[0]?.n ?? 0} respostas`
           : `% que concorda · ${escopo.linhas.length} perguntas · ${escopo.linhas[0]?.n ?? 0} respostas da empresa`
       }
     >
@@ -221,10 +224,33 @@ export default function DriverPriority({
           isso, que o texto pode alegar. */}
       {departamentoSelecionado && (
         <p className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed">
-          <strong>A coluna de % é de {departamentoSelecionado}.</strong> A ordem da lista vem da
-          associação com o eNPS, que é medida uma vez na <strong>empresa inteira</strong> — não
-          existe versão dela por área. Então a lista responde: entre as perguntas que movem
-          engajamento na Flutter Brazil, quais {departamentoSelecionado} responde pior.
+          {/* ------------------------------------------------------------------
+              ESTA FRASE DIZIA "NÃO EXISTE VERSÃO POR ÁREA"
+              ------------------------------------------------------------------
+              E era falsa, como as outras três do mesmo formato neste painel. A
+              correlação exige eNPS e nota na mesma pessoa, e o export traz as
+              duas com a área ao lado -- só nunca tinha sido agrupada.
+
+              Agora a lista mostra o que move engajamento NAQUELA área. Onde a
+              área não tem respostas suficientes para uma correlação, ela cai na
+              da empresa -- e o texto diz isso COM O NÚMERO, que é uma afirmação
+              que dá para conferir. */}
+          {escopo.assocDaEmpresa ? (
+            <>
+              <strong>A coluna de % é de {departamentoSelecionado}; a ordem é da empresa.</strong>{' '}
+              {departamentoSelecionado} tem {escopo.linhas[0]?.n ?? 0} respostas, abaixo das{' '}
+              {N_MINIMO_CORRELACAO} que uma correlação precisa para a ordem das perguntas significar
+              algo. Então a lista responde: entre as perguntas que movem engajamento na Flutter
+              Brazil, quais {departamentoSelecionado} responde pior.
+            </>
+          ) : (
+            <>
+              <strong>Tudo aqui é de {departamentoSelecionado}</strong> — a nota e a ordem. A
+              associação com o eNPS foi calculada dentro da área, sobre as{' '}
+              {escopo.linhas[0]?.n ?? 0} respostas dela. A lista responde: o que move engajamento{' '}
+              <strong>nesta área</strong>, que pode ser diferente do que move na empresa.
+            </>
+          )}
           {escopo.suprimidas > 0 && (
             <>
               {' '}

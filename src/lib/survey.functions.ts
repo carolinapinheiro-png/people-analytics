@@ -177,6 +177,10 @@ export interface SurveyCut {
 }
 
 export interface SurveyImportance {
+  /** 'company' ou 'area'. A associação passou a ter recorte. */
+  cutType: string;
+  /** 'company' ou o nome da área. */
+  cutValue: string;
   driver: string;
   question: string;
   r: number;
@@ -472,7 +476,16 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
         ? Math.round((Number(wave.respondents) / Number(wave.eligible)) * 1000) / 10
         : null,
       cuts,
-      importancia: (impRes.error ? [] : impRes.data ?? []).map((i: Record<string, unknown>) => ({
+      importancia: (impRes.error ? [] : impRes.data ?? [])
+        // A associação passou a ter recorte. A permissão vale aqui como em
+        // qualquer linha de área: quem não pode ver a área não recebe a
+        // correlação dela. `company` é a régua e passa sempre.
+        .filter((i: Record<string, unknown>) =>
+          String(i.cut_type ?? 'company') === 'company'
+          || passaNoRecorte(String(i.cut_value ?? '')))
+        .map((i: Record<string, unknown>) => ({
+        cutType: String(i.cut_type ?? 'company'),
+        cutValue: String(i.cut_value ?? 'company'),
         driver: String(i.driver), question: String(i.question),
         r: Number(i.r), score: Number(i.score),
         favoravel: i.favoravel == null ? null : Number(i.favoravel),

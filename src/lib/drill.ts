@@ -355,8 +355,23 @@ export function linhasDaArea(
  * encostado em "4,06" (a média da empresa) -- dois números vizinhos, duas
  * populações, nenhum rótulo.
  *
- * O que NÃO vem é `r`, a associação com o eNPS: essa não tem versão por área
- * e não terá. É o que a tela precisa explicar em vez de esconder.
+ * ---------------------------------------------------------------------------
+ * O `r` TAMBÉM PASSOU A TER VERSÃO POR ÁREA
+ * ---------------------------------------------------------------------------
+ * Esta função dizia, aqui mesmo, que a associação com o eNPS "não tem versão
+ * por área e não terá". Era falso -- e foi a quarta vez que o mesmo erro
+ * apareceu neste painel: uma dimensão que nunca tinha sido agregada anunciada
+ * como impossível.
+ *
+ * A correlação exige eNPS e nota da pergunta na MESMA pessoa, e o export traz
+ * as duas na mesma linha, junto com a área. Bastava agrupar antes de
+ * correlacionar (ver `computeDriverImportance`).
+ *
+ * O limite verdadeiro é o TAMANHO: abaixo de 30 respostas o `r` oscila tanto
+ * entre amostras que a ordem das perguntas -- que é o produto do cálculo --
+ * vira sorteio. Em ago/26 cinco áreas passam desse corte e quatro não. As que
+ * não passam caem na associação da empresa, e `assocDaEmpresa` diz isso para a
+ * tela poder explicar com o número na mão.
  */
 export function perguntasNoRecorte<
   T extends {
@@ -365,16 +380,36 @@ export function perguntasNoRecorte<
     favoravel: number | null;
     n: number;
     score: number;
+    r: number;
+    cutType?: string;
+    cutValue?: string;
   },
 >(
   perguntas: readonly T[],
   porRecorte: readonly DriverPorRecorte[],
   area: string | null | undefined,
-): { linhas: T[]; suprimidas: number } {
-  if (!area) return { linhas: [...perguntas], suprimidas: 0 };
-  const daArea = linhasDaArea(porRecorte, area);
-  const linhas = perguntas.flatMap((p) => {
-    const l = daArea.get(chave(p));
+): { linhas: T[]; suprimidas: number; assocDaEmpresa: boolean } {
+  const daEmpresa = perguntas.filter((p) => (p.cutType ?? 'company') === 'company');
+  if (!area) {
+    return { linhas: [...daEmpresa], suprimidas: 0, assocDaEmpresa: true };
+  }
+
+  // A associação DA ÁREA, quando ela passou do mínimo de respostas.
+  const alvo = (area ?? '').trim().toLowerCase();
+  const assocArea = new Map<string, T>();
+  for (const p of perguntas) {
+    if ((p.cutType ?? 'company') !== 'area') continue;
+    if ((p.cutValue ?? '').trim().toLowerCase() !== alvo) continue;
+    assocArea.set(chave(p), p);
+  }
+  const assocDaEmpresa = assocArea.size === 0;
+
+  // A NOTA da área -- essa existe para qualquer área, e vem de outra tabela.
+  const notas = linhasDaArea(porRecorte, area);
+
+  const base = assocDaEmpresa ? daEmpresa : [...assocArea.values()];
+  const linhas = base.flatMap((p) => {
+    const l = notas.get(chave(p));
     // Sem nota da área a pergunta SAI. Cair na da empresa misturaria as duas
     // populações na mesma lista, sem nada distinguindo as linhas.
     if (l == null) return [];
@@ -383,7 +418,7 @@ export function perguntasNoRecorte<
     // aproximado -- e ele é detalhe: a leitura principal é o %.
     return [{ ...p, favoravel: l.favoravel, n: l.n, score: l.score ?? p.score }];
   });
-  return { linhas, suprimidas: perguntas.length - linhas.length };
+  return { linhas, suprimidas: base.length - linhas.length, assocDaEmpresa };
 }
 
 /**

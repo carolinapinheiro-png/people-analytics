@@ -81,6 +81,11 @@ const DriverScore = z.object({
 });
 
 const Importance = z.object({
+  // A associação com o eNPS passou a ser calculada também por área. Ver o
+  // comentário de `computeDriverImportance` -- a tela dizia que ela "só existe
+  // na empresa", e isso nunca foi verdade, só nunca tinha sido calculado.
+  cutType: z.enum(['company', 'area']),
+  cutValue: z.string().min(1).max(120),
   driver: z.string().min(1).max(200),
   question: z.string().min(1).max(600),
   r: z.number(),
@@ -287,7 +292,8 @@ export const importSurveyWave = createServerFn({ method: 'POST' })
       score: d.score, favoravel: d.favoravel,
     })));
     await emLotes('survey_driver_importance', data.importance.map((i) => ({
-      wave: data.wave, driver: i.driver, question: i.question,
+      wave: data.wave, cut_type: i.cutType, cut_value: i.cutValue,
+      driver: i.driver, question: i.question,
       r: i.r, score: i.score, favoravel: i.favoravel, n: i.n,
     })));
 

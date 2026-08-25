@@ -458,6 +458,10 @@ export function computeDriverScores(
  * engajamento -- e merece outra conversa, não esta.
  */
 export interface DriverImportance {
+  /** 'company' ou 'area'. Ver o comentário de `computeDriverImportance`. */
+  cutType: CutTypeSimples;
+  /** 'company' ou o nome da área. */
+  cutValue: string;
   driver: string;
   question: string;
   /** Correlação de Pearson com o eNPS individual. */
@@ -483,26 +487,89 @@ function pearson(xs: number[], ys: number[]): number | null {
   return dx > 0 && dy > 0 ? num / Math.sqrt(dx * dy) : null;
 }
 
-export function computeDriverImportance(rs: PollyResponse[], minN = 30): DriverImportance[] {
-  const chaves = [...new Set(rs.flatMap((r) => Object.keys(r.drivers)))];
+/**
+ * ===========================================================================
+ * QUANTAS RESPOSTAS UMA CORRELAÇÃO PRECISA
+ * ===========================================================================
+ * Trinta pares. Abaixo disso o `r` oscila tanto entre amostras que a ordem das
+ * perguntas -- que é o produto deste cálculo -- vira sorteio.
+ *
+ * O número decide QUAIS ÁREAS têm importância própria. Em ago/26:
+ *
+ *   Technology 149 · Customer Service 87 · Marketing 81 · Commercial 48 ·
+ *   Product 40   -> têm
+ *   Finance 24 · Human Resources 20 · Outros 20 · Legal 16 -> não têm
+ *
+ * As que não têm caem na da empresa, e a tela precisa dizer isso com o número
+ * na mão: "Legal tem 16 respostas, abaixo do mínimo de 30" é uma frase que a
+ * pessoa consegue conferir. "Não existe por área" é uma que ela não consegue --
+ * e que era falsa.
+ */
+export const N_MINIMO_CORRELACAO = 30;
+
+/**
+ * ===========================================================================
+ * A ASSOCIAÇÃO COM O eNPS, AGORA TAMBÉM POR ÁREA
+ * ===========================================================================
+ * Esta função sempre recebeu as respostas inteiras e devolveu uma linha por
+ * pergunta. A tela virou isso em "a associação com o eNPS é medida uma vez, na
+ * empresa inteira -- não existe versão dela por área".
+ *
+ * A segunda metade da frase era falsa, e é a quarta vez que o mesmo erro
+ * aparece neste painel. A correlação exige eNPS e nota da pergunta na MESMA
+ * pessoa -- e cada linha do export traz as duas, mais a área. Bastava agrupar
+ * antes de correlacionar.
+ *
+ * O que muda com isso é a leitura da aba: em vez de "as perguntas que movem
+ * engajamento na empresa, e como esta área responde a elas", passa a ser "as
+ * perguntas que movem engajamento NESTA ÁREA". São conclusões diferentes, e a
+ * segunda é a que um gestor pode usar.
+ *
+ * O limite real não é o dado, é o tamanho: ver `N_MINIMO_CORRELACAO`.
+ */
+export function computeDriverImportance(
+  rs: PollyResponse[],
+  minN = N_MINIMO_CORRELACAO,
+  tipos: CutTypeSimples[] = ['company', 'area'],
+): DriverImportance[] {
   const out: DriverImportance[] = [];
-  for (const ch of chaves) {
-    const pares = rs
-      .map((r) => [r.drivers[ch], r.nps] as const)
-      .filter(([a, b]) => a != null && b != null && Number.isFinite(a) && Number.isFinite(b)) as Array<readonly [number, number]>;
-    if (pares.length < minN) continue;
-    const r = pearson(pares.map((p) => p[0]), pares.map((p) => p[1]));
-    if (r == null) continue;
-    const [driver, question] = ch.split('||');
-    out.push({
-      driver, question,
-      r: Math.round(r * 1000) / 1000,
-      score: Math.round((pares.reduce((s, p) => s + p[0], 0) / pares.length) * 100) / 100,
-      favoravel: pctFavoravel(pares.map((p) => p[0])) ?? 0,
-      n: pares.length,
-    });
+
+  for (const tipo of tipos) {
+    const grupos = new Map<string, PollyResponse[]>();
+    for (const r of rs) {
+      const k = CUT_KEY[tipo](r);
+      if (!k) continue;
+      if (!grupos.has(k)) grupos.set(k, []);
+      grupos.get(k)!.push(r);
+    }
+
+    for (const [cutValue, grupo] of grupos) {
+      const chaves = [...new Set(grupo.flatMap((r) => Object.keys(r.drivers)))];
+      for (const ch of chaves) {
+        const pares = grupo
+          .map((r) => [r.drivers[ch], r.nps] as const)
+          .filter(([a, b]) => a != null && b != null && Number.isFinite(a) && Number.isFinite(b)) as Array<readonly [number, number]>;
+        if (pares.length < minN) continue;
+        const r = pearson(pares.map((p) => p[0]), pares.map((p) => p[1]));
+        if (r == null) continue;
+        const [driver, question] = ch.split('||');
+        out.push({
+          cutType: tipo, cutValue,
+          driver, question,
+          r: Math.round(r * 1000) / 1000,
+          score: Math.round((pares.reduce((s, p) => s + p[0], 0) / pares.length) * 100) / 100,
+          favoravel: pctFavoravel(pares.map((p) => p[0])) ?? 0,
+          n: pares.length,
+        });
+      }
+    }
   }
-  return out.sort((a, b) => b.r - a.r);
+
+  // Empresa primeiro, e dentro de cada recorte da mais forte para a mais fraca.
+  return out.sort((a, b) =>
+    a.cutType === b.cutType
+      ? (a.cutValue === b.cutValue ? b.r - a.r : a.cutValue.localeCompare(b.cutValue))
+      : a.cutType === 'company' ? -1 : 1);
 }
 
 export function applySuppression<T extends { n: number }>(

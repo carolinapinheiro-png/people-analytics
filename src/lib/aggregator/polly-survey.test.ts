@@ -239,10 +239,58 @@ test('importância: correlação positiva aparece; par incompleto não conta', (
     const nota = (i % 5) + 1;
     rs.push(resp({ nps: nota * 2, drivers: { 'D||q': nota } }));
   }
+  // Sai a linha da empresa E a da área: a associação passou a ser calculada
+  // nos dois níveis. Todas estas 40 respostas são de Technology (ver `resp`).
   const imp = computeDriverImportance(rs, 10);
-  assert.equal(imp.length, 1);
-  assert.ok(imp[0].r > 0.9, `esperava r alto, veio ${imp[0].r}`);
-  assert.equal(imp[0].n, 40);
+  assert.equal(imp.length, 2);
+
+  const emp = imp.find((i) => i.cutType === 'company')!;
+  assert.ok(emp.r > 0.9, `esperava r alto, veio ${emp.r}`);
+  assert.equal(emp.n, 40);
+  assert.equal(emp.cutValue, 'company');
+
+  const area = imp.find((i) => i.cutType === 'area')!;
+  assert.equal(area.cutValue, 'Technology');
+  // Mesmo grupo, mesmo número: com uma área só, os dois recortes coincidem.
+  assert.equal(area.n, 40);
+  assert.equal(area.r, emp.r);
+});
+
+test('importância: a associação de cada área sai da MESMA área', () => {
+  // O teste que descreve por que isto existe. Em Technology a correlação é
+  // perfeita e positiva; em Marketing, invertida. Uma associação calculada só
+  // na empresa devolveria a média das duas e não descreveria nenhuma.
+  const rs: PollyResponse[] = [];
+  for (let i = 0; i < 40; i++) {
+    const nota = (i % 5) + 1;
+    rs.push(resp({ area: 'Technology', nps: nota * 2, drivers: { 'D||q': nota } }));
+    rs.push(resp({ area: 'Marketing', nps: (6 - nota) * 2, drivers: { 'D||q': nota } }));
+  }
+  const imp = computeDriverImportance(rs, 10);
+  const tech = imp.find((i) => i.cutValue === 'Technology')!;
+  const mkt = imp.find((i) => i.cutValue === 'Marketing')!;
+  assert.ok(tech.r > 0.9, `Technology: ${tech.r}`);
+  assert.ok(mkt.r < -0.9, `Marketing: ${mkt.r}`);
+  // E a da empresa fica no meio, sem descrever nenhuma das duas.
+  const emp = imp.find((i) => i.cutType === 'company')!;
+  assert.ok(Math.abs(emp.r) < 0.5, `empresa: ${emp.r}`);
+});
+
+test('importância: área abaixo do mínimo não ganha correlação própria', () => {
+  // Legal tem 16 respostas em ago/26, e o corte é 30. Ela sai da lista por
+  // área -- não vira um `r` frágil com cara de medida.
+  const rs: PollyResponse[] = [];
+  for (let i = 0; i < 40; i++) {
+    rs.push(resp({ area: 'Technology', nps: (i % 5) * 2 + 2, drivers: { 'D||q': (i % 5) + 1 } }));
+  }
+  for (let i = 0; i < 16; i++) {
+    rs.push(resp({ area: 'Legal', nps: (i % 5) * 2 + 2, drivers: { 'D||q': (i % 5) + 1 } }));
+  }
+  const imp = computeDriverImportance(rs, 30);
+  assert.ok(imp.some((i) => i.cutValue === 'Technology'));
+  assert.ok(!imp.some((i) => i.cutValue === 'Legal'));
+  // A empresa continua tendo -- 56 respostas somadas passam do corte.
+  assert.ok(imp.some((i) => i.cutType === 'company'));
 });
 
 test('importância: pergunta com poucas respostas fica de fora', () => {
