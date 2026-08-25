@@ -215,6 +215,27 @@ export function PesquisaCard() {
                   ))}
                 </div>
 
+                {/* ------------------------------------------------------------------
+                    ARQUIVO SEM eNPS: AVISO GRANDE, NÃO UM CHIP RISCADO
+                    ------------------------------------------------------------------
+                    A informação já estava na tela -- "eNPS" aparecia riscado na
+                    linha de cima. Não bastou: em 25/08 uma onda foi recarregada
+                    com o arquivo que só tem os drivers, e o eNPS de jul/25 foi
+                    apagado. Um chip riscado numa fileira de oito não compete com
+                    um botão verde escrito "Gravar".
+
+                    Sinal proporcional à consequência: o que apaga dado avisa em
+                    bloco, com o nome do que some. */}
+                {!previa.encontrado.nps && (
+                  <p className="mt-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+                    <strong>Este arquivo não tem a pergunta de recomendação (eNPS).</strong> Ele
+                    mede só as perguntas de driver. Se esta onda já tiver eNPS gravado, ele será{' '}
+                    <strong>preservado</strong> — a carga substitui apenas os drivers. É o caso de
+                    uma onda aplicada em duas partes, como jul/25, em que o eNPS veio de um arquivo
+                    e os drivers de outro. Simule antes de gravar para ver o que vai acontecer.
+                  </p>
+                )}
+
                 {/* Os cabeçalhos que o parser não entendeu. "34 perguntas
                     reconhecidas" só quer dizer alguma coisa ao lado de "e
                     estas eu não entendi" -- foi assim que a pergunta de

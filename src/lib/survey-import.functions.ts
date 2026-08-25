@@ -202,11 +202,58 @@ export const importSurveyWave = createServerFn({ method: 'POST' })
       avisos.push('Sem elegíveis: não haverá taxa de participação para esta onda.');
     }
 
-    if (!data.confirm) return { gravado: false, wave: data.wave, linhas, avisos };
+    // ==================================================================
+    // ARQUIVO SEM eNPS NÃO PODE APAGAR O eNPS QUE JÁ ESTÁ LÁ
+    // ==================================================================
+    // jul/25 foi aplicada em DUAS partes: o eNPS saiu em jun/25 (233
+    // respostas) e os drivers em jul/25 (295). São arquivos diferentes, e esta
+    // tela aceita um por vez.
+    //
+    // Em 25/08/2026 a onda foi recarregada com o arquivo dos drivers. Ele não
+    // tem a coluna de recomendação, então `computeCuts` devolveu eNPS nulo em
+    // todos os recortes, o `delete` apagou as linhas boas e o `insert` gravou
+    // nulos por cima. jul/25 sumiu da série -- e a única pista era o gráfico
+    // ter trocado de três ondas para duas.
+    //
+    // A carga não avisou nada. As colunas ausentes caíam na lista de ignorados
+    // do parser, que ninguém lê, e o resultado foi "gravado" em verde.
+    //
+    // A correção NÃO é recusar: uma onda de duas partes é legítima e precisa
+    // ser carregável. É não deixar a metade que chegou apagar a que já está
+    // gravada -- cada arquivo escreve só o que ele MEDIU.
+    const trazEnps = data.cuts.some((c) => c.enps != null);
+    let preservouEnps = false;
+
+    if (!trazEnps) {
+      const { data: existentes } = await db
+        .from('survey_cut_scores')
+        .select('cut_value')
+        .eq('wave', data.wave)
+        .not('enps', 'is', null)
+        .limit(1);
+      preservouEnps = ((existentes ?? []) as unknown[]).length > 0;
+
+      avisos.push(
+        preservouEnps
+          ? 'Este arquivo NÃO tem a pergunta de recomendação (eNPS), e esta onda já tem eNPS gravado. As notas de eNPS, risco e satisfação que já estão lá serão PRESERVADAS — a carga vai substituir só as perguntas de driver. É o caso de uma onda aplicada em duas partes.'
+          : 'Este arquivo não tem a pergunta de recomendação (eNPS). Esta onda ficará só com as perguntas de driver, sem eNPS, risco nem satisfação.',
+      );
+    }
+
+    if (!data.confirm) {
+      return { gravado: false, wave: data.wave, linhas, avisos };
+    }
 
     // Apaga antes de gravar. Recarregar uma onda corrigida é o caso comum.
-    for (const t of ['survey_driver_importance', 'survey_driver_scores', 'survey_cut_scores',
-      'engagement_drivers', 'engagement_scores']) {
+    //
+    // Quando a carga preserva o eNPS (ver acima), as duas tabelas que o guardam
+    // ficam de fora da limpeza E da gravação. Metade do arquivo não pode apagar
+    // a metade do outro.
+    const aLimpar = preservouEnps
+      ? ['survey_driver_importance', 'survey_driver_scores', 'engagement_drivers']
+      : ['survey_driver_importance', 'survey_driver_scores', 'survey_cut_scores',
+         'engagement_drivers', 'engagement_scores'];
+    for (const t of aLimpar) {
       const { error } = await db.from(t).delete().eq('wave', data.wave);
       if (error) throw new Error(`Falha ao limpar ${t}: ${error.message}`);
     }
@@ -225,12 +272,14 @@ export const importSurveyWave = createServerFn({ method: 'POST' })
       }
     };
 
-    await emLotes('survey_cut_scores', data.cuts.map((c) => ({
-      wave: data.wave, cut_type: c.cutType, cut_value: c.cutValue, n: c.n,
-      enps: c.enps, promotores: c.promotores, passivos: c.passivos,
-      detratores: c.detratores, risco: c.risco, satisfacao: c.satisfacao,
-    })));
-    await emLotes('engagement_scores', scores);
+    if (!preservouEnps) {
+      await emLotes('survey_cut_scores', data.cuts.map((c) => ({
+        wave: data.wave, cut_type: c.cutType, cut_value: c.cutValue, n: c.n,
+        enps: c.enps, promotores: c.promotores, passivos: c.passivos,
+        detratores: c.detratores, risco: c.risco, satisfacao: c.satisfacao,
+      })));
+      await emLotes('engagement_scores', scores);
+    }
     await emLotes('engagement_drivers', drivers);
     await emLotes('survey_driver_scores', data.driverScores.map((d) => ({
       wave: data.wave, driver: d.driver, question: d.question,
