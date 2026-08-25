@@ -542,9 +542,15 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       // estava vindo. O tempo de casa NÃO identifica ninguém, então ele segue
       // inteiro para qualquer perfil -- a mesma regra dos outros recortes não
       // nominais.
+      //
+      // 'area+tempo' entra na mesma lista desde que o cruzamento passou a ser
+      // calculado. Sem ele aqui, o bloco de tempo de casa continuava caindo no
+      // fallback da empresa mesmo com o dado gravado -- a linha existia no
+      // banco e nunca chegava ao servidor. A permissão dele é tratada por
+      // `podeVerArea` sobre a área extraída do nome composto, abaixo.
       db.from('survey_cut_scores')
         .select('wave, cut_type, cut_value, n, enps, promotores, passivos, detratores, risco, satisfacao')
-        .in('cut_type', ['area', 'tempo']),
+        .in('cut_type', ['area', 'tempo', 'area+tempo']),
       // Só NSX/reconstruido tem dept_breakdown. Ver ressalva abaixo: a pesquisa
       // cobre a Flutter Brazil inteira, a quebra por área só existe para NSX.
       db
@@ -762,8 +768,21 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     const daAreaSel = (r: LinhaCutMin) => {
       if (r.cut_type !== 'area+tempo') return null;
       const p = partesDoCruzamento(r.cut_value ?? '');
-      // A permissão já foi aplicada na consulta; aqui é só a seleção.
-      return p && deptForScope(p.area) === sel ? p.valor : null;
+      if (!p) return null;
+      // ------------------------------------------------------------------
+      // PERMISSÃO E SELEÇÃO, NA ORDEM, MESMO SENDO REDUNDANTE
+      // ------------------------------------------------------------------
+      // A consulta traz o cruzamento de TODAS as áreas -- ela não filtra por
+      // escopo. Hoje comparar com `sel` já basta, porque perfil restrito sempre
+      // tem `sel` preenchido com a própria área e um pedido fora do escopo já
+      // levantou erro lá em cima.
+      //
+      // "Hoje basta" é exatamente o tipo de raciocínio que envelhece: no dia em
+      // que `sel` puder ficar nulo para perfil restrito, esta linha passa a
+      // liberar o cruzamento de qualquer área. `podeVerArea` já é a regra do
+      // resto da função e custa nada aqui.
+      if (!podeVerArea(p.area)) return null;
+      return deptForScope(p.area) === sel ? p.valor : null;
     };
 
     // A onda mais recente que tem QUALQUER dado de tempo de casa. É contra ela
@@ -787,7 +806,12 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     if (sel) {
       const ondasCruzadas = carregarTempo(daAreaSel);
       tempoPorArea =
-        ondasCruzadas.size > 0 &&
+        // DUAS ondas, não uma. O bloco compara ondas entre si e some abaixo de
+        // duas -- então com o cruzamento em uma onda só ele não cairia no
+        // fallback, ele desapareceria. Sumir em silêncio é o comportamento que
+        // este arquivo inteiro tenta evitar, e a primeira carga com cruzamento
+        // (ago/26 sozinha) é exatamente esse caso.
+        ondasCruzadas.size >= 2 &&
         maisRecenteComTempo != null &&
         ondasCruzadas.has(maisRecenteComTempo);
       // Sem alcance até a onda atual, volta para a série da empresa: um bloco
