@@ -5,9 +5,9 @@ import {
 } from 'recharts';
 import { AlertTriangle, Crosshair } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
-import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { spearman } from '@/lib/stats';
+import { SAIDAS_MINIMAS_PARA_TAXA } from '@/lib/analise-engajamento';
 import type { EngagementContextRow } from '@/lib/engagement-context';
 
 /**
@@ -34,15 +34,16 @@ import type { EngagementContextRow } from '@/lib/engagement-context';
  */
 
 /**
- * Abaixo de 5 pedidos de demissão no semestre, a taxa da área é ruído: em Legal,
- * uma única pessoa vale 11,8 pontos percentuais anualizados. Esses pontos
- * continuam no gráfico -- escondê-los seria escolher a amostra pelo resultado --
- * mas vazados, para que ninguém os leia com o mesmo peso de uma área grande.
+ * Bolas cheias × vazadas. O limiar mora em `analise-engajamento` porque
+ * `RiscoPreviu` faz o mesmo juízo sobre os mesmos dados: em Legal, uma única
+ * pessoa vale 11,8 pontos percentuais anualizados. Os pontos frágeis continuam
+ * no gráfico -- escondê-los seria escolher a amostra pelo resultado -- mas
+ * vazados, para que ninguém os leia com o peso de uma área grande.
  */
-const N_MINIMO_CONFIAVEL = 5;
+const N_MINIMO_CONFIAVEL = SAIDAS_MINIMAS_PARA_TAXA;
 
 interface Ponto {
-  x: number; y: number; nome: string; saidas: number; hc: number; fragil: boolean;
+  x: number; y: number; nome: string; dept: string; saidas: number; hc: number; fragil: boolean;
 }
 
 export default function RiskVsAttrition({
@@ -53,40 +54,54 @@ export default function RiskVsAttrition({
   departamentoSelecionado = null,
 }: {
   /**
-   * TODAS as áreas que o perfil pode ver, sem o filtro de tela.
+   * Todas as áreas que o perfil pode ver, sem o filtro de tela -- e o filtro é
+   * aplicado AQUI DENTRO, antes de qualquer conta.
    *
    * ------------------------------------------------------------------
-   * ESTE CARTÃO NÃO É SOBRE UMA ÁREA
+   * POR QUE O RECORTE ENTRA ANTES DA ESTATÍSTICA, E NÃO NO DESENHO
    * ------------------------------------------------------------------
-   * Ele pergunta se a coluna de risco antecipa quem sai -- uma correlação
-   * ENTRE áreas, que não existe com uma só. Recebendo as linhas filtradas, ele
-   * exibia "ainda não há áreas suficientes com risco declarado e saídas
-   * observadas", que se lê como falta de dado. O dado estava lá; a pergunta é
-   * que não era sobre a área escolhida.
+   * Este cartão já mostrou as oito áreas com nome e número enquanto o filtro
+   * marcava uma só. A justificativa estava escrita e era verdadeira pela
+   * metade: a correlação ENTRE áreas de fato não existe com uma área só. O
+   * erro foi concluir daí que a saída era mostrar todas.
    *
-   * `RiscoPreviu`, que faz a MESMA pergunta com outro desenho, já tinha sido
-   * corrigido. Este ficou para trás -- dois cartões, uma correção só, o padrão
-   * que se repetiu o dia inteiro.
+   * A permissão nunca vazou -- quem tem escopo restrito sempre recebeu apenas
+   * as áreas dele. Mas permissão protege o usuário restrito, não a tela
+   * projetada: quem tem acesso total filtra uma área para conversar com aquela
+   * liderança, e o quadro entregava o ranking inteiro na mesma imagem.
    *
-   * A permissão continua valendo: quem tem escopo restrito recebe só as áreas
-   * dele. O que cai é a seleção, não o teto.
+   * Então o filtro passa a ser aplicado em `usaveis`, na origem, e não na
+   * renderização. Assim ele FALHA FECHADO: qualquer conta nova escrita neste
+   * arquivo -- média, ranking, tooltip, extremo -- nasce sobre uma área só,
+   * sem depender de alguém lembrar de filtrar de novo.
+   *
+   * O que some junto é o que realmente não existe para uma área: a correlação
+   * e os extremos comparativos. Isso é dito, não escondido.
    */
   rows: EngagementContextRow[];
   janela: string;
   /** Meses observados. Entra na conta da anualização; hardcodar quebra em silêncio. */
   meses: number;
   ressalvas: string[];
-  /** Só para o aviso e o destaque da linha. Ver acima. */
+  /** Recorta os dados na origem. Ver acima. */
   departamentoSelecionado?: string | null;
 }) {
   const { pontos, corr, calibracao } = useMemo(() => {
+    // O RECORTE VEM PRIMEIRO. Ver o comentário da prop: tudo que este arquivo
+    // calcula depois desta linha já nasce dentro da área escolhida.
+    const alvo = departamentoSelecionado?.trim().toUpperCase() ?? null;
     const usaveis = rows.filter(
-      (r) => r.dept && r.retentionRisk != null && r.atricaoVoluntariaAnual != null,
+      (r) =>
+        r.dept &&
+        r.retentionRisk != null &&
+        r.atricaoVoluntariaAnual != null &&
+        (alvo == null || (r.dept ?? '').trim().toUpperCase() === alvo),
     );
     const p: Ponto[] = usaveis.map((r) => ({
       x: r.retentionRisk as number,
       y: r.atricaoVoluntariaAnual as number,
       nome: r.scope,
+      dept: r.dept as string,
       saidas: r.saidasVoluntarias ?? 0,
       hc: r.headcountMedio ?? 0,
       fragil: (r.saidasVoluntarias ?? 0) < N_MINIMO_CONFIAVEL,
@@ -111,7 +126,99 @@ export default function RiskVsAttrition({
       corr: spearman(p.map((q) => [q.x, q.y])),
       calibracao: { observadaAgregada, declaradaMedia, totalVol, totalHc },
     };
-  }, [rows, meses]);
+  }, [rows, meses, departamentoSelecionado]);
+
+  // ======================================================================
+  // COM UMA ÁREA ESCOLHIDA, O CARTÃO É DELA
+  // ======================================================================
+  // Sobram os dois números que são da área -- quanto ela declarou e quanto de
+  // fato saiu -- e sai tudo que só existe comparando áreas: a nuvem, a
+  // correlação, os extremos. Some porque não se aplica, e a tela diz isso em
+  // vez de preencher o espaço com o resultado das outras.
+  if (departamentoSelecionado) {
+    const meu = pontos[0] ?? null;
+    const fator =
+      meu && meu.y > 0 ? Math.round((meu.x / meu.y) * 10) / 10 : null;
+
+    return (
+      <ChartCard
+        title="O risco declarado virou saída?"
+        subtitle={`${departamentoSelecionado} · risco em jan/2026 × saídas voluntárias em ${janela}`}
+        icon={Crosshair}
+      >
+        {meu == null ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">
+            Esta área não tem risco declarado e saídas observadas na mesma janela — sem os dois
+            lados não há o que confrontar.
+          </p>
+        ) : (
+          <>
+            <div className="rounded-md border border-border p-3">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+                O que foi dito, e o que aconteceu
+              </p>
+              <div className="flex items-baseline gap-2 flex-wrap">
+                <span className="text-2xl font-medium tabular-nums">{meu.x}%</span>
+                <span className="text-xs text-muted-foreground">declararam risco em jan/2026</span>
+                <span className="text-muted-foreground">→</span>
+                <span className="text-2xl font-medium tabular-nums" style={{ color: COLORS.nsx }}>
+                  {meu.y}%
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  pediram demissão de fato ({meu.saidas} {meu.saidas === 1 ? 'pessoa' : 'pessoas'} de
+                  ~{meu.hc}, anualizado)
+                </span>
+              </div>
+            </div>
+
+            {meu.fragil ? (
+              <div
+                className="rounded-md border p-3 mt-2"
+                style={{ borderColor: `${COLORS.warning}55`, background: `${COLORS.warning}0f` }}
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle
+                    className="h-4 w-4 mt-0.5 shrink-0"
+                    style={{ color: COLORS.warning }}
+                  />
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    <strong className="text-foreground">A taxa de saída daqui não é estável.</strong>{' '}
+                    Foram {meu.saidas} {meu.saidas === 1 ? 'pedido' : 'pedidos'} de demissão em{' '}
+                    {meses} meses. Com menos de {N_MINIMO_CONFIAVEL}, uma pessoa a mais ou a menos
+                    move a taxa vários pontos percentuais — o {meu.y}% acima diz mais sobre o tamanho
+                    da área do que sobre o que houve nela. O {meu.x}% declarado, esse vem da
+                    pesquisa inteira da área e é firme.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              fator != null && (
+                <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
+                  Aqui a intenção ficou <strong>{fator}×</strong> acima do fato. Dizer que se pensa
+                  em sair não custa nada; sair custa muito, então essa distância é esperada — o que
+                  informa é o tamanho dela. Com uma única medição é ponto de partida, não régua:
+                  vale de verdade quando houver duas ou três ondas para comparar.
+                </p>
+              )
+            )}
+
+            <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
+              <strong>O que não cabe neste recorte:</strong> se a coluna de risco antecipa quem sai
+              é uma pergunta sobre a relação ENTRE as áreas — precisa de várias para existir, e com
+              uma só não há o que testar. A nuvem de pontos e os extremos ficam de fora por isso, e
+              não porque falte dado desta área. Tire o filtro para vê-los.
+            </p>
+          </>
+        )}
+
+        <div className="mt-3 space-y-1.5">
+          {ressalvas.map((r) => (
+            <p key={r} className="text-[11px] text-muted-foreground leading-relaxed">• {r}</p>
+          ))}
+        </div>
+      </ChartCard>
+    );
+  }
 
   if (pontos.length < 4) {
     return (
@@ -137,11 +244,6 @@ export default function RiskVsAttrition({
       subtitle={`risco em jan/2026 × saídas voluntárias em ${janela}`}
       icon={Crosshair}
     >
-      <AvisoForaDoFiltro
-        departamento={departamentoSelecionado}
-        motivo="Esta pergunta não é sobre uma área: é sobre a coluna de risco. A resposta é uma correlação ENTRE as áreas, e com uma só ela não existe — por isso o quadro mostra todas."
-        escopo="de todas as áreas"
-      />
       <ResponsiveContainer width="100%" height={300}>
         <ScatterChart margin={{ top: 16, right: 28, bottom: 28, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />

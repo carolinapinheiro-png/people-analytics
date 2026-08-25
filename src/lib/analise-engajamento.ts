@@ -347,6 +347,16 @@ export interface AderenciaRisco {
  * uma linha muda a conclusão. Aí o número não é leitura, é ruído com casas
  * decimais.
  */
+/**
+ * Abaixo disto, a taxa de saída de UMA área é ruído: com 4 pedidos num semestre,
+ * uma pessoa a mais ou a menos move o percentual anualizado vários pontos.
+ *
+ * Mora aqui, e não nos componentes, porque dois cartões fazem esse mesmo juízo
+ * -- e o painel já teve o caso de dois cartões cortando o mesmo dado com réguas
+ * diferentes e divergindo na tela.
+ */
+export const SAIDAS_MINIMAS_PARA_TAXA = 5;
+
 export function instavel(j: AderenciaRisco['jackknife']): boolean {
   return j != null && j.amplitude > 0.4;
 }

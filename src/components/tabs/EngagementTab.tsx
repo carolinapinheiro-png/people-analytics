@@ -577,9 +577,10 @@ function EngagementSection({
           />
         </div>
 
-        {/* `rowsSemSelecao`, não `rows`: este cartão compara áreas entre si.
-            Com o filtro ligado ele recebia uma área e dizia "não há áreas
-            suficientes", que se lê como falta de dado. */}
+        {/* `rowsSemSelecao` entrega todas as áreas que o PERFIL pode ver, e o
+            próprio cartão aplica a seleção antes de calcular qualquer coisa.
+            Duas regras diferentes, uma em cada lugar: aqui o teto de permissão,
+            lá o recorte de tela. Ver o comentário da prop `rows` do cartão. */}
         {cross && (
           <RiskVsAttrition
             rows={cross.rowsSemSelecao}

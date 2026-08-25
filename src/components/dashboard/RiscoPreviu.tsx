@@ -1,8 +1,9 @@
 import { Target } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
-import { instavel, type AderenciaRisco } from '@/lib/analise-engajamento';
-import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
+import {
+  instavel, SAIDAS_MINIMAS_PARA_TAXA, type AderenciaRisco,
+} from '@/lib/analise-engajamento';
 import { cn } from '@/lib/utils';
 
 /**
@@ -113,21 +114,94 @@ export default function RiscoPreviu({
   dados: AderenciaRisco;
   ondaLabel: string;
   /**
-   * Só para o aviso e para o destaque na lista. Este cartão NÃO segue o filtro
-   * de propósito: ele responde "a coluna de risco antecipa quem vai embora?",
-   * que é uma pergunta sobre o instrumento e uma correlação entre áreas.
+   * Recorta o cartão. Ver o bloco no topo do arquivo.
    *
-   * Enquanto ele se alimentou das linhas filtradas, escolher um departamento o
-   * fazia desaparecer da tela -- o `return null` abaixo. Silêncio se lê como
-   * "não há nada aqui"; o certo é "esta pergunta não é sobre a sua área".
+   * ------------------------------------------------------------------
+   * A CORREÇÃO ANTERIOR RESOLVEU METADE E CRIOU A OUTRA
+   * ------------------------------------------------------------------
+   * Antes, filtrar uma área fazia este cartão sumir -- e silêncio se lê como
+   * "não há nada aqui". A correção foi ignorar o filtro. Só que a lista
+   * abaixo tem uma linha por área, com nome, risco declarado e quantos
+   * pediram demissão: ignorar o filtro entrega o resultado das oito áreas a
+   * quem pediu uma.
+   *
+   * Nenhuma das duas versões estava certa. A pergunta do cartão -- "a coluna
+   * de risco antecipa quem sai?" -- é mesmo uma correlação entre áreas e não
+   * existe com uma só; o que não se seguia disso é que a saída fosse mostrar
+   * todas. Com filtro, fica a linha da área e cai o resto, dito na tela.
    */
   departamentoSelecionado?: string | null;
 }) {
-  if (dados.linhas.length < 3) return null;
-
   const chave = (t: string) =>
     t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
   const alvo = departamentoSelecionado ? chave(departamentoSelecionado) : null;
+
+  // ======================================================================
+  // COM UMA ÁREA ESCOLHIDA, SÓ A LINHA DELA
+  // ======================================================================
+  // O rho, o veredito e a lista comparam áreas entre si -- não existem para
+  // uma, e mostrá-los aqui seria entregar as outras oito de carona.
+  if (alvo) {
+    const minha = dados.linhas.find((r) => chave(r.area) === alvo) ?? null;
+    return (
+      <ChartCard
+        title="O risco declarado previu as saídas?"
+        subtitle={`${departamentoSelecionado} · declarado em ${ondaLabel} · saídas nos ${dados.mesesObservados} meses seguintes`}
+        icon={Target}
+      >
+        {minha == null ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">
+            Esta área não tem risco declarado e saídas observadas na mesma janela.
+          </p>
+        ) : (
+          <div className="rounded-md border border-border p-3">
+            <div className="flex items-baseline gap-2 flex-wrap">
+              <span className="text-2xl font-medium tabular-nums" style={{ color: COLORS.warning }}>
+                {fmt1(minha.riscoDeclarado)}%
+              </span>
+              <span className="text-xs text-muted-foreground">declararam risco em {ondaLabel}</span>
+              <span className="text-muted-foreground">→</span>
+              {minha.saidaObservada == null ? (
+                <span className="text-xs text-muted-foreground">
+                  sem denominador para calcular a saída
+                </span>
+              ) : (
+                <>
+                  <span className="text-2xl font-medium tabular-nums" style={{ color: COLORS.danger }}>
+                    {fmt1(minha.saidaObservada)}%
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    pediram demissão ({minha.pediramDemissao} de {minha.headcount ?? '—'},
+                    anualizado)
+                  </span>
+                </>
+              )}
+            </div>
+            {minha.pediramDemissao < SAIDAS_MINIMAS_PARA_TAXA && (
+              <p className="text-[11px] mt-2 leading-relaxed" style={{ color: COLORS.warning }}>
+                Poucas saídas para uma taxa estável: uma pessoa a mais ou a menos move este
+                percentual vários pontos. O risco declarado, esse vem da pesquisa inteira da área.
+              </p>
+            )}
+          </div>
+        )}
+
+        <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
+          <strong>O veredito do cartão não cabe aqui.</strong> Saber se a coluna de risco antecipa
+          quem sai é comparar o que cada área declarou com o que aconteceu em cada uma — precisa de
+          várias áreas para existir. Com uma, há dois números e nenhuma relação a testar. Tire o
+          filtro para ver a comparação.
+        </p>
+        <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+          Risco declarado é o % que disse que não ficaria diante de uma oferta igual em outro lugar
+          — é intenção, não decisão. A saída observada é anualizada, para não comparar{' '}
+          {dados.mesesObservados} meses de saída com um percentual sem prazo.
+        </p>
+      </ChartCard>
+    );
+  }
+
+  if (dados.linhas.length < 3) return null;
 
   const l = leitura(dados.rho, dados.pares, dados.jackknife, dados.areasComPoucaSaida);
   const maxRisco = Math.max(...dados.linhas.map((x) => x.riscoDeclarado), 1);
@@ -139,11 +213,6 @@ export default function RiscoPreviu({
       subtitle={`declarado em ${ondaLabel} · saídas nos ${dados.mesesObservados} meses seguintes`}
       icon={Target}
     >
-      <AvisoForaDoFiltro
-        departamento={departamentoSelecionado}
-        motivo="Esta pergunta não é sobre uma área: é sobre a coluna de risco. A resposta é uma correlação ENTRE as áreas, e com uma só ela não existe — por isso o quadro mostra todas."
-        escopo="de todas as áreas"
-      />
       <div className="rounded-md border px-3 py-2.5 mb-3" style={{ borderColor: `${l.cor}55`, background: `${l.cor}12` }}>
         <p className="text-sm font-semibold" style={{ color: l.cor }}>
           {l.titulo}
