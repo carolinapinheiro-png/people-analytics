@@ -94,6 +94,33 @@ const Importance = z.object({
   n: z.number().int().nonnegative(),
 });
 
+// ===========================================================================
+// OS TETOS DE TAMANHO, E POR QUE ELES SÃO ESSES
+// ===========================================================================
+// Existem para barrar payload absurdo, não para descrever o formato de hoje --
+// e era isso que estavam fazendo. `importance` tinha teto 200, dimensionado
+// quando a associação com o eNPS era uma linha por pergunta (34). Quando ela
+// passou a ser calculada por área, viraram 204, e a carga inteira foi recusada
+// por 4 linhas.
+//
+// Quinto portão esquecido no mesmo dia, todos com a mesma forma: o agregador
+// passou a produzir mais, e uma constante em outro arquivo continuou com a
+// medida antiga.
+//
+// A defesa é escrever a CONTA, não o resultado. Quem mexer no agregador vê
+// aqui de onde o número sai e percebe que precisa mexer junto.
+const MAX_PERGUNTAS = 60;      // 34 em ago/26; a pesquisa cresce devagar
+const MAX_AREAS = 20;          // 9 hoje
+const MAX_FAIXAS = 12;         // 7 faixas de tempo de casa
+const MAX_RECORTES_SIMPLES = 40;
+
+/** Simples + os quatro cruzamentos com área. */
+const MAX_CUTS = MAX_RECORTES_SIMPLES + MAX_AREAS * (MAX_FAIXAS + 3 + 2 + 3);
+/** Uma linha por pergunta × recorte. */
+const MAX_DRIVER_SCORES = MAX_PERGUNTAS * (MAX_RECORTES_SIMPLES + MAX_AREAS);
+/** Uma linha por pergunta, na empresa e em cada área que passa do mínimo. */
+const MAX_IMPORTANCE = MAX_PERGUNTAS * (1 + MAX_AREAS);
+
 const Entrada = z.object({
   /** Identificador técnico da onda: `ago_2026`. */
   wave: z.string().regex(/^[a-z]{3}_\d{4}$/, 'use o formato mes_ano, como ago_2026'),
@@ -105,9 +132,9 @@ const Entrada = z.object({
   /** Headcount na largada. Sem isto não há taxa de participação. */
   eligible: z.number().int().positive().nullable(),
   notes: z.string().max(1200).nullable(),
-  cuts: z.array(Cut).max(400),
-  driverScores: z.array(DriverScore).max(4000),
-  importance: z.array(Importance).max(200),
+  cuts: z.array(Cut).max(MAX_CUTS),
+  driverScores: z.array(DriverScore).max(MAX_DRIVER_SCORES),
+  importance: z.array(Importance).max(MAX_IMPORTANCE),
   /** false = só devolve o que faria, sem tocar no banco. */
   confirm: z.boolean().default(false),
 });

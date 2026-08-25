@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  computeCuts, CRUZAMENTOS, CUTS_PADRAO, SEPARADOR_CRUZAMENTO,
+  computeCuts, computeDriverScores, computeDriverImportance,
+  CRUZAMENTOS, CUTS_PADRAO, SEPARADOR_CRUZAMENTO,
   ehCruzamento, partesDoCruzamento, type PollyResponse,
 } from "./aggregator/polly-survey";
 import { recorteNoEscopo } from "./dept-filter";
@@ -186,4 +187,56 @@ test("o nome composto cabe no limite de 120 caracteres do validador", () => {
     .map((c) => c.cutValue.length)
     .sort((a, b) => b - a);
   assert.ok(maiores[0] <= 120, `maior cutValue tem ${maiores[0]} caracteres`);
+});
+
+// ===========================================================================
+// O QUE O AGREGADOR PRODUZ CABE NO QUE O VALIDADOR ACEITA
+// ===========================================================================
+// Quinta vez no mesmo dia. O teto de `importance` era 200, dimensionado quando
+// a associação com o eNPS era uma linha por pergunta (34). Ela passou a ser
+// calculada por área, viraram 204, e a carga inteira foi recusada por 4 linhas.
+//
+// Este teste roda o agregador de verdade sobre uma onda do tamanho da real e
+// confere que o resultado cabe. Não alcança o schema Zod -- ele vive num
+// arquivo de servidor --, mas trava o número que importa: quanto o agregador
+// produz.
+
+test("uma onda do tamanho da real cabe nos tetos do import", () => {
+  // 9 áreas, 7 faixas, 3 marcas, 34 perguntas, 485 respostas: ago/26.
+  const AREAS = ['Technology', 'Customer Service', 'Marketing', 'Commercial',
+    'Product', 'Finance', 'Human Resources', 'Legal', 'Outros'];
+  const FAIXAS = ['0-3 meses', '3-6 meses', '6-9 meses', '9-12 meses',
+    '12-18 meses', '18-24 meses', '24+ meses'];
+  const MARCAS = ['Betnacional', 'Betfair', 'Ambas'];
+  const MODELOS = ['Remoto', 'Híbrido', 'Presencial'];
+
+  const rs: PollyResponse[] = [];
+  for (let i = 0; i < 485; i++) {
+    // A nota varia COM a pessoa, senão a variância é zero e a correlação não
+    // existe -- e o teste mediria o vazio em vez do tamanho.
+    const drivers: Record<string, number> = {};
+    for (let q = 0; q < 34; q++) drivers[`D${q % 11}||pergunta ${q}`] = ((i + q) % 5) + 1;
+    rs.push({
+      area: AREAS[i % AREAS.length],
+      tempoCasa: FAIXAS[i % FAIXAS.length],
+      marca: MARCAS[i % MARCAS.length],
+      modelo: MODELOS[i % MODELOS.length],
+      gestor: i % 4 === 0,
+      nps: ((i % 5) * 2) + 1,
+      retencao: 8, satisfacao: 8,
+      drivers,
+    } as unknown as PollyResponse);
+  }
+
+  const cuts = computeCuts(rs);
+  const imp = computeDriverImportance(rs);
+  const drv = computeDriverScores(rs);
+
+  // Os tetos escritos em `survey-import.functions.ts`, com a conta por trás.
+  assert.ok(cuts.length <= 440, `cuts: ${cuts.length}`);
+  assert.ok(drv.length <= 3600, `driverScores: ${drv.length}`);
+  assert.ok(imp.length <= 1260, `importance: ${imp.length}`);
+
+  // E o que o teto antigo teria feito: 34 × 10 recortes passa de 200.
+  assert.ok(imp.length > 200, `com importância por área, ${imp.length} > 200 -- o teto antigo`);
 });
