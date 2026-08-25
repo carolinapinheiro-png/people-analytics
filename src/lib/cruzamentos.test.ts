@@ -147,3 +147,43 @@ test("recorte que não é de área nenhuma segue a regra antiga", () => {
   assert.equal(visivel("tempo", "12-18 meses", "COMMERCIAL", true), true);
   assert.equal(visivel("marca", "Ambas", null, true), true);
 });
+
+// ===========================================================================
+// OS PORTÕES QUE PRECISAM CONHECER OS TIPOS NOVOS
+// ===========================================================================
+// Três vezes no mesmo dia um recorte novo foi declarado no agregador e barrado
+// em outro lugar: a consulta do servidor filtrando `cut_type`, a tabela
+// `engagement_scores` não atualizada junto, e o enum do validador de import --
+// que fez a carga inteira falhar com 124 erros.
+//
+// Estes testes não conseguem alcançar o servidor nem o banco. O que eles fazem
+// é fixar a única defesa que existe em código: as listas derivam de CUTS_PADRAO
+// em vez de repetirem os nomes.
+
+test("CUTS_PADRAO é a lista completa, e os cruzamentos estão nela", () => {
+  // Quem valida entrada usa esta constante. Se alguém adicionar um tipo ao
+  // CUT_KEY e esquecer daqui, a carga passa a produzir um recorte que o
+  // validador recusa -- e a importação inteira falha, não só aquele recorte.
+  for (const c of CRUZAMENTOS) {
+    assert.ok(CUTS_PADRAO.includes(c), `${c} fora de CUTS_PADRAO`);
+  }
+});
+
+test("todo tipo que computeCuts produz está em CUTS_PADRAO", () => {
+  // O teste que descreve o erro de verdade: o agregador nunca pode devolver um
+  // recorte que a lista de aceitos não conhece.
+  const tipos = new Set(computeCuts(BASE).map((c) => c.cutType));
+  for (const t of tipos) {
+    assert.ok((CUTS_PADRAO as string[]).includes(t), `computeCuts produziu ${t}, fora da lista`);
+  }
+});
+
+test("o nome composto cabe no limite de 120 caracteres do validador", () => {
+  // `cutValue` é limitado a 120 no schema. O cruzamento soma dois nomes mais o
+  // separador, e estourar isso faria a carga falhar só nas áreas de nome longo
+  // -- um erro que só aparece em produção, e em algumas áreas.
+  const maiores = computeCuts(BASE)
+    .map((c) => c.cutValue.length)
+    .sort((a, b) => b - a);
+  assert.ok(maiores[0] <= 120, `maior cutValue tem ${maiores[0]} caracteres`);
+});

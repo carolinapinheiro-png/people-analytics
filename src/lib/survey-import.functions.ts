@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start';
 import { z } from 'zod';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { CUTS_PADRAO, type CutType } from '@/lib/aggregator/polly-survey';
 
 type UntypedClient = SupabaseClient<any, 'public', any>;
 
@@ -37,8 +38,28 @@ type UntypedClient = SupabaseClient<any, 'public', any>;
  * que a aba de engajamento teve por outro caminho.
  */
 
+/**
+ * ---------------------------------------------------------------------------
+ * OS TIPOS DE RECORTE SAEM DO AGREGADOR, NÃO DE UMA LISTA AQUI
+ * ---------------------------------------------------------------------------
+ * Esta lista estava escrita à mão, com os seis tipos originais. Quando os
+ * cruzamentos por área entraram em `polly-survey.ts`, a carga passou a produzir
+ * 'area+tempo' e este validador a rejeitou -- a importação inteira falhava com
+ * 124 erros de enum, e o dado novo não tinha como entrar pela porta da frente.
+ *
+ * Foi o terceiro portão esquecido no mesmo dia: a consulta do servidor filtrava
+ * `cut_type`, a tabela `engagement_scores` não foi atualizada junto, e agora
+ * este enum. Todos com a mesma forma -- um valor novo declarado num lugar e uma
+ * lista fechada em outro.
+ *
+ * Derivar de `CUTS_PADRAO` fecha a categoria: um recorte novo no agregador
+ * passa a ser aceito aqui sem ninguém lembrar. O que se perde é a possibilidade
+ * de a lista aqui ser mais restritiva que a de lá -- e ela nunca deveria ser.
+ */
+const TIPOS_DE_RECORTE = CUTS_PADRAO as [CutType, ...CutType[]];
+
 const Cut = z.object({
-  cutType: z.enum(['company', 'area', 'funcao', 'marca', 'tempo', 'modelo']),
+  cutType: z.enum(TIPOS_DE_RECORTE),
   cutValue: z.string().min(1).max(120),
   n: z.number().int().nonnegative(),
   enps: z.number().nullable(),
@@ -52,7 +73,7 @@ const Cut = z.object({
 const DriverScore = z.object({
   driver: z.string().min(1).max(200),
   question: z.string().min(1).max(600),
-  cutType: z.enum(['company', 'area', 'funcao', 'marca', 'tempo', 'modelo']),
+  cutType: z.enum(TIPOS_DE_RECORTE),
   cutValue: z.string().min(1).max(120),
   n: z.number().int().nonnegative(),
   score: z.number().nullable(),
