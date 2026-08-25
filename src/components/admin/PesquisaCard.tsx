@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { AlertTriangle, CheckCircle2, ClipboardList, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,12 @@ import { parsePollyExport } from '@/lib/aggregator/polly-parser';
 import {
   computeCuts, computeDriverScores, computeDriverImportance,
 } from '@/lib/aggregator/polly-survey';
-import { importSurveyWave, type ResultadoCarga } from '@/lib/survey-import.functions';
+import {
+  importSurveyWave, listSurveyWaves, type ResultadoCarga,
+} from '@/lib/survey-import.functions';
+
+/** Metadado de uma onda já gravada, para o formulário se preencher. */
+type OndaGravada = Awaited<ReturnType<typeof listSurveyWaves>>[number];
 
 /**
  * Carga de uma onda de pesquisa, do CSV do Polly.
@@ -65,7 +70,10 @@ interface Previa {
 
 export function PesquisaCard() {
   const gravar = useServerFn(importSurveyWave);
+  const listar = useServerFn(listSurveyWaves);
 
+  const [ondas, setOndas] = useState<OndaGravada[]>([]);
+  const [prefixada, setPrefixada] = useState<OndaGravada | null>(null);
   const [previa, setPrevia] = useState<Previa | null>(null);
   const [arquivo, setArquivo] = useState<string>('');
   const [wave, setWave] = useState('');
@@ -76,6 +84,37 @@ export function PesquisaCard() {
   const [resultado, setResultado] = useState<ResultadoCarga | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState(false);
+
+  // ------------------------------------------------------------------
+  // RECARREGAR UMA ONDA NÃO PODE EXIGIR REDIGITAR O QUE JÁ ESTÁ LÁ
+  // ------------------------------------------------------------------
+  // Os campos abaixo vinham sempre em branco. Quem recarrega uma onda meses
+  // depois não tem os elegíveis nem a data de início na cabeça -- e o pior não
+  // é não lembrar, é deixar em branco: a observação de jul/25 explica que
+  // aquela onda foi aplicada em duas partes, e um campo vazio a apagaria sem
+  // avisar.
+  useEffect(() => {
+    void (async () => {
+      try {
+        setOndas(await listar({ data: undefined }));
+      } catch {
+        // Falhar aqui não pode travar a carga -- só se perde o preenchimento.
+        setOndas([]);
+      }
+    })();
+  }, [listar]);
+
+  /** Ao digitar um identificador que já existe, traz o resto de volta. */
+  const aoMudarWave = (v: string) => {
+    setWave(v);
+    const achada = ondas.find((o) => o.wave === v.trim());
+    setPrefixada(achada ?? null);
+    if (!achada) return;
+    setLabel(achada.label);
+    setReferenceDate(achada.referenceDate);
+    setEligible(achada.eligible == null ? '' : String(achada.eligible));
+    setNotes(achada.notes ?? '');
+  };
 
   const aoEscolher = async (f: File | null) => {
     setErro(null); setResultado(null); setPrevia(null);
@@ -195,12 +234,43 @@ export function PesquisaCard() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <Campo rotulo="Identificador (ago_2026)" valor={wave} onChange={setWave} />
+                <Campo rotulo="Identificador (ago_2026)" valor={wave} onChange={aoMudarWave} />
                 <Campo rotulo="Como é chamada (Agosto/26)" valor={label} onChange={setLabel} />
                 <Campo rotulo="Início da coleta (AAAA-MM-DD)" valor={referenceDate} onChange={setReferenceDate} />
                 <Campo rotulo="Elegíveis na largada" valor={eligible} onChange={setEligible} />
               </div>
               <Campo rotulo="Observação (aparece na linha do tempo)" valor={notes} onChange={setNotes} />
+
+              {/* Recarga de onda existente: diz o que vai acontecer ANTES de
+                  acontecer. `importSurveyWave` apaga a onda e regrava, então
+                  o que estiver em branco aqui some de lá. */}
+              {prefixada && (
+                <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
+                  <strong>{prefixada.wave} já existe</strong> ({prefixada.label}
+                  {prefixada.respondents != null && `, ${prefixada.respondents} respostas`}). Os
+                  campos acima vieram do que está gravado — confirmar substitui a onda inteira, e o
+                  que você apagar destes campos some do painel.
+                </p>
+              )}
+
+              {ondas.length > 0 && !prefixada && (
+                <p className="text-[11px] text-muted-foreground">
+                  Ondas já gravadas:{' '}
+                  {ondas.map((o, i) => (
+                    <span key={o.wave}>
+                      {i > 0 && ' · '}
+                      <button
+                        type="button"
+                        className="underline underline-offset-2 hover:text-foreground"
+                        onClick={() => aoMudarWave(o.wave)}
+                      >
+                        {o.wave}
+                      </button>
+                    </span>
+                  ))}
+                  . Clique para recarregar uma delas com os mesmos dados de cadastro.
+                </p>
+              )}
 
               <div className="flex flex-wrap items-center gap-2">
                 <Button onClick={() => void enviar(false)} disabled={!podeGravar || ocupado} variant="outline" size="sm">

@@ -255,3 +255,52 @@ export const importSurveyWave = createServerFn({ method: 'POST' })
 
     return { gravado: true, wave: data.wave, linhas, avisos };
   });
+
+/**
+ * ===========================================================================
+ * O QUE JÁ ESTÁ GRAVADO SOBRE CADA ONDA
+ * ===========================================================================
+ * Existe para o formulário de carga se preencher sozinho quando a onda já
+ * existe -- e existe porque a alternativa quase apagou uma ressalva.
+ *
+ * Recarregar uma onda para corrigir o dado é o caso comum. O formulário pedia
+ * identificador, rótulo, data, elegíveis e observação toda vez, em branco. Quem
+ * recarrega meses depois não tem esses números na cabeça: os elegíveis de
+ * jul/25 (356) foram derivados do headcount de 01/06/2025, e a data de início
+ * de jan/26 é 21/01.
+ *
+ * O pior não é a pessoa não lembrar -- é ela deixar em branco. A observação de
+ * jul/25 diz que aquela onda foi aplicada em DUAS partes, com o eNPS em jun/25
+ * e os drivers em jul/25, e que por isso não há importância de driver naquela
+ * onda. É a explicação de um número estranho na tela. Um campo vazio a apagaria
+ * sem avisar, e ninguém notaria até alguém perguntar de novo por que jul/25 não
+ * tem aquela seção.
+ *
+ * Devolve só metadado da onda. Nenhuma resposta, nenhum recorte.
+ */
+export const listSurveyWaves = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<Array<{
+    wave: string; label: string; referenceDate: string;
+    eligible: number | null; notes: string | null; respondents: number | null;
+  }>> => {
+    const { exigirAdmin } = await import('@/lib/escopo.server');
+    await exigirAdmin(context.claims.email as string | undefined, 'ler as ondas de pesquisa');
+
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const db = supabaseAdmin as unknown as UntypedClient;
+    const { data, error } = await db
+      .from('survey_waves')
+      .select('wave, label, reference_date, eligible, notes, respondents')
+      .order('reference_date', { ascending: false });
+    if (error) throw new Error(`Falha ao listar ondas: ${error.message}`);
+
+    return ((data ?? []) as Array<Record<string, unknown>>).map((w) => ({
+      wave: String(w.wave),
+      label: String(w.label ?? ''),
+      referenceDate: String(w.reference_date ?? '').slice(0, 10),
+      eligible: w.eligible == null ? null : Number(w.eligible),
+      notes: w.notes == null ? null : String(w.notes),
+      respondents: w.respondents == null ? null : Number(w.respondents),
+    }));
+  });
