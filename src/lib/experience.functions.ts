@@ -684,6 +684,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     const numero = (v: unknown): number | null =>
       v == null ? null : Number.isFinite(Number(v)) ? Number(v) : null;
 
+    type LinhaCutMin = { wave: string; cut_type: string; cut_value: string };
     type LinhaCut = {
       wave: string; cut_type: string; cut_value: string; n: number | null; enps: number | null;
       promotores: number | null; passivos: number | null; detratores: number | null;
@@ -739,33 +740,59 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     // espalhados por 7 faixas, e duas ficam abaixo de cinco pessoas. O
     // componente mostra quais sumiram; sumir calado é que não pode.
     const porOndaTempo = new Map<string, FaixaOnda[]>();
-    let tempoPorArea = false;
-    for (const r of todosCuts) {
-      let faixa: string | null = null;
-      if (sel && r.cut_type === 'area+tempo') {
-        const p = partesDoCruzamento(r.cut_value ?? '');
-        // A permissão já foi aplicada na consulta; aqui é só a seleção.
-        if (p && deptForScope(p.area) === sel) {
-          faixa = p.valor;
-          tempoPorArea = true;
-        }
-      } else if (!sel && r.cut_type === 'tempo') {
-        faixa = r.cut_value;
-      }
-      if (faixa == null) continue;
-      const lista = porOndaTempo.get(r.wave) ?? [];
-      lista.push({ faixa, n: Number(r.n ?? 0), enps: numero(r.enps) });
-      porOndaTempo.set(r.wave, lista);
-    }
-    // Com área selecionada e nenhum cruzamento na carga, volta para a série da
-    // empresa: um bloco vazio se lê como "esta área não tem tempo de casa".
-    if (sel && !tempoPorArea) {
+
+    /** Preenche o mapa a partir de um tipo de recorte. Devolve as ondas cobertas. */
+    const carregarTempo = (
+      quero: (r: LinhaCutMin) => string | null,
+    ): Set<string> => {
+      porOndaTempo.clear();
+      const ondas = new Set<string>();
       for (const r of todosCuts) {
-        if (r.cut_type !== 'tempo') continue;
+        const faixa = quero(r);
+        if (faixa == null) continue;
         const lista = porOndaTempo.get(r.wave) ?? [];
-        lista.push({ faixa: r.cut_value, n: Number(r.n ?? 0), enps: numero(r.enps) });
+        lista.push({ faixa, n: Number(r.n ?? 0), enps: numero(r.enps) });
         porOndaTempo.set(r.wave, lista);
+        ondas.add(r.wave);
       }
+      return ondas;
+    };
+
+    const daEmpresa = (r: LinhaCutMin) => (r.cut_type === 'tempo' ? r.cut_value : null);
+    const daAreaSel = (r: LinhaCutMin) => {
+      if (r.cut_type !== 'area+tempo') return null;
+      const p = partesDoCruzamento(r.cut_value ?? '');
+      // A permissão já foi aplicada na consulta; aqui é só a seleção.
+      return p && deptForScope(p.area) === sel ? p.valor : null;
+    };
+
+    // A onda mais recente que tem QUALQUER dado de tempo de casa. É contra ela
+    // que o cruzamento precisa se medir.
+    const ondasComTempoEmpresa = carregarTempo(daEmpresa);
+    const maisRecenteComTempo = [...(ondasBrutas ?? [] as OndaLinha[])]
+      .filter((o) => ondasComTempoEmpresa.has(o.wave))
+      .sort((a, b) => (a.reference_date < b.reference_date ? 1 : -1))[0]?.wave;
+
+    // ------------------------------------------------------------------
+    // O CRUZAMENTO SÓ VALE SE ALCANÇAR A ONDA ATUAL
+    // ------------------------------------------------------------------
+    // As ondas são carregadas uma a uma, então é normal que só algumas tenham o
+    // cruzamento. Se jan/26 tiver e ago/26 não, usar o cruzamento faria este
+    // bloco desenhar "Julho/25 → Janeiro/26" embaixo de uma tela que diz
+    // Agosto/26 no cabeçalho -- uma série de outro período, com a mesma cara.
+    //
+    // Meia cobertura é pior que nenhuma aqui: a que falta é justamente a ponta
+    // que todo mundo lê primeiro.
+    let tempoPorArea = false;
+    if (sel) {
+      const ondasCruzadas = carregarTempo(daAreaSel);
+      tempoPorArea =
+        ondasCruzadas.size > 0 &&
+        maisRecenteComTempo != null &&
+        ondasCruzadas.has(maisRecenteComTempo);
+      // Sem alcance até a onda atual, volta para a série da empresa: um bloco
+      // vazio se lê como "esta área não tem tempo de casa".
+      if (!tempoPorArea) carregarTempo(daEmpresa);
     }
     // Da mais antiga para a mais nova, e só as que têm ponto. Uma onda
     // cadastrada e nunca carregada -- jul/25, com 295 respostas anotadas e zero
