@@ -213,21 +213,32 @@ export default function DriversDeepDive({
           o eNPS e NÃO é. Alguém pegou a limitação da segunda e escreveu como se
           fosse da primeira, e a tela passou a negar um dado que ela própria
           usava três cartões acima. */}
-      <p className="text-[11px] text-muted-foreground leading-relaxed">
-        {/* ------------------------------------------------------------------
-            ESTE PARÁGRAFO PEDIA EXATAMENTE O QUE HOJE EXISTE
-            ------------------------------------------------------------------
-            Ele terminava em "as notas por área existem; o que falta é o cálculo
-            da associação sobre elas" -- e descrevia o trabalho que foi feito
-            depois. A frase estava certa quando escrita e virou errada sem que
-            ninguém a revisitasse, que é a mesma forma dos outros cinco casos
-            deste painel. */}
-        <strong>O limite desta leitura:</strong> a associação com o eNPS passou a ser calculada
-        dentro de cada área que tem respostas suficientes — cinco das nove em ago/26. Dá para
-        dizer se a alavanca de Marketing é a mesma de Technology, e a aba mostra isso logo acima
-        ao filtrar por área. Nas quatro áreas menores a associação continua sendo a da empresa,
-        porque uma correlação sobre 16 ou 20 respostas ordena perguntas por acaso.
-      </p>
+      {/* ------------------------------------------------------------------
+          ESTA RESSALVA É DA LEITURA GERAL, E SÓ APARECE NELA
+          ------------------------------------------------------------------
+          Ela explica que a associação existe por área em cinco das nove, e que
+          nas menores continua sendo a da empresa. Com uma área ESCOLHIDA, isso
+          não é mais uma ressalva -- é uma pergunta já respondida dois cartões
+          acima, onde o texto diz qual é o caso daquela área, com o número de
+          respostas dela.
+
+          Repetir aqui obriga quem filtrou a ler sobre as outras oito para
+          descobrir que não é sobre ela. Ressalva que não muda decisão nenhuma
+          naquele contexto compete por atenção com a que muda.
+
+          Este parágrafo, aliás, já terminou em "as notas por área existem; o
+          que falta é o cálculo da associação sobre elas" -- descrevendo o
+          trabalho que foi feito depois. Estava certo quando escrito e virou
+          errado sem ninguém revisitar. */}
+      {!departamentoSelecionado && (
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          <strong>O limite desta leitura:</strong> a associação com o eNPS passou a ser calculada
+          dentro de cada área que tem respostas suficientes — cinco das nove em ago/26. Dá para
+          dizer se a alavanca de Marketing é a mesma de Technology: filtre por área e a aba mostra
+          isso logo acima. Nas quatro áreas menores a associação continua sendo a da empresa,
+          porque uma correlação sobre 16 ou 20 respostas ordena perguntas por acaso.
+        </p>
+      )}
 
       <p className="text-[11px] text-muted-foreground leading-relaxed">
         E vale o de sempre: <strong>&quot;acompanha&quot; não é &quot;causa&quot;</strong>. Todas as
