@@ -400,6 +400,12 @@ const JANELA = { inicio: '2026-02', fim: '2026-07' };
 
 export interface EngagementCrossData extends EngagementContextResult {
   /**
+   * As mesmas linhas de `rows`, mas sem o filtro de tela -- só com o de
+   * permissão. Para os cartões que comparam áreas ENTRE SI e não existem com
+   * uma só. Ver o comentário no retorno de `getEngagementCross`.
+   */
+  rowsSemSelecao: EngagementContextResult['rows'];
+  /**
    * Ressalvas que a tela precisa exibir. Vêm do servidor porque dependem do
    * que o banco de fato tinha na hora da consulta -- deixar isso hardcoded no
    * componente faria o aviso continuar aparecendo depois de resolvido, ou
@@ -938,5 +944,20 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       serieEnps,
       tempoDeCasa,
       risco,
+      // ------------------------------------------------------------------
+      // AS LINHAS SEM A SELEÇÃO, PARA QUEM COMPARA ÁREAS ENTRE SI
+      // ------------------------------------------------------------------
+      // `rows` respeita o filtro, como deve. Mas dois cartões da aba não
+      // perguntam "como está esta área" e sim "a coluna de risco antecipa quem
+      // sai?" -- que é uma correlação ENTRE áreas e não existe com uma só.
+      //
+      // `RiscoPreviu` já recebia isto. `RiskVsAttrition`, que faz a MESMA
+      // pergunta com outro desenho, continuou em `rows` e passou a exibir
+      // "ainda não há áreas suficientes" ao filtrar -- que se lê como falta de
+      // dado, quando é a pergunta que não é sobre a área escolhida.
+      //
+      // A PERMISSÃO continua valendo: `semSelecao` é construído com o filtro de
+      // escopo e sem o de tela. Cai a seleção, não o teto.
+      rowsSemSelecao: semSelecao.rows,
     };
   });

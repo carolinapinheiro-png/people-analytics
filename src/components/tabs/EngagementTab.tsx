@@ -577,12 +577,16 @@ function EngagementSection({
           />
         </div>
 
+        {/* `rowsSemSelecao`, não `rows`: este cartão compara áreas entre si.
+            Com o filtro ligado ele recebia uma área e dizia "não há áreas
+            suficientes", que se lê como falta de dado. */}
         {cross && (
           <RiskVsAttrition
-            rows={cross.rows}
+            rows={cross.rowsSemSelecao}
             janela={janela}
             meses={cross.mesesObservados}
             ressalvas={cross.ressalvas}
+            departamentoSelecionado={deptSel}
           />
         )}
       </Detalhe>

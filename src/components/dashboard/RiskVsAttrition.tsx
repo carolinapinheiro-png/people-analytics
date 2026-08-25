@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { AlertTriangle, Crosshair } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
+import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { spearman } from '@/lib/stats';
 import type { EngagementContextRow } from '@/lib/engagement-context';
@@ -49,12 +50,34 @@ export default function RiskVsAttrition({
   janela,
   meses,
   ressalvas,
+  departamentoSelecionado = null,
 }: {
+  /**
+   * TODAS as áreas que o perfil pode ver, sem o filtro de tela.
+   *
+   * ------------------------------------------------------------------
+   * ESTE CARTÃO NÃO É SOBRE UMA ÁREA
+   * ------------------------------------------------------------------
+   * Ele pergunta se a coluna de risco antecipa quem sai -- uma correlação
+   * ENTRE áreas, que não existe com uma só. Recebendo as linhas filtradas, ele
+   * exibia "ainda não há áreas suficientes com risco declarado e saídas
+   * observadas", que se lê como falta de dado. O dado estava lá; a pergunta é
+   * que não era sobre a área escolhida.
+   *
+   * `RiscoPreviu`, que faz a MESMA pergunta com outro desenho, já tinha sido
+   * corrigido. Este ficou para trás -- dois cartões, uma correção só, o padrão
+   * que se repetiu o dia inteiro.
+   *
+   * A permissão continua valendo: quem tem escopo restrito recebe só as áreas
+   * dele. O que cai é a seleção, não o teto.
+   */
   rows: EngagementContextRow[];
   janela: string;
   /** Meses observados. Entra na conta da anualização; hardcodar quebra em silêncio. */
   meses: number;
   ressalvas: string[];
+  /** Só para o aviso e o destaque da linha. Ver acima. */
+  departamentoSelecionado?: string | null;
 }) {
   const { pontos, corr, calibracao } = useMemo(() => {
     const usaveis = rows.filter(
@@ -114,6 +137,11 @@ export default function RiskVsAttrition({
       subtitle={`risco em jan/2026 × saídas voluntárias em ${janela}`}
       icon={Crosshair}
     >
+      <AvisoForaDoFiltro
+        departamento={departamentoSelecionado}
+        motivo="Esta pergunta não é sobre uma área: é sobre a coluna de risco. A resposta é uma correlação ENTRE as áreas, e com uma só ela não existe — por isso o quadro mostra todas."
+        escopo="de todas as áreas"
+      />
       <ResponsiveContainer width="100%" height={300}>
         <ScatterChart margin={{ top: 16, right: 28, bottom: 28, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
