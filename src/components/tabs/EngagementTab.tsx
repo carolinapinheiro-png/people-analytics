@@ -455,6 +455,7 @@ function EngagementSection({
           ondas={cross.serieMarca.ondas}
           dimensao="marca"
           dimensaoPlural="marcas"
+          minimoOndas={2}
           departamentoSelecionado={deptSel}
           daArea={cross.serieMarca.daArea}
         />

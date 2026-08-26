@@ -160,8 +160,30 @@ export default function EnpsSerie({
   dimensaoPlural = "áreas",
   departamentoSelecionado = null,
   daArea = null,
+  minimoOndas = 3,
 }: {
   ondas: OndaEnps[];
+  /**
+   * Quantas ondas a série exige para aparecer.
+   *
+   * ------------------------------------------------------------------
+   * TRÊS PARA ÁREA, DUAS PARA O RESTO -- E A DIFERENÇA É REAL
+   * ------------------------------------------------------------------
+   * Por área o mínimo é três porque existe ALTERNATIVA: com duas ondas a
+   * EngagementTab desenha o slope, que responde melhor "o que mudou desde a
+   * última pesquisa". Exigir três aqui não esconde nada; troca de desenho.
+   *
+   * Por marca não há slope. Exigir três significa não mostrar nada -- e foi o
+   * que aconteceu: a série de marca nasceu invisível, porque `marca` só existe
+   * em ago/26 e jan/26 (jul/25 não coletou a pergunta). O cartão foi entregue
+   * hoje e nunca chegou à tela.
+   *
+   * Peguei olhando o banco depois de pronto, não escrevendo o código. Uma
+   * constante que servia a um caso foi aplicada a outro sem que a razão dela
+   * fosse revisitada -- exatamente a forma dos outros casos desta semana,
+   * desta vez cometida por mim, hoje.
+   */
+  minimoOndas?: number;
   /**
    * O nome do que cada linha representa: "área", "marca".
    *
@@ -207,7 +229,7 @@ export default function EnpsSerie({
     }));
   }, [ondas]);
 
-  if (ondas.length < 3 || areas.length === 0) return null;
+  if (ondas.length < minimoOndas || areas.length === 0) return null;
 
   // ======================================================================
   // FILTRO SEM CRUZAMENTO: A NOTA, NÃO A SÉRIE DA EMPRESA
