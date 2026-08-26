@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { perfilDaArea, temQuebraPorArea } from '@/lib/drill';
+import { perfilDaArea, temQuebraPorArea, aderenciaDasPiores } from '@/lib/drill';
 import type { DriverPorRecorte } from '@/lib/survey.functions';
 import { COLORS } from '@/lib/colors';
 
@@ -38,6 +38,7 @@ export default function AreaDriverPanel({
   drivers: DriverPorRecorte[];
   minimoExibicao: number;
 }) {
+  const aderencia = useMemo(() => aderenciaDasPiores(drivers), [drivers]);
   const { abaixo, acima, semQuebra, total } = useMemo(() => {
     const semQuebra = !temQuebraPorArea(drivers);
     const linhas = perfilDaArea(drivers, area).filter((l) => l.gap != null);
@@ -143,11 +144,38 @@ export default function AreaDriverPanel({
         </>
       )}
 
+      {/* ------------------------------------------------------------------
+          A JUSTIFICATIVA VIRA NÚMERO, E O NÚMERO SAI DESTA ONDA
+          ------------------------------------------------------------------
+          Dizia "a pergunta que esta área responde pior COSTUMA SER a que a
+          empresa inteira responde pior". A Marilia leu, olhou a lista acima,
+          viu perguntas bem diferentes entre as áreas e desconfiou.
+
+          Ela tinha razão sobre o que via, e a frase também estava certa: as
+          duas falam de coisas diferentes. A lista mostra DISTÂNCIA, que varia
+          muito. A frase falava de NOTA, que quase não varia. Nada na tela
+          fazia essa separação.
+
+          Agora os dois números aparecem juntos, calculados da onda que está
+          sendo mostrada. "Costuma ser" era do tipo de afirmação que ninguém
+          consegue conferir -- e este painel já carregou várias dessas que
+          envelheceram para mentira. */}
       <p className="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
-        {total} perguntas comparáveis. A ordem é pela distância da empresa, e não
-        pela nota: a pergunta que esta área responde pior costuma ser a que a
-        empresa inteira responde pior — o que separa problema daqui de problema
-        de todo mundo é o afastamento.
+        {total} perguntas comparáveis. A ordem é pela <strong>distância</strong> até a empresa, e
+        não pela nota — e as duas listas seriam bem diferentes.
+        {aderencia && aderencia.areas > 1 && (
+          <>
+            {' '}
+            Por nota, o topo seria quase o mesmo para todo mundo: em{' '}
+            <strong>
+              {aderencia.seguemAEmpresa} das {aderencia.areas} áreas
+            </strong>{' '}
+            desta onda, a pergunta de pior nota está entre as três piores da empresa inteira. Por
+            distância, o topo muda: são <strong>{aderencia.distanciasDistintas}</strong> perguntas
+            diferentes encabeçando as {aderencia.areas} áreas.
+          </>
+        )}{' '}
+        É o afastamento que separa problema daqui de problema de todo mundo.
       </p>
     </div>
   );

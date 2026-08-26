@@ -433,3 +433,76 @@ export function perguntasNoRecorte<
 export function temQuebraPorArea(linhas: readonly DriverPorRecorte[]): boolean {
   return linhas.some((l) => l.cutType === 'area');
 }
+
+// ======================================================================
+// A AFIRMAÇÃO QUE ESTAVA NA TELA SEM NÚMERO
+// ======================================================================
+// O painel de área diz, embaixo da lista, que ordena por DISTÂNCIA e não por
+// nota "porque a pergunta que esta área responde pior costuma ser a que a
+// empresa inteira responde pior". A Marilia leu isso, olhou a lista acima, viu
+// perguntas bem diferentes entre as áreas e desconfiou.
+//
+// Ela tinha razão sobre o que via, e a frase também estava certa -- as duas
+// falam de coisas diferentes. A LISTA mostra as maiores distâncias, que variam
+// muito (em ago/26, sete perguntas distintas no topo de nove áreas). A FRASE
+// fala das piores NOTAS, que quase não variam.
+//
+// O desencontro era de redação, mas a lição é outra: "costuma ser" é do tipo
+// de afirmação que ninguém consegue conferir na tela, e este painel já
+// carregou várias delas que envelheceram para mentira. Então vira número, e
+// número calculado da onda que está sendo mostrada -- não escrito à mão.
+
+export interface AderenciaDasPiores {
+  /** Áreas com nota comparável nesta onda. */
+  areas: number;
+  /** Em quantas delas a pergunta de pior nota está entre as 3 piores da empresa. */
+  seguemAEmpresa: number;
+  /** Quantas perguntas DISTINTAS aparecem no topo da lista de distância. */
+  distanciasDistintas: number;
+}
+
+const TOP_EMPRESA = 3;
+
+export function aderenciaDasPiores(
+  linhas: readonly DriverPorRecorte[],
+): AderenciaDasPiores | null {
+  const regua = reguaEmpresa(linhas);
+  if (regua.size === 0) return null;
+
+  // O ranking da empresa pela NOTA, do pior para o melhor.
+  const piores = [...regua.entries()]
+    .filter(([, v]) => v.score != null)
+    .sort((a, b) => (a[1].score as number) - (b[1].score as number))
+    .slice(0, TOP_EMPRESA)
+    .map(([k]) => k);
+  if (!piores.length) return null;
+
+  const porArea = new Map<string, DriverPorRecorte[]>();
+  for (const l of linhas) {
+    if (l.cutType !== 'area' || l.score == null) continue;
+    const k = l.cutValue.trim().toLowerCase();
+    if (!porArea.has(k)) porArea.set(k, []);
+    porArea.get(k)!.push(l);
+  }
+
+  let seguemAEmpresa = 0;
+  const noTopoDaDistancia = new Set<string>();
+  for (const linhasDaArea of porArea.values()) {
+    const pior = [...linhasDaArea].sort(
+      (a, b) => (a.score as number) - (b.score as number),
+    )[0];
+    if (pior && piores.includes(chave(pior))) seguemAEmpresa++;
+
+    const maisDistante = linhasDaArea
+      .map((l) => ({ l, gap: dif(l.favoravel, regua.get(chave(l))?.favoravel ?? null) }))
+      .filter((x) => x.gap != null)
+      .sort((a, b) => (a.gap as number) - (b.gap as number))[0];
+    if (maisDistante) noTopoDaDistancia.add(maisDistante.l.question);
+  }
+
+  return {
+    areas: porArea.size,
+    seguemAEmpresa,
+    distanciasDistintas: noTopoDaDistancia.size,
+  };
+}
