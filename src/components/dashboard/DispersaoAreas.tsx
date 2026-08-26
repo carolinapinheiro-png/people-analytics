@@ -7,7 +7,19 @@ import type { DriverPorRecorte } from '@/lib/survey.functions';
 import { ehResidual } from '@/lib/engagement-context';
 
 /**
- * Problema da empresa, ou de alguém?
+ * O mesmo em toda a empresa, ou depende da área?
+ *
+ * ------------------------------------------------------------------
+ * O TÍTULO ANTIGO CONTRADIZIA O PRÓPRIO CARTÃO
+ * ------------------------------------------------------------------
+ * Era "Problema da empresa, ou de alguém?". A Marilia pediu linguagem neutra,
+ * e ela está certa por um motivo que dá para verificar aqui mesmo: o corpo do
+ * cartão diz, com todas as letras, que cobrar o líder da pior nota não resolve
+ * quando a variação é baixa. O título prometia procurar um culpado; o conteúdo
+ * existia para evitar exatamente isso.
+ *
+ * Quem lê o título primeiro -- e é o que todo mundo faz -- entra defendendo a
+ * própria área, e aí não lê o resto.
  *
  * ------------------------------------------------------------------
  * A DISTINÇÃO QUE MUDA QUEM É CHAMADO NA REUNIÃO
@@ -106,7 +118,7 @@ export default function DispersaoAreas({
 
   return (
     <ChartCard
-      title="Problema da empresa, ou de alguém?"
+      title="O mesmo em toda a empresa, ou depende da área?"
       subtitle="quanto cada pergunta varia entre as áreas"
       icon={SplitSquareHorizontal}
     >

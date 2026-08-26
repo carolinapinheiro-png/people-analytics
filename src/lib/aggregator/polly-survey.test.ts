@@ -124,8 +124,11 @@ test('função: reconhece os dois idiomas e recusa chutar no resto', () => {
 });
 
 test('marca: cross-brand nos dois idiomas cai no mesmo grupo', () => {
-  assert.equal(canonMarca('Ambas / Função cross-brand'), 'Ambas');
-  assert.equal(canonMarca('Both/cross-brand'), 'Ambas');
+  assert.equal(canonMarca('Ambas / Função cross-brand'), 'Cross Brand');
+  // O valor que este arquivo gravou enquanto encurtava o nome reentra no mesmo
+  // grupo -- reimportar uma onda antiga não pode criar um segundo "ambas".
+  assert.equal(canonMarca('Ambas'), 'Cross Brand');
+  assert.equal(canonMarca('Both/cross-brand'), 'Cross Brand');
   assert.equal(canonMarca('Betnacional'), 'Betnacional');
 });
 

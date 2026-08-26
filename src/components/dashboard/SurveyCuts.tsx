@@ -4,7 +4,9 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import type { SurveyCut } from '@/lib/survey.functions';
-import { partesDoCruzamento, ehCruzamento } from '@/lib/aggregator/polly-survey';
+import {
+  partesDoCruzamento, ehCruzamento, rotuloDeCorte, CROSS_BRAND, CROSS_BRAND_DESCRICAO,
+} from '@/lib/aggregator/polly-survey';
 
 /**
  * Gestor/contribuidor, marca e tempo de casa -- recortes que só existem depois
@@ -135,8 +137,11 @@ function Painel({
           const bom = d == null ? false : invertido ? d <= 0 : d >= 0;
           return (
             <div key={r.cutValue} className="flex items-center gap-2 text-xs">
-              <span className="w-[120px] shrink-0 truncate text-muted-foreground" title={r.cutValue}>
-                {r.cutValue}
+              <span
+                className="w-[120px] shrink-0 truncate text-muted-foreground"
+                title={rotuloDeCorte(r.cutValue)}
+              >
+                {rotuloDeCorte(r.cutValue)}
               </span>
               <div className="flex-1 min-w-0">
                 <Divergente valor={v} base={base} max={max} invertido={invertido} />
@@ -182,6 +187,14 @@ function Bloco({ titulo, rows, empresa }: { titulo: string; rows: SurveyCut[]; e
         <Painel rotulo="eNPS" rows={rows} base={baseEnps} max={maxEnps} sufixo=" pts" />
         <Painel rotulo="Risco de saída" rows={rows} base={baseRisco} max={maxRisco} invertido sufixo=" p.p." />
       </div>
+      {/* Quem compõe o grupo, dito onde ele aparece. "Cross Brand" é mais
+          honesto que "Ambas", mas continua sendo jargão para quem lê de fora
+          -- e a Marilia pediu as duas coisas juntas, o termo e a explicação. */}
+      {rows.some((r) => rotuloDeCorte(r.cutValue) === CROSS_BRAND) && (
+        <p className="text-[11px] text-muted-foreground mt-2">
+          <strong className="text-foreground">{CROSS_BRAND}</strong>: {CROSS_BRAND_DESCRICAO}.
+        </p>
+      )}
       {ocultos.length > 0 && (
         <p className="text-xs mt-2 flex items-start gap-1" style={{ color: COLORS.warning }}>
           <EyeOff className="h-3 w-3 mt-0.5 shrink-0" />
@@ -190,7 +203,7 @@ function Bloco({ titulo, rows, empresa }: { titulo: string; rows: SurveyCut[]; e
         </p>
       )}
       <p className="text-[11px] text-muted-foreground mt-2">
-        n por grupo: {rows.map((r) => `${r.cutValue} ${r.n}`).join(' · ')}
+        n por grupo: {rows.map((r) => `${rotuloDeCorte(r.cutValue)} ${r.n}`).join(' · ')}
       </p>
     </div>
   );
@@ -341,7 +354,7 @@ export default function SurveyCuts({
       )}
       {destaque && (empresa.enps as number) - (destaque.enps as number) >= 8 && (
         <p className="text-sm leading-relaxed mb-3">
-          <strong>{destaque.cutValue}</strong> está{' '}
+          <strong>{rotuloDeCorte(destaque.cutValue)}</strong> está{' '}
           {(empresa.enps as number) - (destaque.enps as number)} pontos de eNPS abaixo da empresa,
           e são {destaque.n} pessoas. É um recorte que a leitura por área não mostra.
         </p>

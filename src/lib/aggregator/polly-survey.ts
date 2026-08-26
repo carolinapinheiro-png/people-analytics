@@ -95,13 +95,48 @@ const AREA_CANON: Record<string, string> = {
   outros: 'Outros', others: 'Outros', other: 'Outros',
 };
 
+/**
+ * O nome canônico do grupo que atende as duas marcas.
+ *
+ * ------------------------------------------------------------------
+ * "AMBAS" ERA UM ENCURTAMENTO NOSSO, NÃO O TERMO DA PESQUISA
+ * ------------------------------------------------------------------
+ * A Marilia pediu "cross brand" no lugar de "ambas". Olhando as chaves abaixo,
+ * o pedido é para VOLTAR ao que o questionário já dizia: a alternativa que a
+ * pessoa marcou se chama "Ambas / Função cross-brand". Foi este normalizador
+ * que cortou a segunda metade e deixou só a primeira -- e a metade que sobrou
+ * é justamente a que não explica nada. "Ambas" ambas o quê.
+ */
+export const CROSS_BRAND = 'Cross Brand';
+
+/** Quem compõe o grupo, em uma frase, para a tela não deixar a dúvida de pé. */
+export const CROSS_BRAND_DESCRICAO =
+  'quem atende as duas marcas, Betnacional e Betfair, em vez de uma só';
+
 const MARCA_CANON: Record<string, string> = {
   betnacional: 'Betnacional',
   betfair: 'Betfair',
-  'ambas / função cross-brand': 'Ambas',
-  'both/cross-brand': 'Ambas',
-  'both / cross-brand': 'Ambas',
+  'ambas / função cross-brand': CROSS_BRAND,
+  'both/cross-brand': CROSS_BRAND,
+  'both / cross-brand': CROSS_BRAND,
+  // O valor que ESTE arquivo gravou enquanto encurtava o nome. Fica para que
+  // reimportar uma onda antiga não crie um terceiro grupo de uma pessoa.
+  ambas: CROSS_BRAND,
+  'cross brand': CROSS_BRAND,
 };
+
+/**
+ * Traduz o que já está gravado no banco.
+ *
+ * As ondas carregadas antes desta mudança têm `cut_value = 'Ambas'`. A
+ * migração 20260826_cross_brand.sql corrige as linhas existentes; esta função
+ * cobre o intervalo entre aplicar o código e aplicar a migração, e qualquer
+ * base que fique para trás. Quando `Ambas` não existir mais em lugar nenhum,
+ * ela vira identidade e pode sair.
+ */
+export function rotuloDeCorte(valor: string): string {
+  return valor.trim().toLowerCase() === 'ambas' ? CROSS_BRAND : valor;
+}
 
 /** Faixas de tempo de casa na ordem em que fazem sentido no eixo. */
 export const TEMPO_ORDEM = [

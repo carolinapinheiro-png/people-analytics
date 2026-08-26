@@ -6,7 +6,7 @@ import { classifyAreas } from '@/lib/area-priority';
 import type { EngagementContextRow } from '@/lib/engagement-context';
 import type { SurveyCut, SurveyImportance, DriverPorRecorte } from '@/lib/survey.functions';
 import { perguntasNoRecorte } from '@/lib/drill';
-import { ehCruzamento } from '@/lib/aggregator/polly-survey';
+import { ehCruzamento, rotuloDeCorte } from '@/lib/aggregator/polly-survey';
 
 /**
  * A leitura da onda, em quatro frases, calculada dos próprios números.
@@ -217,7 +217,7 @@ export default function EngagementReading({
           cor: COLORS.info,
           texto: (
             <>
-              <strong>{nome}{pior.cutValue}</strong> tem eNPS {pior.enps},{' '}
+              <strong>{nome}{rotuloDeCorte(pior.cutValue)}</strong> tem eNPS {pior.enps},{' '}
               {(empresa.enps as number) - (pior.enps as number)} pontos abaixo da empresa, e são{' '}
               {pior.n} pessoas. Recorte que não aparece na leitura por área
               {departamento && ' — e que corta a empresa inteira, não só ' + departamento}.

@@ -338,11 +338,32 @@ export default function DriverPriority({
                 o que &quot;puxa&quot; quer dizer
               </button>
             </TooltipTrigger>
-            <TooltipContent className="max-w-[320px] text-xs leading-relaxed space-y-1.5">
+            <TooltipContent className="max-w-[340px] text-xs leading-relaxed space-y-1.5">
               <p>
-                Mede o quanto a resposta da pergunta acompanha o eNPS <strong>da mesma pessoa</strong>.
-                É calculado uma vez, sobre as respostas da empresa inteira — não existe versão por
-                área desta medida, e por isso ela não muda com o filtro.
+                Mede o quanto a resposta da pergunta acompanha o eNPS{' '}
+                <strong>da mesma pessoa</strong>.{' '}
+                {escopo.assocDaEmpresa
+                  ? 'Aqui vem das respostas da empresa inteira: esta área não tem pares suficientes para uma correlação própria, e uma conta sobre poucas dezenas de respostas ordenaria perguntas por acaso.'
+                  : `Aqui vem das respostas de ${departamentoSelecionado} — a ordem é da área, não da empresa.`}
+              </p>
+              {/* ------------------------------------------------------------------
+                  O CRITÉRIO, EM NÚMERO, PORQUE ELE É RELATIVO
+                  ------------------------------------------------------------------
+                  A Marilia perguntou o que define "puxa muito" e a resposta não
+                  estava em lugar nenhum. Ela importa mais do que parece: os
+                  cortes NÃO são patamares fixos, são posições nesta lista --
+                  quartil superior e mediana. A mesma pergunta pode ser "puxa
+                  muito" numa área e "puxa" noutra sem que nada tenha mudado
+                  nela, só porque as vizinhas são outras.
+
+                  Sem isso escrito, "puxa muito" se lê como propriedade da
+                  pergunta. É posição, e posição depende de quem está ao lado. */}
+              <p>
+                <strong>Puxa muito / puxa / puxa pouco</strong> é posição nesta lista, não patamar
+                fixo: acima de {fmt2(cortes.alto)} está o quarto mais forte, acima de{' '}
+                {fmt2(cortes.medio)} está a metade de cima, abaixo disso é o resto. Trocando o
+                recorte, os cortes mudam junto — a mesma pergunta pode ser &quot;puxa muito&quot;
+                numa área e &quot;puxa&quot; noutra sem nada ter mudado nela.
               </p>
               <p>
                 O número grande é o <strong>% que respondeu 4 ou 5</strong> — a mesma leitura do
