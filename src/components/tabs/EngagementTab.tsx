@@ -1008,7 +1008,7 @@ function InclusionSection({ data }: { data: ExperienceData }) {
 // ---------------------------------------------------------------- Tab
 
 export default function EngagementTab() {
-  const { filters, activeSubTab, setActiveSubTab } = useDashboard();
+  const { filters, activeSubTab, setActiveSubTab, brand } = useDashboard();
   const [data, setData] = useState<ExperienceData | null>(null);
   const [cross, setCross] = useState<EngagementCrossData | null>(null);
   const [survey, setSurvey] = useState<SurveyWaveData | null>(null);
@@ -1120,6 +1120,39 @@ export default function EngagementTab() {
             : "Resultado da pesquisa de engajamento."}
         </p>
       </div>
+
+      {/* ------------------------------------------------------------------
+          O SELETOR DO TOPO NÃO ALCANÇA ESTA ABA, E ISSO PRECISA SER DITO
+          ------------------------------------------------------------------
+          Primeira coisa que a Marilia falou na revisão: "se eu coloco BF ou se
+          eu coloco NSX, ele ainda não tá fazendo essa troca". Está certa -- e
+          esta aba nunca leu `brand`.
+
+          Só que aqui, ao contrário dos outros seis casos desta semana, a
+          limitação é REAL. O seletor separa ENTIDADE (NSX, Betfair BR, Flutter
+          International), que vem da razão social no headcount. A pesquisa não
+          pergunta isso: `PollyResponse` tem área, tempo de casa, função, marca
+          e modelo, e nada de entidade.
+
+          O que existe é MARCA DE PRODUTO -- Betnacional, Betfair, Cross Brand
+          --, que é outro eixo. Mapear uma na outra seria inventar, e o próprio
+          agregador avisa por quê: "NSX BETFAIR BRASIL S.A." começa com NSX e é
+          Betfair. Os nomes se parecem e não coincidem.
+
+          Então o seletor não passa a funcionar: ele passa a dizer que não se
+          aplica, e a apontar o recorte que responde a pergunta parecida. Um
+          controle visível que não faz nada é pior que um controle ausente --
+          quem troca e não vê mudança conclui que os números são iguais. */}
+      {brand !== "combined" && (
+        <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+          O seletor <strong className="text-foreground">{brand}</strong> não muda os números desta
+          aba: a pesquisa é anônima e não pergunta a entidade da pessoa — os campos que ela coleta
+          são área, tempo de casa, função, modelo de trabalho e marca. Tudo aqui é da{' '}
+          <strong className="text-foreground">Flutter Brazil inteira</strong>. O recorte que mais se
+          aproxima é por <strong className="text-foreground">marca de produto</strong>, nos blocos
+          por marca e na série de marca abaixo — e ele não é a mesma coisa que a entidade.
+        </p>
+      )}
 
       <Tabs value={subAtiva} onValueChange={setActiveSubTab} className="space-y-4">
         {/* As sub-abas vem do SERVIDOR (`data.subAbas`), nao de um calculo aqui.

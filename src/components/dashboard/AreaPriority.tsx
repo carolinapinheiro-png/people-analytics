@@ -307,7 +307,24 @@ export default function AreaPriority({
       title="Por onde começar, área por área"
       subtitle={
         comparavel
-          ? `ordenado por prioridade · grupo: eNPS ${fmt1(medianas.enps)}, risco ${fmt1(medianas.risco)}%`
+          ? // ------------------------------------------------------------------
+            // "GRUPO" NÃO DIZIA QUE ERA MEDIANA, E ISSO CUSTOU CARO
+            // ------------------------------------------------------------------
+            // Dizia "grupo: eNPS 67,5, risco 14,3%". A Marilia leu isso, comparou
+            // com o eNPS 69 e o risco 16,1% dos cartões do topo, e perguntou:
+            // "é diferente do que tá aqui em cima, só para entender se eu que
+            // fiz errada". Ela não fez nada errado -- os dois números estão
+            // certos e medem coisas diferentes.
+            //
+            // A régua da fila é a MEDIANA das áreas: cada área conta uma vez,
+            // do tamanho que for. O número do topo é o da empresa, calculado
+            // sobre todas as respostas, então área grande pesa mais. Quando os
+            // dois divergem, a divergência é informação -- risco mediano 14,3
+            // contra 16,1 na empresa quer dizer que as áreas MAIORES estão
+            // acima do típico.
+            //
+            // Nada disso aparecia. Só a palavra "grupo", que não é nada disso.
+            `ordenado por prioridade · mediana das ${itens.length} áreas: eNPS ${fmt1(medianas.enps)}, risco ${fmt1(medianas.risco)}%`
           : // Sem grupo, "grupo: eNPS 48" seria o eNPS da própria área devolvido
             // como se fosse a régua -- a área comparada consigo mesma.
             'sem grupo para comparar · a régua da fila são as outras áreas'
@@ -575,6 +592,14 @@ export default function AreaPriority({
         <span>
           <strong className="text-foreground">Histórico</strong> = trajetória do eNPS nas ondas e
           distância para a média anterior <em>desta</em> área
+        </span>
+        <span className="basis-full">
+          A régua desta fila é a <strong className="text-foreground">mediana das áreas</strong>,
+          onde cada área conta uma vez. Os cartões do topo trazem o número{' '}
+          <strong className="text-foreground">da empresa</strong>, calculado sobre todas as
+          respostas — então área grande pesa mais lá e não pesa aqui. Os dois divergirem é normal, e
+          a diferença diz algo: risco mediano abaixo do risco da empresa significa que as áreas
+          maiores estão acima do típico.
         </span>
         <span>
           <strong className="text-foreground">vs FI</strong> = diferença de eNPS para a Flutter
