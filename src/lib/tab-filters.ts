@@ -31,7 +31,8 @@ export type FilterKey =
   | 'tipoContrato'
   | 'faixaSalarial'
   | 'tipoDesligamento'
-  | 'level';
+  | 'level'
+  | 'modeloTrabalho';
 
 /** Rótulo curto para a etiqueta de filtro ativo. */
 export const FILTER_LABELS: Record<FilterKey, string> = {
@@ -42,6 +43,7 @@ export const FILTER_LABELS: Record<FilterKey, string> = {
   faixaSalarial: 'Faixa salarial',
   tipoDesligamento: 'Tipo de desligamento',
   level: 'Level',
+  modeloTrabalho: 'Modelo de trabalho',
 };
 
 const TODOS: FilterKey[] = [
@@ -52,6 +54,7 @@ const TODOS: FilterKey[] = [
   'faixaSalarial',
   'tipoDesligamento',
   'level',
+  'modeloTrabalho',
 ];
 
 export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
@@ -73,7 +76,17 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   demographics: ['departamento'],
   // Filtradas no servidor, cada uma na própria server function.
   span: ['departamento'],
-  engagement: ['departamento'],   // alcança o engajamento; drivers/inclusão não têm recorte
+  // ------------------------------------------------------------------
+  // TEMPO DE CASA E MODELO ENTRARAM, E O COMENTÁRIO ANTIGO ERA A PISTA
+  // ------------------------------------------------------------------
+  // Dizia: "alcança o engajamento; drivers/inclusão não têm recorte". A
+  // segunda metade era verdade sobre a CONSULTA, não sobre o dado --
+  // `survey_driver_scores` guarda 525 linhas por tempo de casa em três ondas
+  // e 102 por modelo, e a query pedia só company e area.
+  //
+  // A Anna pediu os dois recortes. Com a consulta corrigida, eles funcionam
+  // de verdade aqui, que é a condição para aparecerem nesta lista.
+  engagement: ['departamento', 'tempoCasa', 'modeloTrabalho'],
   recruitment: ['departamento'],
   // Única que lê pessoa a pessoa com todas as dimensões.
   attrition: TODOS,
@@ -147,3 +160,22 @@ export function filtersForTab(tab: DashboardTab, subTab?: string | null): Filter
  * barra troca a seleção: escolher um limpa o outro, e diz isso.
  */
 export const RECORTES_EXCLUSIVOS: FilterKey[] = ['level', 'tempoCasa'];
+
+/**
+ * Na aba de Engajamento, área e perfil não se somam.
+ *
+ * ------------------------------------------------------------------
+ * PORQUE O CRUZAMENTO NÃO EXISTE NOS DRIVERS
+ * ------------------------------------------------------------------
+ * `survey_cut_scores` tem 'area+tempo', então eNPS e risco de "24+ meses em
+ * Marketing" são calculáveis. `survey_driver_scores` NÃO tem: as notas por
+ * pergunta existem por área OU por tempo, nunca pelos dois.
+ *
+ * Combinar os dois filtros produziria uma tela metade recortada e metade não
+ * -- exatamente o que este painel passou a semana desfazendo. Então escolher
+ * um limpa o outro, e a barra diz isso.
+ *
+ * No dia em que o agregador gravar 'area+tempo' em driver_scores, esta lista
+ * some e os filtros passam a se somar.
+ */
+export const PERFIL_VS_AREA: FilterKey[] = ['departamento', 'tempoCasa', 'modeloTrabalho'];

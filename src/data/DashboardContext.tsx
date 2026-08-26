@@ -25,6 +25,8 @@ export interface Filters {
   faixaSalarial: string;
   tipoDesligamento: string;
   level: string;
+  /** Presencial / Híbrido / Remoto. Só a aba de Engajamento aplica. */
+  modeloTrabalho: string;
 }
 
 interface DashboardState {
@@ -244,6 +246,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     faixaSalarial: SEM_FILTRO,
     tipoDesligamento: SEM_FILTRO,
     level: SEM_FILTRO,
+    modeloTrabalho: SEM_FILTRO,
   });
 
   // Perfil com escopo (HRBP / Department Leader) nunca ve o consolidado:

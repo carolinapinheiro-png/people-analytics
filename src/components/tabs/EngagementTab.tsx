@@ -21,6 +21,7 @@ import TempoDeCasa from "@/components/dashboard/TempoDeCasa";
 import DispersaoAreas from "@/components/dashboard/DispersaoAreas";
 import RiscoPreviu from "@/components/dashboard/RiscoPreviu";
 import DriversDeepDive from "@/components/dashboard/DriversDeepDive";
+import RecorteDePerfil from "@/components/dashboard/RecorteDePerfil";
 import MatrizAreaDriver from "@/components/dashboard/MatrizAreaDriver";
 import { temQuebraPorArea } from "@/lib/drill";
 import KpiCard from "@/components/dashboard/KpiCard";
@@ -42,6 +43,7 @@ import { Heart, Users, Sparkles, TrendingUp, TrendingDown, HandHeart } from "luc
 import { COLORS } from "@/lib/colors";
 import FreshnessBadge from "@/components/dashboard/FreshnessBadge";
 import { useDashboard } from "@/data/DashboardContext";
+import { semFiltro, valorFiltro } from "@/lib/filtro-sentinela";
 
 /**
  * Aba Experiencia: engajamento, jornada de entrada e inclusao.
@@ -96,6 +98,24 @@ function EngagementSection({
   cross: EngagementCrossData | null;
   survey: SurveyWaveData | null;
 }) {
+  const { filters } = useDashboard();
+  // ------------------------------------------------------------------
+  // QUAL RECORTE DE PERFIL ESTÁ ATIVO, SE ALGUM
+  // ------------------------------------------------------------------
+  // Os dois são exclusivos entre si e com o de área (ver PERFIL_VS_AREA em
+  // tab-filters). Se os dois viessem preenchidos, o primeiro ganha -- mas a
+  // barra não deixa chegar aqui, e depender só dela seria confiar numa regra
+  // que mora noutro arquivo.
+  const recortePerfil = !semFiltro(filters.tempoCasa)
+    ? { cutType: "tempo", valor: valorFiltro(filters.tempoCasa) as string, rotulo: "Tempo de casa" }
+    : !semFiltro(filters.modeloTrabalho)
+      ? {
+          cutType: "modelo",
+          valor: valorFiltro(filters.modeloTrabalho) as string,
+          rotulo: "Modelo de trabalho",
+        }
+      : null;
+
   const company = data.engagement.find((e) => e.scope === "company");
   const depts = data.engagement.filter((e) => e.scope !== "company");
 
@@ -395,6 +415,28 @@ function EngagementSection({
       />
 
       {/* ------------------------------------------------------------------
+          FILTRO DE PERFIL ATIVO: A TELA VIRA A DAQUELE GRUPO
+          ------------------------------------------------------------------
+          Tempo de casa e modelo de trabalho não cruzam com área nas notas por
+          pergunta. Manter a tela normal filtrada daria uma página metade
+          recortada -- a fila por área mostraria as nove áreas inteiras sob um
+          filtro que promete outra coisa.
+
+          Então a aba troca de conteúdo: o que o grupo respondeu, em que ele
+          está mais longe da empresa, e a frase do que não cabe. Ver
+          RecorteDePerfil.tsx. */}
+      {recortePerfil && survey ? (
+        <RecorteDePerfil
+          cuts={survey.cuts}
+          drivers={survey.driversPorArea}
+          cutType={recortePerfil.cutType}
+          valor={recortePerfil.valor}
+          rotulo={recortePerfil.rotulo}
+          minimoExibicao={survey.minimoExibicao ?? 5}
+        />
+      ) : (
+      <>
+      {/* ------------------------------------------------------------------
           QUEM RESPONDEU SOBE PARA O DIAGNÓSTICO
           ------------------------------------------------------------------
           Estava em nono lugar, depois de tudo. A Anna pediu tempo de casa e
@@ -550,6 +592,9 @@ function EngagementSection({
       {/* Depois da lista de perguntas, porque responde a pergunta seguinte:
           esta nota baixa é de todo mundo ou de alguém? */}
       {survey && <DispersaoAreas drivers={survey.driversPorArea} />}
+
+      </>
+      )}
 
       <Detalhe
         titulo="Detalhe e metodologia"
@@ -1089,6 +1134,7 @@ function InclusionSection({ data }: { data: ExperienceData }) {
 
 export default function EngagementTab() {
   const { filters, activeSubTab, setActiveSubTab, brand } = useDashboard();
+
   const [data, setData] = useState<ExperienceData | null>(null);
   const [cross, setCross] = useState<EngagementCrossData | null>(null);
   const [survey, setSurvey] = useState<SurveyWaveData | null>(null);

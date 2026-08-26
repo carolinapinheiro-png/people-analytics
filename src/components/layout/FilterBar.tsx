@@ -4,12 +4,14 @@ import { COLORS } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { SCOPE_TO_DEPT } from "@/lib/engagement-context";
+import { TEMPO_ORDEM } from "@/lib/aggregator/polly-survey";
 import { isGlobalProfile, normalizeDept } from "@/lib/permissions";
 import {
   filtersForTab,
   unavailableFilters,
   FILTER_LABELS,
   RECORTES_EXCLUSIVOS,
+  PERFIL_VS_AREA,
   type FilterKey,
 } from "@/lib/tab-filters";
 import { Lock, SlidersHorizontal, X } from "lucide-react";
@@ -89,7 +91,26 @@ const filterOptions: Record<FilterKey, string[]> = {
     "Outros",
   ],
   level: ["Todos", "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L8"],
+  modeloTrabalho: ["Todos", "Presencial", "Híbrido", "Remoto"],
 };
+
+/**
+ * As faixas de tempo de casa DA PESQUISA não são as do headcount.
+ *
+ * ------------------------------------------------------------------
+ * DUAS ESCADAS COM O MESMO NOME
+ * ------------------------------------------------------------------
+ * `filterOptions.tempoCasa` acima é a escada das bases por pessoa: 6-12 meses,
+ * 1-2 anos, 2-5 anos, 5+ anos. A pesquisa pergunta outra coisa: 6-9, 9-12,
+ * 12-18, 18-24, 24+ meses.
+ *
+ * Reusar a lista de cima na aba de Engajamento daria um seletor onde escolher
+ * "1-2 anos" não encontra nada -- um filtro que parece funcionar e devolve
+ * vazio, que é pior que filtro ausente. Peguei isto ANTES de ligar o filtro,
+ * conferindo `TEMPO_ORDEM`; se tivesse ligado primeiro, o sintoma seria uma
+ * tela em branco sem explicação.
+ */
+const TEMPO_DA_PESQUISA = ["Todos", ...TEMPO_ORDEM];
 
 const VAZIO: Filters = {
   jobFamily: "Todos",
@@ -99,6 +120,7 @@ const VAZIO: Filters = {
   tipoContrato: "Todos",
   faixaSalarial: "Todos",
   tipoDesligamento: "Todos",
+  modeloTrabalho: "Todos",
   level: "Todos",
 };
 
@@ -154,6 +176,8 @@ export default function FilterBar() {
   const minhasFamilias = (jobFamilies ?? []).filter(Boolean);
 
   const opcoes = (k: FilterKey): string[] => {
+    // Ver TEMPO_DA_PESQUISA: mesma chave de filtro, escadas diferentes.
+    if (k === "tempoCasa" && activeTab === "engagement") return TEMPO_DA_PESQUISA;
     if (!scoped) return filterOptions[k];
     if (k === "departamento") return cobreTodasAsAreas ? filterOptions[k] : meusDepts;
     if (k === "jobFamily" && minhasFamilias.length > 0) return minhasFamilias;
@@ -200,6 +224,18 @@ export default function FilterBar() {
     if (RECORTES_EXCLUSIVOS.includes(key) && value !== "Todos") {
       for (const outro of RECORTES_EXCLUSIVOS) {
         if (outro !== key) next[outro] = "Todos";
+      }
+    }
+    // Área e perfil não se somam no Engajamento -- ver PERFIL_VS_AREA. Para
+    // quem tem escopo, o departamento não é escolha e não pode ser limpo:
+    // nesse caso o exclusivo não se aplica e o servidor mandaria de volta.
+    if (
+      activeTab === "engagement" &&
+      PERFIL_VS_AREA.includes(key) &&
+      value !== "Todos"
+    ) {
+      for (const outro of PERFIL_VS_AREA) {
+        if (outro !== key && !(outro === "departamento" && scoped)) next[outro] = "Todos";
       }
     }
     setFilters(next);
