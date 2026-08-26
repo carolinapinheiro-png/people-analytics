@@ -186,6 +186,35 @@ export default function AreaPriority({
             'sem grupo para comparar · a régua da fila são as outras áreas'
       }
     >
+      {/* ------------------------------------------------------------------
+          CABEÇALHO DE COLUNA, QUE ESTA LISTA NUNCA TEVE
+          ------------------------------------------------------------------
+          Havia só uma legenda no rodapé -- "barra e número = eNPS, coluna do
+          meio = risco de saída". Legenda no rodapé é uma chave que chega
+          depois da fechadura: quem lê encontra os números primeiro.
+
+          A Marilia leu "67,5" e "14,3" lado a lado e perguntou o que era cada
+          um. É uma pergunta sobre a tela, não sobre os dados -- e a resposta
+          já existia, só estava trinta linhas abaixo de onde era precisa.
+
+          As larguras batem com as das células. Se alguém mexer numa delas sem
+          mexer aqui, o cabeçalho desalinha visivelmente na primeira olhada --
+          que é o tipo de erro que se conserta, ao contrário de um rótulo
+          silenciosamente errado. */}
+      <div
+        className="flex items-center gap-3 px-1 -mx-1 pb-1.5 mb-1 border-b border-border/60
+                   text-[10px] uppercase tracking-wider text-muted-foreground"
+      >
+        <span className="w-[168px] shrink-0">Área</span>
+        <span className="flex-1 min-w-0" />
+        <span className="w-8 text-right">eNPS</span>
+        <span className="w-14 text-right">Risco (%)</span>
+        <span className="w-[92px] text-right shrink-0">Participação</span>
+        <span className="w-[54px] text-right shrink-0" title="Diferença de eNPS para a Flutter International">
+          vs FI
+        </span>
+      </div>
+
       <div className="space-y-1">
         {itens.map((i, idx) => {
           const v = VEREDITO[i.veredito];
@@ -289,7 +318,9 @@ export default function AreaPriority({
                     }}
                   />
                 </div>
-                <span className="text-sm font-semibold tabular-nums w-8 text-right">{i.enps}</span>
+                {/* Maior que os vizinhos de propósito: é o número que a Marilia
+                    pediu em destaque, e é o que ordena a fila. */}
+                <span className="text-base font-bold tabular-nums w-8 text-right">{i.enps}</span>
 
                 <span
                   className={cn(
@@ -390,19 +421,26 @@ export default function AreaPriority({
         })}
       </div>
 
+      {/* O rodapé perdeu "barra e número = eNPS" e "coluna do meio = risco":
+          isso agora está no cabeçalho, onde é lido antes dos números em vez de
+          depois. Fica aqui só o que um título de coluna não cabe -- o que as
+          cores querem dizer, e o que é FI. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-2.5 border-t border-border/60 text-xs text-muted-foreground">
         <span>
-          barra e número = <strong className="text-foreground">eNPS</strong>
+          cor da barra = <strong className="text-foreground">o que fazer</strong>, e o comprimento
+          é o eNPS
         </span>
         <span>
-          coluna do meio = <strong className="text-foreground">risco de saída</strong>
+          <strong className="text-amber-600 dark:text-amber-500">âmbar em Risco</strong> = acima da
+          mediana das áreas
         </span>
         <span>
-          <strong className="text-foreground">respostas / elegíveis</strong> — âmbar quando menos de
-          dois terços responderam
+          <strong className="text-amber-600 dark:text-amber-500">âmbar em Participação</strong> =
+          menos de dois terços responderam
         </span>
         <span>
-          glob. = <strong className="text-foreground">vs Flutter International</strong>
+          <strong className="text-foreground">vs FI</strong> = diferença de eNPS para a Flutter
+          International
         </span>
       </div>
 

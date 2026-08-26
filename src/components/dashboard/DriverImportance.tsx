@@ -75,6 +75,8 @@ type QuadKey = QuadrantePergunta;
 
 interface Ponto {
   x: number; y: number; nota: number; driver: string; question: string; quad: QuadKey; curta: string;
+  /** Posição na ordem de associação. É o que aparece no gráfico. Ver abaixo. */
+  numero: number;
 }
 
 export default function DriverImportance({
@@ -128,15 +130,35 @@ export default function DriverImportance({
     // empresa sobre notas da área, quase tudo cairia de um lado só numa área
     // que responde abaixo, e o quadrante deixaria de separar nada.
     const { itens, corteR, corteFavoravel } = classifyPerguntas(escopo.linhas);
+    // ------------------------------------------------------------------
+    // NÚMERO NO PONTO, PERGUNTA NA LISTA
+    // ------------------------------------------------------------------
+    // O gráfico escrevia a pergunta truncada em 32 caracteres ao lado de cada
+    // bolha do quadrante de prioridade. Duas coisas davam errado ao mesmo
+    // tempo: os textos se sobrepunham onde os pontos ficam próximos -- que é
+    // justamente onde é preciso distinguir --, e 32 caracteres cortam a
+    // pergunta antes do que ela pergunta ("Sinto que posso ser eu mesmo n…").
+    //
+    // A Marilia pediu numeração. É o desenho certo: o gráfico carrega
+    // POSIÇÃO, que é o que ele sabe mostrar, e a pergunta inteira fica na
+    // lista abaixo, onde cabe sem cortar.
+    //
+    // A ordem é a da associação, decrescente -- a mesma do eixo horizontal.
+    // Assim os números crescem da direita para a esquerda e a numeração
+    // carrega informação em vez de ser só identidade.
+    const ordenados = [...itens].sort((a, b) => b.r - a.r);
+    const numeroDe = new Map(ordenados.map((r, i) => [`${r.driver}|${r.question}`, i + 1]));
     const pontos: Ponto[] = itens.map((r) => ({
       x: r.r,
       y: r.favEfetivo,
       nota: r.score,
       driver: r.driver,
       question: r.question,
-      // Rótulo curto para o gráfico: a pergunta inteira tem até 150 caracteres.
+      // Rótulo curto para o tooltip e para telas estreitas. Não vai mais ao
+      // gráfico, mas continua sendo o texto curto da pergunta.
       curta: r.question.length > 34 ? `${r.question.slice(0, 32)}…` : r.question,
       quad: r.quadrante,
+      numero: numeroDe.get(`${r.driver}|${r.question}`) ?? 0,
     }));
     return { pontos, corteR, corteNota: corteFavoravel };
   }, [escopo]);
@@ -226,9 +248,12 @@ export default function DriverImportance({
           />
           {(Object.keys(QUADRANTES) as QuadKey[]).map((q) => (
             <Scatter key={q} data={doQuadrante(q)} fill={QUADRANTES[q].color} fillOpacity={0.8}>
-              {q === 'prioridade' && (
-                <LabelList dataKey="curta" position="right" style={{ fontSize: 9, fill: 'var(--muted-foreground)' }} />
-              )}
+              <LabelList
+                dataKey="numero"
+                position="top"
+                offset={6}
+                style={{ fontSize: 9, fill: 'var(--muted-foreground)' }}
+              />
             </Scatter>
           ))}
         </ScatterChart>
@@ -259,6 +284,12 @@ export default function DriverImportance({
                     .sort((a, b) => b.x - a.x)
                     .map((p) => (
                       <li key={p.question} className="text-[11px] leading-snug flex gap-1.5">
+                        <span
+                          className="tabular-nums font-semibold shrink-0 w-5 text-right"
+                          style={{ color: QUADRANTES[q].color }}
+                        >
+                          {p.numero}
+                        </span>
                         <span className="tabular-nums text-muted-foreground shrink-0">
                           {Math.round(p.y)}%
                         </span>
@@ -277,7 +308,9 @@ export default function DriverImportance({
           <strong>Como ler:</strong> cada ponto é uma pergunta. Quanto mais à direita, mais as
           respostas dela acompanham o eNPS da mesma pessoa. Quanto mais acima, maior a parcela que
           concorda (respondeu 4 ou 5). As linhas tracejadas são as medianas das {pontos.length}{' '}
-          perguntas — clique num quadrante para ver quais caem nele.{' '}
+          perguntas. <strong>O número na bolha</strong> é a posição da pergunta na ordem de
+          associação: 1 é a que mais anda junto com o eNPS. Clique num quadrante abaixo para ver
+          quais perguntas caem nele, com o número ao lado.{' '}
           {/* Esta frase chegou a ser condicional por meia hora, quando só este
               cartão tinha passado a usar a nota da área e "Por onde começar"
               continuava na da empresa. Voltou a ser incondicional porque a
