@@ -316,9 +316,9 @@ export default function DriverImportance({
               continuava na da empresa. Voltou a ser incondicional porque a
               troca virou uma função só (`perguntasNoRecorte`) que os dois
               chamam -- com ou sem filtro, a promessa se sustenta. */}
-          É a <strong>mesma régua</strong> usada em &quot;Por onde começar&quot;, logo abaixo, e
-          sobre a <strong>mesma população</strong>: uma pergunta cai no mesmo quadrante nos dois
-          cartões, filtrado ou não.
+          É a <strong>mesma régua</strong> usada em &quot;O que mais pesa, pergunta a
+          pergunta&quot;, e sobre a <strong>mesma população</strong>: uma pergunta cai no mesmo
+          quadrante nos dois cartões, filtrado ou não.
         </p>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           <strong>Isto não é relação de causa.</strong> Todas as respostas vêm da mesma pessoa no

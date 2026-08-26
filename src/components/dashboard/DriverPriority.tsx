@@ -205,9 +205,23 @@ export default function DriverPriority({
 
   const lista = verTodas ? [...escopo.linhas].sort((a, b) => b.r - a.r) : prioridade;
 
+  // ------------------------------------------------------------------
+  // DOIS "POR ONDE COMEÇAR" NA MESMA PÁGINA
+  // ------------------------------------------------------------------
+  // A Anna apontou que a repetição confunde a navegação, e confunde mesmo: o
+  // outro cartão com esse título ordena ÁREAS, este ordena PERGUNTAS. Quem
+  // rolava encontrava a mesma promessa duas vezes e não sabia se tinha
+  // voltado.
+  //
+  // O nome novo diz o que o cartão faz -- pesar perguntas -- e "começar" fica
+  // com um dono só: a fila por área, que é mesmo por onde se começa.
+  //
+  // (O comentário mora aqui, e não entre as props do ChartCard. Comentário JSX
+  // dentro de lista de props é erro de sintaxe, e esta é a QUARTA vez que erro
+  // isso na mesma semana.)
   return (
     <ChartCard
-      title="Por onde começar, pergunta por pergunta"
+      title="O que mais pesa, pergunta a pergunta"
       subtitle={
         // O `n` acompanha o % : sob filtro os dois são da área. Trocar um sem o
         // outro poria a nota de 81 pessoas com o rótulo de 485 -- foi o que a

@@ -378,6 +378,11 @@ function EngagementSection({
       {/* `respondentes` e `participacao` chegam JÁ no escopo certo: da área
           quando há filtro, da empresa quando não há. A leitura não repete a
           regra de escopo -- repetir é o que faz duas versões divergirem. */}
+      <TituloBloco
+        titulo="Diagnóstico"
+        resumo="quem respondeu e como o conjunto se moveu"
+      />
+
       <EngagementReading
         enpsEmpresa={foco?.enps ?? null}
         respondentes={participacaoDaArea?.n ?? survey?.respondentes ?? null}
@@ -387,6 +392,24 @@ function EngagementSection({
         importancia={survey?.importancia ?? []}
         drivers={survey?.driversPorArea ?? []}
         departamento={deptSel}
+      />
+
+      {/* ------------------------------------------------------------------
+          QUEM RESPONDEU SOBE PARA O DIAGNÓSTICO
+          ------------------------------------------------------------------
+          Estava em nono lugar, depois de tudo. A Anna pediu tempo de casa e
+          modelo de trabalho no começo, "para estabelecer uma visão geral
+          inicial" -- e ela tem razão sobre a ordem de leitura: saber QUEM
+          respondeu muda como se lê todo o resto. Um eNPS de 53 num grupo que é
+          metade gente de menos de um ano não é o mesmo eNPS de 53.
+
+          Fica no bloco de diagnóstico e não vira gráfico grande: é contexto,
+          e contexto que ocupa meia tela deixa de ser contexto. */}
+      {survey && <SurveyCuts cuts={survey.cuts} departamentoSelecionado={deptSel} />}
+
+      <TituloBloco
+        titulo="eNPS"
+        resumo="o índice, por área e ao longo das ondas"
       />
 
       {cross && (
@@ -472,6 +495,11 @@ function EngagementSection({
         />
       )}
 
+      <TituloBloco
+        titulo="Clima"
+        resumo="o que as pessoas responderam, pergunta a pergunta"
+      />
+
       {/* Pergunta a pergunta vem DEPOIS do tema, agora. É o detalhamento de
           uma leitura que já aconteceu acima, e não a porta de entrada. */}
       {survey && survey.importancia.length > 0 && (
@@ -485,8 +513,6 @@ function EngagementSection({
       {/* Depois da lista de perguntas, porque responde a pergunta seguinte:
           esta nota baixa é de todo mundo ou de alguém? */}
       {survey && <DispersaoAreas drivers={survey.driversPorArea} />}
-
-      {survey && <SurveyCuts cuts={survey.cuts} departamentoSelecionado={deptSel} />}
 
       <Detalhe
         titulo="Detalhe e metodologia"
@@ -627,6 +653,31 @@ function EngagementSection({
             e 8,7% como se ambos fossem "risco declarado em jan/26". Ver o topo
             de RiscoPreviu.tsx. */}
       </Detalhe>
+    </div>
+  );
+}
+
+/**
+ * Separador de bloco temático.
+ *
+ * ------------------------------------------------------------------
+ * A PÁGINA ERA UMA LISTA DE ONZE CARTÕES SEM RESPIRO
+ * ------------------------------------------------------------------
+ * A Anna leu a aba inteira e pediu blocos com título e mais espaçamento,
+ * "para a visualização ficar mais orgânica". O que ela descreveu como poluição
+ * é falta de hierarquia: onze cartões do mesmo peso, um atrás do outro, sem
+ * nada dizendo onde um assunto termina e outro começa.
+ *
+ * Três blocos, e a ordem deles é uma afirmação sobre como se lê a pesquisa:
+ * primeiro QUEM respondeu, depois O ÍNDICE, por último O QUE disseram. Ler na
+ * ordem inversa -- que era a de antes -- faz alguém concluir sobre uma
+ * pergunta específica antes de saber de quantas pessoas se está falando.
+ */
+function TituloBloco({ titulo, resumo }: { titulo: string; resumo: string }) {
+  return (
+    <div className="pt-6 pb-1 first:pt-0">
+      <h3 className="text-sm font-semibold uppercase tracking-wider">{titulo}</h3>
+      <p className="text-xs text-muted-foreground">{resumo}</p>
     </div>
   );
 }
