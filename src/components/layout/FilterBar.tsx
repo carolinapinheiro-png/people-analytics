@@ -3,6 +3,7 @@ import { useDashboard, Filters } from "@/data/DashboardContext";
 import { COLORS } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { SCOPE_TO_DEPT } from "@/lib/engagement-context";
 import { isGlobalProfile, normalizeDept } from "@/lib/permissions";
 import {
   filtersForTab,
@@ -40,18 +41,25 @@ const BRAND_COLORS: Record<string, string> = {
   Porto: COLORS.flutter,
 };
 
+/**
+ * As áreas que a pesquisa de fato tem, derivadas do mapa que o resto do painel
+ * usa -- e não digitadas aqui.
+ *
+ * ------------------------------------------------------------------
+ * A CONTA DA ANNA MOSTROU O PROBLEMA
+ * ------------------------------------------------------------------
+ * O escopo dela lista treze departamentos, e cinco deles não são áreas:
+ * CW GROUP, DIRETORIA, PORTO, TECHNOLOGY GROUP e SEM DEPTO. Eles vêm do
+ * organograma, onde são linhas legítimas; na pesquisa não existem. O filtro
+ * os oferecia, e escolher qualquer um devolvia tela vazia.
+ *
+ * Derivar de SCOPE_TO_DEPT resolve os dois lados: a lista para de ser uma
+ * cópia manual que envelhece, e o que não é área não entra.
+ */
+const AREAS_DA_PESQUISA = [...new Set(Object.values(SCOPE_TO_DEPT))].sort();
+
 const filterOptions: Record<FilterKey, string[]> = {
-  departamento: [
-    "Todos",
-    "TECHNOLOGY",
-    "PRODUCT",
-    "MARKETING",
-    "COMMERCIAL",
-    "FINANCE",
-    "OPERATION",
-    "HR",
-    "LEGAL & COMPLIANCE",
-  ],
+  departamento: ["Todos", ...AREAS_DA_PESQUISA],
   jobFamily: [
     "Todos",
     "Commercial & Marketing",
@@ -110,12 +118,39 @@ export default function FilterBar() {
   // O mesmo vale para job family: o escopo e a UNIAO dos dois criterios, e
   // deixar um deles aberto tornaria o outro decorativo.
   const scoped = !!profile && !isGlobalProfile(profile);
-  const meusDepts = departments.map(normalizeDept).filter(Boolean);
+  const meusDepts = departments
+    .map(normalizeDept)
+    .filter(Boolean)
+    // Fora os que não são área. Ver AREAS_DA_PESQUISA. Se sobrar nada, mantém
+    // a lista crua: melhor um seletor estranho que um seletor vazio, e o
+    // servidor recusa o que a pessoa não pode ver de qualquer forma.
+    .filter((d, _i, todos) =>
+      todos.some((x) => AREAS_DA_PESQUISA.includes(x)) ? AREAS_DA_PESQUISA.includes(d) : true);
+
+  /**
+   * Escopo que alcança TODAS as áreas não tem o que travar.
+   *
+   * ------------------------------------------------------------------
+   * LISTAR TUDO NÃO É O MESMO QUE SER GLOBAL, E ISSO VAZOU PARA A TELA
+   * ------------------------------------------------------------------
+   * Para dar acesso amplo à Anna, alguém listou todos os departamentos na
+   * conta dela. Só que o perfil continua "com escopo", então o filtro travava
+   * na primeira área em ordem alfabética -- COMMERCIAL -- e ela abria o painel
+   * preso num departamento, com uma lista diferente da que a Marilia vê. Foi
+   * exatamente o que ela relatou.
+   *
+   * A PERMISSÃO NÃO MUDA AQUI, e não deveria: `isInScope` devolve false quando
+   * não há critério nenhum, de propósito, e afrouxar isso faria um cadastro
+   * incompleto virar acesso total. O que muda é só o controle: quem já pode
+   * ver todas as áreas não ganha nada com um cadeado, e perde a opção "Todos".
+   */
+  const cobreTodasAsAreas =
+    scoped && AREAS_DA_PESQUISA.every((a) => meusDepts.includes(a));
   const minhasFamilias = (jobFamilies ?? []).filter(Boolean);
 
   const opcoes = (k: FilterKey): string[] => {
     if (!scoped) return filterOptions[k];
-    if (k === "departamento") return meusDepts;
+    if (k === "departamento") return cobreTodasAsAreas ? filterOptions[k] : meusDepts;
     if (k === "jobFamily" && minhasFamilias.length > 0) return minhasFamilias;
     return filterOptions[k];
   };
@@ -127,10 +162,11 @@ export default function FilterBar() {
    * A etiqueta continua visivel -- ela explica de onde vem o numero -- mas sem
    * o "x", que so produziria a volta ao mesmo valor um instante depois.
    */
-  const travado = (k: FilterKey) => scoped && k === "departamento";
+  const travado = (k: FilterKey) =>
+    scoped && k === "departamento" && !cobreTodasAsAreas;
 
   /** Com uma area so, o seletor tem uma opcao. Vira texto, nao controle. */
-  const semEscolhaDeDept = scoped && meusDepts.length <= 1;
+  const semEscolhaDeDept = scoped && !cobreTodasAsAreas && meusDepts.length <= 1;
 
   // Todo filtro ligado aparece, sempre -- mesmo quando esta aba não o aplica.
   //
