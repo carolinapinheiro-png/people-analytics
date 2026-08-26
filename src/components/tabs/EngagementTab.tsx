@@ -403,6 +403,27 @@ function EngagementSection({
         </div>
       )}
 
+      {/* ------------------------------------------------------------------
+          A MATRIZ SOBE, E A RAZÃO ANTIGA FICA REGISTRADA
+          ------------------------------------------------------------------
+          Ela ficava embaixo com esta justificativa: "é densa, e só faz sentido
+          depois de a leitura ter estabelecido o que os temas são". Parecia
+          sólida e nunca tinha sido testada com alguém de fora.
+
+          Foi testada. A Marilia leu a aba inteira e pediu justamente o
+          contrário -- que este gráfico subisse, "por ser visualmente mais
+          informativo", e que ficasse ACIMA do detalhamento pergunta a
+          pergunta, porque olhar pergunta isolada leva a conclusão errada
+          antes de o tema estar na cabeça.
+
+          Ou seja: a ordem antiga supunha que a leitura precede a grade,
+          quando a grade É a leitura mais rápida. Justificativa de layout que
+          ninguém verificou tem o mesmo efeito das outras deste painel --
+          congela uma escolha e depois é lida como razão. */}
+      {survey && temQuebraPorArea(survey.driversPorArea) && (
+        <MatrizAreaDriver linhas={survey.driversPorArea} ondaLabel={survey.label} />
+      )}
+
       {/* Duas ondas: slope, que responde "o que mudou desde a última pesquisa".
           Três ou mais: série, porque o slope só enxerga as duas pontas e uma
           área que caiu, subiu e voltou apareceria idêntica a uma parada.
@@ -428,6 +449,8 @@ function EngagementSection({
         />
       )}
 
+      {/* Pergunta a pergunta vem DEPOIS do tema, agora. É o detalhamento de
+          uma leitura que já aconteceu acima, e não a porta de entrada. */}
       {survey && survey.importancia.length > 0 && (
         <DriverPriority
           rows={survey.importancia}
@@ -439,15 +462,6 @@ function EngagementSection({
       {/* Depois da lista de perguntas, porque responde a pergunta seguinte:
           esta nota baixa é de todo mundo ou de alguém? */}
       {survey && <DispersaoAreas drivers={survey.driversPorArea} />}
-
-      {/* E logo depois a grade inteira, que responde a MESMA pergunta sem
-          precisar escolher uma pergunta antes: quais áreas destoam, em quê, e
-          quais destoam em tudo. Fica aqui e não no topo de propósito -- ela é
-          densa, e só faz sentido depois de a leitura ter estabelecido o que os
-          temas são. */}
-      {survey && temQuebraPorArea(survey.driversPorArea) && (
-        <MatrizAreaDriver linhas={survey.driversPorArea} ondaLabel={survey.label} />
-      )}
 
       {survey && <SurveyCuts cuts={survey.cuts} departamentoSelecionado={deptSel} />}
 
