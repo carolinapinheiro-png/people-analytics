@@ -44,7 +44,21 @@ export default function AreaDriverPanel({
     return {
       semQuebra,
       total: linhas.length,
-      abaixo: linhas.slice(0, PONTAS),
+      // ------------------------------------------------------------------
+      // "ABAIXO" TEM QUE SIGNIFICAR GAP NEGATIVO
+      // ------------------------------------------------------------------
+      // `acima` sempre filtrou por gap > 0. `abaixo` não filtrava nada: pegava
+      // as cinco primeiras linhas fossem quais fossem. Numa área que está acima
+      // da empresa em quase tudo -- Technology está acima nos onze temas -- a
+      // lista que promete mostrar onde a área vai pior exibia valores
+      // POSITIVOS. Foi o "+3" que a Marilia apontou na revisão.
+      //
+      // O DriverPriority tinha exatamente este bug e foi corrigido, com o
+      // comentário "sem este filtro uma área acima da empresa (+17,4) aparecia
+      // rotulada como quem puxa para baixo". O irmão ficou para trás. Terceira
+      // vez nesta semana que dois componentes fazem o mesmo juízo e só um
+      // recebe a correção.
+      abaixo: linhas.slice(0, PONTAS).filter((l) => (l.gap ?? 0) < 0),
       acima: [...linhas].reverse().slice(0, PONTAS).filter((l) => (l.gap ?? 0) > 0),
     };
   }, [drivers, area]);
@@ -98,9 +112,25 @@ export default function AreaDriverPanel({
         {area} · distância da empresa, em pontos de % que concorda
       </p>
 
-      <div className="space-y-0.5">
-        {abaixo.map((l) => <Linha key={l.question} l={l} />)}
-      </div>
+      {/* A primeira lista não tinha título próprio: o cabeçalho acima servia
+          para ela, e só a segunda dizia "onde está acima". Quem lia inferia o
+          sentido da primeira pelo contraste com a segunda -- o que funciona
+          até a primeira aparecer com um número positivo dentro. */}
+      {abaixo.length > 0 ? (
+        <>
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
+            Onde está abaixo
+          </p>
+          <div className="space-y-0.5">
+            {abaixo.map((l) => <Linha key={l.question} l={l} />)}
+          </div>
+        </>
+      ) : (
+        // Lista vazia aqui é achado, não ausência -- e some se não for dita.
+        <p className="text-[12px] leading-relaxed" style={{ color: COLORS.success }}>
+          {area} não está abaixo da empresa em nenhuma das {total} perguntas comparáveis.
+        </p>
+      )}
 
       {acima.length > 0 && (
         <>

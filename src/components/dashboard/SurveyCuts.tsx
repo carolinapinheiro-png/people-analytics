@@ -146,13 +146,37 @@ function Painel({
               <div className="flex-1 min-w-0">
                 <Divergente valor={v} base={base} max={max} invertido={invertido} />
               </div>
+              {/* ------------------------------------------------------------------
+                  A DIFERENÇA E O VALOR, JUNTOS
+                  ------------------------------------------------------------------
+                  Só a diferença aparecia aqui: "-14 pts". Para saber o eNPS dos
+                  gestores era preciso guardar o 69 da empresa, que está no alto
+                  do cartão, e subtrair de cabeça -- e a Marilia pediu
+                  exatamente isso, "sem a necessidade de memorização dos dados".
+
+                  Os dois números respondem perguntas diferentes e as duas são
+                  feitas nesta tela: a diferença diz se o grupo destoa, o valor
+                  diz de que patamar se está falando. -14 sobre 69 e -14 sobre
+                  30 são conversas distintas.
+
+                  A diferença fica em destaque e o valor entre parênteses, e não
+                  o contrário: o cartão é sobre distância da média -- é o que o
+                  título promete e o que a barra desenha. */}
               <span className={cn(
-                'tabular-nums w-[62px] shrink-0 text-right font-medium',
-                d == null ? 'text-muted-foreground'
-                : bom ? 'text-emerald-600 dark:text-emerald-500'
-                : 'text-amber-600 dark:text-amber-500',
+                'tabular-nums shrink-0 text-right font-medium',
+                d == null ? 'w-[104px] text-muted-foreground'
+                : 'w-[104px]',
+                d != null && (bom ? 'text-emerald-600 dark:text-emerald-500'
+                : 'text-amber-600 dark:text-amber-500'),
               )}>
-                {d == null ? 'oculto' : `${d > 0 ? '+' : ''}${fmt1(d)}${sufixo}`}
+                {d == null ? 'oculto' : (
+                  <>
+                    {`${d > 0 ? '+' : ''}${fmt1(d)}${sufixo}`}
+                    <span className="text-muted-foreground font-normal">
+                      {' '}({invertido ? `${fmt1(v)}%` : fmt1(v)})
+                    </span>
+                  </>
+                )}
               </span>
             </div>
           );
@@ -374,7 +398,9 @@ export default function SurveyCuts({
       </div>
       <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
         A linha do meio de cada barra é a empresa. Verde é melhor que a média, âmbar é pior — vale
-        para os dois lados, já que em risco de saída menor é melhor.
+        para os dois lados, já que em risco de saída menor é melhor. O número em destaque é a
+        <strong> distância até a empresa</strong>; entre parênteses vai o valor do próprio grupo,
+        para não ser preciso guardar a régua de cabeça.
       </p>
     </ChartCard>
   );
