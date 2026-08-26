@@ -10,6 +10,7 @@ import {
   ehCruzamento, partesDoCruzamento,
 } from '@/lib/aggregator/polly-survey';
 import { selectedDept, recorteNoEscopo } from '@/lib/dept-filter';
+import { recorteVisivel } from '@/lib/recorte-visivel';
 
 /**
  * Carga e leitura da pesquisa de engajamento.
@@ -397,14 +398,34 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       : c.cutType === 'area' ? c.cutValue
       : null;
 
-    const noEscopo = brutos.filter((c) => {
-      const area = areaDoCut(c);
-      // Recorte que não é de área nenhuma (empresa, marca, tempo, função,
-      // modelo) segue a regra de sempre: só perfil global o recebe, e a
-      // seleção não se aplica porque ele não pertence a área alguma.
-      if (area == null) return c.cutType !== 'area';
-      return passaNoRecorte(area);
-    });
+    // ======================================================================
+    // A MESMA PORTA PARA CUTS E PARA DRIVERS
+    // ======================================================================
+    // Havia duas regras para o MESMO recorte, no mesmo arquivo. Os cuts (eNPS,
+    // risco, satisfação) liberavam tempo/marca/modelo para qualquer perfil; os
+    // drivers (notas por pergunta) bloqueavam para quem tem escopo, porque
+    // usavam `passaNoRecorte` direto, e ela devolve false quando o nome não é
+    // uma área.
+    //
+    // O efeito só apareceu quando o filtro por tempo de casa entrou: para
+    // perfil com escopo ele mostrava os três números e um clima vazio, com
+    // uma mensagem dizendo que o dado "não foi carregado nesta onda" -- falso,
+    // ele estava lá e a permissão é que barrava.
+    //
+    // E o comentário que estava aqui afirmava "só perfil global o recebe"
+    // enquanto o código liberava para todos. Código e comentário discordando
+    // sobre permissão é a pior combinação possível: quem lê um confia no
+    // outro.
+    //
+    // REGRA ÚNICA, decidida com a Carolina: recorte que não é de área nenhuma
+    // -- empresa, marca, tempo de casa, função, modelo -- é corte transversal
+    // da Flutter Brazil e passa para todos. Ele não revela área alguma, do
+    // mesmo jeito que o eNPS da empresa, que todo perfil já vê. Recorte DE
+    // área continua passando pela porta de sempre.
+    const podeVerORecorte = (cutType: string, cutValue: string) =>
+      recorteVisivel(cutType, cutValue, passaNoRecorte);
+
+    const noEscopo = brutos.filter((c) => podeVerORecorte(c.cutType, c.cutValue));
 
     // A supressão é aplicada AQUI, antes de a linha existir na resposta HTTP.
     // Fazer isso na tela deixaria o número real no payload -- visível para
@@ -433,12 +454,10 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // não pode ter a nota exposta porque quem olha clicou em vez de ler a
     // tabela.
     const driversNoEscopo = ((drvRes.error ? [] : drvRes.data ?? []) as Array<Record<string, unknown>>)
-      .filter((d) => {
-        // `company` é a régua e passa sempre: sem ela, "4,04" não diz se a
-        // área está bem ou mal. O resto passa pela MESMA porta dos recortes.
-        if (String(d.cut_type) === 'company') return true;
-        return passaNoRecorte(String(d.cut_value));
-      })
+      // A MESMA porta dos cuts, e não uma segunda implementação da ideia.
+      // Ver `podeVerORecorte`: foi a divergência entre estas duas linhas que
+      // deixou o filtro por tempo de casa sem clima para perfil com escopo.
+      .filter((d) => podeVerORecorte(String(d.cut_type), String(d.cut_value)))
       .map((d) => ({
         driver: String(d.driver),
         question: String(d.question),
