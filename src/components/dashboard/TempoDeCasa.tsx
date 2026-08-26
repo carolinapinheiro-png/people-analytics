@@ -240,7 +240,17 @@ export default function TempoDeCasa({
         })}
       </div>
 
-      <div className="mt-3 pt-2.5 border-t border-border/60 space-y-1.5">
+      {/* ------------------------------------------------------------------
+          O RESPIRO DA LEITURA, QUE A ANNA APONTOU
+          ------------------------------------------------------------------
+          Eram três parágrafos densos empilhados com space-y-1.5 e corpo menor
+          que o resto da página. Ela descreveu como "espaçamento das letras
+          muito reduzido"; o efeito é o mesmo -- um bloco cinza que o olho pula.
+
+          E o que está escrito aqui não é decoração: é a resposta à objeção mais
+          provável da sala ("a empresa cresceu, não é só isso?"). Texto que
+          ninguém lê por ser desconfortável equivale a texto ausente. */}
+      <div className="mt-4 pt-3 border-t border-border/60 space-y-3">
         {/* A leitura que a terceira onda permite. Só aparece quando há três.
 
             REESCRITO PORQUE NINGUÉM DE FORA ENTENDEU. Dizia "3 faixas caem em
@@ -264,7 +274,7 @@ export default function TempoDeCasa({
             {ondas.map((o) => o.label).join(' para ')}, sem uma única vez em que tenha melhorado.
             Quem tem menos tempo de casa sobe e desce sem direção clara.
           </p>
-          <p className="text-[12px] text-muted-foreground leading-relaxed">
+          <p className="text-[13px] text-muted-foreground leading-relaxed">
             A diferença importa: piorar em toda pesquisa seguida é tendência; subir e descer é o
             que grupos pequenos costumam fazer por acaso. Comparando só a primeira pesquisa com a
             última, as duas coisas teriam exatamente a mesma cara.
@@ -305,7 +315,7 @@ export default function TempoDeCasa({
           )}
         </p>
 
-        <p className="text-[12px] text-muted-foreground leading-relaxed">
+        <p className="text-[13px] text-muted-foreground leading-relaxed">
           As faixas não são as mesmas pessoas: quem estava em 12-18 meses na primeira
           onda está em 24+ agora. Isto compara quem tinha X de casa então com quem tem
           X de casa hoje — é um retrato de faixas, não o acompanhamento de uma coorte.

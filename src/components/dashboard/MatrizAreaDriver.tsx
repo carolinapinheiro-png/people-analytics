@@ -66,7 +66,25 @@ const sinal = (g: number) => {
 };
 
 /** "Comunicação e Transparência Organizacional" não cabe numa coluna. */
-const curto = (d: string) => (d.length > 26 ? `${d.slice(0, 24)}…` : d);
+/**
+ * O nome do tema, inteiro.
+ *
+ * ------------------------------------------------------------------
+ * CORTAR EM 24 CARACTERES APAGAVA A INFORMAÇÃO
+ * ------------------------------------------------------------------
+ * Havia um `curto()` que truncava tudo acima de 26 caracteres. Na tela isso
+ * virava "Desempenho, Responsabili…", "Propósito, Clareza de Pa…" e
+ * "Comunicação e Transparên…" -- e a Anna apontou os textos cortados.
+ *
+ * O problema não é estético. Os temas desta pesquisa são frases, e a parte que
+ * distingue um do outro costuma estar no fim: "Apoio de RH e Processos de
+ * Gestão de Pessoas" some inteiro depois de "Apoio de RH e Proces…". Truncar
+ * pela esquerda mantém o começo, que é a parte genérica.
+ *
+ * A coluna é sticky e a tabela rola na horizontal, então o nome inteiro cabe
+ * sem empurrar as células para fora do alcance.
+ */
+const NOME_DO_TEMA = 'whitespace-nowrap';
 
 export default function MatrizAreaDriver({
   linhas,
@@ -117,10 +135,10 @@ export default function MatrizAreaDriver({
             {m.drivers.map((d) => (
               <tr key={d}>
                 <td
-                  className="pr-2 py-0.5 whitespace-nowrap sticky left-0 bg-background z-10"
+                  className={`pr-3 py-0.5 ${NOME_DO_TEMA} sticky left-0 bg-background z-10`}
                   title={d}
                 >
-                  {curto(d)}
+                  {d}
                 </td>
                 {m.areas.map((a) => {
                   const c = m.mapa.get(`${a}||${d}`);
