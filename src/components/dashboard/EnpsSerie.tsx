@@ -270,6 +270,7 @@ export default function EnpsSerie({
       subtitle={`${ondas.length} ondas · ${ondas[0].label} → ${ondas.at(-1)?.label}${
         daArea ? ` · ${daArea}` : ""
       }`}
+      ajuda="serieIndicadores"
       icon={Activity}
     >
       <div className="grid gap-x-4 gap-y-5 md:grid-cols-3">

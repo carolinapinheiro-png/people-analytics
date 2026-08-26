@@ -222,6 +222,7 @@ export default function DriverPriority({
   return (
     <ChartCard
       title="O que mais pesa, pergunta a pergunta"
+      ajuda="oQueMaisPesa"
       subtitle={
         // O `n` acompanha o % : sob filtro os dois são da área. Trocar um sem o
         // outro poria a nota de 81 pessoas com o rótulo de 485 -- foi o que a

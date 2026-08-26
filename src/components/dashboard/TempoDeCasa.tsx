@@ -138,6 +138,7 @@ export default function TempoDeCasa({
     return (
       <ChartCard
         title="Onde a queda aconteceu"
+      ajuda="ondeAQuedaAconteceu"
         subtitle={`eNPS por tempo de casa · ${departamentoSelecionado}`}
         icon={Hourglass}
       >
@@ -165,6 +166,7 @@ export default function TempoDeCasa({
   return (
     <ChartCard
       title="Onde a queda aconteceu"
+      ajuda="ondeAQuedaAconteceu"
       subtitle={`eNPS por tempo de casa${daArea ? ` em ${daArea}` : ''} · ${ondas
         .map((o) => o.label)
         .join(' → ')}`}

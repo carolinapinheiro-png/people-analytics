@@ -268,6 +268,7 @@ export default function RiscoPreviu({
       subtitle={`declarado em ${ondaLabel} · saídas ${
         janela ? `em ${janela}` : `nos ${dados.mesesObservados} meses seguintes`
       }`}
+      ajuda="riscoPreviuSaidas"
       icon={Target}
     >
       <div className="rounded-md border px-3 py-2.5 mb-3" style={{ borderColor: `${l.cor}55`, background: `${l.cor}12` }}>

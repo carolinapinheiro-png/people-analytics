@@ -378,6 +378,7 @@ export default function SurveyCuts({
       title={departamentoSelecionado
         ? `Quem está mais distante da média em ${departamentoSelecionado}`
         : 'Quem está mais distante da média'}
+      ajuda="maisDistanteDaMedia"
       subtitle={`comparado com a empresa: eNPS ${empresa.enps}, risco ${fmt1(empresa.risco)}%`}
     >
       {/* Não é mais "este bloco não segue o filtro" -- todos seguem. É o que

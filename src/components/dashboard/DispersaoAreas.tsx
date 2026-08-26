@@ -119,6 +119,7 @@ export default function DispersaoAreas({
   return (
     <ChartCard
       title="O mesmo em toda a empresa, ou depende da área?"
+      ajuda="empresaOuArea"
       subtitle="quanto cada pergunta varia entre as áreas"
       icon={SplitSquareHorizontal}
     >

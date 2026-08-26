@@ -108,6 +108,7 @@ export default function MatrizAreaDriver({
   return (
     <ChartCard
       title="Cada área, tema por tema"
+      ajuda="areaPorTema"
       subtitle={`${m.drivers.length} temas × ${m.areas.length} ${
         m.areas.length === 1 ? 'área' : 'áreas'
       }${ondaLabel ? ` · ${ondaLabel}` : ''} · distância da empresa, em pontos de % que concorda`}

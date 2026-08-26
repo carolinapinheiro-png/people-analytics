@@ -305,6 +305,7 @@ export default function AreaPriority({
   return (
     <ChartCard
       title="Por onde começar, área por área"
+      ajuda="filaPorArea"
       subtitle={
         comparavel
           ? // ------------------------------------------------------------------

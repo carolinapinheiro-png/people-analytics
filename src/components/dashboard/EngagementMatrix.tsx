@@ -187,6 +187,7 @@ export default function EngagementMatrix({
   return (
     <ChartCard
       title="Matriz de ação"
+      ajuda="matrizDeAcao"
       subtitle={`eNPS × risco de saída${ondaLabel ? ` · ${ondaLabel}` : ""} · bolha = tamanho da área · os dois eixos crescem, então o melhor lugar é o canto inferior direito`}
       icon={Target}
     >

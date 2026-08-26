@@ -172,6 +172,7 @@ export default function DriverImportance({
   return (
     <ChartCard
       title="O que anda junto com o engajamento"
+      ajuda="andaJuntoComEngajamento"
       subtitle={
         departamentoSelecionado
           ? `${pontos.length} perguntas · ${escopo.assocDaEmpresa ? `nota de ${departamentoSelecionado} × associação da empresa` : `tudo de ${departamentoSelecionado}`}`
