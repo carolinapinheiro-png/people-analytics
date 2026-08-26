@@ -497,8 +497,38 @@ function EngagementSection({
 
       <TituloBloco
         titulo="Clima"
-        resumo="o que as pessoas responderam, pergunta a pergunta"
+        resumo="por tema primeiro, e a pergunta quando ela for necessária"
       />
+
+      {/* ------------------------------------------------------------------
+          POR TEMA ANTES DE POR PERGUNTA -- AS DUAS REVISÕES PEDIRAM ISSO
+          ------------------------------------------------------------------
+          A Marilia: "será que não faz mais sentido pensar aqui por driver e
+          não por pergunta individual?". A Anna, separadamente: agrupar clima
+          por campos -- comunicação interna, remuneração, colaboração -- em vez
+          de uma lista ordenada só por percentual, "para os gestores atacarem
+          pontos específicos".
+
+          E a Anna descreveu o mecanismo exato: "quando clicar em cada um
+          desses drivers, aparecem as notas de cada uma das perguntas dentro
+          dele". Isto é literalmente o que este cartão faz -- e ele já existia,
+          escondido dentro de "Detalhe e metodologia".
+
+          Então não foi preciso construir nada: o componente certo estava
+          fechado num accordion que quase ninguém abre. Sobe para o corpo da
+          aba, na frente da lista de perguntas, que passa a ser o detalhamento
+          de quem já viu o tema.
+
+          A preocupação da Marilia com pergunta isolada e a da Anna com
+          "too much information" são a mesma: quem lê uma pergunta antes do
+          tema conclui sobre o driver inteiro a partir dela. */}
+      {survey && (
+        <DriversDeepDive
+          drivers={data.drivers}
+          porArea={survey.driversPorArea}
+          departamentoSelecionado={deptSel}
+        />
+      )}
 
       {/* Pergunta a pergunta vem DEPOIS do tema, agora. É o detalhamento de
           uma leitura que já aconteceu acima, e não a porta de entrada. */}
@@ -637,16 +667,6 @@ function EngagementSection({
             departamentoSelecionado={deptSel}
           />
         )}
-
-        <div className="space-y-2">
-          {/* Sem rótulo de escopo aqui. O cartão abaixo ou é da área, ou diz
-              ele mesmo o que falta -- nunca mostra a empresa no lugar dela. */}
-          <DriversDeepDive
-            drivers={data.drivers}
-            porArea={survey?.driversPorArea ?? []}
-            departamentoSelecionado={deptSel}
-          />
-        </div>
 
         {/* O segundo cartão de risco foi absorvido pelo primeiro. Eram a mesma
             pergunta com dois desenhos, liam ondas diferentes e mostravam 13,1%

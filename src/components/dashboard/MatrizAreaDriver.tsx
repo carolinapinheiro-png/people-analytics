@@ -188,7 +188,7 @@ export default function MatrizAreaDriver({
             {celula.nMinimo} respostas.
           </div>
           {/* A média do tema esconde a pergunta ruim -- é a mesma advertência de
-              "Dispersão dentro de cada driver", e aqui ela pesa mais, porque na
+              "Tema por tema, e o que a média esconde", e aqui ela pesa mais, porque na
               grade nem o intervalo aparece. */}
           {celula.pior && (
             <div className="text-muted-foreground pt-1 border-t border-border/60">

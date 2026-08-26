@@ -150,7 +150,7 @@ export default function DriversDeepDive({
   if (departamentoSelecionado && daEmpresa) {
     return (
       <ChartCard
-        title="Dispersão dentro de cada driver"
+        title="Tema por tema, e o que a média esconde"
         subtitle={departamentoSelecionado}
         icon={Layers}
       >
@@ -168,7 +168,7 @@ export default function DriversDeepDive({
   return (
     <div className="space-y-4">
       <ChartCard
-        title="Dispersão dentro de cada driver"
+        title="Tema por tema, e o que a média esconde"
         subtitle={`da pergunta mais baixa à mais alta · ordenado pela amplitude${
           daEmpresa ? '' : ` · ${departamentoSelecionado}`
         }`}
