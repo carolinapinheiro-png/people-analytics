@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Layers } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Layers, ChevronDown } from "lucide-react";
 import ChartCard from "@/components/dashboard/ChartCard";
 import { COLORS } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -72,6 +72,19 @@ export default function DriversDeepDive({
 
   const daEmpresa = !daArea || daArea.size === 0;
 
+  // ------------------------------------------------------------------
+  // O DRIVER ABRE, E SÓ UM DE CADA VEZ
+  // ------------------------------------------------------------------
+  // A Marilia propôs este cartão como material de gestor: clicar no driver e
+  // ver as notas pergunta a pergunta, para chegar na causa "sem sobrecarregar
+  // com excesso de informação". As duas metades da frase são o desenho -- o
+  // detalhe precisa existir E precisa estar fechado por padrão.
+  //
+  // Um por vez, e não vários abertos: com onze drivers, permitir todos abertos
+  // recria a lista pergunta a pergunta que este painel acabou de mover para
+  // baixo justamente por ser densa demais para entrar por ela.
+  const [aberto, setAberto] = useState<string | null>(null);
+
   const dispersao = useMemo(() => {
     const m = new Map<string, Pergunta[]>();
     for (const p of perguntas) {
@@ -92,6 +105,9 @@ export default function DriversDeepDive({
             media: vals.reduce((a, b) => a + b, 0) / vals.length,
             amplitude: Math.round((max - min) * 10) / 10,
             pior: ps.reduce((a, b) => (b.score < a.score ? b : a)),
+            // Da pior para a melhor: quem abre um driver está atrás da causa,
+            // e a causa mora embaixo.
+            itens: [...ps].sort((a, b) => a.score - b.score),
           };
         })
         // ------------------------------------------------------------------
@@ -161,8 +177,23 @@ export default function DriversDeepDive({
         <div className="space-y-2.5">
           {comDispersao.map((d) => (
             <div key={d.driver} className="space-y-1">
-              <div className="flex items-baseline justify-between gap-3">
-                <span className="text-xs truncate" title={d.driver}>
+              <button
+                type="button"
+                onClick={() => setAberto(aberto === d.driver ? null : d.driver)}
+                aria-expanded={aberto === d.driver}
+                aria-label={`Ver as ${d.n} perguntas de ${d.driver}`}
+                className={cn(
+                  'w-full flex items-baseline justify-between gap-3 rounded px-1 -mx-1 py-0.5 text-left transition-colors',
+                  aberto === d.driver ? 'bg-muted/60' : 'hover:bg-muted/30',
+                )}
+              >
+                <span className="text-xs truncate flex items-center gap-1" title={d.driver}>
+                  <ChevronDown
+                    className={cn(
+                      'h-3 w-3 shrink-0 text-muted-foreground transition-transform',
+                      aberto === d.driver ? 'rotate-0' : '-rotate-90',
+                    )}
+                  />
                   {d.driver}
                 </span>
                 <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
@@ -173,7 +204,7 @@ export default function DriversDeepDive({
                   {d.n} pergunta{d.n === 1 ? "" : "s"} · {fmt(d.min)}–{fmt(d.max)} · média{" "}
                   {fmt(d.media)}
                 </span>
-              </div>
+              </button>
               <div className="relative h-4">
                 <div className="absolute inset-y-[7px] left-0 right-0 rounded-full bg-muted" />
                 <div
@@ -198,6 +229,22 @@ export default function DriversDeepDive({
                     " Com duas perguntas, a barra é a distância entre elas, não uma distribuição."}
                 </p>
               )}
+
+              {aberto === d.driver && (
+                <ul className="mt-1 mb-2 space-y-1 border-l-2 border-border/60 pl-3">
+                  {d.itens.map((q) => (
+                    <li key={q.question} className="flex items-baseline gap-2 text-[11px] leading-snug">
+                      <span
+                        className="tabular-nums font-semibold shrink-0 w-7 text-right"
+                        style={{ color: cor(q.score) }}
+                      >
+                        {fmt(q.score)}
+                      </span>
+                      <span className="text-muted-foreground">{q.question}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           ))}
         </div>
@@ -216,7 +263,9 @@ export default function DriversDeepDive({
         )}
 
         <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
-          A barra vai da pergunta mais baixa à mais alta do driver; o traço vertical é a média.
+          <strong>Clique num driver</strong> para ver as notas pergunta a pergunta, da pior para a
+        melhor — é onde a causa costuma estar. A barra vai da pergunta mais baixa à mais alta do
+        driver; o traço vertical é a média.
           Barras curtas são temas homogêneos: a média descreve bem o driver inteiro. Barras longas
           escondem um item ruim atrás de itens bons — nesses, agir no driver como um todo desperdiça
           esforço, e a pergunta apontada abaixo da barra é onde está o problema real.
