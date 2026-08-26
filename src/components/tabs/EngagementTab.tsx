@@ -327,16 +327,27 @@ function EngagementSection({
             {(() => {
               const nDaArea = areaSel ? participacaoDaArea?.n : null;
               const segueFiltro = areaSel != null && nDaArea != null;
-              const taxa = segueFiltro ? participacaoDaArea!.taxa : company?.participation ?? null;
+              // Sem headcount da área no organograma a taxa dela não existe.
+              // Antes o cartão caía para o número da empresa com o rótulo
+              // "(empresa)" -- honesto, e mesmo assim 485 debaixo de um filtro
+              // de Marketing. Régua é a empresa AO LADO do número da área;
+              // isto era a empresa NO LUGAR dele.
+              const taxa = segueFiltro
+                ? participacaoDaArea!.taxa
+                : areaSel
+                  ? null
+                  : company?.participation ?? null;
               return (
                 <KpiCard
-                  label={areaSel && !segueFiltro ? "Responderam (empresa)" : "Responderam"}
+                  label="Responderam"
                   value={
                     segueFiltro
                       ? String(nDaArea)
-                      : survey
-                        ? String(survey.respondentes)
-                        : `${fmt1(company?.participation)}%`
+                      : areaSel
+                        ? "—"
+                        : survey
+                          ? String(survey.respondentes)
+                          : `${fmt1(company?.participation)}%`
                   }
                   color={COLORS.info}
                   icon={Users}
@@ -346,9 +357,11 @@ function EngagementSection({
                       ? participacaoDaArea!.elegiveis != null
                         ? `${fmt1(taxa)}% dos ${participacaoDaArea!.elegiveis} elegíveis de ${deptSel}`
                         : `${nDaArea} respostas em ${deptSel}`
-                      : company?.participation == null
-                        ? undefined
-                        : `${fmt1(company.participation)}% dos elegíveis`
+                      : areaSel
+                        ? `${deptSel} não tem headcount no organograma, então a taxa desta área não é calculável`
+                        : company?.participation == null
+                          ? undefined
+                          : `${fmt1(company.participation)}% dos elegíveis`
                   }
                   help="participacao"
                   helpValue={taxa}
@@ -563,13 +576,8 @@ function EngagementSection({
         )}
 
         <div className="space-y-2">
-          {/* O rótulo só aparece se o bloco de fato não seguir o filtro. Com
-              as notas por área carregadas, ele segue -- e a frase some junto,
-              em vez de contradizer o que está logo abaixo dela. */}
-          <EscopoEmpresa
-            escopo={data.escopo}
-            daEmpresa={!deptSel || !(survey?.driversPorArea ?? []).some((d) => d.cutType === "area")}
-          />
+          {/* Sem rótulo de escopo aqui. O cartão abaixo ou é da área, ou diz
+              ele mesmo o que falta -- nunca mostra a empresa no lugar dela. */}
           <DriversDeepDive
             drivers={data.drivers}
             porArea={survey?.driversPorArea ?? []}
@@ -596,30 +604,27 @@ function EngagementSection({
 }
 
 /**
- * Rótulo para blocos que são da empresa inteira numa tela filtrada por área.
+ * Rótulo para a aba que é MESMO da empresa inteira, e só para ela.
  *
- * Existe por um motivo específico: um número sem rótulo, dentro de uma tela
- * que a pessoa filtrou pela própria área, é lido como sendo da área. O rótulo
- * não é decoração -- é o que separa "minha equipe" de "a companhia" quando as
- * duas coisas aparecem na mesma tela.
+ * ------------------------------------------------------------------
+ * SOBROU UM USO, E É O ÚNICO ONDE A FRASE É VERDADE
+ * ------------------------------------------------------------------
+ * Este rótulo nasceu para cobrir blocos que mostravam o número da empresa sob
+ * um filtro de área. Esses blocos não existem mais: com filtro, cada um ou
+ * traz o dado da área ou diz o que falta para trazê-lo. Rotular a
+ * substituição foi um passo; o passo seguinte era não substituir.
+ *
+ * O uso que fica é a aba de Inclusão, cuja fonte entrega só distribuições
+ * agregadas -- ali não há indivíduo para recortar por área, e a limitação é do
+ * dado, não da agregação. É a diferença que este painel mais errou, e vale
+ * dizer de qual lado dela cada caso está.
  */
 function EscopoEmpresa({
   escopo,
-  /**
-   * false quando o bloco abaixo JÁ segue o filtro.
-   *
-   * Este rótulo dizia "esta seção não tem recorte por área" acima da dispersão
-   * por driver, que passou a ter. Repetir a frase ali seria a sexta vez que o
-   * painel afirma impossibilidade sobre algo calculável -- e desta vez com o
-   * dado já na tela logo abaixo, contradizendo o texto.
-   */
-  daEmpresa = true,
 }: {
   escopo?: { restrito: boolean; departamento: string | null };
-  daEmpresa?: boolean;
 }) {
   if (!escopo?.restrito && !escopo?.departamento) return null;
-  if (!daEmpresa) return null;
   return (
     <p className="text-[11px] text-muted-foreground">
       Números da <strong>Flutter Brazil</strong> inteira — esta seção ainda não foi carregada com

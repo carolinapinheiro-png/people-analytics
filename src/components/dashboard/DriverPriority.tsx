@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
-import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { classifyPerguntas, temaDominante as temaDeLista } from '@/lib/pergunta-priority';
 import { N_MINIMO_CORRELACAO } from '@/lib/aggregator/polly-survey';

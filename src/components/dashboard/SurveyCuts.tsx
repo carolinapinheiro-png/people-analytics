@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { EyeOff } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
-import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import type { SurveyCut } from '@/lib/survey.functions';
@@ -204,17 +203,27 @@ export default function SurveyCuts({
 }: {
   cuts: SurveyCut[];
   /**
-   * Departamento ativo no filtro, se houver.
+   * Departamento ativo no filtro.
    *
-   * Estes recortes -- gestão, marca, tempo de casa -- NÃO seguem o filtro de
-   * área, e isso é de propósito: eles não identificam área nenhuma e servem
-   * de referência da empresa inteira. Só que a tela não dizia isso. Com
-   * PRODUCT filtrado, o bloco continuava mostrando "Betnacional 327 · Ambas
-   * 122 · Betfair 36" -- 485 pessoas, a empresa toda -- enquanto Product tem
-   * 41 respondentes. Quem rolasse até aqui leria "Gestores −14 pts" achando
-   * que eram os gestores de Product.
+   * ------------------------------------------------------------------
+   * ROTULAR NÃO BASTA: O NÚMERO DA EMPRESA NÃO SUBSTITUI O DA ÁREA
+   * ------------------------------------------------------------------
+   * Este cartão já mostrou "Betnacional 327 · Ambas 122 · Betfair 36" com
+   * PRODUCT filtrado -- 485 pessoas, a empresa toda, ao lado dos 41
+   * respondentes de Product. A primeira correção foi pôr um rótulo dizendo de
+   * quem era o número. Honesto, e ainda assim errado: quem filtra uma área
+   * pede a leitura DELA, e um bloco da empresa no lugar do dela ocupa o
+   * espaço da resposta com outra coisa.
    *
-   * O número está certo; o que faltava era o rótulo dizer de quem ele é.
+   * Agora, com filtro, um bloco só aparece se existir o cruzamento com área.
+   * Os que não existem viram uma nota do que falta e de como resolver --
+   * reimportar --, porque a diferença entre "não foi calculado nesta carga" e
+   * "não dá" é a distinção que este painel mais erra.
+   *
+   * A LINHA DE REFERÊNCIA DA EMPRESA FICA. Ela é a régua contra a qual a
+   * barra da área é lida, não um substituto do dado da área: some ela e
+   * "Marketing 44" deixa de significar qualquer coisa. Um agregado de nove
+   * áreas também não identifica nenhuma delas.
    */
   departamentoSelecionado?: string | null;
 }) {
@@ -232,7 +241,7 @@ export default function SurveyCuts({
   // nome perde o prefixo ("Commercial || Ambas" aparece como "Ambas"). Onde não
   // foi, cai no recorte da empresa e o aviso explica a diferença entre "não
   // calculado nesta carga" e "não dá".
-  const blocos = BLOCOS.map((b) => {
+  const candidatos = BLOCOS.map((b) => {
     const cruzadas = departamentoSelecionado
       ? cuts.flatMap((c) => {
           if (c.cutType !== b.cruzado) return [];
@@ -241,12 +250,22 @@ export default function SurveyCuts({
           return [{ ...c, cutValue: p.valor }];
         })
       : [];
-    return cruzadas.length > 0
-      ? { ...b, rows: cruzadas, daArea: true }
-      : { ...b, rows: cuts.filter((c) => c.cutType === b.tipo), daArea: false };
-  }).filter((b) => b.rows.length > 0);
+    if (cruzadas.length > 0) return { ...b, rows: cruzadas, daArea: true };
+    // Sem filtro, o recorte da empresa É a leitura pedida.
+    if (!departamentoSelecionado) {
+      return { ...b, rows: cuts.filter((c) => c.cutType === b.tipo), daArea: false };
+    }
+    // Com filtro, não. Ver o comentário da prop.
+    return { ...b, rows: [] as SurveyCut[], daArea: false };
+  });
 
-  const semCruzamento = blocos.filter((b) => !b.daArea);
+  const blocos = candidatos.filter((b) => b.rows.length > 0);
+
+  // Existe na empresa, não existe para esta área: é isso que a nota promete
+  // resolver. Um bloco que a carga não trouxe para ninguém não vira promessa.
+  const faltando = departamentoSelecionado
+    ? candidatos.filter((b) => !b.daArea && cuts.some((c) => c.cutType === b.tipo))
+    : [];
 
   // ------------------------------------------------------------------
   // O QUE VEIO NA CARGA E NÃO TEM BLOCO
@@ -269,11 +288,12 @@ export default function SurveyCuts({
     ),
   ];
 
-  if (!blocos.length || !empresa) return null;
+  if (!empresa) return null;
+  if (!blocos.length && !faltando.length && !naoMapeados.length) return null;
 
   // A frase de leitura sai do próprio dado: o maior afastamento entre grupos
   // grandes o bastante para o afastamento significar alguma coisa.
-  const destaque = cuts
+  const destaque = departamentoSelecionado ? undefined : cuts
     // ------------------------------------------------------------------
     // A FRASE DE DESTAQUE NÃO OLHA OS CRUZADOS
     // ------------------------------------------------------------------
@@ -281,6 +301,10 @@ export default function SurveyCuts({
     // cruzados no conjunto, ela escreveria "Commercial || Ambas está...", com
     // o separador cru na tela -- e falaria de um subgrupo de uma área como se
     // fosse um recorte da empresa, que é o que este cartão compara.
+    //
+    // Com uma área filtrada ela some inteira: a frase nomeia um recorte da
+    // empresa ("Ambas está 16 pontos abaixo") e fala de 122 pessoas de fora
+    // da área escolhida.
     .filter((c) =>
       c.cutType !== 'company' && c.cutType !== 'area' && !ehCruzamento(c.cutType)
       && !c.suprimido && c.enps != null && c.n >= 20)
@@ -288,23 +312,22 @@ export default function SurveyCuts({
 
   return (
     <ChartCard
-      title="Quem está mais distante da média"
+      title={departamentoSelecionado
+        ? `Quem está mais distante da média em ${departamentoSelecionado}`
+        : 'Quem está mais distante da média'}
       subtitle={`comparado com a empresa: eNPS ${empresa.enps}, risco ${fmt1(empresa.risco)}%`}
     >
-      {/* O aviso agora cobre só os blocos que REALMENTE não seguem o filtro.
-          Quando todos seguem, ele some -- e é isso que deve acontecer depois
-          de a onda ser reimportada com os cruzamentos. */}
-      {semCruzamento.length > 0 && (
-        <AvisoForaDoFiltro
-          departamento={departamentoSelecionado}
-          motivo={(() => {
-            const lista = listar(semCruzamento.map((b) => b.curto));
-            const plural = semCruzamento.length > 1;
-            const f = `${lista} ${plural ? 'aparecem' : 'aparece'} da empresa inteira: o cruzamento com área não foi calculado nas ondas já carregadas. Não é limite do dado — cada resposta traz os dois campos juntos —, e reimportar as ondas ${plural ? 'passa a trazê-los' : 'passa a trazê-lo'} por área.`;
-            return f.charAt(0).toUpperCase() + f.slice(1);
-          })()}
-          escopo={`das ${empresa.n} pessoas da empresa`}
-        />
+      {/* Não é mais "este bloco não segue o filtro" -- todos seguem. É o que
+          falta para esta área, e o que fazer a respeito. */}
+      {faltando.length > 0 && (
+        <p className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+          Sem {listar(faltando.map((b) => b.curto))} para{' '}
+          <strong>{departamentoSelecionado}</strong>: o cruzamento com área não foi calculado nas
+          ondas já carregadas. Não é limite do dado — cada resposta traz os dois campos juntos —,
+          e reimportar as ondas {faltando.length > 1 ? 'passa a trazê-los' : 'passa a trazê-lo'} por
+          área. Até lá {faltando.length > 1 ? 'ficam' : 'fica'} de fora, em vez de{' '}
+          {faltando.length > 1 ? 'aparecerem' : 'aparecer'} com o número da empresa inteira.
+        </p>
       )}
       {naoMapeados.length > 0 && (
         <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:text-amber-200">

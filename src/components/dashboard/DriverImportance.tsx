@@ -5,7 +5,6 @@ import {
 } from 'recharts';
 import { Compass } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
-import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { classifyPerguntas, type QuadrantePergunta } from '@/lib/pergunta-priority';
 import { N_MINIMO_CORRELACAO } from '@/lib/aggregator/polly-survey';

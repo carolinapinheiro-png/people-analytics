@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { Hourglass } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
-import AvisoForaDoFiltro from '@/components/dashboard/AvisoForaDoFiltro';
 import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import {
@@ -86,17 +85,21 @@ export default function TempoDeCasa({
    * Nome da área quando a série É dela, null quando é a da empresa.
    *
    * ------------------------------------------------------------------
-   * O AVISO PRECISA DISTINGUIR DUAS COISAS QUE PARECEM UMA
+   * TRÊS ESTADOS, E O TERCEIRO NÃO É A SÉRIE DA EMPRESA
    * ------------------------------------------------------------------
-   * Antes o texto dizia "não existe a quebra por área nesta série". Era falso:
-   * cada resposta sempre carregou área e tempo de casa juntos, e o cruzamento
-   * passou a ser calculado. O que pode faltar é a ONDA ter sido carregada com
-   * ele -- e isso se resolve reimportando, não é limite do dado.
+   *   sem filtro          -> série da empresa
+   *   filtro + cruzamento -> série da área
+   *   filtro sem carga    -> a nota do que falta, e nada mais
    *
-   * Três estados, e a tela precisa dos três separados:
-   *   sem filtro          -> série da empresa, sem aviso
-   *   filtro + cruzamento -> série da área, sem aviso
-   *   filtro sem carga    -> série da empresa, com aviso dizendo o que fazer
+   * O terceiro estado já mostrou a série da empresa com um aviso por cima. O
+   * aviso era verdadeiro e mesmo assim o desenho errava: quem filtrou uma área
+   * pediu a queda DELA, e recebeu sete faixas de eNPS da empresa inteira no
+   * lugar da resposta -- com "cai em todas" ao lado, que é uma conclusão sobre
+   * gente de fora da área.
+   *
+   * O texto do aviso continua valendo e é o ponto: isto não é limite do dado.
+   * Cada resposta sempre trouxe área e tempo de casa juntos. O que falta é a
+   * onda ter sido carregada com o cruzamento, e isso se resolve reimportando.
    */
   daArea?: string | null;
 }) {
@@ -110,6 +113,27 @@ export default function TempoDeCasa({
       quedas: linhas.filter((l) => l.trajetoria === 'queda'),
     };
   }, [ondas]);
+
+  // ======================================================================
+  // FILTRO SEM CRUZAMENTO: A NOTA, NÃO A SÉRIE DA EMPRESA
+  // ======================================================================
+  if (departamentoSelecionado && daArea == null) {
+    return (
+      <ChartCard
+        title="Onde a queda aconteceu"
+        subtitle={`eNPS por tempo de casa · ${departamentoSelecionado}`}
+        icon={Hourglass}
+      >
+        <p className="text-sm text-muted-foreground py-5 leading-relaxed">
+          O cruzamento entre área e tempo de casa não foi calculado nas ondas já carregadas, então
+          não há esta série para <strong className="text-foreground">{departamentoSelecionado}</strong>.
+          Não é limite do dado — cada resposta traz os dois campos juntos —, e reimportar as ondas
+          passa a trazer a série desta área. Até lá ela fica de fora, em vez de aparecer com as
+          faixas da empresa inteira no lugar.
+        </p>
+      </ChartCard>
+    );
+  }
 
   if (ondas.length < 2 || linhas.length < 3 || comp.variacaoTotal == null) return null;
 
@@ -129,12 +153,6 @@ export default function TempoDeCasa({
         .join(' → ')}`}
       icon={Hourglass}
     >
-      {daArea == null && (
-        <AvisoForaDoFiltro
-          departamento={departamentoSelecionado}
-          motivo="O cruzamento entre área e tempo de casa não foi calculado nas ondas já carregadas — não é limite do dado, e sim da agregação: cada resposta traz os dois campos juntos. Reimportar as ondas passa a trazer a série desta área."
-        />
-      )}
       <div className="flex items-center gap-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
         <span className="w-[92px] shrink-0">Tempo de casa</span>
         {ondas.map((o) => (

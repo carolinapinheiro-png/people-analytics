@@ -124,6 +124,31 @@ export default function DriversDeepDive({
   const escalaMax = Math.max(...comDispersao.map((d) => d.max)) + 0.15;
   const pos = (v: number) => ((v - escalaMin) / (escalaMax - escalaMin)) * 100;
 
+  // ======================================================================
+  // FILTRO SEM NOTAS POR ÁREA: A NOTA, NÃO A DISPERSÃO DA EMPRESA
+  // ======================================================================
+  // Rotular "· empresa" no subtítulo era honesto e ainda assim entregava a
+  // amplitude de 485 pessoas para quem pediu a de 41. Régua da empresa é uma
+  // linha de referência ao lado do número da área; isto era o número da
+  // empresa NO LUGAR do da área.
+  if (departamentoSelecionado && daEmpresa) {
+    return (
+      <ChartCard
+        title="Dispersão dentro de cada driver"
+        subtitle={departamentoSelecionado}
+        icon={Layers}
+      >
+        <p className="text-sm text-muted-foreground py-5 leading-relaxed">
+          As notas por pergunta não foram carregadas com recorte de área nesta onda, então não há
+          esta dispersão para{' '}
+          <strong className="text-foreground">{departamentoSelecionado}</strong>. Não é limite do
+          dado — cada resposta traz área e pergunta juntas —, e reimportar a onda passa a trazer.
+          Até lá fica de fora, em vez de mostrar a amplitude da empresa inteira no lugar.
+        </p>
+      </ChartCard>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <ChartCard
