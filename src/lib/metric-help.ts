@@ -97,8 +97,22 @@ export const AJUDA = {
   },
   riscoSaida: {
     titulo: 'Risco de saída',
-    oQueE: '% de pessoas que declararam na pesquisa não se ver na empresa no próximo ano.',
-    comoLer: 'É intenção declarada, não saída observada. Serve para antecipar — quem pretende sair costuma dizer antes de fazer.',
+    // ------------------------------------------------------------------
+    // ESTA DEFINIÇÃO ESTAVA ERRADA, E NÃO ERA IMPRECISÃO
+    // ------------------------------------------------------------------
+    // Dizia "% de pessoas que declararam não se ver na empresa no próximo
+    // ano" -- uma pergunta que a pesquisa NÃO faz. O dado sempre veio de
+    // outra: "qual a probabilidade de você permanecer se recebesse uma oferta
+    // idêntica", contando quem respondeu 6 ou menos numa escala de 0 a 10.
+    // Ver o cabeçalho de aggregator/polly-survey.ts, onde o corte ≤6 foi
+    // testado contra os 16,6% publicados.
+    //
+    // A diferença muda a decisão de quem lê. "Não me vejo aqui" é desligamento
+    // afetivo; "sairia por uma oferta igual" é falta de motivo para ficar --
+    // e este segundo é o que se responde com contraproposta, carreira e
+    // reconhecimento. Duas conversas diferentes com o mesmo gestor.
+    oQueE: '% de pessoas que, diante de uma oferta equivalente em outro lugar — mesmo cargo, mesmo pacote —, dizem que a probabilidade de ficar aqui é baixa (6 ou menos, numa escala de 0 a 10).',
+    comoLer: 'É intenção declarada, não saída observada. E é sobre o que segura a pessoa, não sobre gostar da empresa: alguém pode elogiar o time e ainda assim não ter motivo para recusar uma oferta igual.',
     cuidado: 'Não confunda com atrição. Atrição é quem JÁ saiu; isto é quem DISSE que pensa em sair. Os dois números não batem, e não deveriam.',
     faixas: [
       { min: 20, tone: 'bad', rotulo: 'acima do confortável' },
