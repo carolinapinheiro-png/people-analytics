@@ -1,9 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { EyeOff } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import { composicaoDoGrupo } from '@/lib/drill';
+import AreaDriverPanel from '@/components/dashboard/AreaDriverPanel';
+import type { DriverPorRecorte } from '@/lib/survey.functions';
+import { ChevronDown } from 'lucide-react';
 import type { SurveyCut } from '@/lib/survey.functions';
 import {
   partesDoCruzamento, ehCruzamento, rotuloDeCorte, CROSS_BRAND, CROSS_BRAND_DESCRICAO,
@@ -191,14 +194,34 @@ function Painel({
 }
 
 function Bloco({
-  titulo, rows, empresa, composicao = [],
+  titulo, rows, empresa, composicao = [], drivers = [], cutType, minimoExibicao = 5,
 }: {
   titulo: string;
   rows: SurveyCut[];
   empresa: SurveyCut | undefined;
   /** De quais áreas vem o Cross Brand. Vazio quando o cruzamento não foi carregado. */
   composicao?: Array<{ area: string; n: number }>;
+  /**
+   * Notas por pergunta em TODOS os recortes, para abrir o clima de um grupo.
+   *
+   * ------------------------------------------------------------------
+   * ESTE BLOCO SÓ SABIA COMPARAR, NÃO EXPLICAR
+   * ------------------------------------------------------------------
+   * Ele diz que Cross Brand está 16 pontos de eNPS abaixo da empresa, e para
+   * por aí. A pergunta seguinte é sempre a mesma -- "abaixo em quê?" -- e a
+   * resposta existia no banco desde sempre, sem chegar a lugar nenhum.
+   *
+   * Agora cada grupo abre, com o mesmo painel que já abre por área: as
+   * perguntas em que ele está mais longe da empresa, nas duas direções.
+   */
+  drivers?: DriverPorRecorte[];
+  /** 'tempo', 'modelo', 'funcao', 'marca' -- o recorte que este bloco mostra. */
+  cutType?: string;
+  minimoExibicao?: number;
 }) {
+  const [aberto, setAberto] = useState<string | null>(null);
+  const temClima = (valor: string) =>
+    !!cutType && drivers.some((l) => l.cutType === cutType && l.cutValue === valor);
   const baseEnps = empresa?.enps ?? 0;
   const baseRisco = empresa?.risco ?? 0;
   const maxEnps = useMemo(
@@ -226,6 +249,52 @@ function Bloco({
         <Painel rotulo="eNPS" rows={rows} base={baseEnps} max={maxEnps} sufixo=" pts" destacado />
         <Painel rotulo="Risco de saída" rows={rows} base={baseRisco} max={maxRisco} invertido sufixo=" p.p." />
       </div>
+      {/* Abrir o clima de um grupo. Os nomes ficam aqui embaixo, e não em cada
+          uma das duas colunas, porque o grupo é o mesmo nas duas -- repetir o
+          gatilho daria dois botões para a mesma ação. */}
+      {cutType && rows.some((r) => temClima(r.cutValue)) && (
+        <div className="mt-2.5 pt-2 border-t border-border/60 flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            ver o clima de
+          </span>
+          {rows.filter((r) => temClima(r.cutValue)).map((r) => {
+            const nome = rotuloDeCorte(r.cutValue);
+            const eAberto = aberto === r.cutValue;
+            return (
+              <button
+                key={r.cutValue}
+                type="button"
+                onClick={() => setAberto(eAberto ? null : r.cutValue)}
+                aria-expanded={eAberto}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] transition-colors',
+                  eAberto
+                    ? 'border-foreground/30 bg-secondary'
+                    : 'border-border hover:bg-secondary/50',
+                )}
+              >
+                <ChevronDown
+                  className={cn(
+                    'h-3 w-3 shrink-0 text-muted-foreground transition-transform',
+                    eAberto ? 'rotate-0' : '-rotate-90',
+                  )}
+                />
+                {nome}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {aberto && cutType && (
+        <AreaDriverPanel
+          area={aberto}
+          cutType={cutType}
+          drivers={drivers}
+          minimoExibicao={minimoExibicao}
+        />
+      )}
+
       {/* Quem compõe o grupo, dito onde ele aparece. "Cross Brand" é mais
           honesto que "Ambas", mas continua sendo jargão para quem lê de fora
           -- e a Marilia pediu as duas coisas juntas, o termo e a explicação. */}
@@ -258,8 +327,13 @@ function Bloco({
 export default function SurveyCuts({
   cuts,
   departamentoSelecionado,
+  drivers = [],
+  minimoExibicao = 5,
 }: {
   cuts: SurveyCut[];
+  /** Notas por pergunta em todos os recortes. Ver o comentário no `Bloco`. */
+  drivers?: DriverPorRecorte[];
+  minimoExibicao?: number;
   /**
    * Departamento ativo no filtro.
    *
@@ -421,6 +495,9 @@ export default function SurveyCuts({
             rows={b.rows}
             empresa={empresa}
             composicao={b.tipo === 'marca' ? composicaoCrossBrand : []}
+            drivers={b.daArea ? [] : drivers}
+            cutType={b.daArea ? undefined : b.tipo}
+            minimoExibicao={minimoExibicao}
           />
         ))}
       </div>

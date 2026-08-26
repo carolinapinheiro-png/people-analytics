@@ -58,15 +58,28 @@ function reguaEmpresa(linhas: readonly DriverPorRecorte[]): Map<string, DriverPo
  * responde pior: ordenar por nota traria o mesmo topo para todas as nove
  * áreas, e a tela não diria nada sobre AQUELA área.
  */
-export function perfilDaArea(
+/**
+ * O perfil de UM recorte qualquer contra a régua da empresa.
+ *
+ * ------------------------------------------------------------------
+ * ERA SÓ PARA ÁREA, E A PERGUNTA NÃO É SÓ SOBRE ÁREA
+ * ------------------------------------------------------------------
+ * "Em que esta gente está mais longe da empresa?" vale para uma área, para
+ * quem tem 24+ meses de casa e para quem trabalha remoto -- é a mesma conta
+ * sobre outra chave. O `cutType` fixo em 'area' era o que impedia.
+ *
+ * `perfilDaArea` continua existindo como o caso comum, chamando este.
+ */
+export function perfilDoRecorte(
   linhas: readonly DriverPorRecorte[],
-  area: string,
+  cutType: string,
+  valor: string,
 ): LinhaDrill[] {
   const regua = reguaEmpresa(linhas);
-  const alvo = (area ?? '').trim().toLowerCase();
+  const alvo = (valor ?? '').trim().toLowerCase();
 
   return linhas
-    .filter((l) => l.cutType === 'area' && l.cutValue.trim().toLowerCase() === alvo)
+    .filter((l) => l.cutType === cutType && l.cutValue.trim().toLowerCase() === alvo)
     .map((l) => {
       const emp = regua.get(chave(l));
       return {
@@ -82,6 +95,13 @@ export function perfilDaArea(
     // Sem gap vai para o fim: não é "igual à empresa", é "não dá para dizer".
     .sort((a, b) =>
       a.gap == null ? 1 : b.gap == null ? -1 : a.gap - b.gap);
+}
+
+export function perfilDaArea(
+  linhas: readonly DriverPorRecorte[],
+  area: string,
+): LinhaDrill[] {
+  return perfilDoRecorte(linhas, 'area', area);
 }
 
 export interface AreaNaPergunta {

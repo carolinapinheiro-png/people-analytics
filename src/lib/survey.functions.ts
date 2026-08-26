@@ -298,13 +298,26 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     const [cutRes, impRes, drvRes, hcRes] = await Promise.all([
       db.from('survey_cut_scores').select('*').eq('wave', wave.wave),
       db.from('survey_driver_importance').select('*').eq('wave', wave.wave).order('r', { ascending: false }),
-      // Só empresa e área. Os recortes por tempo de casa, marca e modelo
-      // existem na mesma tabela e triplicariam o payload sem que nada na tela
-      // os use hoje -- 748 linhas viram 340.
+      // ------------------------------------------------------------------
+      // TODOS OS RECORTES, DESDE QUE A TELA PASSOU A USÁ-LOS
+      // ------------------------------------------------------------------
+      // Aqui dizia "só empresa e área", com esta justificativa: os recortes
+      // por tempo de casa, marca e modelo "existem na mesma tabela e
+      // triplicariam o payload sem que nada na tela os use hoje".
+      //
+      // Era verdade quando foi escrita, e envelheceu para limitação. A Anna
+      // pediu recorte por tempo de casa e modelo de trabalho; o dado estava
+      // gravado o tempo todo -- 525 linhas de driver por tempo, em três ondas
+      // -- e não chegava à tela porque esta lista não o pedia. É o sétimo caso
+      // desta semana com essa forma exata.
+      //
+      // O payload cresce e vale: são poucas centenas de linhas por onda, e o
+      // que se ganha é o clima de quem tem 24+ meses de casa, que hoje não
+      // existe em lugar nenhum do painel.
       db.from('survey_driver_scores')
         .select('driver, question, cut_type, cut_value, n, score, favoravel')
         .eq('wave', wave.wave)
-        .in('cut_type', ['company', 'area']),
+        .in('cut_type', ['company', 'area', 'tempo', 'modelo', 'funcao', 'marca']),
       // ------------------------------------------------------------------
       // QUANTAS PODIAM RESPONDER, POR ÁREA
       // ------------------------------------------------------------------

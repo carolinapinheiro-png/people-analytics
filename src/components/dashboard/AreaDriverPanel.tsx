@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { perfilDaArea, temQuebraPorArea, aderenciaDasPiores } from '@/lib/drill';
+import { perfilDoRecorte, temQuebraPorArea, aderenciaDasPiores } from '@/lib/drill';
 import type { DriverPorRecorte } from '@/lib/survey.functions';
 import { COLORS } from '@/lib/colors';
 import type { HistoricoDeArea } from '@/lib/analise-engajamento';
@@ -33,9 +33,24 @@ const sinal = (v: number | null) => (v == null ? '—' : `${v > 0 ? '+' : ''}${v
 const PONTAS = 5;
 
 export default function AreaDriverPanel({
-  area, drivers, minimoExibicao, historico = null, ondas = [],
+  area, drivers, minimoExibicao, historico = null, ondas = [], cutType = 'area',
 }: {
   area: string;
+  /**
+   * Qual recorte `area` nomeia: 'area', 'tempo', 'modelo', 'funcao', 'marca'.
+   *
+   * ------------------------------------------------------------------
+   * A MESMA PERGUNTA, OUTRA CHAVE
+   * ------------------------------------------------------------------
+   * "Em que esta gente está mais longe da empresa?" vale para Marketing, para
+   * quem tem 24+ meses de casa e para quem trabalha remoto. Era só de área
+   * porque o componente nasceu ao lado da fila de áreas, não porque a conta
+   * fosse diferente.
+   *
+   * O dado sempre existiu: 525 linhas de driver por tempo de casa, em três
+   * ondas, que nunca apareceram na tela.
+   */
+  cutType?: string;
   drivers: DriverPorRecorte[];
   minimoExibicao: number;
   /**
@@ -58,10 +73,17 @@ export default function AreaDriverPanel({
   /** Rótulos das ondas, na mesma ordem de `historico.valores`. */
   ondas?: string[];
 }) {
-  const aderencia = useMemo(() => aderenciaDasPiores(drivers), [drivers]);
+  // Só para área: a frase compara as ÁREAS entre si, e não faria sentido
+  // dizer "em 9 das 9 áreas" dentro do painel de '24+ meses'.
+  const aderencia = useMemo(
+    () => (cutType === 'area' ? aderenciaDasPiores(drivers) : null),
+    [drivers, cutType],
+  );
   const { abaixo, acima, semQuebra, total } = useMemo(() => {
-    const semQuebra = !temQuebraPorArea(drivers);
-    const linhas = perfilDaArea(drivers, area).filter((l) => l.gap != null);
+    const semQuebra = cutType === 'area'
+      ? !temQuebraPorArea(drivers)
+      : !drivers.some((l) => l.cutType === cutType);
+    const linhas = perfilDoRecorte(drivers, cutType, area).filter((l) => l.gap != null);
     return {
       semQuebra,
       total: linhas.length,
@@ -82,7 +104,7 @@ export default function AreaDriverPanel({
       abaixo: linhas.slice(0, PONTAS).filter((l) => (l.gap ?? 0) < 0),
       acima: [...linhas].reverse().slice(0, PONTAS).filter((l) => (l.gap ?? 0) > 0),
     };
-  }, [drivers, area]);
+  }, [drivers, area, cutType]);
 
   // Onda carregada só no nível da empresa -- jan/26 é assim. Painel vazio se
   // leria como "esta área não tem problema", que é o oposto do que significa.
@@ -110,7 +132,7 @@ export default function AreaDriverPanel({
     );
   }
 
-  const Linha = ({ l }: { l: ReturnType<typeof perfilDaArea>[number] }) => (
+  const Linha = ({ l }: { l: ReturnType<typeof perfilDoRecorte>[number] }) => (
     <div className="flex items-start gap-2 py-[3px]">
       <span
         className="tabular-nums text-[11px] font-semibold w-11 shrink-0 text-right"

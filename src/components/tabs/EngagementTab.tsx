@@ -405,7 +405,14 @@ function EngagementSection({
 
           Fica no bloco de diagnóstico e não vira gráfico grande: é contexto,
           e contexto que ocupa meia tela deixa de ser contexto. */}
-      {survey && <SurveyCuts cuts={survey.cuts} departamentoSelecionado={deptSel} />}
+      {survey && (
+        <SurveyCuts
+          cuts={survey.cuts}
+          departamentoSelecionado={deptSel}
+          drivers={survey.driversPorArea}
+          minimoExibicao={survey.minimoExibicao ?? 5}
+        />
+      )}
 
       <TituloBloco
         titulo="eNPS"
