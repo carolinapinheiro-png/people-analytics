@@ -446,7 +446,12 @@ export interface EngagementCrossData extends EngagementContextResult {
    *
    * `null` com menos de duas ondas -- uma medição só não é série.
    */
-  serieMarca: { ondas: OndaEnps[]; daArea: string | null } | null;
+  serieMarca: {
+    ondas: OndaEnps[];
+    daArea: string | null;
+    /** Ondas que TÊM dado por área mas não têm marca. Ver o cálculo. */
+    ondasSemDado: string[];
+  } | null;
   /**
    * As faixas de tempo de casa das duas ondas mais recentes que têm esse
    * recorte -- que podem NÃO ser as duas últimas ondas: jan/26 não tem quebra
@@ -929,8 +934,29 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
           referenceDate: o.reference_date,
           pontos: porOndaMarca.get(o.wave) ?? [],
         }));
+      // ------------------------------------------------------------------
+      // POR QUE FALTA UMA ONDA, DITO PELA PRÓPRIA SÉRIE
+      // ------------------------------------------------------------------
+      // A série de área tem três pontos e a de marca tem dois, uma embaixo da
+      // outra na mesma tela. A primeira pessoa que olhou perguntou na hora:
+      // "por que por marca a gente não tem julho/25?".
+      //
+      // A resposta é boa e é do DADO, não da agregação: aquela pesquisa não
+      // fez a pergunta de marca. Conferi os cabeçalhos dos dois arquivos de
+      // jul/25 -- as únicas colunas descartadas são metadados do Polly (id,
+      // e-mail, canal). A pergunta entrou em jan/26, junto com função; modelo
+      // de trabalho só apareceu em ago/26.
+      //
+      // Sai daqui em vez de ir escrito na tela porque, quando jul/25 for
+      // reimportada com marca (se um dia tiver), a frase some sozinha.
+      const comDado = new Set(ondas.map((o) => o.wave));
+      const ondasSemDado = [...(ondasBrutas ?? [] as OndaLinha[])]
+        .filter((o) => (porOnda.get(o.wave)?.length ?? 0) > 0 && !comDado.has(o.wave))
+        .sort((a, b) => (a.reference_date < b.reference_date ? -1 : 1))
+        .map((o) => o.label);
+
       return ondas.length >= 2
-        ? { ondas, daArea: sel && marcaPorArea ? sel : null }
+        ? { ondas, daArea: sel && marcaPorArea ? sel : null, ondasSemDado }
         : null;
     })();
 

@@ -161,8 +161,18 @@ export default function EnpsSerie({
   departamentoSelecionado = null,
   daArea = null,
   minimoOndas = 3,
+  ondasSemDado = [],
 }: {
   ondas: OndaEnps[];
+  /**
+   * Ondas que existem na pesquisa mas não têm este recorte.
+   *
+   * Uma série de dois pontos embaixo de uma de três levanta a pergunta na
+   * hora, e a resposta some se ninguém a escrever. Aqui ela é do DADO --
+   * jul/25 não fez a pergunta de marca --, e não da agregação; a diferença é a
+   * que este painel mais errou, então vale dizer de qual lado está.
+   */
+  ondasSemDado?: string[];
   /**
    * Quantas ondas a série exige para aparecer.
    *
@@ -324,6 +334,16 @@ export default function EnpsSerie({
         </p>
       </div>
 
+      {ondasSemDado.length > 0 && (
+        <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
+          <strong className="text-foreground">
+            {ondasSemDado.join(', ')} {ondasSemDado.length > 1 ? 'ficam' : 'fica'} de fora
+          </strong>{' '}
+          porque {ondasSemDado.length > 1 ? 'aquelas pesquisas não perguntaram' : 'aquela pesquisa não perguntou'}{' '}
+          a {dimensao} de quem respondeu. Não é recorte que deixou de ser calculado: a pergunta não
+          foi feita, então não há o que recortar. A série começa na primeira onda que a trouxe.
+        </p>
+      )}
       <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
         Passe o mouse numa {dimensao} — no gráfico ou na legenda — e ela se destaca nos três
         painéis ao mesmo tempo. É aí que aparece o que um gráfico sozinho escondia: quem cai em
