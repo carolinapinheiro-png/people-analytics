@@ -23,9 +23,15 @@ import { Lock, SlidersHorizontal, X } from "lucide-react";
  *    todas as abas, e seis deles só funcionam em Atrição & Desligamentos. A
  *    pessoa filtrava, nada acontecia, e a tela não avisava.
  *
- * 2. FICA RECOLHIDA quando nada está selecionado. Uma linha inteira de
- *    controles dizendo "Todos" ocupa espaço permanente para um estado que é o
- *    padrão em quase todo acesso.
+ * 2. OS SELETORES FICAM VISÍVEIS, SEMPRE. Antes a barra vinha recolhida atrás
+ *    de um botão "Filtros", com a justificativa de que uma linha de controles
+ *    dizendo "Todos" ocupa espaço permanente para o estado padrão.
+ *
+ *    Trocado a pedido: "deixa os filtros visíveis direto, não precisa ter que
+ *    clicar em Filtros para eles aparecerem e aí você selecionar". O
+ *    argumento antigo mede o custo de quem NÃO vai filtrar; o de quem vai
+ *    pagava dois cliques e, pior, precisava adivinhar que existiam recortes
+ *    ali dentro. Controle escondido é controle que a maioria nunca descobre.
  *
  * 3. O QUE ESTÁ ATIVO VIRA ETIQUETA REMOVÍVEL, sempre visível. O problema
  *    anterior: você filtrava um departamento, mudava de aba, e o filtro
@@ -99,7 +105,6 @@ const VAZIO: Filters = {
 export default function FilterBar() {
   const { filters, setFilters, brand, activeTab, activeSubTab } = useDashboard();
   const { profile, departments, jobFamilies } = useAuth();
-  const [aberto, setAberto] = useState(false);
 
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const disponiveis = filtersForTab(activeTab, activeSubTab);
@@ -212,15 +217,9 @@ export default function FilterBar() {
   return (
     <div className="px-4 md:px-7 py-2 bg-card border-b border-border">
       <div className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => setAberto((v) => !v)}
-          className={cn(
-            "flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] transition-colors shrink-0",
-            aberto || ativos.length || ativosForaDaAba.length
-              ? "border-border text-foreground"
-              : "border-border text-muted-foreground hover:text-foreground",
-          )}
-        >
+        {/* Deixou de ser botão: não há mais nada para abrir. Fica como âncora
+            visual da barra e como lugar do contador. */}
+        <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground shrink-0">
           <SlidersHorizontal className="h-3.5 w-3.5" />
           Filtros
           {ativos.length + ativosForaDaAba.length > 0 && (
@@ -231,46 +230,16 @@ export default function FilterBar() {
               {ativos.length + ativosForaDaAba.length}
             </span>
           )}
-        </button>
+        </span>
 
         {/* ------------------------------------------------------------
             ETIQUETA OU SELETOR, NUNCA OS DOIS
             ------------------------------------------------------------
-            Com o painel aberto, o chip "Departamento: TECHNOLOGY" e o seletor
-            logo abaixo diziam a mesma coisa em duas linhas. Depois que a barra
-            passou a ser fixa, cada linha repetida sai do espaço de leitura.
+            Com os seletores sempre visíveis, o chip "Departamento: TECHNOLOGY"
+            passou a ser a mesma informação duas vezes na mesma linha. Sai.
 
-            Fechado, o chip é a única pista do que está recortando -- então ele
-            fica. Aberto, o seletor já mostra o valor e o chip some.
-
-            Os de OUTRAS abas continuam sempre visíveis: não existe seletor
-            aqui para representá-los, e sumir com eles esconderia um filtro
-            ativo. */}
-        {!aberto &&
-          ativos.map((k) => (
-            <span
-              key={k}
-              className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-[11px] shrink-0"
-            >
-              <span className="text-muted-foreground">{FILTER_LABELS[k]}:</span>
-              <span className="font-medium max-w-[180px] truncate">{filters[k]}</span>
-              {travado(k) ? (
-                <Lock
-                  className="h-3 w-3 text-muted-foreground"
-                  aria-label="Definido pelo seu acesso"
-                />
-              ) : (
-                <button
-                  onClick={() => limparUm(k)}
-                  aria-label={`Remover filtro ${FILTER_LABELS[k]}`}
-                  className="rounded-full hover:bg-background/60 p-0.5"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </span>
-          ))}
-
+            Os de OUTRAS abas continuam: não existe seletor aqui para
+            representá-los, e sumir com eles esconderia um filtro ativo. */}
         {ativosForaDaAba.map((k) => (
           <span
             key={k}
@@ -299,7 +268,7 @@ export default function FilterBar() {
           </button>
         )}
 
-        {ativos.length + ativosForaDaAba.length === 0 && !aberto && !scoped && (
+        {ativos.length + ativosForaDaAba.length === 0 && !scoped && (
           <span className="text-[11px] text-muted-foreground">Mostrando a empresa toda.</span>
         )}
 
@@ -308,8 +277,7 @@ export default function FilterBar() {
             recorte único — só headcount, saídas e atrição
           </span>
         )}
-        {aberto && (
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
             {/* Indisponíveis primeiro? Não: depois, esmaecidos. Ver comentário
               em unavailableFilters -- some sem explicação faz a pessoa procurar
               o controle de novo na próxima vez. */}
@@ -358,7 +326,7 @@ export default function FilterBar() {
               </div>
             ))}
 
-            {indisponiveis.map(({ key, reason }) => (
+          {indisponiveis.map(({ key, reason }) => (
               <div key={key} className="flex items-center gap-1.5 opacity-45" title={reason}>
                 <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
                   {FILTER_LABELS[key]}
@@ -368,11 +336,10 @@ export default function FilterBar() {
                 </div>
               </div>
             ))}
-          </div>
-        )}
+        </div>
       </div>
 
-      {aberto && indisponiveis.length > 0 && (
+      {indisponiveis.length > 0 && (
         <p className="text-[11px] text-muted-foreground pt-2 max-w-3xl leading-relaxed">
           Os esmaecidos existem em Atrição &amp; Desligamentos, que lê pessoa a pessoa. Nas abas de
           série mensal só o departamento é recortável — a série é pré-agregada e guarda apenas essa
