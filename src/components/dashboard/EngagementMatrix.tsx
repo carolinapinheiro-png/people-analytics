@@ -42,9 +42,22 @@ import type { EngagementContextRow } from "@/lib/engagement-context";
  * isso na tela. Quando as metas existirem, troca-se a linha e a leitura ganha
  * sentido absoluto.
  *
- * O eixo Y é INVERTIDO de propósito: risco alto embaixo. Assim o canto superior
- * direito é sempre "melhor" -- convenção que a maioria das pessoas já traz de
- * outras matrizes e que evita a leitura invertida na apresentação.
+ * OS DOIS EIXOS CRESCEM, E ISSO MUDOU
+ * O eixo Y era invertido de propósito -- risco alto embaixo --, para que o
+ * canto superior direito fosse "o melhor", como em outras matrizes. A troca
+ * comprava intuição de layout ao preço de um eixo que anda para trás, e o
+ * preço aparecia escrito no próprio rótulo: "risco de saída ↑ MENOS risco".
+ * Quando o eixo precisa avisar que corre ao contrário, ele corre ao contrário.
+ *
+ * A Marilia perguntou a lógica da ordenação e se dava para os dois eixos irem
+ * do menor para o maior. Vão. Agora: direita = mais eNPS, cima = mais risco,
+ * as duas escalas na direção que qualquer um espera.
+ *
+ * O que se perde é a convenção "melhor = canto superior direito"; o melhor
+ * passa a ser o canto INFERIOR direito, e o subtítulo diz isso. O que se ganha
+ * é que ninguém precisa manter na cabeça que um dos eixos mente -- e o
+ * quadrante de cima à direita, "engajado mas de saída", fica onde a intuição
+ * já o coloca: no alto do risco.
  */
 
 interface Ponto {
@@ -174,7 +187,7 @@ export default function EngagementMatrix({
   return (
     <ChartCard
       title="Matriz de ação"
-      subtitle={`eNPS × risco de saída${ondaLabel ? ` · ${ondaLabel}` : ""} · bolha = tamanho da área · canto superior direito é o melhor`}
+      subtitle={`eNPS × risco de saída${ondaLabel ? ` · ${ondaLabel}` : ""} · bolha = tamanho da área · os dois eixos crescem, então o melhor lugar é o canto inferior direito`}
       icon={Target}
     >
       <ResponsiveContainer width="100%" height={330}>
@@ -198,11 +211,10 @@ export default function EngagementMatrix({
             dataKey="y"
             name="Risco"
             unit="%"
-            reversed
             domain={limY}
             tick={{ fontSize: 11 }}
             label={{
-              value: "risco de saída  ↑ menos risco",
+              value: "risco de saída (%)  ↑ mais risco",
               angle: -90,
               position: "insideLeft",
               fontSize: 11,
@@ -213,12 +225,17 @@ export default function EngagementMatrix({
           {/* Os quatro quadrantes pintados por baixo dos pontos. Sem isso é
               preciso descer até os cards para saber em que zona cada bolha
               caiu -- e ninguém faz isso no meio de uma apresentação. */}
+          {/* As FAIXAS não mudaram -- x1/x2/y1/y2 são valores de dado, e cada
+              quadrante continua sendo a mesma combinação de eNPS e risco. O que
+              trocou foi só onde o rótulo se encosta: sem o eixo invertido,
+              risco baixo passou a ficar embaixo, então "ouvir" e "cuidar"
+              descem e "agir" e "vigiar" sobem. */}
           {(
             [
-              ["ouvir", limX[0], corteX, limY[0], corteY, "insideTopLeft"],
-              ["cuidar", corteX, limX[1], limY[0], corteY, "insideTopRight"],
-              ["agir", limX[0], corteX, corteY, limY[1], "insideBottomLeft"],
-              ["vigiar", corteX, limX[1], corteY, limY[1], "insideBottomRight"],
+              ["ouvir", limX[0], corteX, limY[0], corteY, "insideBottomLeft"],
+              ["cuidar", corteX, limX[1], limY[0], corteY, "insideBottomRight"],
+              ["agir", limX[0], corteX, corteY, limY[1], "insideTopLeft"],
+              ["vigiar", corteX, limX[1], corteY, limY[1], "insideTopRight"],
             ] as const
           ).map(([q, x1, x2, y1, y2, pos]) => (
             <ReferenceArea
