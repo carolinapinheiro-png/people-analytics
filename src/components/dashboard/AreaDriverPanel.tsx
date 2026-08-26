@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { perfilDaArea, temQuebraPorArea, aderenciaDasPiores } from '@/lib/drill';
 import type { DriverPorRecorte } from '@/lib/survey.functions';
 import { COLORS } from '@/lib/colors';
+import type { HistoricoDeArea } from '@/lib/analise-engajamento';
 
 /**
  * O perfil de drivers de uma área, aberto ao clicar nela.
@@ -32,11 +33,30 @@ const sinal = (v: number | null) => (v == null ? '—' : `${v > 0 ? '+' : ''}${v
 const PONTAS = 5;
 
 export default function AreaDriverPanel({
-  area, drivers, minimoExibicao,
+  area, drivers, minimoExibicao, historico = null, ondas = [],
 }: {
   area: string;
   drivers: DriverPorRecorte[];
   minimoExibicao: number;
+  /**
+   * A trajetória desta área, para responder "é queda nova ou constante?".
+   *
+   * ------------------------------------------------------------------
+   * ELA PEDIU AQUI DENTRO, E EU TINHA COLOCADO SÓ NA LINHA DE FORA
+   * ------------------------------------------------------------------
+   * O pedido foi: "ao clicar aqui (...) acrescentar se essa é uma queda que se
+   * mantém constante desde o início da pesquisa ou se é um comportamento novo,
+   * (...) não só com a média da empresa, mas com relação à média da própria
+   * área".
+   *
+   * "Ao clicar aqui" é este painel. Eu entreguei a trajetória na linha da fila,
+   * que responde de relance e é útil -- mas quem abriu o detalhe abriu porque
+   * quer o detalhe, e encontrava só a comparação com a empresa. A régua que
+   * faltava era a da própria área, exatamente onde ela apontou.
+   */
+  historico?: HistoricoDeArea | null;
+  /** Rótulos das ondas, na mesma ordem de `historico.valores`. */
+  ondas?: string[];
 }) {
   const aderencia = useMemo(() => aderenciaDasPiores(drivers), [drivers]);
   const { abaixo, acima, semQuebra, total } = useMemo(() => {
@@ -112,6 +132,43 @@ export default function AreaDriverPanel({
       <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
         {area} · distância da empresa, em pontos de % que concorda
       </p>
+
+      {/* A segunda régua: a área contra ela mesma. A lista abaixo compara com a
+          empresa; esta linha diz se o lugar onde a área está hoje é novo. */}
+      {historico && historico.contraSuaMedia != null && (
+        <p className="mb-2 text-[12px] leading-relaxed">
+          <strong>
+            {historico.trajetoria === 'queda'
+              ? 'Vem caindo em todas as pesquisas.'
+              : historico.trajetoria === 'subida'
+                ? 'Vem subindo em todas as pesquisas.'
+                : 'Sobe e desce sem direção clara.'}
+          </strong>{' '}
+          eNPS{' '}
+          {historico.valores
+            .map((v, i) => `${ondas[i] ?? ''} ${v == null ? '—' : Math.round(v)}`.trim())
+            .join(' → ')}
+          {historico.mediaAnterior != null && (
+            <>
+              {' '}— está{' '}
+              <strong
+                style={{
+                  color:
+                    historico.contraSuaMedia === 0
+                      ? undefined
+                      : historico.contraSuaMedia > 0
+                        ? COLORS.success
+                        : COLORS.danger,
+                }}
+              >
+                {historico.contraSuaMedia > 0 ? '+' : ''}
+                {historico.contraSuaMedia}
+              </strong>{' '}
+              contra a média das ondas anteriores desta área ({historico.mediaAnterior}).
+            </>
+          )}
+        </p>
+      )}
 
       {/* A primeira lista não tinha título próprio: o cabeçalho acima servia
           para ela, e só a segunda dizia "onde está acima". Quem lia inferia o

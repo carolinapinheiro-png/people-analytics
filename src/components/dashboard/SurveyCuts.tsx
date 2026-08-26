@@ -3,6 +3,7 @@ import { EyeOff } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
+import { composicaoDoGrupo } from '@/lib/drill';
 import type { SurveyCut } from '@/lib/survey.functions';
 import {
   partesDoCruzamento, ehCruzamento, rotuloDeCorte, CROSS_BRAND, CROSS_BRAND_DESCRICAO,
@@ -117,7 +118,7 @@ function Divergente({
  * linha-a-linha; separadas, "quem está longe" salta antes da leitura consciente.
  */
 function Painel({
-  rotulo, rows, base, max, invertido = false, sufixo,
+  rotulo, rows, base, max, invertido = false, sufixo, destacado = false,
 }: {
   rotulo: string;
   rows: SurveyCut[];
@@ -125,6 +126,8 @@ function Painel({
   max: number;
   invertido?: boolean;
   sufixo: string;
+  /** Pedido da Marilia: o eNPS um pouco maior que o vizinho. */
+  destacado?: boolean;
 }) {
   const valorDe = (r: SurveyCut) => (invertido ? r.risco : r.enps);
   return (
@@ -163,7 +166,8 @@ function Painel({
                   o contrário: o cartão é sobre distância da média -- é o que o
                   título promete e o que a barra desenha. */}
               <span className={cn(
-                'tabular-nums shrink-0 text-right font-medium',
+                'tabular-nums shrink-0 text-right',
+                destacado ? 'text-[13px] font-bold' : 'font-medium',
                 d == null ? 'w-[104px] text-muted-foreground'
                 : 'w-[104px]',
                 d != null && (bom ? 'text-emerald-600 dark:text-emerald-500'
@@ -186,7 +190,15 @@ function Painel({
   );
 }
 
-function Bloco({ titulo, rows, empresa }: { titulo: string; rows: SurveyCut[]; empresa: SurveyCut | undefined }) {
+function Bloco({
+  titulo, rows, empresa, composicao = [],
+}: {
+  titulo: string;
+  rows: SurveyCut[];
+  empresa: SurveyCut | undefined;
+  /** De quais áreas vem o Cross Brand. Vazio quando o cruzamento não foi carregado. */
+  composicao?: Array<{ area: string; n: number }>;
+}) {
   const baseEnps = empresa?.enps ?? 0;
   const baseRisco = empresa?.risco ?? 0;
   const maxEnps = useMemo(
@@ -208,7 +220,10 @@ function Bloco({ titulo, rows, empresa }: { titulo: string; rows: SurveyCut[]; e
         </span>
       </div>
       <div className="grid lg:grid-cols-2 gap-x-6 gap-y-4">
-        <Painel rotulo="eNPS" rows={rows} base={baseEnps} max={maxEnps} sufixo=" pts" />
+        {/* "O NPS em negrito para ficar um pouco maior, um pouco mais
+            destacado." Os dois painéis tinham exatamente o mesmo peso, e o
+            eNPS é o número que abre a conversa. */}
+        <Painel rotulo="eNPS" rows={rows} base={baseEnps} max={maxEnps} sufixo=" pts" destacado />
         <Painel rotulo="Risco de saída" rows={rows} base={baseRisco} max={maxRisco} invertido sufixo=" p.p." />
       </div>
       {/* Quem compõe o grupo, dito onde ele aparece. "Cross Brand" é mais
@@ -217,6 +232,12 @@ function Bloco({ titulo, rows, empresa }: { titulo: string; rows: SurveyCut[]; e
       {rows.some((r) => rotuloDeCorte(r.cutValue) === CROSS_BRAND) && (
         <p className="text-[11px] text-muted-foreground mt-2">
           <strong className="text-foreground">{CROSS_BRAND}</strong>: {CROSS_BRAND_DESCRICAO}.
+          {composicao.length > 0 && (
+            <>
+              {' '}
+              Vêm de {composicao.map((f) => `${f.area} (${f.n})`).join(', ')}.
+            </>
+          )}
         </p>
       )}
       {ocultos.length > 0 && (
@@ -265,6 +286,11 @@ export default function SurveyCuts({
   departamentoSelecionado?: string | null;
 }) {
   const empresa = cuts.find((c) => c.cutType === 'company');
+
+  // De quais áreas vêm as pessoas do Cross Brand. A Marilia pediu uma
+  // descrição "enquanto a gente ainda não tem esses dados certinho" -- e o dado
+  // existe, exato, no cruzamento area+marca. Ver `composicaoDoGrupo`.
+  const composicaoCrossBrand = composicaoDoGrupo(cuts, 'area+marca', CROSS_BRAND);
 
   // ------------------------------------------------------------------
   // COM ÁREA SELECIONADA, CADA BLOCO PROCURA PRIMEIRO O CRUZAMENTO
@@ -393,6 +419,7 @@ export default function SurveyCuts({
             titulo={b.daArea ? `${b.titulo} · ${departamentoSelecionado}` : b.titulo}
             rows={b.rows}
             empresa={empresa}
+            composicao={b.tipo === 'marca' ? composicaoCrossBrand : []}
           />
         ))}
       </div>

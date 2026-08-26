@@ -506,3 +506,44 @@ export function aderenciaDasPiores(
     distanciasDistintas: noTopoDaDistancia.size,
   };
 }
+
+// ======================================================================
+// DE QUAIS ÁREAS VEM UM GRUPO QUE NÃO É ÁREA
+// ======================================================================
+// A Marilia pediu, sobre o Cross Brand: "uma descrição, sei lá, teoricamente
+// financeiro, todo mundo, legal, RH e algumas pessoas de marketing. Só para as
+// pessoas poderem começar a dimensionar quem são esses cross brands ENQUANTO A
+// GENTE AINDA NÃO TEM ESSES DADOS CERTINHO."
+//
+// A última frase é a parte importante, e ela está enganada -- de novo por culpa
+// da tela, não dela. O dado existe e é exato: o cruzamento `area+marca` diz
+// quantas pessoas de cada área responderam Cross Brand. Em ago/26 são 122, e a
+// maior fatia é Marketing com 48, não o financeiro.
+//
+// Então em vez de uma descrição aproximada de memória, a composição real. É a
+// sétima vez nesta semana que alguém supõe ausência de um dado que estava
+// gravado -- e a primeira em que a suposição é da pessoa que pediu.
+
+export interface FatiaDoGrupo {
+  area: string;
+  n: number;
+}
+
+export function composicaoDoGrupo(
+  cuts: ReadonlyArray<{ cutType: string; cutValue: string; n: number }>,
+  cutTypeCruzado: string,
+  valor: string,
+  separador = ' || ',
+): FatiaDoGrupo[] {
+  const alvo = valor.trim().toLowerCase();
+  return cuts
+    .filter((c) => c.cutType === cutTypeCruzado)
+    .flatMap((c) => {
+      const i = c.cutValue.indexOf(separador);
+      if (i < 0) return [];
+      const area = c.cutValue.slice(0, i);
+      const parte = c.cutValue.slice(i + separador.length);
+      return parte.trim().toLowerCase() === alvo ? [{ area, n: c.n }] : [];
+    })
+    .sort((a, b) => b.n - a.n);
+}

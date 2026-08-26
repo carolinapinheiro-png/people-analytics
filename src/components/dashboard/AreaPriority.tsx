@@ -565,7 +565,13 @@ export default function AreaPriority({
                 })()}
 
               {aberta === i.scope && (
-                <AreaDriverPanel area={i.scope} drivers={drivers} minimoExibicao={minimoExibicao} />
+                <AreaDriverPanel
+                  area={i.scope}
+                  drivers={drivers}
+                  minimoExibicao={minimoExibicao}
+                  historico={historico?.get(chave(i.scope)) ?? null}
+                  ondas={serie.map((o) => o.label)}
+                />
               )}
             </div>
           );
