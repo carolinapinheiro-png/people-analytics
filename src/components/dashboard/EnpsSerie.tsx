@@ -154,7 +154,36 @@ interface AreaSerie {
   pontos: Array<PontoOnda | null>;
 }
 
-export default function EnpsSerie({ ondas }: { ondas: OndaEnps[] }) {
+export default function EnpsSerie({
+  ondas,
+  dimensao = "área",
+  dimensaoPlural = "áreas",
+  departamentoSelecionado = null,
+  daArea = null,
+}: {
+  ondas: OndaEnps[];
+  /**
+   * O nome do que cada linha representa: "área", "marca".
+   *
+   * ------------------------------------------------------------------
+   * O MESMO COMPONENTE SERVE ÀS DUAS SÉRIES
+   * ------------------------------------------------------------------
+   * A série por marca nasceu de uma pergunta da Marilia -- "o painel cruza
+   * períodos e marcas?" -- e tem exatamente a forma da série por área: uma
+   * linha por recorte, três indicadores, as mesmas ondas.
+   *
+   * Escrever um segundo componente daria dois lugares para consertar cada bug
+   * de leitura e duas chances de divergirem. Este painel já teve dois cartões
+   * de risco mostrando ondas diferentes com o mesmo título; a lição custou
+   * caro o bastante para valer uma prop.
+   */
+  dimensao?: string;
+  dimensaoPlural?: string;
+  /** Só para a nota do que falta. Ver abaixo. */
+  departamentoSelecionado?: string | null;
+  /** Nome da área quando a série É dela; null quando é a da empresa. */
+  daArea?: string | null;
+}) {
   const [alvo, setAlvo] = useState<Alvo | null>(null);
   // A área destacada pode vir do ponto (hover no gráfico) ou da legenda. As
   // duas alimentam o mesmo realce nos três painéis.
@@ -180,10 +209,35 @@ export default function EnpsSerie({ ondas }: { ondas: OndaEnps[] }) {
 
   if (ondas.length < 3 || areas.length === 0) return null;
 
+  // ======================================================================
+  // FILTRO SEM CRUZAMENTO: A NOTA, NÃO A SÉRIE DA EMPRESA
+  // ======================================================================
+  // Mesma regra do tempo de casa. Com uma área escolhida, mostrar a série da
+  // empresa aqui seria pôr o número dela no lugar da resposta pedida.
+  if (departamentoSelecionado && daArea == null && dimensao !== "área") {
+    return (
+      <ChartCard
+        title={`Os três indicadores por ${dimensao} ao longo das pesquisas`}
+        subtitle={departamentoSelecionado}
+        icon={Activity}
+      >
+        <p className="text-sm text-muted-foreground py-5 leading-relaxed">
+          O cruzamento entre área e {dimensao} não foi calculado nas ondas já carregadas, então não
+          há esta série para{" "}
+          <strong className="text-foreground">{departamentoSelecionado}</strong>. Não é limite do
+          dado — cada resposta traz os dois campos juntos —, e reimportar as ondas passa a trazer.
+          Até lá fica de fora, em vez de mostrar as {dimensaoPlural} da empresa inteira no lugar.
+        </p>
+      </ChartCard>
+    );
+  }
+
   return (
     <ChartCard
-      title="Os três indicadores por área ao longo das pesquisas"
-      subtitle={`${ondas.length} ondas · ${ondas[0].label} → ${ondas.at(-1)?.label}`}
+      title={`Os três indicadores por ${dimensao} ao longo das pesquisas`}
+      subtitle={`${ondas.length} ondas · ${ondas[0].label} → ${ondas.at(-1)?.label}${
+        daArea ? ` · ${daArea}` : ""
+      }`}
       icon={Activity}
     >
       <div className="grid gap-x-4 gap-y-5 md:grid-cols-3">
@@ -196,6 +250,7 @@ export default function EnpsSerie({ ondas }: { ondas: OndaEnps[] }) {
             foco={foco}
             alvo={alvo}
             onAlvo={setAlvo}
+            dimensao={dimensao}
           />
         ))}
       </div>
@@ -203,7 +258,7 @@ export default function EnpsSerie({ ondas }: { ondas: OndaEnps[] }) {
       {/* ------------------------------------------------------------------
           A LEGENDA É O QUE SUBSTITUIU OS RÓTULOS DE PONTA
           ------------------------------------------------------------------
-          Nove nomes repetidos em três gráficos seriam vinte e sete textos
+          Os nomes repetidos em três gráficos seriam o triplo de textos
           disputando espaço. Aqui são nove, lidos uma vez, com os três números
           finais juntos -- o que também responde ao pedido de ver eNPS, risco e
           satisfação sem precisar guardar de cabeça. */}
@@ -248,10 +303,10 @@ export default function EnpsSerie({ ondas }: { ondas: OndaEnps[] }) {
       </div>
 
       <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
-        Passe o mouse numa área — no gráfico ou na legenda — e ela se destaca nos três painéis ao
-        mesmo tempo. É aí que aparece o que um gráfico sozinho escondia: quem cai em eNPS sem cair
-        em satisfação, ou quem mantém o eNPS enquanto o risco de saída sobe. Onde a linha
-        interrompe, a área não respondeu naquela onda: o traço não atravessa o buraco, porque
+        Passe o mouse numa {dimensao} — no gráfico ou na legenda — e ela se destaca nos três
+        painéis ao mesmo tempo. É aí que aparece o que um gráfico sozinho escondia: quem cai em
+        eNPS sem cair em satisfação, ou quem mantém o eNPS enquanto o risco de saída sobe. Onde a
+        linha interrompe, não houve resposta naquela onda: o traço não atravessa o buraco, porque
         atravessar afirmaria uma trajetória que ninguém mediu.
       </p>
     </ChartCard>
@@ -272,6 +327,7 @@ function Painel({
   foco,
   alvo,
   onAlvo,
+  dimensao,
 }: {
   metrica: Metrica;
   ondas: OndaEnps[];
@@ -279,6 +335,7 @@ function Painel({
   foco: string | null;
   alvo: Alvo | null;
   onAlvo: (a: Alvo | null) => void;
+  dimensao: string;
 }) {
   const vals = areas
     .flatMap((a) => a.pontos)
@@ -314,7 +371,7 @@ function Painel({
           className="w-full"
           style={{ height: H }}
           role="img"
-          aria-label={`${metrica.titulo} por área em ${ondas.length} ondas`}
+          aria-label={`${metrica.titulo} por ${dimensao} em ${ondas.length} ondas`}
           onMouseLeave={() => onAlvo(null)}
         >
           {ondas.map((o, i) => (

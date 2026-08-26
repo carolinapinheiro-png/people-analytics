@@ -440,6 +440,26 @@ function EngagementSection({
           />
         ))}
 
+      {/* ------------------------------------------------------------------
+          A MESMA SÉRIE, POR MARCA
+          ------------------------------------------------------------------
+          "O painel cruza dados entre períodos e marcas?" foi a primeira
+          pergunta da Marilia na revisão. A resposta era não, e o motivo não
+          era o dado: marca é recorte padrão e está gravada em toda onda
+          carregada. Era a consulta do servidor, que nunca a pedia.
+
+          Logo depois da série por área porque responde a pergunta seguinte:
+          a queda é da empresa ou de uma das operações? */}
+      {cross?.serieMarca && (
+        <EnpsSerie
+          ondas={cross.serieMarca.ondas}
+          dimensao="marca"
+          dimensaoPlural="marcas"
+          departamentoSelecionado={deptSel}
+          daArea={cross.serieMarca.daArea}
+        />
+      )}
+
       {/* ONDE a queda aconteceu. Logo depois da série, porque é a resposta à
           pergunta que a série provoca: o número da empresa mexeu, e daí? */}
       {cross?.tempoDeCasa && (

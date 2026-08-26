@@ -7,7 +7,7 @@ import {
   type AccessScope, type ExperienceSubTab,
 } from '@/lib/permissions';
 import { deptForScope } from '@/lib/engagement-context';
-import { partesDoCruzamento } from '@/lib/aggregator/polly-survey';
+import { partesDoCruzamento, rotuloDeCorte } from '@/lib/aggregator/polly-survey';
 import {
   escolherOndas, comDeltaCalculado, type OndaLinha, type LinhaComEscopo,
 } from '@/lib/onda';
@@ -437,6 +437,17 @@ export interface EngagementCrossData extends EngagementContextResult {
    */
   serieEnps: OndaEnps[];
   /**
+   * A mesma série, por marca -- Betnacional, Betfair e Cross Brand.
+   *
+   * `daArea` diz se ela é da área selecionada (via o cruzamento area+marca) ou
+   * da empresa. Quando há filtro e o cruzamento não foi carregado, a tela não
+   * mostra os números da empresa no lugar: diz o que falta. Ver TempoDeCasa,
+   * que resolve o mesmo caso do mesmo jeito.
+   *
+   * `null` com menos de duas ondas -- uma medição só não é série.
+   */
+  serieMarca: { ondas: OndaEnps[]; daArea: string | null } | null;
+  /**
    * As faixas de tempo de casa das duas ondas mais recentes que têm esse
    * recorte -- que podem NÃO ser as duas últimas ondas: jan/26 não tem quebra
    * por tempo, então hoje a comparação é jul/25 x ago/26. Por isso os rótulos
@@ -552,6 +563,12 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       // inteiro para qualquer perfil -- a mesma regra dos outros recortes não
       // nominais.
       //
+      // 'marca' e 'area+marca' entraram por uma pergunta da Marilia: "o painel
+      // cruza dados entre períodos e marcas?". A resposta era não, e o motivo
+      // não era o dado -- marca é recorte padrão e está gravado em toda onda
+      // carregada. Era esta lista, que nunca o pediu. Sétima vez nesta semana
+      // que uma limitação de query foi lida como limitação do dado.
+      //
       // 'area+tempo' entra na mesma lista desde que o cruzamento passou a ser
       // calculado. Sem ele aqui, o bloco de tempo de casa continuava caindo no
       // fallback da empresa mesmo com o dado gravado -- a linha existia no
@@ -559,7 +576,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       // `podeVerArea` sobre a área extraída do nome composto, abaixo.
       db.from('survey_cut_scores')
         .select('wave, cut_type, cut_value, n, enps, promotores, passivos, detratores, risco, satisfacao')
-        .in('cut_type', ['area', 'tempo', 'area+tempo']),
+        .in('cut_type', ['area', 'tempo', 'area+tempo', 'marca', 'area+marca']),
       // Só NSX/reconstruido tem dept_breakdown. Ver ressalva abaixo: a pesquisa
       // cobre a Flutter Brazil inteira, a quebra por área só existe para NSX.
       db
@@ -827,6 +844,67 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       // vazio se lê como "esta área não tem tempo de casa".
       if (!tempoPorArea) carregarTempo(daEmpresa);
     }
+    // ======================================================================
+    // A MESMA SÉRIE, POR MARCA
+    // ======================================================================
+    // Devolve `PontoOnda[]`, a forma da série por área, e não uma estrutura
+    // nova: assim a tela reusa o mesmo componente de três painéis, com o mesmo
+    // realce cruzado e a mesma legenda. Duas séries com dois desenhos seria
+    // convidar a divergência que este painel já teve com dois cartões de risco.
+    const porOndaMarca = new Map<string, PontoOnda[]>();
+    const carregarMarca = (quero: (r: LinhaCut) => string | null): Set<string> => {
+      porOndaMarca.clear();
+      const ondas = new Set<string>();
+      for (const r of todosCuts) {
+        const nome = quero(r);
+        if (nome == null || r.enps == null) continue;
+        const lista = porOndaMarca.get(r.wave) ?? [];
+        lista.push({
+          scope: nome,
+          enps: Number(r.enps),
+          n: numero(r.n),
+          promotores: numero(r.promotores),
+          passivos: numero(r.passivos),
+          detratores: numero(r.detratores),
+          risco: numero(r.risco),
+          satisfacao: numero(r.satisfacao),
+        });
+        porOndaMarca.set(r.wave, lista);
+        ondas.add(r.wave);
+      }
+      return ondas;
+    };
+
+    // `rotuloDeCorte` aqui também: sem ele, uma onda antiga entra como "Ambas"
+    // e uma reimportada como "Cross Brand", e a série desenha duas linhas para
+    // a mesma gente -- uma parando no meio e outra começando no meio.
+    const marcaDaEmpresa = (r: LinhaCut) =>
+      r.cut_type === 'marca' ? rotuloDeCorte(r.cut_value ?? '') : null;
+    const marcaDaAreaSel = (r: LinhaCut) => {
+      if (r.cut_type !== 'area+marca') return null;
+      const p = partesDoCruzamento(r.cut_value ?? '');
+      if (!p || !podeVerArea(p.area)) return null;
+      return deptForScope(p.area) === sel ? rotuloDeCorte(p.valor) : null;
+    };
+
+    const ondasComMarcaEmpresa = carregarMarca(marcaDaEmpresa);
+    const maisRecenteComMarca = [...(ondasBrutas ?? [] as OndaLinha[])]
+      .filter((o) => ondasComMarcaEmpresa.has(o.wave))
+      .sort((a, b) => (a.reference_date < b.reference_date ? 1 : -1))[0]?.wave;
+
+    // Mesmo guard do tempo de casa, e pela mesma razão: duas ondas no mínimo,
+    // e o cruzamento tem que alcançar a onda atual. Cobertura pela metade
+    // desenharia uma janela antiga sob um cabeçalho que diz Agosto/26.
+    let marcaPorArea = false;
+    if (sel) {
+      const cruzadas = carregarMarca(marcaDaAreaSel);
+      marcaPorArea =
+        cruzadas.size >= 2 &&
+        maisRecenteComMarca != null &&
+        cruzadas.has(maisRecenteComMarca);
+      if (!marcaPorArea) carregarMarca(marcaDaEmpresa);
+    }
+
     // Da mais antiga para a mais nova, e só as que têm ponto. Uma onda
     // cadastrada e nunca carregada -- jul/25, com 295 respostas anotadas e zero
     // linhas -- não vira ponto: viraria um buraco no meio da linha, que o olho
@@ -840,6 +918,21 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
         referenceDate: o.reference_date,
         pontos: porOnda.get(o.wave) ?? [],
       }));
+
+    const serieMarca = (() => {
+      const ondas = [...(ondasBrutas ?? [] as OndaLinha[])]
+        .sort((a, b) => (a.reference_date < b.reference_date ? -1 : 1))
+        .filter((o) => (porOndaMarca.get(o.wave)?.length ?? 0) > 0)
+        .map((o) => ({
+          wave: o.wave,
+          label: o.label,
+          referenceDate: o.reference_date,
+          pontos: porOndaMarca.get(o.wave) ?? [],
+        }));
+      return ondas.length >= 2
+        ? { ondas, daArea: sel && marcaPorArea ? sel : null }
+        : null;
+    })();
 
     // A comparação por tempo de casa entre as duas ondas mais recentes que
     // TÊM esse recorte. jan/26 não tem -- então a comparação é jul/25 x ago/26,
@@ -945,6 +1038,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       ondaAtualLabel: ondaAtual?.label ?? null,
       ondaAnteriorLabel: ondaAnterior?.label ?? null,
       serieEnps,
+      serieMarca,
       tempoDeCasa,
       risco,
       // ------------------------------------------------------------------
