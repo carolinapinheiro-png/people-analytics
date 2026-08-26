@@ -266,7 +266,6 @@ export default function AreaPriority({
     if (controlada) onAbrirArea?.(v);
     else setAbertaLocal(v);
   };
-  const [sobre, setSobre] = useState<string | null>(null);
 
   const { itens, cutPorArea, nPorArea, gapPorArea, medianas, comparavel } = useMemo(() => {
     const doTipoArea = cuts.filter((c) => c.cutType === "area");
@@ -299,7 +298,22 @@ export default function AreaPriority({
 
   if (!itens.length) return null;
 
-  const maxEnps = Math.max(...itens.map((i) => i.enps), 1);
+  // ------------------------------------------------------------------
+  // OS GRUPOS DE VEREDITO, NA ORDEM DA FILA
+  // ------------------------------------------------------------------
+  // `itens` já vem ordenado por prioridade, então basta quebrar onde o
+  // veredito muda -- e não reordenar por veredito, que desfaria a fila.
+  //
+  // `posicao` é o lugar na fila inteira, não dentro do grupo: o cartão precisa
+  // dizer que é o terceiro a atacar, e não "o terceiro dos que precisam agir".
+  const comPosicao = itens.map((i, idx) => ({ ...i, posicao: idx + 1 }));
+  const grupos: Array<{ veredito: Veredito; itens: typeof comPosicao }> = [];
+  for (const i of comPosicao) {
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.veredito === i.veredito) ultimo.itens.push(i);
+    else grupos.push({ veredito: i.veredito, itens: [i] });
+  }
+
 
 
   return (
@@ -332,247 +346,225 @@ export default function AreaPriority({
       }
     >
       {/* ------------------------------------------------------------------
-          CABEÇALHO DE COLUNA, QUE ESTA LISTA NUNCA TEVE
+          CARTÕES, E NÃO UMA TABELA
           ------------------------------------------------------------------
-          Havia só uma legenda no rodapé -- "barra e número = eNPS, coluna do
-          meio = risco de saída". Legenda no rodapé é uma chave que chega
-          depois da fechadura: quem lê encontra os números primeiro.
+          A Anna: "o formato de tabela dificulta a leitura e o engajamento",
+          e pediu "quadrados representativos para cada área", com os dados
+          visíveis "sem necessidade de passar o mouse".
 
-          A Marilia leu "67,5" e "14,3" lado a lado e perguntou o que era cada
-          um. É uma pergunta sobre a tela, não sobre os dados -- e a resposta
-          já existia, só estava trinta linhas abaixo de onde era precisa.
+          A segunda metade é o achado. A composição do eNPS -- promotores,
+          passivos, detratores -- e a satisfação existiam desde sempre e só
+          apareciam no HOVER. Num painel que vai para gestor, líder e RH, e que
+          será lido em reunião projetada, informação atrás de hover é
+          informação que não existe: ninguém passa o mouse num telão.
 
-          As larguras batem com as das células. Se alguém mexer numa delas sem
-          mexer aqui, o cabeçalho desalinha visivelmente na primeira olhada --
-          que é o tipo de erro que se conserta, ao contrário de um rótulo
-          silenciosamente errado. */}
-      <div
-        className="flex items-center gap-3 px-1 -mx-1 pb-1.5 mb-1 border-b border-border/60
-                   text-[10px] uppercase tracking-wider text-muted-foreground"
-      >
-        <span className="w-[168px] shrink-0">Área</span>
-        <span className="flex-1 min-w-0" />
-        <span className="w-8 text-right">eNPS</span>
-        {historico && (
-          <span className="w-[96px] text-right shrink-0" title="Trajetória nas ondas e distância para a média histórica da própria área">
-            Histórico
-          </span>
-        )}
-        <span className="w-14 text-right">Risco (%)</span>
-        <span className="w-[92px] text-right shrink-0">Participação</span>
-        <span className="w-[54px] text-right shrink-0" title="Diferença de eNPS para a Flutter International">
-          vs FI
-        </span>
-      </div>
-
-      <div className="space-y-1">
-        {itens.map((i, idx) => {
-          const v = VEREDITO[i.veredito];
-          const primeiroDoGrupo = idx === 0 || itens[idx - 1].veredito !== i.veredito;
+          A ORDEM CONTINUA SENDO A RESPOSTA. O cartão traz a posição na fila,
+          e os grupos de veredito seguem separados e na mesma sequência -- este
+          cartão se chama "por onde começar", e uma grade sem ordem visível
+          perderia justamente isso.
+      ---------------------------------------------------------------- */}
+      <div className="space-y-5">
+        {grupos.map((g) => {
+          const v = VEREDITO[g.veredito];
+          const abertaAqui = g.itens.find((i) => i.scope === aberta) ?? null;
           return (
-            <div key={i.scope}>
-              {primeiroDoGrupo && (
-                <div className="flex items-center gap-1.5 pt-2.5 pb-1 first:pt-0">
-                  <span className="h-2 w-2 rounded-full shrink-0" style={{ background: v.cor }} />
-                  <span className="text-[11px] font-medium">{v.label}</span>
-                  <TooltipProvider delayDuration={200}>
-                    <UiTooltip>
-                      <TooltipTrigger asChild>
-                        <button aria-label={`O que significa ${v.label}`}>
-                          <Info className="h-3 w-3 text-muted-foreground" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-[260px] text-xs leading-relaxed">
-                        {v.explica}
-                      </TooltipContent>
-                    </UiTooltip>
-                  </TooltipProvider>
-                </div>
-              )}
-              {/* ----------------------------------------------------------
-                  A LINHA INTEIRA VIRA BOTÃO
-                  ----------------------------------------------------------
-                  E não um ícone de "expandir" no canto: alvo pequeno em lista
-                  densa é acerto por sorte. A linha toda é o alvo, o cursor
-                  muda, e a seta à esquerda diz que há mais por baixo.
+            <div key={g.veredito}>
+              <div className="flex items-center gap-1.5 pb-2">
+                <span className="h-2 w-2 rounded-full shrink-0" style={{ background: v.cor }} />
+                <span className="text-[11px] font-medium">{v.label}</span>
+                <span className="text-[10px] text-muted-foreground">({g.itens.length})</span>
+                <TooltipProvider delayDuration={200}>
+                  <UiTooltip>
+                    <TooltipTrigger asChild>
+                      <button aria-label={`O que significa ${v.label}`}>
+                        <Info className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[260px] text-xs leading-relaxed">
+                      {v.explica}
+                    </TooltipContent>
+                  </UiTooltip>
+                </TooltipProvider>
+              </div>
 
-                  `button` de verdade, e não `div` com onClick: teclado e
-                  leitor de tela vêm junto sem código extra, e o `aria-expanded`
-                  informa o estado a quem não vê a seta girar.
-              ---------------------------------------------------------- */}
-              <button
-                type="button"
-                onClick={() => setAberta(aberta === i.scope ? null : i.scope)}
-                onMouseEnter={() => setSobre(i.scope)}
-                onMouseLeave={() => setSobre(null)}
-                aria-expanded={aberta === i.scope}
-                aria-label={`Ver as perguntas de ${i.scope}`}
-                className={cn(
-                  "w-full flex items-center gap-3 py-1 px-1 -mx-1 rounded text-left transition-colors",
-                  (sobre === i.scope || aberta === i.scope) && "bg-secondary/60",
-                )}
-              >
-                <span
-                  className="w-[168px] shrink-0 text-xs flex items-center gap-1"
-                  title={i.scope}
-                >
-                  <ChevronDown
-                    className={cn(
-                      "h-3 w-3 shrink-0 text-muted-foreground transition-transform",
-                      aberta === i.scope ? "rotate-0" : "-rotate-90",
-                    )}
-                  />
-                  <span className="truncate">{i.scope}</span>
-                  {/* Veredito decidido por menos que uma resposta. Fica ao lado
-                      do nome, e não no fim da linha, porque quem lê precisa da
-                      ressalva ANTES de olhar o número, não depois. */}
-                  {i.noLimite && (
-                    <TooltipProvider delayDuration={200}>
-                      <UiTooltip>
-                        <TooltipTrigger asChild>
-                          <span
-                            className="shrink-0 rounded px-1 text-[9px] uppercase tracking-wide border border-amber-500/50 text-amber-600 dark:text-amber-500"
-                            aria-label="Veredito no limite"
-                          >
-                            limite
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-[280px] text-xs leading-relaxed">
-                          {i.scope} está a {fmt1(i.distanciaEnps)} ponto
-                          {i.distanciaEnps === 1 ? "" : "s"} da mediana de eNPS
-                          {i.distanciaRisco != null &&
-                            ` e a ${fmt1(i.distanciaRisco)} p.p. da de risco`}
-                          .
-                          {i.pesoDeUmaResposta != null && (
-                            <>
-                              {" "}
-                              Uma resposta aqui vale {fmt1(i.pesoDeUmaResposta)} ponto
-                              {i.pesoDeUmaResposta === 1 ? "" : "s"} — ou seja, este veredito pode
-                              virar sozinho na próxima onda, sem nada ter mudado de verdade.
-                            </>
-                          )}
-                        </TooltipContent>
-                      </UiTooltip>
-                    </TooltipProvider>
-                  )}
-                </span>
-                <div className="flex-1 min-w-0 h-5 flex items-center">
-                  {/* Cor = o que fazer (veredito); intensidade = magnitude do
-                      eNPS. A opacidade fixa de antes achatava a percepção de
-                      grandeza, já que a largura era o único sinal. */}
-                  <div
-                    className="h-2.5 rounded-full transition-all"
-                    style={{
-                      width: `${(i.enps / maxEnps) * 100}%`,
-                      background: `linear-gradient(90deg, color-mix(in oklab, ${v.cor} ${45 + (i.enps / maxEnps) * 25}%, transparent), ${v.cor})`,
-                    }}
-                  />
-                </div>
-                {/* Maior que os vizinhos de propósito: é o número que a Marilia
-                    pediu em destaque, e é o que ordena a fila. */}
-                <span className="text-base font-bold tabular-nums w-8 text-right">{i.enps}</span>
-
-                {historico && <Trajetoria h={historico.get(chave(i.scope))} />}
-
-                <span
-                  className={cn(
-                    "text-[11px] tabular-nums w-14 text-right",
-                    // Só pinta de âmbar contra um grupo de verdade. Com uma
-                    // área só, `risco > mediana` é o valor contra ele mesmo.
-                    comparavel && (i.risco ?? 0) > medianas.risco
-                      ? "text-amber-600 dark:text-amber-500"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {fmt1(i.risco)}%
-                </span>
-                {(() => {
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                {g.itens.map((i) => {
+                  const c = cutPorArea.get(chave(i.scope));
+                  const gap = gapPorArea.get(chave(i.scope));
                   const n = nPorArea.get(chave(i.scope));
                   const eleg = elegiveisPorArea?.[i.scope];
                   const taxa = n != null && eleg ? Math.round((n / eleg) * 100) : null;
+                  const eAberta = aberta === i.scope;
                   return (
-                    <span
+                    <button
+                      key={i.scope}
+                      type="button"
+                      onClick={() => setAberta(eAberta ? null : i.scope)}
+                      aria-expanded={eAberta}
+                      aria-label={`Ver as perguntas de ${i.scope}`}
                       className={cn(
-                        "text-[11px] tabular-nums w-[92px] text-right shrink-0",
-                        // Abaixo de dois terços, quem calou pesa tanto quanto
-                        // quem respondeu, e a nota da área passa a descrever
-                        // um pedaço dela. Isso precisa saltar aos olhos.
-                        taxa != null && taxa < 67
-                          ? "text-amber-600 dark:text-amber-500"
-                          : "text-muted-foreground",
+                        "rounded-lg border p-3 text-left transition-colors",
+                        eAberta
+                          ? "border-foreground/30 bg-secondary/60"
+                          : "border-border hover:bg-secondary/30",
                       )}
-                      title={
-                        eleg
-                          ? `${n} de ${eleg} pessoas responderam (${taxa}%)`
-                          : "sem headcount da área para calcular a taxa"
-                      }
+                      style={{ borderLeft: `3px solid ${v.cor}` }}
                     >
-                      {n == null ? "—" : eleg ? `${n}/${eleg} · ${taxa}%` : `n=${n}`}
-                    </span>
-                  );
-                })()}
-                {/* Segunda régua: como a área está contra a Flutter International.
-                    Legal é a de pior eNPS aqui E a mais distante da entidade
-                    global (-29) -- as duas leituras concordam, e isso muda a
-                    conversa. Onde elas discordam é ainda mais interessante. */}
-                <span
-                  className={cn(
-                    "text-[11px] tabular-nums w-[54px] text-right shrink-0",
-                    (gapPorArea.get(chave(i.scope)) ?? 0) < 0
-                      ? "text-amber-600 dark:text-amber-500"
-                      : "text-muted-foreground",
-                  )}
-                  title="Diferença de eNPS para a Flutter International, informada no deck de jan/26"
-                >
-                  {gapPorArea.get(chave(i.scope)) == null
-                    ? "—"
-                    : `${(gapPorArea.get(chave(i.scope)) as number) > 0 ? "+" : ""}${gapPorArea.get(chave(i.scope))} glob.`}
-                </span>
-              </button>
+                      <div className="flex items-baseline gap-1.5 min-w-0">
+                        <span className="text-[10px] tabular-nums text-muted-foreground shrink-0">
+                          {i.posicao}
+                        </span>
+                        <span className="text-xs font-medium truncate" title={i.scope}>
+                          {i.scope}
+                        </span>
+                        {/* Veredito decidido por menos que uma resposta. Vem ANTES
+                            do número, porque a ressalva precisa chegar antes. */}
+                        {i.noLimite && (
+                          <TooltipProvider delayDuration={200}>
+                            <UiTooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  className="shrink-0 rounded px-1 text-[9px] uppercase tracking-wide border border-amber-500/50 text-amber-600 dark:text-amber-500"
+                                  aria-label="Veredito no limite"
+                                >
+                                  limite
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-[280px] text-xs leading-relaxed">
+                                {i.scope} está a {fmt1(i.distanciaEnps)} ponto
+                                {i.distanciaEnps === 1 ? "" : "s"} da mediana de eNPS
+                                {i.distanciaRisco != null &&
+                                  ` e a ${fmt1(i.distanciaRisco)} p.p. da de risco`}
+                                .
+                                {i.pesoDeUmaResposta != null && (
+                                  <>
+                                    {" "}
+                                    Uma resposta aqui vale {fmt1(i.pesoDeUmaResposta)} ponto
+                                    {i.pesoDeUmaResposta === 1 ? "" : "s"} — este veredito pode
+                                    virar sozinho na próxima onda, sem nada ter mudado.
+                                  </>
+                                )}
+                              </TooltipContent>
+                            </UiTooltip>
+                          </TooltipProvider>
+                        )}
+                      </div>
 
-              {/* A composição, sem precisar clicar. O eNPS é uma subtração, e
-                  subtração perde informação: 60 pode ser "80 promotores e 20
-                  detratores" ou "60 promotores e 40 passivos" -- duas
-                  conversas diferentes com o mesmo número. */}
-              {sobre === i.scope &&
-                aberta !== i.scope &&
-                (() => {
-                  const c = cutPorArea.get(chave(i.scope));
-                  if (!c || c.promotores == null) return null;
-                  return (
-                    <div className="ml-[130px] -mt-0.5 mb-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
-                      <span>
-                        <strong className="text-emerald-600 dark:text-emerald-500">
-                          {c.promotores}
-                        </strong>{" "}
-                        promotores
-                      </span>
-                      <span>
-                        <strong className="text-foreground">{c.passivos ?? "—"}</strong> passivos
-                      </span>
-                      <span>
-                        <strong className="text-red-600 dark:text-red-500">
-                          {c.detratores ?? "—"}
-                        </strong>{" "}
-                        detratores
-                      </span>
-                      <span>
-                        satisfação{" "}
-                        <strong className="text-foreground">{c.satisfacao ?? "—"}</strong>
-                      </span>
-                      <span className="italic">clique para ver as perguntas</span>
-                    </div>
-                  );
-                })()}
+                      <div className="mt-1.5 flex items-end justify-between gap-2">
+                        <div className="flex items-baseline gap-1.5">
+                          <span className="text-2xl font-bold tabular-nums leading-none">
+                            {i.enps}
+                          </span>
+                          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                            eNPS
+                          </span>
+                        </div>
+                        {historico && <Trajetoria h={historico.get(chave(i.scope))} />}
+                      </div>
 
-              {aberta === i.scope && (
-                <AreaDriverPanel
-                  area={i.scope}
-                  drivers={drivers}
-                  minimoExibicao={minimoExibicao}
-                  historico={historico?.get(chave(i.scope)) ?? null}
-                  ondas={serie.map((o) => o.label)}
-                />
+                      <div className="mt-2 pt-2 border-t border-border/60 grid grid-cols-3 gap-1 text-[11px]">
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                            Risco
+                          </div>
+                          <div
+                            className={cn(
+                              "tabular-nums",
+                              comparavel && (i.risco ?? 0) > medianas.risco
+                                ? "text-amber-600 dark:text-amber-500"
+                                : "text-foreground",
+                            )}
+                          >
+                            {fmt1(i.risco)}%
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                            Respostas
+                          </div>
+                          <div
+                            className={cn(
+                              "tabular-nums",
+                              taxa != null && taxa < 67
+                                ? "text-amber-600 dark:text-amber-500"
+                                : "text-foreground",
+                            )}
+                            title={
+                              eleg
+                                ? `${n} de ${eleg} pessoas responderam (${taxa}%)`
+                                : "sem headcount da área para calcular a taxa"
+                            }
+                          >
+                            {n == null ? "—" : eleg ? `${n}/${eleg}` : n}
+                            {taxa != null && (
+                              <span className="text-muted-foreground"> · {taxa}%</span>
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
+                            vs FI
+                          </div>
+                          <div
+                            className={cn(
+                              "tabular-nums",
+                              (gap ?? 0) < 0
+                                ? "text-amber-600 dark:text-amber-500"
+                                : "text-foreground",
+                            )}
+                            title="Diferença de eNPS para a Flutter International, informada no deck de jan/26"
+                          >
+                            {gap == null ? "—" : `${gap > 0 ? "+" : ""}${gap}`}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* A composição, SEM hover. O eNPS é uma subtração, e
+                          subtração perde informação: 60 pode ser "80 promotores
+                          e 20 detratores" ou "60 promotores e 40 passivos" --
+                          duas conversas diferentes com o mesmo número. Estava
+                          atrás do mouse, que num telão não existe. */}
+                      {c && c.promotores != null && (
+                        <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[10px] text-muted-foreground">
+                          <span>
+                            <strong className="text-emerald-600 dark:text-emerald-500">
+                              {c.promotores}
+                            </strong>{" "}
+                            prom.
+                          </span>
+                          <span>
+                            <strong className="text-foreground">{c.passivos ?? "—"}</strong> pass.
+                          </span>
+                          <span>
+                            <strong className="text-red-600 dark:text-red-500">
+                              {c.detratores ?? "—"}
+                            </strong>{" "}
+                            detr.
+                          </span>
+                          {c.satisfacao != null && (
+                            <span>
+                              satisf. <strong className="text-foreground">{c.satisfacao}</strong>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* O detalhe abre embaixo do GRUPO, em largura inteira. Dentro do
+                  cartão ele ficaria espremido numa coluna de um terço. */}
+              {abertaAqui && (
+                <div className="mt-2">
+                  <AreaDriverPanel
+                    area={abertaAqui.scope}
+                    drivers={drivers}
+                    minimoExibicao={minimoExibicao}
+                    historico={historico?.get(chave(abertaAqui.scope)) ?? null}
+                    ondas={serie.map((o) => o.label)}
+                  />
+                </div>
               )}
             </div>
           );
@@ -585,16 +577,16 @@ export default function AreaPriority({
           cores querem dizer, e o que é FI. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-2.5 border-t border-border/60 text-xs text-muted-foreground">
         <span>
-          cor da barra = <strong className="text-foreground">o que fazer</strong>, e o comprimento
-          é o eNPS
+          a <strong className="text-foreground">borda colorida</strong> e o agrupamento dizem o que
+          fazer; o número antes do nome é a posição na fila
         </span>
         <span>
           <strong className="text-amber-600 dark:text-amber-500">âmbar em Risco</strong> = acima da
           mediana das áreas
         </span>
         <span>
-          <strong className="text-amber-600 dark:text-amber-500">âmbar em Participação</strong> =
-          menos de dois terços responderam
+          <strong className="text-amber-600 dark:text-amber-500">âmbar em Respostas</strong> = menos
+          de dois terços responderam
         </span>
         <span>
           <strong className="text-foreground">Histórico</strong> = trajetória do eNPS nas ondas e

@@ -88,7 +88,7 @@ export default function AreaDriverPanel({
   // leria como "esta área não tem problema", que é o oposto do que significa.
   if (semQuebra) {
     return (
-      <div className="mt-1 mb-2 ml-[130px] rounded-md border border-dashed border-border px-3 py-2.5">
+      <div className="mt-1 mb-2 rounded-md border border-dashed border-border px-3 py-2.5">
         <p className="text-[12px] text-muted-foreground leading-relaxed">
           Esta onda foi carregada só no nível da empresa — as notas por pergunta
           não foram quebradas por área. Não é que <strong>{area}</strong> não
@@ -100,7 +100,7 @@ export default function AreaDriverPanel({
 
   if (!total) {
     return (
-      <div className="mt-1 mb-2 ml-[130px] rounded-md border border-dashed border-border px-3 py-2.5">
+      <div className="mt-1 mb-2 rounded-md border border-dashed border-border px-3 py-2.5">
         <p className="text-[12px] text-muted-foreground leading-relaxed">
           Sem notas comparáveis para <strong>{area}</strong> nesta onda. Com menos
           de {minimoExibicao} respostas num recorte, a nota não é exibida — o
@@ -128,7 +128,7 @@ export default function AreaDriverPanel({
   );
 
   return (
-    <div className="mt-1 mb-2 ml-[130px] rounded-md border border-border bg-secondary/30 px-3 py-2.5">
+    <div className="mt-1 mb-2 rounded-md border border-border bg-secondary/30 px-3 py-2.5">
       <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
         {area} · distância da empresa, em pontos de % que concorda
       </p>
