@@ -6,6 +6,8 @@ import ChartCard from "@/components/dashboard/ChartCard";
 import { COLORS } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { classifyAreas, type Veredito } from "@/lib/area-priority";
+import { historicoPorArea, type HistoricoDeArea } from "@/lib/analise-engajamento";
+import type { OndaEnps } from "@/lib/experience.functions";
 import {
   Tooltip as UiTooltip,
   TooltipContent,
@@ -108,6 +110,100 @@ const VEREDITO: Record<Veredito, { label: string; cor: string; explica: string }
   },
 };
 
+/**
+ * A trajetória da área em miniatura, com a distância para a própria média.
+ *
+ * Sparkline sem eixo nem escala compartilhada: aqui não interessa comparar a
+ * altura de uma área com a de outra -- para isso existe o número do eNPS ao
+ * lado. Interessa a FORMA: desceu sempre, subiu sempre, ou foi e voltou.
+ *
+ * O número é a distância entre a onda corrente e a média das anteriores DESTA
+ * área. É a segunda régua que a fila não tinha: a primeira compara com as
+ * outras áreas, esta compara a área com ela mesma. Uma área pode estar acima
+ * do grupo e em queda livre, e as duas coisas importam.
+ */
+function Trajetoria({ h }: { h: HistoricoDeArea | undefined }) {
+  if (!h || h.contraSuaMedia == null) {
+    return <span className="w-[96px] shrink-0" />;
+  }
+
+  const vals = h.valores.filter((v): v is number => v != null);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const amp = Math.max(max - min, 1);
+  const W = 44;
+  const H = 14;
+  const passo = h.valores.length > 1 ? W / (h.valores.length - 1) : 0;
+
+  const cor =
+    h.trajetoria === "queda"
+      ? COLORS.danger
+      : h.trajetoria === "subida"
+        ? COLORS.success
+        : COLORS.gray400;
+
+  // Trechos contínuos: onde a área não respondeu, a linha corta. Mesma regra da
+  // série grande -- atravessar o buraco afirmaria uma trajetória não medida.
+  const trechos: Array<Array<[number, number]>> = [];
+  let atual: Array<[number, number]> = [];
+  h.valores.forEach((v, i) => {
+    if (v == null) {
+      if (atual.length) trechos.push(atual);
+      atual = [];
+      return;
+    }
+    atual.push([i * passo, H - ((v - min) / amp) * H]);
+  });
+  if (atual.length) trechos.push(atual);
+
+  const positivo = h.contraSuaMedia > 0;
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <UiTooltip>
+        <TooltipTrigger asChild>
+          <span className="w-[96px] shrink-0 flex items-center justify-end gap-1.5">
+            <svg width={W} height={H} className="shrink-0 overflow-visible" aria-hidden>
+              {trechos.map((t, ti) => (
+                <polyline
+                  key={ti}
+                  points={t.map(([x, y]) => `${x},${y}`).join(" ")}
+                  fill="none"
+                  stroke={cor}
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ))}
+              {trechos.at(-1)?.at(-1) && (
+                <circle cx={trechos.at(-1)!.at(-1)![0]} cy={trechos.at(-1)!.at(-1)![1]} r={1.8} fill={cor} />
+              )}
+            </svg>
+            <span
+              className="text-[11px] tabular-nums w-9 text-right"
+              style={{ color: h.contraSuaMedia === 0 ? undefined : positivo ? COLORS.success : COLORS.danger }}
+            >
+              {positivo ? "+" : ""}
+              {fmt1(h.contraSuaMedia)}
+            </span>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-[280px] text-xs leading-relaxed">
+          eNPS por onda: {h.valores.map((v) => (v == null ? "—" : Math.round(v))).join(" → ")}.
+          {h.mediaAnterior != null && (
+            <> A média das ondas anteriores é {fmt1(h.mediaAnterior)}.</>
+          )}{" "}
+          {h.trajetoria === "queda"
+            ? "Caiu em todas as passagens — é tendência, não oscilação."
+            : h.trajetoria === "subida"
+              ? "Subiu em todas as passagens."
+              : "Sobe e desce sem direção clara, o que é comum em área pequena."}
+        </TooltipContent>
+      </UiTooltip>
+    </TooltipProvider>
+  );
+}
+
 export default function AreaPriority({
   areas,
   cuts,
@@ -116,8 +212,28 @@ export default function AreaPriority({
   minimoExibicao = 5,
   areaAberta,
   onAbrirArea,
+  serie = [],
 }: {
   areas: EngagementContextRow[];
+  /**
+   * A série de todas as ondas, para a fila deixar de ser um retrato.
+   *
+   * ------------------------------------------------------------------
+   * DUAS ÁREAS EM 60 NÃO SÃO A MESMA ÁREA
+   * ------------------------------------------------------------------
+   * A fila mostrava só a onda corrente e classificava contra as outras áreas.
+   * Nisso, uma área que sempre esteve em 60 e uma que caiu de 85 para 60
+   * apareciam idênticas -- e pedem reuniões opostas: a primeira tem um
+   * patamar, a segunda teve um acontecimento.
+   *
+   * A Marilia pediu as duas coisas que fecham esse buraco: saber se a queda é
+   * nova ou constante, e comparar a área com a própria média histórica além da
+   * média da empresa. As duas saem daqui.
+   *
+   * Vazio quando há uma onda só -- e aí a coluna não aparece, em vez de
+   * mostrar uma comparação de uma medição consigo mesma.
+   */
+  serie?: OndaEnps[];
   /**
    * Quantas pessoas podiam responder em cada área. Sem isso a coluna mostra só
    * o n, e um n de 24 não diz se a área toda respondeu ou se metade calou --
@@ -171,9 +287,20 @@ export default function AreaPriority({
     };
   }, [areas, cuts]);
 
+  // Uma passada só, indexada por área, em vez de varrer a série por linha.
+  //
+  // Fica ACIMA do `return null` abaixo de propósito: hook depois de saída
+  // condicional roda em ordens diferentes entre renders, e o React quebra em
+  // runtime -- o lint pegou isto, o TypeScript não pegaria.
+  const historico = useMemo(() => {
+    if (serie.length < 2) return null;
+    return new Map(historicoPorArea(serie).map((h) => [chave(h.scope), h]));
+  }, [serie]);
+
   if (!itens.length) return null;
 
   const maxEnps = Math.max(...itens.map((i) => i.enps), 1);
+
 
   return (
     <ChartCard
@@ -208,6 +335,11 @@ export default function AreaPriority({
         <span className="w-[168px] shrink-0">Área</span>
         <span className="flex-1 min-w-0" />
         <span className="w-8 text-right">eNPS</span>
+        {historico && (
+          <span className="w-[96px] text-right shrink-0" title="Trajetória nas ondas e distância para a média histórica da própria área">
+            Histórico
+          </span>
+        )}
         <span className="w-14 text-right">Risco (%)</span>
         <span className="w-[92px] text-right shrink-0">Participação</span>
         <span className="w-[54px] text-right shrink-0" title="Diferença de eNPS para a Flutter International">
@@ -321,6 +453,8 @@ export default function AreaPriority({
                 {/* Maior que os vizinhos de propósito: é o número que a Marilia
                     pediu em destaque, e é o que ordena a fila. */}
                 <span className="text-base font-bold tabular-nums w-8 text-right">{i.enps}</span>
+
+                {historico && <Trajetoria h={historico.get(chave(i.scope))} />}
 
                 <span
                   className={cn(
@@ -437,6 +571,10 @@ export default function AreaPriority({
         <span>
           <strong className="text-amber-600 dark:text-amber-500">âmbar em Participação</strong> =
           menos de dois terços responderam
+        </span>
+        <span>
+          <strong className="text-foreground">Histórico</strong> = trajetória do eNPS nas ondas e
+          distância para a média anterior <em>desta</em> área
         </span>
         <span>
           <strong className="text-foreground">vs FI</strong> = diferença de eNPS para a Flutter

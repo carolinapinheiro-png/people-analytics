@@ -457,3 +457,66 @@ export function aderenciaDoRisco(
     areasComPoucaSaida: pares.filter((p) => p.pediramDemissao < 2).length,
   };
 }
+
+// ======================================================================
+// O HISTÓRICO DE CADA ÁREA, PARA A FILA DEIXAR DE SER UM RETRATO
+// ======================================================================
+// A Marilia pediu duas coisas que são a mesma: saber se uma queda é
+// comportamento novo ou constante, e comparar a área não só com a média da
+// empresa mas com a MÉDIA HISTÓRICA DELA MESMA.
+//
+// As duas atacam o mesmo buraco. A fila por área mostra a onda corrente e
+// classifica contra as outras áreas -- então uma área que sempre esteve em 60
+// e uma que despencou de 85 para 60 aparecem idênticas, e pedem reuniões
+// completamente diferentes. A primeira tem um patamar; a segunda tem um
+// acontecimento.
+//
+// `trajetoriaPorFaixa` já sabe olhar uma sequência e dizer se ela cai em todas
+// as passagens, sobe, ou oscila. É a mesma pergunta feita sobre outra chave --
+// então ela é reusada aqui em vez de reescrita. Duas implementações da mesma
+// leitura foi o que fez dois cartões de risco divergirem nesta semana.
+
+export interface HistoricoDeArea {
+  scope: string;
+  /** eNPS em cada onda, da mais antiga para a mais nova. `null` onde não respondeu. */
+  valores: Array<number | null>;
+  /** Média das ondas ANTERIORES à última. `null` com menos de uma onda anterior. */
+  mediaAnterior: number | null;
+  /** Distância entre a onda corrente e a própria média anterior. */
+  contraSuaMedia: number | null;
+  /** Diferença entre a primeira e a última onda com valor. */
+  variacaoTotal: number | null;
+  trajetoria: Trajetoria;
+}
+
+export function historicoPorArea(
+  ondas: ReadonlyArray<{ pontos: ReadonlyArray<{ scope: string; enps: number | null }> }>,
+): HistoricoDeArea[] {
+  // Adapta para a forma que `trajetoriaPorFaixa` já lê. O campo se chama
+  // `faixa` lá porque nasceu do tempo de casa; aqui a chave é a área. A
+  // pergunta -- "esta sequência cai sempre?" -- é a mesma.
+  const comoFaixas = ondas.map((o) => ({
+    faixas: o.pontos.map((p) => ({ faixa: p.scope, n: 0, enps: p.enps })),
+  }));
+
+  return trajetoriaPorFaixa(comoFaixas).map((l) => {
+    // A média anterior exclui a onda corrente de propósito: incluí-la seria
+    // comparar o número consigo mesmo diluído, e uma área com duas ondas
+    // apareceria sempre a meio caminho da própria variação.
+    const anteriores = l.valores.slice(0, -1).filter((v): v is number => v != null);
+    const atual = [...l.valores].reverse().find((v): v is number => v != null) ?? null;
+    const mediaAnterior = anteriores.length
+      ? arred(anteriores.reduce((s, v) => s + v, 0) / anteriores.length)
+      : null;
+
+    return {
+      scope: l.faixa,
+      valores: l.valores,
+      mediaAnterior,
+      contraSuaMedia:
+        atual != null && mediaAnterior != null ? arred(atual - mediaAnterior) : null,
+      variacaoTotal: l.variacaoTotal,
+      trajetoria: l.trajetoria,
+    };
+  });
+}

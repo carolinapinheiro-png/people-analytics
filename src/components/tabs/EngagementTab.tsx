@@ -395,6 +395,7 @@ function EngagementSection({
             areaAberta={areaEscolhida}
             onAbrirArea={setAreaEscolhida}
             areas={rowsComN}
+            serie={cross.serieEnps}
             cuts={survey?.cuts ?? []}
             elegiveisPorArea={survey?.elegiveisPorArea}
             drivers={survey?.driversPorArea ?? []}
