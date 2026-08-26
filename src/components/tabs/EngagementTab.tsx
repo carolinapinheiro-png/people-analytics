@@ -20,7 +20,6 @@ import EnpsSerie from "@/components/dashboard/EnpsSerie";
 import TempoDeCasa from "@/components/dashboard/TempoDeCasa";
 import DispersaoAreas from "@/components/dashboard/DispersaoAreas";
 import RiscoPreviu from "@/components/dashboard/RiscoPreviu";
-import RiskVsAttrition from "@/components/dashboard/RiskVsAttrition";
 import DriversDeepDive from "@/components/dashboard/DriversDeepDive";
 import MatrizAreaDriver from "@/components/dashboard/MatrizAreaDriver";
 import { temQuebraPorArea } from "@/lib/drill";
@@ -468,6 +467,7 @@ function EngagementSection({
           <RiscoPreviu
             dados={cross.risco}
             ondaLabel={cross.risco.ondaLabel}
+            janela={janela}
             departamentoSelecionado={deptSel}
           />
         )}
@@ -585,19 +585,10 @@ function EngagementSection({
           />
         </div>
 
-        {/* `rowsSemSelecao` entrega todas as áreas que o PERFIL pode ver, e o
-            próprio cartão aplica a seleção antes de calcular qualquer coisa.
-            Duas regras diferentes, uma em cada lugar: aqui o teto de permissão,
-            lá o recorte de tela. Ver o comentário da prop `rows` do cartão. */}
-        {cross && (
-          <RiskVsAttrition
-            rows={cross.rowsSemSelecao}
-            janela={janela}
-            meses={cross.mesesObservados}
-            ressalvas={cross.ressalvas}
-            departamentoSelecionado={deptSel}
-          />
-        )}
+        {/* O segundo cartão de risco foi absorvido pelo primeiro. Eram a mesma
+            pergunta com dois desenhos, liam ondas diferentes e mostravam 13,1%
+            e 8,7% como se ambos fossem "risco declarado em jan/26". Ver o topo
+            de RiscoPreviu.tsx. */}
       </Detalhe>
     </div>
   );

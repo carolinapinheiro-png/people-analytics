@@ -404,7 +404,6 @@ export interface EngagementCrossData extends EngagementContextResult {
    * permissão. Para os cartões que comparam áreas ENTRE SI e não existem com
    * uma só. Ver o comentário no retorno de `getEngagementCross`.
    */
-  rowsSemSelecao: EngagementContextResult['rows'];
   /**
    * Ressalvas que a tela precisa exibir. Vêm do servidor porque dependem do
    * que o banco de fato tinha na hora da consulta -- deixar isso hardcoded no
@@ -956,8 +955,9 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       // "ainda não há áreas suficientes" ao filtrar -- que se lê como falta de
       // dado, quando é a pergunta que não é sobre a área escolhida.
       //
-      // A PERMISSÃO continua valendo: `semSelecao` é construído com o filtro de
-      // escopo e sem o de tela. Cai a seleção, não o teto.
-      rowsSemSelecao: semSelecao.rows,
+// `semSelecao` NÃO sai desta função. Ele existe para uma coisa só:
+      // a correlação entre áreas, que precisa de todas as que o perfil pode
+      // ver. Exportá-lo foi o que permitiu um cartão mostrar as oito áreas sob
+      // filtro de uma -- então o campo saiu junto com o cartão.
     };
   });
