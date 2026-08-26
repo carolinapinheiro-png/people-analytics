@@ -2,10 +2,34 @@ import { useMemo, useState } from "react";
 import { Activity } from "lucide-react";
 import ChartCard from "@/components/dashboard/ChartCard";
 import { COLORS } from "@/lib/colors";
+import { cn } from "@/lib/utils";
 import type { OndaEnps, PontoOnda } from "@/lib/experience.functions";
 
 /**
- * eNPS por área ao longo das ondas.
+ * Os três indicadores por área ao longo das ondas.
+ *
+ * ------------------------------------------------------------------
+ * ERA UM GRÁFICO SÓ, E NOVE LINHAS NÃO CABEM NUM
+ * ------------------------------------------------------------------
+ * Este cartão mostrava só o eNPS, com uma linha por área e o nome de cada uma
+ * na ponta direita. Lendo a aba pela primeira vez, a Marilia travou aqui: as
+ * linhas passam perto demais umas das outras e os rótulos disputam o mesmo
+ * espaço vertical. Havia até um algoritmo de afastamento mínimo entre rótulos
+ * -- sinal de que o problema já era conhecido e estava sendo remendado em vez
+ * de resolvido.
+ *
+ * Ela pediu três colunas: eNPS, satisfação e retenção. As três resolvem duas
+ * coisas de uma vez.
+ *
+ *   O ESPAÇO. Sem rótulo na ponta, cada painel fica estreito e limpo. A
+ *   identidade das áreas migra para a legenda de baixo, que é lida uma vez em
+ *   vez de nove vezes por gráfico.
+ *
+ *   A LEITURA CRUZADA. Passar o mouse numa área a destaca NOS TRÊS painéis ao
+ *   mesmo tempo, e apaga as outras. Aí aparece o que um gráfico só nunca
+ *   mostrou: a área que cai em eNPS mas não em satisfação, ou a que mantém o
+ *   eNPS enquanto o risco de saída sobe. São conversas diferentes, e antes
+ *   dependiam de alguém abrir três telas e lembrar dos números.
  *
  * ------------------------------------------------------------------
  * QUANDO ESTE GRÁFICO SUBSTITUI O SLOPE, E POR QUÊ SÓ AÍ
@@ -41,23 +65,23 @@ import type { OndaEnps, PontoOnda } from "@/lib/experience.functions";
  * SVG NA MÃO, PELO MESMO MOTIVO DO SLOPE
  * ------------------------------------------------------------------
  * A escala aqui é regra de três, e o que o Recharts adicionaria -- legenda,
- * eixo, tooltip -- é justamente o que faria a leitura ficar mais lenta. O
- * rótulo vai na ponta de cada linha, que é onde o olho já está.
+ * eixo, tooltip -- é justamente o que faria a leitura ficar mais lenta.
  */
 
-const H = 320;
-const PAD_TOP = 20;
-const PAD_BOTTOM = 34;
-const PAD_LEFT = 34;
-const LABEL_W = 132;
-const W = 640;
+const H = 226;
+const PAD_TOP = 16;
+const PAD_BOTTOM = 30;
+const PAD_LEFT = 8;
+const PAD_RIGHT = 10;
+const W = 340;
 
 /**
- * Uma cor por área, estável entre renderizações.
+ * Uma cor por área, estável entre renderizações E entre os três painéis.
  *
  * O índice vem da ordem de eNPS na última onda, então a área do topo é sempre
- * a mesma cor dentro de uma sessão. Não tento dar significado à cor: com oito
- * linhas, cor é identidade, não escala.
+ * a mesma cor dentro de uma sessão. Com três gráficos lado a lado a cor deixou
+ * de ser só identidade e virou a costura entre eles: é ela que deixa seguir
+ * Marketing do primeiro painel ao terceiro sem reler a legenda.
  */
 const PALETA = [
   COLORS.flutter,
@@ -74,312 +98,430 @@ const PALETA = [
 const pct = (parte: number | null, total: number | null) =>
   parte == null || !total ? null : Math.round((parte / total) * 100);
 
+const fmt1 = (v: number | null) =>
+  v == null ? "—" : v.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+
+/**
+ * As três métricas, e o que cada uma tem de diferente.
+ *
+ * `inverso` marca a única em que SUBIR é ruim. Sem isso, um leitor que
+ * atravessa os três painéis da esquerda para a direita lê a terceira subida
+ * como boa notícia -- e ela é o oposto. A nota sob o título diz isso em
+ * palavras, porque cor sozinha não sobrevive a um print em preto e branco.
+ */
+const METRICAS = [
+  {
+    chave: "enps" as const,
+    titulo: "eNPS",
+    nota: "maior é melhor",
+    valor: (p: PontoOnda) => p.enps as number | null,
+    formatar: (v: number) => String(Math.round(v)),
+    inverso: false,
+  },
+  {
+    chave: "satisfacao" as const,
+    titulo: "Satisfação",
+    nota: "média de 0 a 10 · maior é melhor",
+    valor: (p: PontoOnda) => p.satisfacao,
+    formatar: (v: number) => fmt1(v),
+    inverso: false,
+  },
+  {
+    chave: "risco" as const,
+    titulo: "Risco de saída",
+    nota: "% · menor é melhor",
+    valor: (p: PontoOnda) => p.risco,
+    formatar: (v: number) => `${fmt1(v)}%`,
+    inverso: true,
+  },
+];
+
+type Metrica = (typeof METRICAS)[number];
+
 interface Alvo {
   area: string;
   cor: string;
   ondaLabel: string;
   ponto: PontoOnda;
+  metrica: string;
   x: number;
   y: number;
 }
 
+interface AreaSerie {
+  scope: string;
+  cor: string;
+  pontos: Array<PontoOnda | null>;
+}
+
 export default function EnpsSerie({ ondas }: { ondas: OndaEnps[] }) {
   const [alvo, setAlvo] = useState<Alvo | null>(null);
+  // A área destacada pode vir do ponto (hover no gráfico) ou da legenda. As
+  // duas alimentam o mesmo realce nos três painéis.
+  const [areaFoco, setAreaFoco] = useState<string | null>(null);
+  const foco = alvo?.area ?? areaFoco;
 
-  const { areas, min, max } = useMemo(() => {
+  const areas = useMemo<AreaSerie[]>(() => {
     const ultima = ondas.at(-1);
-    // A ordem sai da última onda: é a leitura de ranking de graça, e mantém os
-    // rótulos da direita sem colisão na maioria dos casos.
-    const nomes = [...(ultima?.pontos ?? [])].sort((a, b) => b.enps - a.enps).map((p) => p.scope);
+    // A ordem sai da última onda: é a leitura de ranking de graça, e fixa a
+    // correspondência cor -> área para os três painéis e para a legenda.
+    const nomes = [...(ultima?.pontos ?? [])]
+      .sort((a, b) => b.enps - a.enps)
+      .map((p) => p.scope);
 
-    const areas = nomes.map((scope, i) => ({
+    return nomes.map((scope, i) => ({
       scope,
       cor: PALETA[i % PALETA.length],
       // `null` onde a área não respondeu naquela onda -- a linha corta ali em
       // vez de descer até zero. Zero seria uma queda que não aconteceu.
       pontos: ondas.map((o) => o.pontos.find((p) => p.scope === scope) ?? null),
     }));
-
-    const vals = areas
-      .flatMap((a) => a.pontos)
-      .filter((p): p is PontoOnda => p != null)
-      .map((p) => p.enps);
-    return vals.length
-      ? { areas, min: Math.min(...vals) - 6, max: Math.max(...vals) + 6 }
-      : { areas, min: 0, max: 100 };
   }, [ondas]);
 
   if (ondas.length < 3 || areas.length === 0) return null;
 
-  const x = (i: number) => PAD_LEFT + (i / (ondas.length - 1)) * (W - PAD_LEFT - LABEL_W);
-  const y = (v: number) => PAD_TOP + ((max - v) / (max - min)) * (H - PAD_TOP - PAD_BOTTOM);
-
-  /** Rótulos da direita com afastamento mínimo, igual ao slope. */
-  const finais = areas.map((a) => a.pontos.at(-1)?.enps ?? null);
-  const yRot = (() => {
-    const GAP = 13;
-    const ordenado = finais
-      .map((v, i) => ({ i, y: v == null ? Infinity : y(v) }))
-      .sort((a, b) => a.y - b.y);
-    let anterior = -Infinity;
-    for (const o of ordenado) {
-      if (!Number.isFinite(o.y)) continue;
-      o.y = Math.max(o.y, anterior + GAP);
-      anterior = o.y;
-    }
-    const out: number[] = new Array(finais.length).fill(0);
-    for (const o of ordenado) out[o.i] = o.y;
-    return out;
-  })();
-
   return (
     <ChartCard
-      title="eNPS por área ao longo das pesquisas"
+      title="Os três indicadores por área ao longo das pesquisas"
       subtitle={`${ondas.length} ondas · ${ondas[0].label} → ${ondas.at(-1)?.label}`}
       icon={Activity}
     >
+      <div className="grid gap-x-4 gap-y-5 md:grid-cols-3">
+        {METRICAS.map((m) => (
+          <Painel
+            key={m.chave}
+            metrica={m}
+            ondas={ondas}
+            areas={areas}
+            foco={foco}
+            alvo={alvo}
+            onAlvo={setAlvo}
+          />
+        ))}
+      </div>
+
       {/* ------------------------------------------------------------------
-          POR QUE DOIS CONTÊINERES
+          A LEGENDA É O QUE SUBSTITUIU OS RÓTULOS DE PONTA
           ------------------------------------------------------------------
-          `overflow-x-auto` estava no mesmo div que ancora o balão. Só que em
-          CSS, quando um eixo deixa de ser `visible`, o outro vira `auto`
-          junto -- não existe "corta só na horizontal". O div tinha exatamente
-          a altura do SVG (320px) e o balão tem 224px, então num ponto baixo
-          ele era cortado em 177px: aparecia menos de um quarto dele.
-
-          Agora o `overflow` vive num wrapper interno, que só embrulha o SVG e
-          existe para o gráfico rolar na horizontal em tela estreita. O balão
-          fica no contêiner de fora, que não corta nada. */}
-      <div className="w-full relative">
-        <div className="w-full overflow-x-auto">
-          <svg
-            viewBox={`0 0 ${W} ${H}`}
-            className="w-full min-w-[520px]"
-            style={{ height: H }}
-            role="img"
-            aria-label={`eNPS por área em ${ondas.length} ondas de pesquisa`}
-            onMouseLeave={() => setAlvo(null)}
-          >
-            {/* Guias verticais: uma por onda. */}
-            {ondas.map((o, i) => (
-              <g key={o.wave}>
-                <line
-                  x1={x(i)}
-                  x2={x(i)}
-                  y1={PAD_TOP - 8}
-                  y2={H - PAD_BOTTOM + 4}
-                  stroke="var(--chart-grid)"
-                  strokeWidth={1}
+          Nove nomes repetidos em três gráficos seriam vinte e sete textos
+          disputando espaço. Aqui são nove, lidos uma vez, com os três números
+          finais juntos -- o que também responde ao pedido de ver eNPS, risco e
+          satisfação sem precisar guardar de cabeça. */}
+      <div className="mt-4 pt-3 border-t border-border/60">
+        <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+          {areas.map((a) => {
+            const fim = a.pontos.at(-1);
+            const apagada = foco != null && foco !== a.scope;
+            return (
+              <button
+                key={a.scope}
+                type="button"
+                className={cn(
+                  "flex items-center gap-2 rounded px-1 py-0.5 text-left text-[11px] transition-opacity",
+                  apagada ? "opacity-35" : "opacity-100",
+                  foco === a.scope && "bg-muted/60",
+                )}
+                onMouseEnter={() => setAreaFoco(a.scope)}
+                onMouseLeave={() => setAreaFoco(null)}
+                onFocus={() => setAreaFoco(a.scope)}
+                onBlur={() => setAreaFoco(null)}
+              >
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ background: a.cor }}
                 />
-                <text
-                  x={x(i)}
-                  y={H - PAD_BOTTOM + 20}
-                  textAnchor="middle"
-                  fontSize={11}
-                  fill="var(--chart-tick)"
-                >
-                  {o.label}
-                </text>
-              </g>
-            ))}
+                <span className="min-w-0 flex-1 truncate">{a.scope}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {fim == null ? "—" : Math.round(fim.enps)}
+                  {" · "}
+                  {fim == null ? "—" : fmt1(fim.satisfacao)}
+                  {" · "}
+                  {fim == null || fim.risco == null ? "—" : `${fmt1(fim.risco)}%`}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-1.5 px-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+          os três números são da última onda, na ordem dos gráficos
+        </p>
+      </div>
 
-            {areas.map((a, ai) => {
-              // Trechos contínuos: onde falta ponto, a linha interrompe em vez
-              // de pular o buraco. Pular ligaria dois números com um traço que
-              // afirma uma trajetória que ninguém mediu.
-              const trechos: Array<Array<{ x: number; y: number }>> = [];
-              let atual: Array<{ x: number; y: number }> = [];
-              a.pontos.forEach((p, i) => {
-                if (p == null) {
-                  if (atual.length) trechos.push(atual);
-                  atual = [];
-                  return;
-                }
-                atual.push({ x: x(i), y: y(p.enps) });
-              });
-              if (atual.length) trechos.push(atual);
+      <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
+        Passe o mouse numa área — no gráfico ou na legenda — e ela se destaca nos três painéis ao
+        mesmo tempo. É aí que aparece o que um gráfico sozinho escondia: quem cai em eNPS sem cair
+        em satisfação, ou quem mantém o eNPS enquanto o risco de saída sobe. Onde a linha
+        interrompe, a área não respondeu naquela onda: o traço não atravessa o buraco, porque
+        atravessar afirmaria uma trajetória que ninguém mediu.
+      </p>
+    </ChartCard>
+  );
+}
 
-              const fim = a.pontos.at(-1);
-              // Com o mouse numa área, as outras recuam. Oito linhas cruzando é
-              // exatamente onde o olho perde a que interessa -- e a que interessa
-              // é a que a pessoa apontou.
-              const apagada = alvo != null && alvo.area !== a.scope;
-              return (
-                <g
-                  key={a.scope}
-                  opacity={apagada ? 0.18 : 1}
-                  style={{ transition: "opacity 120ms" }}
-                >
-                  {trechos.map((t, ti) => (
-                    <polyline
-                      key={ti}
-                      points={t.map((p) => `${p.x},${p.y}`).join(" ")}
-                      fill="none"
-                      stroke={a.cor}
-                      strokeWidth={alvo?.area === a.scope ? 3 : 2}
-                      strokeLinejoin="round"
-                      strokeLinecap="round"
-                      opacity={0.9}
+/**
+ * Um painel: uma métrica, todas as áreas.
+ *
+ * Cada um tem a SUA escala. Forçar um eixo comum entre eNPS (-100 a 100),
+ * satisfação (0 a 10) e risco (0 a 100%) achataria os três até nenhum variar
+ * visivelmente -- que é o oposto do que três painéis servem para mostrar.
+ */
+function Painel({
+  metrica,
+  ondas,
+  areas,
+  foco,
+  alvo,
+  onAlvo,
+}: {
+  metrica: Metrica;
+  ondas: OndaEnps[];
+  areas: AreaSerie[];
+  foco: string | null;
+  alvo: Alvo | null;
+  onAlvo: (a: Alvo | null) => void;
+}) {
+  const vals = areas
+    .flatMap((a) => a.pontos)
+    .filter((p): p is PontoOnda => p != null)
+    .map((p) => metrica.valor(p))
+    .filter((v): v is number => v != null);
+
+  if (!vals.length) return null;
+
+  const bruto = { min: Math.min(...vals), max: Math.max(...vals) };
+  // Uma folga proporcional, e nunca zero: com todas as áreas no mesmo valor a
+  // divisão por (max - min) explodiria.
+  const folga = Math.max((bruto.max - bruto.min) * 0.12, 0.5);
+  const min = bruto.min - folga;
+  const max = bruto.max + folga;
+
+  const x = (i: number) =>
+    PAD_LEFT + (i / (ondas.length - 1)) * (W - PAD_LEFT - PAD_RIGHT);
+  const y = (v: number) => PAD_TOP + ((max - v) / (max - min)) * (H - PAD_TOP - PAD_BOTTOM);
+
+  const meu = alvo?.metrica === metrica.chave ? alvo : null;
+
+  return (
+    <div>
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <span className="text-xs font-medium">{metrica.titulo}</span>
+        <span className="text-[10px] text-muted-foreground">{metrica.nota}</span>
+      </div>
+
+      <div className="relative w-full">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full"
+          style={{ height: H }}
+          role="img"
+          aria-label={`${metrica.titulo} por área em ${ondas.length} ondas`}
+          onMouseLeave={() => onAlvo(null)}
+        >
+          {ondas.map((o, i) => (
+            <g key={o.wave}>
+              <line
+                x1={x(i)}
+                x2={x(i)}
+                y1={PAD_TOP - 6}
+                y2={H - PAD_BOTTOM + 4}
+                stroke="var(--chart-grid)"
+                strokeWidth={1}
+              />
+              <text
+                x={x(i)}
+                y={H - PAD_BOTTOM + 18}
+                textAnchor="middle"
+                fontSize={10}
+                fill="var(--chart-tick)"
+              >
+                {o.label}
+              </text>
+            </g>
+          ))}
+
+          {areas.map((a) => {
+            // Trechos contínuos: onde falta ponto, a linha interrompe em vez
+            // de pular o buraco. Pular ligaria dois números com um traço que
+            // afirma uma trajetória que ninguém mediu.
+            const trechos: Array<Array<{ x: number; y: number }>> = [];
+            let atual: Array<{ x: number; y: number }> = [];
+            a.pontos.forEach((p, i) => {
+              const v = p == null ? null : metrica.valor(p);
+              if (p == null || v == null) {
+                if (atual.length) trechos.push(atual);
+                atual = [];
+                return;
+              }
+              atual.push({ x: x(i), y: y(v) });
+            });
+            if (atual.length) trechos.push(atual);
+
+            const apagada = foco != null && foco !== a.scope;
+            const realce = foco === a.scope;
+            return (
+              <g
+                key={a.scope}
+                opacity={apagada ? 0.12 : 1}
+                style={{ transition: "opacity 120ms" }}
+              >
+                {trechos.map((t, ti) => (
+                  <polyline
+                    key={ti}
+                    points={t.map((p) => `${p.x},${p.y}`).join(" ")}
+                    fill="none"
+                    stroke={a.cor}
+                    strokeWidth={realce ? 3 : 1.8}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                    opacity={0.9}
+                  />
+                ))}
+                {a.pontos.map((p, i) => {
+                  const v = p == null ? null : metrica.valor(p);
+                  if (p == null || v == null) return null;
+                  return (
+                    <circle
+                      key={i}
+                      cx={x(i)}
+                      cy={y(v)}
+                      r={realce && meu?.ondaLabel === ondas[i].label ? 5 : realce ? 3.5 : 2.5}
+                      fill={a.cor}
                     />
-                  ))}
-                  {a.pontos.map((p, i) =>
-                    p == null ? null : (
-                      <circle
-                        key={i}
-                        cx={x(i)}
-                        cy={y(p.enps)}
-                        r={alvo?.area === a.scope && alvo.ondaLabel === ondas[i].label ? 5 : 3}
-                        fill={a.cor}
-                      />
-                    ),
-                  )}
-                  {fim != null && (
-                    <text
-                      x={W - LABEL_W + 8}
-                      y={yRot[ai] + 4}
-                      fontSize={11}
-                      fill="var(--chart-tick)"
-                    >
-                      <tspan fontWeight={600} fill={a.cor}>
-                        {fim.enps}
-                      </tspan>
-                      <tspan dx={6}>{a.scope}</tspan>
-                    </text>
-                  )}
-                </g>
-              );
-            })}
+                  );
+                })}
+              </g>
+            );
+          })}
 
-            {/* ----------------------------------------------------------------
+          {/* ----------------------------------------------------------------
               AS ÁREAS DE ACERTO VÊM POR ÚLTIMO, E SÃO MAIORES QUE OS PONTOS
               ----------------------------------------------------------------
-              Um ponto de raio 3 é praticamente impossível de acertar com o
+              Um ponto de raio 2,5 é praticamente impossível de acertar com o
               mouse -- e um gráfico que só responde quando a pessoa mira bem
-              parece quebrado, não exigente. Círculos invisíveis de raio 11
+              parece quebrado, não exigente. Círculos invisíveis de raio 10
               fazem o alvo caber no gesto.
 
               Depois de todas as linhas para ficarem por cima delas: desenhados
               antes, a própria linha da área ao lado roubaria o evento.
           ---------------------------------------------------------------- */}
-            {areas.map((a) =>
-              a.pontos.map((p, i) =>
-                p == null ? null : (
-                  <circle
-                    key={`${a.scope}-${i}`}
-                    cx={x(i)}
-                    cy={y(p.enps)}
-                    r={11}
-                    fill="transparent"
-                    style={{ cursor: "pointer" }}
-                    onMouseEnter={() =>
-                      setAlvo({
-                        area: a.scope,
-                        cor: a.cor,
-                        ondaLabel: ondas[i].label,
-                        ponto: p,
-                        x: x(i),
-                        y: y(p.enps),
-                      })
-                    }
-                  />
-                ),
-              ),
-            )}
-          </svg>
-        </div>
+          {areas.map((a) =>
+            a.pontos.map((p, i) => {
+              const v = p == null ? null : metrica.valor(p);
+              if (p == null || v == null) return null;
+              return (
+                <circle
+                  key={`${a.scope}-${i}`}
+                  cx={x(i)}
+                  cy={y(v)}
+                  r={10}
+                  fill="transparent"
+                  style={{ cursor: "pointer" }}
+                  onMouseEnter={() =>
+                    onAlvo({
+                      area: a.scope,
+                      cor: a.cor,
+                      ondaLabel: ondas[i].label,
+                      ponto: p,
+                      metrica: metrica.chave,
+                      x: x(i),
+                      y: y(v),
+                    })
+                  }
+                />
+              );
+            }),
+          )}
+        </svg>
 
-        {alvo && (
-          <div
-            className="absolute pointer-events-none z-10 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg min-w-[210px]"
-            style={{
-              // O `x` está em unidades do viewBox e o SVG estica com a
-              // largura, então a posição horizontal vira porcentagem. A
-              // vertical é direta: a altura do SVG é fixa em H.
-              left: `${(alvo.x / W) * 100}%`,
-              // ------------------------------------------------------------
-              // ABAIXO DO PONTO, OU ACIMA QUANDO NÃO CABE
-              // ------------------------------------------------------------
-              // O balão ia sempre para baixo. Com 224px de altura num gráfico
-              // de 320, qualquer ponto da metade de baixo o jogava para fora.
-              //
-              // Ancorar pela BASE (`bottom`) e não pelo topo é o truque que
-              // evita medir: o navegador cresce o balão para cima sozinho,
-              // seja qual for o conteúdo. Um `top` calculado precisaria da
-              // altura, que muda com o aviso de área pequena.
-              ...(alvo.y > H * 0.45 ? { bottom: H - alvo.y + 14 } : { top: alvo.y + 14 }),
-              // Perto da borda direita o balão viraria para dentro da tela.
-              transform: alvo.x > W * 0.62 ? "translateX(-100%)" : "translateX(-40%)",
-            }}
-          >
-            <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              {alvo.ondaLabel}
-            </p>
-            <p className="text-sm font-semibold" style={{ color: alvo.cor }}>
-              {alvo.area}
-            </p>
+        {meu && <Balao alvo={meu} />}
+      </div>
+    </div>
+  );
+}
 
-            <div className="mt-1.5 flex items-baseline gap-2">
-              <span className="text-2xl font-bold tabular-nums">{alvo.ponto.enps}</span>
-              <span className="text-[11px] text-muted-foreground">
-                eNPS · {alvo.ponto.n ?? "—"} respostas
-              </span>
-            </div>
+/**
+ * O balão traz os TRÊS indicadores, esteja o mouse em qual painel estiver.
+ *
+ * Foi o que motivou os três painéis, então seria estranho o detalhe voltar a
+ * mostrar um só: quem parou o mouse na queda de satisfação quer saber, ali
+ * mesmo, o que o eNPS e o risco daquela área fizeram no mesmo mês.
+ */
+function Balao({ alvo }: { alvo: Alvo }) {
+  return (
+    <div
+      className="absolute pointer-events-none z-10 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg min-w-[200px]"
+      style={{
+        // O `x` está em unidades do viewBox e o SVG estica com a largura,
+        // então a posição horizontal vira porcentagem. A vertical é direta: a
+        // altura do SVG é fixa em H.
+        left: `${(alvo.x / W) * 100}%`,
+        // Ancorar pela BASE (`bottom`) e não pelo topo é o truque que evita
+        // medir: o navegador cresce o balão para cima sozinho, seja qual for o
+        // conteúdo. Um `top` calculado precisaria da altura, que muda com o
+        // aviso de área pequena.
+        ...(alvo.y > H * 0.45 ? { bottom: H - alvo.y + 14 } : { top: alvo.y + 14 }),
+        transform: alvo.x > W * 0.62 ? "translateX(-100%)" : "translateX(-40%)",
+      }}
+    >
+      <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+        {alvo.ondaLabel}
+      </p>
+      <p className="text-sm font-semibold" style={{ color: alvo.cor }}>
+        {alvo.area}
+      </p>
 
-            {/* A composição por trás da subtração. Absoluto E porcentagem:
-                "17 de 24" e "71%" respondem perguntas diferentes, e quem lê
-                usa as duas. */}
-            <div className="mt-2 space-y-0.5 text-[11px]">
-              {(
-                [
-                  ["Promotores", alvo.ponto.promotores, COLORS.success],
-                  ["Passivos", alvo.ponto.passivos, COLORS.gray400],
-                  ["Detratores", alvo.ponto.detratores, COLORS.danger],
-                ] as const
-              ).map(([rotulo, valor, cor]) => (
-                <div key={rotulo} className="flex items-center justify-between gap-3">
-                  <span className="flex items-center gap-1.5 text-muted-foreground">
-                    <span className="h-2 w-2 rounded-full" style={{ background: cor }} />
-                    {rotulo}
-                  </span>
-                  <span className="tabular-nums">
-                    {valor ?? "—"}
-                    {pct(valor, alvo.ponto.n) != null && (
-                      <span className="text-muted-foreground"> · {pct(valor, alvo.ponto.n)}%</span>
-                    )}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-2 pt-1.5 border-t border-border/60 flex items-center justify-between gap-3 text-[11px]">
-              <span className="text-muted-foreground">Risco de saída</span>
-              <span className="tabular-nums">
-                {alvo.ponto.risco == null ? "—" : `${alvo.ponto.risco}%`}
-              </span>
-            </div>
-            <div className="flex items-center justify-between gap-3 text-[11px]">
-              <span className="text-muted-foreground">Satisfação</span>
-              <span className="tabular-nums">{alvo.ponto.satisfacao ?? "—"}</span>
-            </div>
-
-            {/* A ressalva que só aparece quando é verdade. Com n pequeno, o
-                movimento do índice diz mais sobre o tamanho da área do que
-                sobre o que as pessoas acham. */}
-            {alvo.ponto.n != null && alvo.ponto.n > 0 && alvo.ponto.n < 30 && (
-              <p className="mt-2 text-[10px] leading-snug text-amber-600 dark:text-amber-500">
-                Área pequena: uma pessoa move o eNPS em {Math.round((100 / alvo.ponto.n) * 10) / 10}{" "}
-                pontos.
-              </p>
-            )}
-          </div>
-        )}
+      <div className="mt-1.5 flex items-baseline gap-2">
+        <span className="text-2xl font-bold tabular-nums">{Math.round(alvo.ponto.enps)}</span>
+        <span className="text-[11px] text-muted-foreground">
+          eNPS · {alvo.ponto.n ?? "—"} respostas
+        </span>
       </div>
 
-      <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-        Uma linha por área — passe o mouse num ponto para ver a composição por trás do número. Onde
-        a linha interrompe, a área não respondeu naquela onda: o traço não atravessa o buraco,
-        porque atravessar afirmaria uma trajetória que ninguém mediu.
-      </p>
-    </ChartCard>
+      {/* A composição por trás da subtração. Absoluto E porcentagem:
+          "17 de 24" e "71%" respondem perguntas diferentes, e quem lê
+          usa as duas. */}
+      <div className="mt-2 space-y-0.5 text-[11px]">
+        {(
+          [
+            ["Promotores", alvo.ponto.promotores, COLORS.success],
+            ["Passivos", alvo.ponto.passivos, COLORS.gray400],
+            ["Detratores", alvo.ponto.detratores, COLORS.danger],
+          ] as const
+        ).map(([rotulo, valor, cor]) => (
+          <div key={rotulo} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5 text-muted-foreground">
+              <span className="h-2 w-2 rounded-full" style={{ background: cor }} />
+              {rotulo}
+            </span>
+            <span className="tabular-nums">
+              {valor ?? "—"}
+              {pct(valor, alvo.ponto.n) != null && (
+                <span className="text-muted-foreground"> · {pct(valor, alvo.ponto.n)}%</span>
+              )}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-2 pt-1.5 border-t border-border/60 flex items-center justify-between gap-3 text-[11px]">
+        <span className="text-muted-foreground">Satisfação</span>
+        <span className="tabular-nums">{fmt1(alvo.ponto.satisfacao)}</span>
+      </div>
+      <div className="flex items-center justify-between gap-3 text-[11px]">
+        <span className="text-muted-foreground">Risco de saída</span>
+        <span className="tabular-nums">
+          {alvo.ponto.risco == null ? "—" : `${fmt1(alvo.ponto.risco)}%`}
+        </span>
+      </div>
+
+      {/* A ressalva que só aparece quando é verdade. Com n pequeno, o
+          movimento do índice diz mais sobre o tamanho da área do que
+          sobre o que as pessoas acham. */}
+      {alvo.ponto.n != null && alvo.ponto.n > 0 && alvo.ponto.n < 30 && (
+        <p className="mt-2 text-[10px] leading-snug text-amber-600 dark:text-amber-500">
+          Área pequena: uma pessoa move o eNPS em {Math.round((100 / alvo.ponto.n) * 10) / 10} pontos.
+        </p>
+      )}
+    </div>
   );
 }

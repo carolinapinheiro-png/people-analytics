@@ -423,10 +423,14 @@ export interface EngagementCrossData extends EngagementContextResult {
   ondaAtualLabel: string | null;
   ondaAnteriorLabel: string | null;
   /**
-   * eNPS por área ao longo de TODAS as ondas com dado, da mais antiga para a
-   * mais nova. Só entram ondas que têm linhas de verdade -- jul/25 está
-   * cadastrada com 295 respostas e zero linhas, e uma onda que nunca foi
-   * carregada não vira ponto no gráfico.
+   * Os três indicadores por área ao longo de TODAS as ondas com dado, da mais
+   * antiga para a mais nova. O nome ficou de quando a tela desenhava só o
+   * eNPS; cada ponto sempre trouxe risco e satisfação junto, e desde que a
+   * série virou três painéis os três são usados.
+   *
+   * Só entram ondas que têm linhas de verdade -- jul/25 está cadastrada com
+   * 295 respostas e zero linhas, e uma onda que nunca foi carregada não vira
+   * ponto no gráfico.
    *
    * Com duas ondas, a tela desenha o slope (a pergunta da reunião é "o que
    * mudou desde a última pesquisa"). Com três ou mais, vira linha do tempo.
