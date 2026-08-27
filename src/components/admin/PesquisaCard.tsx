@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parsePollyExport } from '@/lib/aggregator/polly-parser';
 import {
-  computeCuts, computeDriverScores, computeDriverImportance,
+  computeCuts, computeDriverScores, computeDriverImportance, CUTS_PADRAO,
 } from '@/lib/aggregator/polly-survey';
 import {
   importSurveyWave, listSurveyWaves, type ResultadoCarga,
@@ -128,7 +128,22 @@ export function PesquisaCard() {
         encontrado: p.encontrado,
         ignorados: p.ignorados,
         cuts: computeCuts(p.responses),
-        driverScores: computeDriverScores(p.responses, ['company', 'area', 'tempo', 'funcao', 'marca', 'modelo']),
+        // ------------------------------------------------------------------
+        // OS CRUZADOS TAMBÉM NOS DRIVERS
+        // ------------------------------------------------------------------
+        // Os cuts (eNPS, risco, satisfação) já vinham cruzados desde ago/26;
+        // as notas por pergunta, não. Isso é o que impedia combinar o filtro
+        // de área com o de tempo de casa: os dois existiam, e nunca no mesmo
+        // recorte.
+        //
+        // A conta é a mesma -- `CUT_KEY` já sabe montar "Marketing || 24+
+        // meses", e é o que `computeCuts` usa. Faltava passar os tipos aqui.
+        //
+        // Vale a pena? Medido nos dois CSVs antes de escrever a linha: com o
+        // mínimo de 5 respostas, área × tempo cobre 87% das pessoas em ago/26
+        // e 84% em jan/26; área × função, 99%. As combinações que caem fora
+        // são as pequenas, e essas já seriam suprimidas de qualquer forma.
+        driverScores: computeDriverScores(p.responses, CUTS_PADRAO),
         importance: computeDriverImportance(p.responses),
       });
     } catch (e) {

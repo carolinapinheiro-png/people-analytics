@@ -249,7 +249,21 @@ export interface SurveyWaveData {
 export const getSurveyWave = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) =>
-    z.object({ wave: z.string().optional(), department: z.string().nullish() }).parse(input ?? {}))
+    z.object({
+      wave: z.string().optional(),
+      department: z.string().nullish(),
+      // ------------------------------------------------------------------
+      // O RECORTE DE PERFIL, PARA PEDIR O CRUZADO CERTO
+      // ------------------------------------------------------------------
+      // Com os cruzados nos drivers, a tabela passa a ter ~5.000 linhas por
+      // onda. Mandar tudo para a tela em toda carga seria meio megabyte de
+      // JSON para usar trinta e quatro linhas.
+      //
+      // Então a consulta pede o cruzamento SÓ quando ele está em uso: área +
+      // tempo de casa selecionados juntos trazem 'area+tempo', e mais nada.
+      perfilTipo: z.enum(['tempo', 'modelo', 'marca', 'funcao']).nullish(),
+      perfilValor: z.string().nullish(),
+    }).parse(input ?? {}))
   .handler(async ({ context, data }): Promise<SurveyWaveData | null> => {
     const { profile, scope, podeVerIndividual } = await authorize(context.claims.email as string | undefined);
     const { isGlobalProfile, isInScope } = await import('@/lib/permissions');
@@ -282,6 +296,21 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     const primeiro = (scope.departments ?? [])
       .map((d) => (d ?? '').trim().toUpperCase()).filter(Boolean)[0] ?? '\u0000SEM-ESCOPO';
     const sel = pedido ?? (podeVerTudoEscopo ? null : primeiro);
+
+    // ------------------------------------------------------------------
+    // QUAIS RECORTES DE DRIVER BUSCAR
+    // ------------------------------------------------------------------
+    // Os simples sempre: são o que a aba desenha sem filtro nenhum. O cruzado
+    // entra só quando área E perfil estão selecionados ao mesmo tempo -- é a
+    // única situação em que ele é lido, e ele sozinho tem mais linhas que
+    // todos os outros somados.
+    const perfil = data.perfilTipo && data.perfilValor
+      ? { tipo: data.perfilTipo, valor: data.perfilValor }
+      : null;
+    const tiposDeDriver: string[] = [
+      'company', 'area', 'tempo', 'modelo', 'funcao', 'marca',
+      ...(perfil && data.department ? [`area+${perfil.tipo}`] : []),
+    ];
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -318,7 +347,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       db.from('survey_driver_scores')
         .select('driver, question, cut_type, cut_value, n, score, favoravel')
         .eq('wave', wave.wave)
-        .in('cut_type', ['company', 'area', 'tempo', 'modelo', 'funcao', 'marca']),
+        .in('cut_type', tiposDeDriver),
       // ------------------------------------------------------------------
       // QUANTAS PODIAM RESPONDER, POR ÁREA
       // ------------------------------------------------------------------

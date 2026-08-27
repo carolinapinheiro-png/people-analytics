@@ -9,18 +9,23 @@ import type { SurveyCut, DriverPorRecorte } from '@/lib/survey.functions';
  * ------------------------------------------------------------------
  * POR QUE UMA TELA PRÓPRIA, E NÃO A DE SEMPRE FILTRADA
  * ------------------------------------------------------------------
- * A Anna pediu filtro por tempo de casa e modelo de trabalho. O dado existe --
- * eNPS, risco, satisfação e as notas por pergunta, tudo recortado por essas
- * chaves --, mas ele NÃO cruza com área: `survey_driver_scores` tem as notas
- * por área OU por tempo, nunca pelos dois.
+ * A Anna pediu filtro por tempo de casa e modelo de trabalho. A primeira
+ * versão disto vinha com uma ressalva: o recorte NÃO cruzava com área, porque
+ * `survey_driver_scores` tinha as notas por área OU por tempo, nunca pelos
+ * dois. Filtrar "24+ meses" e manter a tela normal daria uma página metade
+ * recortada.
  *
- * Então filtrar "24+ meses" e manter a tela normal produziria uma página
- * metade recortada e metade não: a fila por área continuaria mostrando as nove
- * áreas inteiras sob um filtro que promete outra coisa. É exatamente o que
- * este painel passou a semana desfazendo.
+ * A ressalva durou pouco. O agregador passou a gravar os cruzados nos drivers
+ * -- a conta já existia, era `CUT_KEY` montando "Marketing || 24+ meses", e
+ * só não era chamada para esta tabela --, então "Marketing E 24+ meses" existe
+ * de verdade e os dois filtros se somam.
  *
- * A saída honesta é uma tela menor e verdadeira: o que o grupo respondeu, em
- * que ele está mais longe da empresa, e uma frase dizendo o que não cabe aqui.
+ * O que continua fora é o que compara ÁREAS ENTRE SI: a fila por área e a
+ * grade área × tema. Com uma área escolhida não há comparação a fazer, e isso
+ * não muda com cruzamento nenhum.
+ *
+ * A tela é a mesma nos dois casos -- o que o grupo respondeu e em que ele está
+ * mais longe da empresa --, e o texto diz qual dos dois está valendo.
  *
  * ------------------------------------------------------------------
  * O QUE ISTO DESTRAVA
@@ -40,6 +45,7 @@ export default function RecorteDePerfil({
   cutType,
   valor,
   rotulo,
+  soValor,
   minimoExibicao = 5,
 }: {
   cuts: SurveyCut[];
@@ -50,15 +56,24 @@ export default function RecorteDePerfil({
   valor: string;
   /** Como o filtro chama a dimensão: "Tempo de casa", "Modelo de trabalho". */
   rotulo: string;
+  /**
+   * O valor SEM a área na frente.
+   *
+   * Com área junto, `valor` vem composto -- "Marketing || 24+ meses" -- porque
+   * é assim que a chave está gravada. No título isso ficaria "Marketing ·
+   * Tempo de casa: Marketing || 24+ meses", com o separador cru na tela.
+   */
+  soValor: string;
   minimoExibicao?: number;
 }) {
   const grupo = cuts.find((c) => c.cutType === cutType && c.cutValue === valor);
   const empresa = cuts.find((c) => c.cutType === 'company');
   const temClima = drivers.some((l) => l.cutType === cutType && l.cutValue === valor);
+  const cruzado = cutType.includes('+');
 
   if (!grupo) {
     return (
-      <ChartCard title={`${rotulo}: ${valor}`}>
+      <ChartCard title={`${rotulo}: ${soValor}`}>
         <p className="text-sm text-muted-foreground py-5 leading-relaxed">
           A onda carregada não tem este recorte. Não é que o grupo não exista: é que a pesquisa
           desta onda não perguntou {rotulo.toLowerCase()}, ou a carga não trouxe a quebra.
@@ -111,7 +126,7 @@ export default function RecorteDePerfil({
   return (
     <div className="space-y-4">
       <ChartCard
-        title={`${rotulo}: ${valor}`}
+        title={`${rotulo}: ${soValor}`}
         subtitle={`${grupo.n} ${grupo.n === 1 ? 'resposta' : 'respostas'}${
           empresa ? ` · empresa: eNPS ${empresa.enps}, risco ${fmt1(empresa.risco)}%` : ''
         }`}
@@ -143,12 +158,25 @@ export default function RecorteDePerfil({
             ------------------------------------------------------------------
             Sem esta frase, quem filtra por tempo de casa procura a fila por
             área e conclui que o painel quebrou. */}
+        {/* O texto muda conforme o recorte seja cruzado ou não: dizer "não
+            cruza com área" numa tela que está cruzando seria a mesma classe
+            de afirmação envelhecida que este painel passou a semana tirando. */}
         <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
-          <strong>Este recorte não cruza com área.</strong> As notas por pergunta existem por área{' '}
-          <em>ou</em> por {rotulo.toLowerCase()}, nunca pelos dois — então a fila por área, a grade
-          área × tema e a matriz de ação ficam de fora enquanto este filtro estiver ligado, em vez
-          de mostrarem as nove áreas inteiras sob um recorte que promete outra coisa. Volte para{' '}
-          <strong>Todos</strong> em {rotulo.toLowerCase()} para tê-las de novo.
+          {cruzado ? (
+            <>
+              <strong>Este é o cruzamento de área com {rotulo.toLowerCase()}.</strong> Os números
+              acima são só de quem está nos dois ao mesmo tempo, e por isso o grupo é menor — com
+              menos de {minimoExibicao} respostas a nota fica oculta. A fila por área e a grade
+              área × tema continuam fora: elas comparam as áreas ENTRE si, e aqui há uma só.
+            </>
+          ) : (
+            <>
+              <strong>Sem área selecionada, este recorte é da empresa inteira.</strong> Escolha um
+              departamento junto para ver o cruzamento — por exemplo, só quem tem 24+ meses{' '}
+              <em>dentro</em> de Marketing. A fila por área e a grade área × tema ficam de fora
+              enquanto houver recorte de perfil: elas comparam áreas entre si.
+            </>
+          )}
         </p>
       </ChartCard>
 

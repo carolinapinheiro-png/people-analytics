@@ -11,7 +11,7 @@ import {
   unavailableFilters,
   FILTER_LABELS,
   RECORTES_EXCLUSIVOS,
-  PERFIL_VS_AREA,
+  PERFIS_EXCLUSIVOS,
   type FilterKey,
 } from "@/lib/tab-filters";
 import { Lock, SlidersHorizontal, X } from "lucide-react";
@@ -226,16 +226,16 @@ export default function FilterBar() {
         if (outro !== key) next[outro] = "Todos";
       }
     }
-    // Área e perfil não se somam no Engajamento -- ver PERFIL_VS_AREA. Para
-    // quem tem escopo, o departamento não é escolha e não pode ser limpo:
-    // nesse caso o exclusivo não se aplica e o servidor mandaria de volta.
+    // Tempo de casa e modelo se excluem ENTRE SI, e agora somam com área --
+    // ver PERFIS_EXCLUSIVOS. O cruzamento gravado é sempre com área
+    // ('area+tempo', 'area+modelo'); 'tempo+modelo' não existe.
     if (
       activeTab === "engagement" &&
-      PERFIL_VS_AREA.includes(key) &&
+      PERFIS_EXCLUSIVOS.includes(key) &&
       value !== "Todos"
     ) {
-      for (const outro of PERFIL_VS_AREA) {
-        if (outro !== key && !(outro === "departamento" && scoped)) next[outro] = "Todos";
+      for (const outro of PERFIS_EXCLUSIVOS) {
+        if (outro !== key) next[outro] = "Todos";
       }
     }
     setFilters(next);

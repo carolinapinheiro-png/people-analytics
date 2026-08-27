@@ -115,9 +115,15 @@ const MAX_FAIXAS = 12;         // 7 faixas de tempo de casa
 const MAX_RECORTES_SIMPLES = 40;
 
 /** Simples + os quatro cruzamentos com área. */
-const MAX_CUTS = MAX_RECORTES_SIMPLES + MAX_AREAS * (MAX_FAIXAS + 3 + 2 + 3);
+/** Recortes simples + área × (tempo, marca, função, modelo). */
+const MAX_GRUPOS = MAX_RECORTES_SIMPLES + MAX_AREAS * (MAX_FAIXAS + 3 + 2 + 3);
+const MAX_CUTS = MAX_GRUPOS;
 /** Uma linha por pergunta × recorte. */
-const MAX_DRIVER_SCORES = MAX_PERGUNTAS * (MAX_RECORTES_SIMPLES + MAX_AREAS);
+// Os drivers passaram a ter os cruzados, então o teto é o mesmo de `cuts`:
+// recortes simples + uma linha por área × cada dimensão cruzada. A conta é
+// idêntica à de MAX_CUTS de propósito -- as duas contam os mesmos grupos, e
+// duas fórmulas diferentes para a mesma coisa divergiriam na primeira mudança.
+const MAX_DRIVER_SCORES = MAX_PERGUNTAS * MAX_GRUPOS;
 /** Uma linha por pergunta, na empresa e em cada área que passa do mínimo. */
 const MAX_IMPORTANCE = MAX_PERGUNTAS * (1 + MAX_AREAS);
 

@@ -162,20 +162,22 @@ export function filtersForTab(tab: DashboardTab, subTab?: string | null): Filter
 export const RECORTES_EXCLUSIVOS: FilterKey[] = ['level', 'tempoCasa'];
 
 /**
- * Na aba de Engajamento, área e perfil não se somam.
+ * Os dois recortes de perfil não se somam ENTRE SI, mas somam com área.
  *
  * ------------------------------------------------------------------
- * PORQUE O CRUZAMENTO NÃO EXISTE NOS DRIVERS
+ * O QUE MUDOU, E POR QUE ERA ASSIM ANTES
  * ------------------------------------------------------------------
- * `survey_cut_scores` tem 'area+tempo', então eNPS e risco de "24+ meses em
- * Marketing" são calculáveis. `survey_driver_scores` NÃO tem: as notas por
- * pergunta existem por área OU por tempo, nunca pelos dois.
+ * Esta lista incluía 'departamento': área e perfil se excluíam, porque
+ * `survey_driver_scores` tinha as notas por área OU por tempo, nunca pelos
+ * dois. Combinar produziria uma tela metade recortada.
  *
- * Combinar os dois filtros produziria uma tela metade recortada e metade não
- * -- exatamente o que este painel passou a semana desfazendo. Então escolher
- * um limpa o outro, e a barra diz isso.
+ * O agregador passou a gravar os cruzados nos drivers, então "Marketing E 24+
+ * meses" existe de verdade e os dois filtros se somam.
  *
- * No dia em que o agregador gravar 'area+tempo' em driver_scores, esta lista
- * some e os filtros passam a se somar.
+ * Tempo de casa e modelo continuam se excluindo entre si: o cruzamento é
+ * SEMPRE com área -- 'area+tempo', 'area+modelo' --, e não há
+ * 'tempo+modelo'. Cruzar três dimensões deixaria quase toda combinação
+ * abaixo do mínimo de cinco respostas, então nem foi gravado.
  */
-export const PERFIL_VS_AREA: FilterKey[] = ['departamento', 'tempoCasa', 'modeloTrabalho'];
+export const PERFIS_EXCLUSIVOS: FilterKey[] = ['tempoCasa', 'modeloTrabalho'];
+

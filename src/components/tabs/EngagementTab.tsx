@@ -44,6 +44,8 @@ import { COLORS } from "@/lib/colors";
 import FreshnessBadge from "@/components/dashboard/FreshnessBadge";
 import { useDashboard } from "@/data/DashboardContext";
 import { semFiltro, valorFiltro } from "@/lib/filtro-sentinela";
+import { scopeForDept } from "@/lib/engagement-context";
+import { SEPARADOR_CRUZAMENTO } from "@/lib/aggregator/polly-survey";
 
 /**
  * Aba Experiencia: engajamento, jornada de entrada e inclusao.
@@ -106,15 +108,39 @@ function EngagementSection({
   // tab-filters). Se os dois viessem preenchidos, o primeiro ganha -- mas a
   // barra não deixa chegar aqui, e depender só dela seria confiar numa regra
   // que mora noutro arquivo.
-  const recortePerfil = !semFiltro(filters.tempoCasa)
-    ? { cutType: "tempo", valor: valorFiltro(filters.tempoCasa) as string, rotulo: "Tempo de casa" }
+  const perfilBase = !semFiltro(filters.tempoCasa)
+    ? { tipo: "tempo", valor: valorFiltro(filters.tempoCasa) as string, rotulo: "Tempo de casa" }
     : !semFiltro(filters.modeloTrabalho)
       ? {
-          cutType: "modelo",
+          tipo: "modelo",
           valor: valorFiltro(filters.modeloTrabalho) as string,
           rotulo: "Modelo de trabalho",
         }
       : null;
+
+  // ------------------------------------------------------------------
+  // COM ÁREA JUNTO, O RECORTE É O CRUZADO
+  // ------------------------------------------------------------------
+  // "Marketing E 24+ meses" mora em 'area+tempo', com o valor composto
+  // "Marketing || 24+ meses". Sem área, o recorte simples basta.
+  //
+  // O nome da área vem de `scopeForDept`: o filtro guarda MARKETING em caixa
+  // alta e o banco grava Marketing. Montar a chave com o valor do filtro
+  // devolveria zero linhas -- e zero linha aqui se leria como "este grupo não
+  // respondeu", que é falso.
+  const areaDoEscopo = data.escopo?.departamento
+    ? scopeForDept(data.escopo.departamento)
+    : null;
+  const recortePerfil = perfilBase
+    ? areaDoEscopo
+      ? {
+          cutType: `area+${perfilBase.tipo}`,
+          valor: `${areaDoEscopo}${SEPARADOR_CRUZAMENTO}${perfilBase.valor}`,
+          rotulo: `${areaDoEscopo} · ${perfilBase.rotulo}`,
+          soValor: perfilBase.valor,
+        }
+      : { ...perfilBase, cutType: perfilBase.tipo, soValor: perfilBase.valor }
+    : null;
 
   const company = data.engagement.find((e) => e.scope === "company");
   const depts = data.engagement.filter((e) => e.scope !== "company");
@@ -432,6 +458,7 @@ function EngagementSection({
           cutType={recortePerfil.cutType}
           valor={recortePerfil.valor}
           rotulo={recortePerfil.rotulo}
+          soValor={recortePerfil.soValor}
           minimoExibicao={survey.minimoExibicao ?? 5}
         />
       ) : (
@@ -1201,7 +1228,24 @@ export default function EngagementTab() {
   // aqui nunca contém nota de grupo pequeno para quem não pode vê-la.
   useEffect(() => {
     let cancelled = false;
-    fetchSurvey({ data: { department: filters.departamento } })
+    // O recorte de perfil vai junto: o servidor só busca o cruzado quando
+    // área E perfil estão selecionados, porque sozinho ele tem mais linhas
+    // que todos os outros recortes somados.
+    fetchSurvey({
+      data: {
+        department: filters.departamento,
+        perfilTipo: !semFiltro(filters.tempoCasa)
+          ? ("tempo" as const)
+          : !semFiltro(filters.modeloTrabalho)
+            ? ("modelo" as const)
+            : null,
+        perfilValor: !semFiltro(filters.tempoCasa)
+          ? valorFiltro(filters.tempoCasa)
+          : !semFiltro(filters.modeloTrabalho)
+            ? valorFiltro(filters.modeloTrabalho)
+            : null,
+      },
+    })
       .then((d) => {
         if (!cancelled) setSurvey(d as SurveyWaveData | null);
       })
@@ -1211,7 +1255,7 @@ export default function EngagementTab() {
     return () => {
       cancelled = true;
     };
-  }, [fetchSurvey, filters.departamento]);
+  }, [fetchSurvey, filters.departamento, filters.tempoCasa, filters.modeloTrabalho]);
 
   if (error)
     return (
