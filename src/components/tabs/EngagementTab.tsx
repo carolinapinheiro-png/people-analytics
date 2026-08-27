@@ -45,7 +45,7 @@ import FreshnessBadge from "@/components/dashboard/FreshnessBadge";
 import { useDashboard } from "@/data/DashboardContext";
 import { semFiltro, valorFiltro } from "@/lib/filtro-sentinela";
 import { scopeForDept } from "@/lib/engagement-context";
-import { SEPARADOR_CRUZAMENTO } from "@/lib/aggregator/polly-survey";
+import { recorteAtivo } from "@/lib/recorte-ativo";
 
 /**
  * Aba Experiencia: engajamento, jornada de entrada e inclusao.
@@ -104,43 +104,18 @@ function EngagementSection({
   // ------------------------------------------------------------------
   // QUAL RECORTE DE PERFIL ESTÁ ATIVO, SE ALGUM
   // ------------------------------------------------------------------
-  // Os dois são exclusivos entre si e com o de área (ver PERFIL_VS_AREA em
-  // tab-filters). Se os dois viessem preenchidos, o primeiro ganha -- mas a
-  // barra não deixa chegar aqui, e depender só dela seria confiar numa regra
-  // que mora noutro arquivo.
-  const perfilBase = !semFiltro(filters.tempoCasa)
-    ? { tipo: "tempo", valor: valorFiltro(filters.tempoCasa) as string, rotulo: "Tempo de casa" }
-    : !semFiltro(filters.modeloTrabalho)
-      ? {
-          tipo: "modelo",
-          valor: valorFiltro(filters.modeloTrabalho) as string,
-          rotulo: "Modelo de trabalho",
-        }
-      : null;
-
-  // ------------------------------------------------------------------
-  // COM ÁREA JUNTO, O RECORTE É O CRUZADO
-  // ------------------------------------------------------------------
-  // "Marketing E 24+ meses" mora em 'area+tempo', com o valor composto
-  // "Marketing || 24+ meses". Sem área, o recorte simples basta.
+  // A decisão mora em `lib/recorte-ativo.ts`, com teste: ela monta a chave do
+  // banco, que muda de forma no caso cruzado -- 'tempo' com "24+ meses" vira
+  // 'area+tempo' com "Marketing || 24+ meses" --, e dentro do JSX a única
+  // forma de conferir era abrir a tela e olhar.
   //
-  // O nome da área vem de `scopeForDept`: o filtro guarda MARKETING em caixa
-  // alta e o banco grava Marketing. Montar a chave com o valor do filtro
-  // devolveria zero linhas -- e zero linha aqui se leria como "este grupo não
-  // respondeu", que é falso.
-  const areaDoEscopo = data.escopo?.departamento
-    ? scopeForDept(data.escopo.departamento)
-    : null;
-  const recortePerfil = perfilBase
-    ? areaDoEscopo
-      ? {
-          cutType: `area+${perfilBase.tipo}`,
-          valor: `${areaDoEscopo}${SEPARADOR_CRUZAMENTO}${perfilBase.valor}`,
-          rotulo: `${areaDoEscopo} · ${perfilBase.rotulo}`,
-          soValor: perfilBase.valor,
-        }
-      : { ...perfilBase, cutType: perfilBase.tipo, soValor: perfilBase.valor }
-    : null;
+  // `scopeForDept` porque o filtro guarda MARKETING e o banco grava Marketing.
+  // Montar a chave com o valor do filtro devolveria zero linhas, e zero linha
+  // aqui se lê como "este grupo não respondeu".
+  const recortePerfil = recorteAtivo(
+    filters,
+    data.escopo?.departamento ? scopeForDept(data.escopo.departamento) : null,
+  );
 
   const company = data.engagement.find((e) => e.scope === "company");
   const depts = data.engagement.filter((e) => e.scope !== "company");
@@ -270,6 +245,35 @@ function EngagementSection({
       <div className="flex justify-end">
         <FreshnessBadge dataset="engagement" />
       </div>
+
+      {/* ------------------------------------------------------------------
+          FILTRO DE PERFIL ATIVO: A TELA VIRA A DAQUELE GRUPO
+          ------------------------------------------------------------------
+          O comentário dizia "a aba troca de conteúdo" e ela trocava da metade
+          para baixo: este bloco ficava DEPOIS dos quatro KPIs e da leitura em
+          texto. Com "24+ meses" escolhido, a primeira coisa na tela continuava
+          sendo o eNPS da empresa inteira -- e a primeira coisa na tela é o que
+          responde "o filtro funcionou?".
+
+          Foi assim que ele chegou como "o filtro de tempo de casa não está
+          funcionando": ele funcionava, e mostrava o resultado abaixo do que
+          não tinha mudado. Um cartão certo embaixo de quatro cartões errados
+          se lê como quatro cartões certos.
+
+          Agora o ternário abre aqui, antes de tudo: ou a aba é do grupo, ou é
+          a de sempre. Ver RecorteDePerfil.tsx. */}
+      {recortePerfil && survey ? (
+        <RecorteDePerfil
+          cuts={survey.cuts}
+          drivers={survey.driversPorArea}
+          cutType={recortePerfil.cutType}
+          valor={recortePerfil.valor}
+          rotulo={recortePerfil.rotulo}
+          soValor={recortePerfil.soValor}
+          minimoExibicao={survey.minimoExibicao ?? 5}
+        />
+      ) : (
+      <>
 
       {/* ------------------------------------------------------------------
           A ORDEM DESTA ABA
@@ -441,29 +445,6 @@ function EngagementSection({
       />
 
       {/* ------------------------------------------------------------------
-          FILTRO DE PERFIL ATIVO: A TELA VIRA A DAQUELE GRUPO
-          ------------------------------------------------------------------
-          Tempo de casa e modelo de trabalho não cruzam com área nas notas por
-          pergunta. Manter a tela normal filtrada daria uma página metade
-          recortada -- a fila por área mostraria as nove áreas inteiras sob um
-          filtro que promete outra coisa.
-
-          Então a aba troca de conteúdo: o que o grupo respondeu, em que ele
-          está mais longe da empresa, e a frase do que não cabe. Ver
-          RecorteDePerfil.tsx. */}
-      {recortePerfil && survey ? (
-        <RecorteDePerfil
-          cuts={survey.cuts}
-          drivers={survey.driversPorArea}
-          cutType={recortePerfil.cutType}
-          valor={recortePerfil.valor}
-          rotulo={recortePerfil.rotulo}
-          soValor={recortePerfil.soValor}
-          minimoExibicao={survey.minimoExibicao ?? 5}
-        />
-      ) : (
-      <>
-      {/* ------------------------------------------------------------------
           QUEM RESPONDEU SOBE PARA O DIAGNÓSTICO
           ------------------------------------------------------------------
           Estava em nono lugar, depois de tudo. A Anna pediu tempo de casa e
@@ -620,9 +601,16 @@ function EngagementSection({
           esta nota baixa é de todo mundo ou de alguém? */}
       {survey && <DispersaoAreas drivers={survey.driversPorArea} />}
 
-      </>
-      )}
+      {/* ------------------------------------------------------------------
+          O DETALHE FICA DENTRO DO TERNÁRIO
+          ------------------------------------------------------------------
+          Ele carrega a tabela por departamento, a matriz de ação e o cartão de
+          aderência -- todos por ÁREA. Sob um filtro de tempo de casa, mostrar
+          as nove áreas ali dentro é a mesma incoerência que a aba acabou de
+          resolver acima, só que escondida num accordion, que é pior: ninguém
+          revisa o que está fechado.
 
+          Quem precisa da metodologia volta o filtro para Todos. */}
       <Detalhe
         titulo="Detalhe e metodologia"
         resumo="como a pesquisa evoluiu, tabela por área, e se ela antecipou as saídas"
@@ -752,6 +740,8 @@ function EngagementSection({
             e 8,7% como se ambos fossem "risco declarado em jan/26". Ver o topo
             de RiscoPreviu.tsx. */}
       </Detalhe>
+      </>
+      )}
     </div>
   );
 }
