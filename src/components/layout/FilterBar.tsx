@@ -12,7 +12,6 @@ import {
   unavailableFilters,
   FILTER_LABELS,
   RECORTES_EXCLUSIVOS,
-  PERFIS_EXCLUSIVOS,
   type FilterKey,
 } from "@/lib/tab-filters";
 import { Lock, SlidersHorizontal, X } from "lucide-react";
@@ -223,14 +222,18 @@ export default function FilterBar() {
    * ------------------------------------------------------------------
    * O VALOR SUMIA EM SILÊNCIO
    * ------------------------------------------------------------------
-   * Escolher tempo de casa zera modelo de trabalho -- eles não se cruzam na
-   * pesquisa. A regra é correta e o comportamento era mudo: o outro seletor
-   * simplesmente voltava para "Todos".
+   * Chegou como "os filtros não estão se cruzando": escolher tempo de casa
+   * fazia modelo de trabalho voltar para "Todos", calado. Quem vê um valor
+   * sumir sozinho conclui que o conjunto todo não combina -- e para de tentar
+   * as combinações que funcionam.
    *
-   * Chegou como "os filtros não estão se cruzando", junto com departamento,
-   * que NÃO é zerado por nada. Quem vê um valor sumir sozinho conclui que o
-   * conjunto todo não combina -- e para de tentar as combinações que
-   * funcionam.
+   * Na PESQUISA isso deixou de acontecer: área, tempo de casa e modelo se
+   * somam, porque os cruzamentos passaram a ser gravados. Sobrou um caso só, e
+   * ele é da SÉRIE MENSAL -- nível × tempo de casa --, que é outro dado e
+   * continua sem o cruzamento pré-calculado.
+   *
+   * O aviso fica porque o caso que sobrou é justamente o que confunde: um
+   * seletor voltando sozinho, numa tela onde os outros somam.
    */
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -242,9 +245,9 @@ export default function FilterBar() {
       limpos.length
         ? `${limpos.map((k) => FILTER_LABELS[k]).join(' e ')} ${
             limpos.length > 1 ? 'voltaram' : 'voltou'
-          } para Todos: a pesquisa não guarda o cruzamento ${
+          } para Todos: a série mensal não guarda o cruzamento ${
             limpos.length > 1 ? 'entre eles' : 'com ' + FILTER_LABELS[key]
-          }. Departamento soma com qualquer um dos dois.`
+          }. Na aba de Engajamento, área, tempo de casa e modelo se somam.`
         : null,
     );
     setFilters(filtros);

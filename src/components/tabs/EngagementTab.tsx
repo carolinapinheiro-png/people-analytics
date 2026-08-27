@@ -1219,22 +1219,27 @@ export default function EngagementTab() {
   // aqui nunca contém nota de grupo pequeno para quem não pode vê-la.
   useEffect(() => {
     let cancelled = false;
-    // O recorte de perfil vai junto: o servidor só busca o cruzado quando
-    // área E perfil estão selecionados, porque sozinho ele tem mais linhas
-    // que todos os outros recortes somados.
+    // ------------------------------------------------------------------
+    // O RECORTE DE PERFIL, MONTADO PELA MESMA FUNÇÃO QUE A TELA USA
+    // ------------------------------------------------------------------
+    // `recorteAtivo(filtros, null)` -- com null no lugar da área, de
+    // propósito. O que sobe é só a PARTE DE PERFIL: 'tempo' com "24+ meses",
+    // ou 'tempo+modelo' com "24+ meses || Remoto" quando os dois estão
+    // ligados. A área quem acrescenta é o servidor, com o nome que o escopo
+    // autoriza.
+    //
+    // Antes isto era um encadeado de ternários que conhecia dois filtros e
+    // parava no primeiro. Acrescentar o segundo perfil ali seria uma terceira
+    // cópia da regra de composição -- e a cópia do servidor já tinha
+    // esquecido a área, procurando "24+ meses" onde está gravado
+    // "Marketing || 24+ meses". Uma composição, um lugar, com teste.
+    const perfilPedido = recorteAtivo(filters, null);
     fetchSurvey({
       data: {
         department: filters.departamento,
-        perfilTipo: !semFiltro(filters.tempoCasa)
-          ? ("tempo" as const)
-          : !semFiltro(filters.modeloTrabalho)
-            ? ("modelo" as const)
-            : null,
-        perfilValor: !semFiltro(filters.tempoCasa)
-          ? valorFiltro(filters.tempoCasa)
-          : !semFiltro(filters.modeloTrabalho)
-            ? valorFiltro(filters.modeloTrabalho)
-            : null,
+        perfilTipo: (perfilPedido?.cutType ?? null) as
+          | "tempo" | "modelo" | "marca" | "funcao" | "tempo+modelo" | null,
+        perfilValor: perfilPedido?.valor ?? null,
       },
     })
       .then((d) => {

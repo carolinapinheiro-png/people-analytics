@@ -1,4 +1,9 @@
-import { ehCruzamento, partesDoCruzamento } from '@/lib/aggregator/polly-survey';
+import {
+  ehCruzamento, partesDoCruzamento, CRUZAMENTOS_SEM_AREA,
+} from '@/lib/aggregator/polly-survey';
+
+/** 'tempo+modelo' cruza duas dimensões transversais: não é de área nenhuma. */
+const semArea = (cutType: string) => (CRUZAMENTOS_SEM_AREA as string[]).includes(cutType);
 
 /**
  * Quem enxerga cada recorte da pesquisa. Uma regra, um lugar.
@@ -36,6 +41,7 @@ import { ehCruzamento, partesDoCruzamento } from '@/lib/aggregator/polly-survey'
 
 /** A área que um recorte identifica, ou `null` quando ele não é de área. */
 export function areaDoRecorte(cutType: string, cutValue: string): string | null {
+  if (semArea(cutType)) return null;
   if (ehCruzamento(cutType)) return partesDoCruzamento(cutValue)?.area ?? null;
   return cutType === 'area' ? cutValue : null;
 }
@@ -57,7 +63,16 @@ export function recorteVisivel(
   //
   // O teste pegou isso na primeira execução, poucos minutos depois de eu
   // escrever a linha. Permissão é onde o custo de um caso não pensado é maior.
+  // 'tempo+modelo' ANTES do teste geral: ele é cruzamento, mas o primeiro
+  // campo é "24+ meses". Passar isso para `passaNoRecorte` compararia uma
+  // faixa de tempo com a lista de áreas -- daria sempre false, barrando um
+  // corte transversal que todo perfil pode ver, e a tela diria "não existe"
+  // para um dado que está lá.
+  if (semArea(cutType)) return true;
+
   if (ehCruzamento(cutType)) {
+    // No triplo, "Marketing || 24+ meses || Remoto" parte no PRIMEIRO
+    // separador e devolve area="Marketing". É o que a permissão precisa.
     const area = partesDoCruzamento(cutValue)?.area;
     return area == null ? false : passaNoRecorte(area);
   }

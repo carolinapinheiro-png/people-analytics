@@ -23,13 +23,16 @@ import { SEM_FILTRO, semFiltro } from '@/lib/filtro-sentinela';
  * RECORTES_EXCLUSIVOS (level, tempo de casa) -- a série mensal não guarda o
  * cruzamento entre eles. Vale em todas as abas que leem a série.
  *
- * PERFIS_EXCLUSIVOS (tempo de casa, modelo) -- na pesquisa, o cruzamento
- * gravado é sempre com ÁREA: 'area+tempo', 'area+modelo'. Não existe
- * 'tempo+modelo', e cruzar três dimensões deixaria quase toda combinação
- * abaixo do mínimo de cinco respostas.
+ * PERFIS_EXCLUSIVOS -- hoje VAZIA. Tempo de casa e modelo se excluíam porque
+ * 'tempo+modelo' não era gravado; passou a ser, e medido é o cruzamento com
+ * melhor aproveitamento do painel. Ver a constante para os números.
  *
  * DEPARTAMENTO NÃO ESTÁ EM NENHUMA DAS DUAS, de propósito: ele soma com
  * qualquer perfil desde que os cruzados passaram a ser gravados nos drivers.
+ *
+ * Com a segunda lista vazia, a barra só troca seleção no caso de nível ×
+ * tempo de casa, que é da SÉRIE MENSAL. Na pesquisa nada mais se apaga
+ * sozinho -- que era o pedido: "os filtros não estão se cruzando".
  */
 
 export interface ResultadoDoFiltro {

@@ -305,16 +305,64 @@ export function computeMetrics(rs: PollyResponse[]): CutMetrics {
 export const SEPARADOR_CRUZAMENTO = ' || ';
 
 export type CutTypeSimples = 'company' | 'area' | 'funcao' | 'marca' | 'tempo' | 'modelo';
-export type CutTypeCruzado = 'area+tempo' | 'area+marca' | 'area+funcao' | 'area+modelo';
+export type CutTypeCruzado =
+  | 'area+tempo' | 'area+marca' | 'area+funcao' | 'area+modelo'
+  // ------------------------------------------------------------------
+  // OS DOIS QUE NÃO COMEÇAM POR ÁREA
+  // ------------------------------------------------------------------
+  // Entraram medidos, não supostos. Eu tinha descartado tempo+modelo dizendo
+  // que "cruzar mais dimensões deixaria quase toda combinação abaixo do
+  // mínimo" -- e ao medir, ele é o ÚNICO com 100% de aproveitamento: 20 de 20
+  // combinações passam de cinco respostas em ago/26. Nem são três dimensões:
+  // são duas.
+  //
+  // O triplo é o oposto e vale assim mesmo: 29 de 106 combinações (27%),
+  // cobrindo 69% das pessoas. Três em cada quatro escolhas caem abaixo do
+  // mínimo, e a tela precisa dizer ISSO quando acontecer, e não "não existe"
+  // -- ver `RecorteDePerfil`, que separa os dois casos.
+  //
+  // A lista das que sobrevivem é um achado por si: quase tudo é
+  // Technology·Remoto e Customer Service·Presencial. O modelo de trabalho é
+  // quase determinado pela área.
+  | 'tempo+modelo' | 'area+tempo+modelo';
 export type CutType = CutTypeSimples | CutTypeCruzado;
 
 export const CRUZAMENTOS: CutTypeCruzado[] = [
   'area+tempo', 'area+marca', 'area+funcao', 'area+modelo',
+  'tempo+modelo', 'area+tempo+modelo',
 ];
+
+/**
+ * Os cruzamentos que NÃO carregam uma área no primeiro campo.
+ *
+ * `partesDoCruzamento` parte o nome no primeiro separador, e é dali que a
+ * permissão tira a área da linha. Em 'tempo+modelo' o primeiro campo é
+ * "24+ meses", que não é área nenhuma: sem esta lista, ele seria comparado
+ * com a lista de áreas do escopo, daria sempre falso, e um corte transversal
+ * que todo perfil pode ver seria barrado -- aparecendo na tela como "não
+ * existe".
+ */
+export const CRUZAMENTOS_SEM_AREA: CutTypeCruzado[] = ['tempo+modelo'];
 
 export function ehCruzamento(cutType: string): cutType is CutTypeCruzado {
   return (CRUZAMENTOS as string[]).includes(cutType);
 }
+
+/**
+ * Monta uma chave cruzada. O ÚNICO lugar que escreve o separador.
+ *
+ * Existe porque a alternativa não funcionou: a server function montava a chave
+ * do cruzado à mão e esqueceu a área -- procurava `cut_value = "24+ meses"`
+ * numa coluna onde está gravado "Marketing || 24+ meses". O `.eq` devolvia
+ * zero linhas, sem erro, e a tela dizia "as notas por pergunta não foram
+ * carregadas com este recorte nesta onda".
+ *
+ * Zero linha e "não existe" são indistinguíveis na tela. Foi assim que o
+ * cruzamento por área ficou anunciado em três blocos de comentário enquanto a
+ * consulta não achava nada.
+ */
+export const comporCruzamento = (...partes: string[]): string =>
+  partes.filter(Boolean).join(SEPARADOR_CRUZAMENTO);
 
 /** "Commercial || 12-18 meses" -> { area, valor }. null se não for cruzamento. */
 export function partesDoCruzamento(
@@ -355,6 +403,16 @@ const CUT_KEY: Record<CutType, (r: PollyResponse) => string | null> = {
   'area+marca': cruzar((r) => r.marca),
   'area+funcao': cruzar(funcaoDe),
   'area+modelo': cruzar((r) => r.modelo),
+  // Sem área no começo: ver CRUZAMENTOS_SEM_AREA.
+  'tempo+modelo': (r) =>
+    r.tempoCasa && r.modelo ? comporCruzamento(r.tempoCasa, r.modelo) : null,
+  // Três campos, dois separadores. `partesDoCruzamento` parte no PRIMEIRO,
+  // então devolve { area: "Marketing", valor: "24+ meses || Remoto" } -- que é
+  // exatamente o que a permissão precisa: a área é o primeiro campo.
+  'area+tempo+modelo': (r) =>
+    r.area && r.tempoCasa && r.modelo
+      ? comporCruzamento(r.area, r.tempoCasa, r.modelo)
+      : null,
 };
 
 export const CUTS_PADRAO: CutType[] = [

@@ -32,9 +32,24 @@ test('modelo de trabalho segue a mesma regra', () => {
   assert.equal(r.valor, 'Technology || Híbrido');
 });
 
-test('com os dois perfis preenchidos, tempo de casa ganha', () => {
-  // A barra não deixa chegar aqui -- eles se excluem --, mas depender só dela
-  // seria confiar numa regra que mora noutro arquivo.
+test('os dois perfis juntos viram UM recorte, na ordem da chave gravada', () => {
   const r = recorteAtivo({ tempoCasa: '24+ meses', modeloTrabalho: 'Remoto' }, null)!;
-  assert.equal(r.cutType, 'tempo');
+  assert.equal(r.cutType, 'tempo+modelo');
+  // A ordem importa: "Remoto || 24+ meses" não acha linha nenhuma, e zero
+  // linha na tela se lê como "este grupo não respondeu".
+  assert.equal(r.valor, '24+ meses || Remoto');
+  assert.equal(r.cruzado, false, 'cruzado quer dizer "tem área junto"');
+});
+
+test('os dois perfis MAIS a área viram o triplo', () => {
+  const r = recorteAtivo({ tempoCasa: '24+ meses', modeloTrabalho: 'Remoto' }, 'Technology')!;
+  assert.equal(r.cutType, 'area+tempo+modelo');
+  assert.equal(r.valor, 'Technology || 24+ meses || Remoto');
+  assert.equal(r.cruzado, true);
+});
+
+test('só modelo, sem tempo, não vira cruzamento', () => {
+  const r = recorteAtivo({ modeloTrabalho: 'Remoto' }, null)!;
+  assert.equal(r.cutType, 'modelo');
+  assert.equal(r.valor, 'Remoto');
 });

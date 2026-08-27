@@ -53,7 +53,7 @@ export default function RecorteDePerfil({
 }: {
   cuts: SurveyCut[];
   drivers: DriverPorRecorte[];
-  /** 'tempo' ou 'modelo'. */
+  /** 'tempo', 'modelo', 'tempo+modelo', 'area+tempo', 'area+tempo+modelo'... */
   cutType: string;
   /** O valor escolhido, como está gravado: "24+ meses", "Híbrido". */
   valor: string;
@@ -80,12 +80,41 @@ export default function RecorteDePerfil({
   const temClima = drivers.some((l) => l.cutType === cutType && l.cutValue === valor);
   const cruzado = cutType.includes('+');
 
-  if (!grupo) {
+  /* ------------------------------------------------------------------
+     "NÃO EXISTE" E "PEQUENO DEMAIS" SÃO COISAS DIFERENTES
+     ------------------------------------------------------------------
+     Este cartão tinha uma mensagem só para os dois casos, e ela dizia que a
+     onda "não tem este recorte". Com o cruzamento triplo isso passou a ser
+     falso na maioria das vezes: medido em ago/26, 77 das 106 combinações de
+     área × tempo de casa × modelo TÊM gente -- só têm menos de cinco pessoas,
+     e a nota fica oculta de propósito, para não identificar ninguém.
+
+     Dizer "não existe" para um grupo que existe é a mesma troca que este
+     painel passou a semana desfazendo. Quem lê conclui que a área não tem
+     ninguém naquela faixa, e isso vira decisão. */
+  if (!grupo || grupo.n < minimoExibicao) {
+    const vazio = !grupo;
     return (
       <ChartCard title={`${rotulo}: ${soValor}`}>
         <p className="text-sm text-muted-foreground py-5 leading-relaxed">
-          A onda carregada não tem este recorte. Não é que o grupo não exista: é que a pesquisa
-          desta onda não perguntou {rotulo.toLowerCase()}, ou a carga não trouxe a quebra.
+          {vazio ? (
+            <>
+              <strong>Ninguém respondeu com esta combinação nesta onda.</strong> Ou a pesquisa
+              desta onda não perguntou {rotulo.toLowerCase()} — modelo de trabalho, por exemplo, só
+              entrou em ago/26 — ou não há pessoa alguma que caia em todos os filtros ao mesmo
+              tempo.
+            </>
+          ) : (
+            <>
+              <strong>
+                Este grupo tem {grupo.n} {grupo.n === 1 ? 'pessoa' : 'pessoas'}, abaixo do mínimo de{' '}
+                {minimoExibicao}.
+              </strong>{' '}
+              O grupo existe — o que não aparece é a nota, porque com tão poucas respostas ela
+              apontaria para indivíduos. Tire um dos filtros para ver o número: com dois recortes
+              de perfil sobre uma área, a maioria das combinações fica abaixo do mínimo.
+            </>
+          )}
         </p>
       </ChartCard>
     );
@@ -173,15 +202,17 @@ export default function RecorteDePerfil({
         <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
           {cruzado ? (
             <>
-              <strong>Este é o cruzamento de área com {rotulo.toLowerCase()}.</strong> Os números
-              acima são só de quem está nos dois ao mesmo tempo, e por isso o grupo é menor — com
-              menos de {minimoExibicao} respostas a nota fica oculta. A fila por área e a grade
-              área × tema continuam fora: elas comparam as áreas ENTRE si, e aqui há uma só.
+              <strong>
+                Os números acima são só de quem está em TODOS os filtros ao mesmo tempo.
+              </strong>{' '}
+              Por isso o grupo é menor que a área inteira, e abaixo de {minimoExibicao} respostas a
+              nota fica oculta. A fila por área e a grade área × tema continuam fora: elas comparam
+              as áreas ENTRE si, e aqui há uma só.
             </>
           ) : (
             <>
               <strong>Sem área selecionada, este recorte é da empresa inteira.</strong> Escolha um
-              departamento junto para ver o cruzamento — por exemplo, só quem tem 24+ meses{' '}
+              departamento junto para estreitar — por exemplo, só quem tem 24+ meses{' '}
               <em>dentro</em> de Marketing. A fila por área e a grade área × tema ficam de fora
               enquanto houver recorte de perfil: elas comparam áreas entre si.
             </>

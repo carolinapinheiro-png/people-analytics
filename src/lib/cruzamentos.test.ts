@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import {
   computeCuts, computeDriverScores, computeDriverImportance,
   CRUZAMENTOS, CUTS_PADRAO, SEPARADOR_CRUZAMENTO,
-  ehCruzamento, partesDoCruzamento, type PollyResponse,
+  ehCruzamento, partesDoCruzamento, comporCruzamento, type PollyResponse,
 } from "./aggregator/polly-survey";
+import { areaDoRecorte, recorteVisivel } from "./recorte-visivel";
 import { recorteNoEscopo } from "./dept-filter";
 import { deptForScope } from "./engagement-context";
 
@@ -43,8 +44,11 @@ const BASE: PollyResponse[] = [
 const acha = (rows: ReturnType<typeof computeCuts>, tipo: string, valor: string) =>
   rows.find((x) => x.cutType === tipo && x.cutValue === valor);
 
-test("os quatro cruzamentos entram no padrão, junto dos simples", () => {
-  assert.deepEqual(CRUZAMENTOS, ["area+tempo", "area+marca", "area+funcao", "area+modelo"]);
+test("os seis cruzamentos entram no padrão, junto dos simples", () => {
+  assert.deepEqual(CRUZAMENTOS, [
+    "area+tempo", "area+marca", "area+funcao", "area+modelo",
+    "tempo+modelo", "area+tempo+modelo",
+  ]);
   for (const c of CRUZAMENTOS) assert.ok(CUTS_PADRAO.includes(c), `${c} fora do padrão`);
   // Os simples continuam: o cruzamento SOMA, não substitui.
   for (const s of ["company", "area", "funcao", "marca", "tempo", "modelo"]) {
@@ -239,4 +243,52 @@ test("uma onda do tamanho da real cabe nos tetos do import", () => {
 
   // E o que o teto antigo teria feito: 34 × 10 recortes passa de 200.
   assert.ok(imp.length > 200, `com importância por área, ${imp.length} > 200 -- o teto antigo`);
+});
+
+
+// ===========================================================================
+// OS DOIS CRUZAMENTOS QUE NÃO SÃO 'area+algo'
+// ===========================================================================
+
+test("tempo+modelo cruza sem área, e a permissão sabe disso", () => {
+  const rows = computeCuts(BASE);
+  const tm = rows.filter((r) => r.cutType === "tempo+modelo");
+  assert.ok(tm.length > 0, "nenhuma linha de tempo+modelo");
+  for (const r of tm) assert.ok(r.cutValue.includes(SEPARADOR_CRUZAMENTO), r.cutValue);
+
+  // `areaDoRecorte` precisa devolver null: o primeiro campo é "24+ meses", e
+  // lê-lo como área compararia uma faixa de tempo com a lista de áreas.
+  assert.equal(areaDoRecorte("tempo+modelo", "24+ meses || Remoto"), null);
+  // E por não ser de área nenhuma, é transversal: passa até para um escopo
+  // que nega tudo. Sem isto, a tela diria "não existe" para um dado que está
+  // gravado e que todo perfil pode ver.
+  assert.equal(recorteVisivel("tempo+modelo", "24+ meses || Remoto", () => false), true);
+});
+
+test("no triplo, a permissão lê a ÁREA do primeiro campo", () => {
+  const chave = "Technology || 24+ meses || Remoto";
+  assert.equal(areaDoRecorte("area+tempo+modelo", chave), "Technology");
+  assert.equal(recorteVisivel("area+tempo+modelo", chave, (a) => a === "Technology"), true);
+  assert.equal(recorteVisivel("area+tempo+modelo", chave, (a) => a === "Marketing"), false);
+});
+
+test("o triplo só nasce quando os TRÊS campos existem", () => {
+  // Meia chave viraria um grupo falso: "Technology || 24+ meses" gravado como
+  // 'area+tempo+modelo' seria lido como um grupo que não é nenhum dos dois.
+  const rows = computeCuts(BASE.map((r) => ({ ...r, modelo: null })));
+  assert.equal(rows.filter((r) => r.cutType === "area+tempo+modelo").length, 0);
+  assert.equal(rows.filter((r) => r.cutType === "tempo+modelo").length, 0);
+  // E os cruzamentos que não dependem de modelo seguem inteiros.
+  assert.ok(rows.some((r) => r.cutType === "area+tempo"));
+});
+
+test("comporCruzamento é o único que escreve o separador", () => {
+  assert.equal(comporCruzamento("Marketing", "24+ meses"), "Marketing || 24+ meses");
+  assert.equal(
+    comporCruzamento("Technology", "24+ meses", "Remoto"),
+    "Technology || 24+ meses || Remoto",
+  );
+  // Sem área, não sobra separador solto na frente -- uma chave que não casa
+  // com nada, e "não casa com nada" chega à tela como "não existe".
+  assert.equal(comporCruzamento("", "24+ meses"), "24+ meses");
 });

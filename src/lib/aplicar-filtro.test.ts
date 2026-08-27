@@ -27,19 +27,37 @@ test('área soma com perfil: os dois ficam de pé', () => {
   assert.equal(r.filtros.tempoCasa, '24+ meses');
 });
 
-test('tempo de casa e modelo se excluem, e o resultado diz quem saiu', () => {
-  // Não existe 'tempo+modelo' gravado: o cruzamento é sempre com área.
+test('tempo de casa e modelo SOMAM: nenhum apaga o outro', () => {
+  // Este teste afirmava o contrário, e estava certo para o banco de então:
+  // 'tempo+modelo' não era gravado, e a barra apagava um para não prometer um
+  // cruzamento inexistente.
+  //
+  // Passou a ser gravado, e medido em ago/26 é o cruzamento com melhor
+  // aproveitamento do painel -- 20 de 20 combinações acima do mínimo. A
+  // exclusão virou a única coisa impedindo o melhor recorte disponível.
   const antes = { ...VAZIO, modeloTrabalho: 'Híbrido' };
   const r = aplicarFiltro(antes, 'tempoCasa', '24+ meses', 'engagement');
   assert.equal(r.filtros.tempoCasa, '24+ meses');
-  assert.equal(r.filtros.modeloTrabalho, 'Todos');
-  assert.deepEqual(r.limpos, ['modeloTrabalho']);
+  assert.equal(r.filtros.modeloTrabalho, 'Híbrido');
+  assert.deepEqual(r.limpos, []);
 });
 
-test('a exclusão entre perfis vale SÓ em Engajamento', () => {
-  const antes = { ...VAZIO, modeloTrabalho: 'Híbrido' };
+test('os três juntos convivem: área não apaga perfil nenhum', () => {
+  const antes = { ...VAZIO, modeloTrabalho: 'Remoto', tempoCasa: '24+ meses' };
+  const r = aplicarFiltro(antes, 'departamento', 'TECHNOLOGY', 'engagement');
+  assert.equal(r.filtros.departamento, 'TECHNOLOGY');
+  assert.equal(r.filtros.tempoCasa, '24+ meses');
+  assert.equal(r.filtros.modeloTrabalho, 'Remoto');
+  assert.deepEqual(r.limpos, []);
+});
+
+test('nível e tempo de casa continuam se excluindo na série mensal', () => {
+  // A outra regra NÃO caiu junto: a série mensal segue sem o cruzamento
+  // pré-calculado entre nível e tempo de casa.
+  const antes = { ...VAZIO, level: 'L4' };
   const r = aplicarFiltro(antes, 'tempoCasa', '1-2 anos', 'attrition');
-  assert.equal(r.filtros.modeloTrabalho, 'Híbrido');
+  assert.equal(r.filtros.level, 'Todos');
+  assert.deepEqual(r.limpos, ['level']);
 });
 
 test('desligar um filtro não mexe em nenhum outro', () => {

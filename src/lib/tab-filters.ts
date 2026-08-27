@@ -162,22 +162,31 @@ export function filtersForTab(tab: DashboardTab, subTab?: string | null): Filter
 export const RECORTES_EXCLUSIVOS: FilterKey[] = ['level', 'tempoCasa'];
 
 /**
- * Os dois recortes de perfil não se somam ENTRE SI, mas somam com área.
+ * Os perfis DEIXARAM de se excluir. Esta lista ficou vazia de propósito.
  *
  * ------------------------------------------------------------------
- * O QUE MUDOU, E POR QUE ERA ASSIM ANTES
+ * O QUE ESTAVA ESCRITO AQUI, E POR QUE ESTAVA ERRADO
  * ------------------------------------------------------------------
- * Esta lista incluía 'departamento': área e perfil se excluíam, porque
- * `survey_driver_scores` tinha as notas por área OU por tempo, nunca pelos
- * dois. Combinar produziria uma tela metade recortada.
+ * "Tempo de casa e modelo continuam se excluindo entre si: o cruzamento é
+ * SEMPRE com área, e não há 'tempo+modelo'. Cruzar três dimensões deixaria
+ * quase toda combinação abaixo do mínimo de cinco respostas, então nem foi
+ * gravado."
  *
- * O agregador passou a gravar os cruzados nos drivers, então "Marketing E 24+
- * meses" existe de verdade e os dois filtros se somam.
+ * A primeira metade era verdade sobre o banco. A segunda era um palpite meu,
+ * escrito com a mesma cara de fato -- e, medido em ago/26, errado nos dois
+ * sentidos:
  *
- * Tempo de casa e modelo continuam se excluindo entre si: o cruzamento é
- * SEMPRE com área -- 'area+tempo', 'area+modelo' --, e não há
- * 'tempo+modelo'. Cruzar três dimensões deixaria quase toda combinação
- * abaixo do mínimo de cinco respostas, então nem foi gravado.
+ *   tempo+modelo .......... 20 de  20 combinações viáveis (100%), cobrindo
+ *                           100% das pessoas. O MELHOR cruzamento do painel,
+ *                           descartado sem contar. Nem são três dimensões:
+ *                           são duas.
+ *   area+tempo+modelo ..... 29 de 106 (27%), cobrindo 69% das pessoas. Aqui o
+ *                           palpite acertou a direção e errou o tamanho: 69%
+ *                           não é "quase nada".
+ *
+ * Os dois passaram a ser gravados e a exclusão perdeu a razão de existir. A
+ * lista fica -- vazia -- porque `aplicarFiltro` a consulta, e porque apagá-la
+ * apagaria junto o registro de que isto já foi uma restrição inventada.
  */
-export const PERFIS_EXCLUSIVOS: FilterKey[] = ['tempoCasa', 'modeloTrabalho'];
+export const PERFIS_EXCLUSIVOS: FilterKey[] = [];
 

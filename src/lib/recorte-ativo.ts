@@ -1,4 +1,4 @@
-import { SEPARADOR_CRUZAMENTO } from '@/lib/aggregator/polly-survey';
+import { comporCruzamento } from '@/lib/aggregator/polly-survey';
 import { semFiltro, valorFiltro } from '@/lib/filtro-sentinela';
 
 /**
@@ -34,7 +34,13 @@ export interface RecorteAtivo {
   cruzado: boolean;
 }
 
-/** Só a parte de perfil: tempo de casa ou modelo, nunca os dois. */
+/**
+ * Os perfis, na ORDEM em que entram na chave.
+ *
+ * A ordem não é estética: 'area+tempo+modelo' é o nome gravado, e montar
+ * "Marketing || Remoto || 24+ meses" não acharia linha nenhuma. Zero linha
+ * aqui chega à tela como "este grupo não respondeu", que é falso.
+ */
 const PERFIS = [
   { chave: 'tempoCasa', tipo: 'tempo', rotulo: 'Tempo de casa' },
   { chave: 'modeloTrabalho', tipo: 'modelo', rotulo: 'Modelo de trabalho' },
@@ -50,19 +56,42 @@ export function recorteAtivo(
    */
   areaGravada: string | null,
 ): RecorteAtivo | null {
-  const perfil = PERFIS.map((p) => ({ ...p, bruto: filtros[p.chave] }))
-    .find((p) => !semFiltro(p.bruto));
-  if (!perfil) return null;
+  const ativos = PERFIS.map((p) => ({ ...p, bruto: filtros[p.chave] }))
+    .filter((p) => !semFiltro(p.bruto))
+    .map((p) => ({ ...p, valor: valorFiltro(p.bruto) as string }));
+  if (!ativos.length) return null;
 
-  const soValor = valorFiltro(perfil.bruto) as string;
+  // ------------------------------------------------------------------
+  // DOIS PERFIS AO MESMO TEMPO
+  // ------------------------------------------------------------------
+  // Tempo de casa e modelo se excluíam porque 'tempo+modelo' não era gravado.
+  // Passou a ser, e medido em ago/26 é o cruzamento com MELHOR aproveitamento
+  // do painel: 20 de 20 combinações acima do mínimo de cinco respostas. A
+  // exclusão era a única coisa impedindo o melhor recorte disponível.
+  //
+  // O triplo, com área, é o oposto: 29 de 106 (27%), cobrindo 69% das
+  // pessoas. Vale, e quem lê isto avisa quando a combinação escolhida é uma
+  // das que não passam -- "existe e é pequeno demais", não "não existe".
+  const tipos = ativos.map((p) => p.tipo);
+  const valores = ativos.map((p) => p.valor);
+  const soValor = valores.join(' · ');
+
   if (!areaGravada) {
-    return { cutType: perfil.tipo, valor: soValor, soValor, rotulo: perfil.rotulo, cruzado: false };
+    return {
+      cutType: tipos.join('+'),
+      valor: comporCruzamento(...valores),
+      soValor,
+      rotulo: ativos.map((p) => p.rotulo).join(' e '),
+      // `cruzado` quer dizer "TEM ÁREA JUNTO", e não "tem mais de um campo".
+      // Quem lê isto decide se explica a ausência da fila por área.
+      cruzado: false,
+    };
   }
   return {
-    cutType: `area+${perfil.tipo}`,
-    valor: `${areaGravada}${SEPARADOR_CRUZAMENTO}${soValor}`,
+    cutType: ['area', ...tipos].join('+'),
+    valor: comporCruzamento(areaGravada, ...valores),
     soValor,
-    rotulo: `${areaGravada} · ${perfil.rotulo}`,
+    rotulo: `${areaGravada} · ${ativos.map((p) => p.rotulo).join(' e ')}`,
     cruzado: true,
   };
 }

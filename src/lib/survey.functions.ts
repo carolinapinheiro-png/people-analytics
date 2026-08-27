@@ -7,7 +7,7 @@ import { parsePollyExport } from '@/lib/aggregator/polly-parser';
 import {
   computeCuts, computeDriverScores, computeDriverImportance,
   applySuppression, ordemTempo, N_MINIMO_EXIBICAO,
-  ehCruzamento, partesDoCruzamento,
+  ehCruzamento, partesDoCruzamento, comporCruzamento, CUTS_PADRAO,
 } from '@/lib/aggregator/polly-survey';
 import { selectedDept, recorteNoEscopo } from '@/lib/dept-filter';
 import { semFiltro } from '@/lib/filtro-sentinela';
@@ -262,7 +262,13 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       //
       // Então a consulta pede o cruzamento SÓ quando ele está em uso: área +
       // tempo de casa selecionados juntos trazem 'area+tempo', e mais nada.
-      perfilTipo: z.enum(['tempo', 'modelo', 'marca', 'funcao']).nullish(),
+      // 'tempo+modelo' entra aqui como UM tipo: tempo de casa e modelo
+      // deixaram de se excluir e juntos formam um recorte só. Com área, vira
+      // 'area+tempo+modelo'.
+      perfilTipo: z.enum(['tempo', 'modelo', 'marca', 'funcao', 'tempo+modelo']).nullish(),
+      // Já composto do lado do PERFIL ("24+ meses || Remoto") quando são dois.
+      // A ÁREA nunca vem daqui: quem a acrescenta é o servidor, com o nome que
+      // o escopo autoriza. Ver `cruzadoPedido`.
       perfilValor: z.string().nullish(),
     }).parse(input ?? {}))
   .handler(async ({ context, data }): Promise<SurveyWaveData | null> => {
@@ -312,7 +318,17 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     const perfil = data.perfilTipo && !semFiltro(data.perfilValor)
       ? { tipo: data.perfilTipo, valor: (data.perfilValor as string).trim() }
       : null;
-    const tiposDeDriver: string[] = ['company', 'area', 'tempo', 'modelo', 'funcao', 'marca'];
+    // ------------------------------------------------------------------
+    // DERIVADO, E NÃO REESCRITO
+    // ------------------------------------------------------------------
+    // Esta lista já foi seis nomes à mão. Um recorte novo no agregador não
+    // chegava à tela até alguém lembrar de acrescentá-lo aqui, e o sintoma era
+    // sempre "a onda não tem este recorte" -- que é falso.
+    //
+    // Os cruzados ficam DE FORA de propósito: são a maioria das linhas da
+    // tabela e vêm por consulta própria, filtrada pelo valor exato. Puxar
+    // 'area+tempo' inteiro aqui já custou um corte silencioso em 1.000 linhas.
+    const tiposDeDriver: string[] = CUTS_PADRAO.filter((t) => !ehCruzamento(t));
 
     // ------------------------------------------------------------------
     // O CRUZADO VEM EM QUERY PRÓPRIA, E FILTRADO PELO VALOR
@@ -339,9 +355,28 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // sentinela. É o mesmo erro que este arquivo já cometeu uma vez, com o
     // mesmo "Todos" -- está escrito trinta linhas acima, no comentário do
     // `pedido`. Reincidi na função que eu mesma tinha lido.
-    const cruzadoPedido = perfil && sel
-      ? { tipo: `area+${perfil.tipo}`, valor: perfil.valor }
-      : null;
+    //
+    // O VALOR PRECISA DA ÁREA DENTRO. Esta linha montava `{ tipo:
+    // 'area+tempo', valor: '24+ meses' }` e consultava
+    // `.eq('cut_value', '24+ meses')` numa coluna que guarda
+    // "Marketing || 24+ meses". Zero linhas, resposta 200, e a tela dizendo
+    // que a onda não tinha o recorte -- enquanto três blocos de comentário
+    // logo acima afirmavam que o cruzamento funcionava.
+    //
+    // A área vem de `deptForScope(sel)`, e NÃO do cliente: `sel` já passou
+    // pela checagem de escopo trinta linhas acima. Aceitar o nome pronto de
+    // quem está pedindo seria deixar a chave do recorte -- que é o que a
+    // permissão lê -- ser escolhida pelo próprio solicitante.
+    const areaGravada = sel ? deptForScope(sel) : null;
+    const cruzadoPedido = !perfil
+      ? null
+      : areaGravada
+        ? { tipo: `area+${perfil.tipo}`, valor: comporCruzamento(areaGravada, perfil.valor) }
+        // Sem área, só os que são cruzamento por si -- 'tempo+modelo'. Os
+        // simples já vêm na consulta de cima e não precisam de outra.
+        : ehCruzamento(perfil.tipo)
+          ? { tipo: perfil.tipo, valor: perfil.valor }
+          : null;
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
