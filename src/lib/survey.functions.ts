@@ -10,6 +10,7 @@ import {
   ehCruzamento, partesDoCruzamento,
 } from '@/lib/aggregator/polly-survey';
 import { selectedDept, recorteNoEscopo } from '@/lib/dept-filter';
+import { semFiltro } from '@/lib/filtro-sentinela';
 import { recorteVisivel } from '@/lib/recorte-visivel';
 
 /**
@@ -304,13 +305,43 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // entra só quando área E perfil estão selecionados ao mesmo tempo -- é a
     // única situação em que ele é lido, e ele sozinho tem mais linhas que
     // todos os outros somados.
-    const perfil = data.perfilTipo && data.perfilValor
-      ? { tipo: data.perfilTipo, valor: data.perfilValor }
+    // `semFiltro` no valor pelo mesmo motivo do departamento: a tela hoje não
+    // manda "Todos" aqui, mas depender disso é depender de uma regra que mora
+    // noutro arquivo -- e foi assim que o sentinela passou nas duas vezes em
+    // que este arquivo tropeçou nele.
+    const perfil = data.perfilTipo && !semFiltro(data.perfilValor)
+      ? { tipo: data.perfilTipo, valor: (data.perfilValor as string).trim() }
       : null;
-    const tiposDeDriver: string[] = [
-      'company', 'area', 'tempo', 'modelo', 'funcao', 'marca',
-      ...(perfil && data.department ? [`area+${perfil.tipo}`] : []),
-    ];
+    const tiposDeDriver: string[] = ['company', 'area', 'tempo', 'modelo', 'funcao', 'marca'];
+
+    // ------------------------------------------------------------------
+    // O CRUZADO VEM EM QUERY PRÓPRIA, E FILTRADO PELO VALOR
+    // ------------------------------------------------------------------
+    // Não é otimização: é correção de um corte silencioso.
+    //
+    // O PostgREST devolve no máximo 1.000 linhas quando ninguém pede outra
+    // coisa, e não avisa -- vem uma resposta 200 com menos dado do que existe.
+    // Pedindo os simples MAIS o cruzado numa consulta só, ago/26 pede 2.822
+    // linhas e recebe 1.000. O que sobra depende da ordem que o banco resolveu
+    // usar, e o sintoma na tela é "o filtro não funciona", sem erro nenhum.
+    //
+    // Separado e filtrado por cut_value, o cruzado são 34 linhas -- uma por
+    // pergunta -- e os simples ficam em 850, dentro do teto com folga.
+    //
+    // `sel`, e NÃO `data.department`. Foi exatamente aqui que quebrou: o
+    // seletor manda a string "Todos" quando nada está filtrado, e "Todos" é
+    // truthy. Com o departamento em Todos, a condição dava verdadeira, a
+    // consulta pedia os simples MAIS o cruzado inteiro -- 2.822 linhas -- e
+    // recebia as primeiras 1.000. As de `tempo` ficavam fora do corte, e a
+    // tela dizia que a onda não tinha o recorte.
+    //
+    // `sel` já passou por `selectedDept`, que é o único lugar que sabe do
+    // sentinela. É o mesmo erro que este arquivo já cometeu uma vez, com o
+    // mesmo "Todos" -- está escrito trinta linhas acima, no comentário do
+    // `pedido`. Reincidi na função que eu mesma tinha lido.
+    const cruzadoPedido = perfil && sel
+      ? { tipo: `area+${perfil.tipo}`, valor: perfil.valor }
+      : null;
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -325,7 +356,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       : (waves ?? [])[0];
     if (!wave) return null;
 
-    const [cutRes, impRes, drvRes, hcRes] = await Promise.all([
+    const [cutRes, impRes, drvRes, hcRes, cruzRes] = await Promise.all([
       db.from('survey_cut_scores').select('*').eq('wave', wave.wave),
       db.from('survey_driver_importance').select('*').eq('wave', wave.wave).order('r', { ascending: false }),
       // ------------------------------------------------------------------
@@ -344,10 +375,16 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       // O payload cresce e vale: são poucas centenas de linhas por onda, e o
       // que se ganha é o clima de quem tem 24+ meses de casa, que hoje não
       // existe em lugar nenhum do painel.
+      //
+      // `limit` EXPLÍCITO, e não por precisão de tamanho: o default de 1.000 do
+      // PostgREST corta sem avisar, e um corte silencioso aqui vira "o filtro
+      // não funciona" na tela. Melhor um teto declarado que estoure de forma
+      // visível no dia em que a pesquisa dobrar de tamanho.
       db.from('survey_driver_scores')
         .select('driver, question, cut_type, cut_value, n, score, favoravel')
         .eq('wave', wave.wave)
-        .in('cut_type', tiposDeDriver),
+        .in('cut_type', tiposDeDriver)
+        .limit(5000),
       // ------------------------------------------------------------------
       // QUANTAS PODIAM RESPONDER, POR ÁREA
       // ------------------------------------------------------------------
@@ -369,6 +406,15 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
         .eq('source', 'convenia')
         .is('quality_flag', null)
         .not('dept_breakdown', 'is', null),
+      // O cruzado, quando há um. Filtrado pelo valor exato: 34 linhas, uma por
+      // pergunta. `cut_value` composto -- "Marketing || 24+ meses".
+      cruzadoPedido
+        ? db.from('survey_driver_scores')
+            .select('driver, question, cut_type, cut_value, n, score, favoravel')
+            .eq('wave', wave.wave)
+            .eq('cut_type', cruzadoPedido.tipo)
+            .eq('cut_value', cruzadoPedido.valor)
+        : Promise.resolve({ data: [], error: null }),
     ]);
     if (cutRes.error) throw new Error(`Falha ao carregar recortes: ${cutRes.error.message}`);
 
@@ -482,7 +528,11 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // A supressão por n baixo vale aqui também: uma área com três respostas
     // não pode ter a nota exposta porque quem olha clicou em vez de ler a
     // tabela.
-    const driversNoEscopo = ((drvRes.error ? [] : drvRes.data ?? []) as Array<Record<string, unknown>>)
+    const driversBrutos = [
+      ...((drvRes.error ? [] : drvRes.data ?? []) as Array<Record<string, unknown>>),
+      ...((cruzRes.error ? [] : cruzRes.data ?? []) as Array<Record<string, unknown>>),
+    ];
+    const driversNoEscopo = driversBrutos
       // A MESMA porta dos cuts, e não uma segunda implementação da ideia.
       // Ver `podeVerORecorte`: foi a divergência entre estas duas linhas que
       // deixou o filtro por tempo de casa sem clima para perfil com escopo.
