@@ -133,10 +133,27 @@ function PorArea({ drivers, p }: { drivers: DriverPorRecorte[]; p: SurveyImporta
   );
 }
 
+/**
+ * O recorte que este cartão está mostrando.
+ *
+ * `departamentoSelecionado` continua sendo o caso comum e vira
+ * `{ cutType: 'area', valor }`. A prop `recorte` existe para os perfis --
+ * tempo de casa, modelo de trabalho -- e para o cruzamento dos dois, onde o
+ * cutType e o valor não são deriváveis de um nome de área.
+ */
+function recorteDo(
+  departamentoSelecionado: string | null | undefined,
+  recorte: { cutType: string; valor: string } | null | undefined,
+): { cutType: string; valor: string } | null {
+  if (recorte) return recorte;
+  return departamentoSelecionado ? { cutType: 'area', valor: departamentoSelecionado } : null;
+}
+
 export default function DriverPriority({
   rows,
   drivers = [],
   departamentoSelecionado = null,
+  recorte = null,
 }: {
   rows: SurveyImportance[];
   /**
@@ -146,6 +163,8 @@ export default function DriverPriority({
    * empresa e a tela diz isso com o número.
    */
   departamentoSelecionado?: string | null;
+  /** Recorte de perfil ou cruzado. Ver `recorteDo`. */
+  recorte?: { cutType: string; valor: string } | null;
   /**
    * Notas por área, para o hover inverter o eixo da leitura.
    *
@@ -175,8 +194,8 @@ export default function DriverPriority({
   // pergunta em quadrantes diferentes -- exatamente o defeito que a régua única
   // tinha acabado de eliminar.
   const escopo = useMemo(
-    () => perguntasNoRecorte(rows, drivers, departamentoSelecionado),
-    [rows, drivers, departamentoSelecionado],
+    () => perguntasNoRecorte(rows, drivers, recorteDo(departamentoSelecionado, recorte)),
+    [rows, drivers, departamentoSelecionado, recorte],
   );
 
   const { prioridade, sustentar, cortes, temaDominante } = useMemo(() => {

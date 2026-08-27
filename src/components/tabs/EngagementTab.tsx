@@ -270,6 +270,7 @@ function EngagementSection({
           valor={recortePerfil.valor}
           rotulo={recortePerfil.rotulo}
           soValor={recortePerfil.soValor}
+          importancia={survey.importancia}
           minimoExibicao={survey.minimoExibicao ?? 5}
         />
       ) : (

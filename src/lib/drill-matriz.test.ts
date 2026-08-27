@@ -32,6 +32,9 @@ const BASE: DriverPorRecorte[] = [
   l("area", "TECHNOLOGY", "Remuneração", "r1", 70),
 ];
 
+/** Açúcar para os testes: o recorte de área, que era o único que existia. */
+const area = (v: string) => ({ cutType: 'area', valor: v });
+
 test("a célula é a média das perguntas do driver, contra a empresa", () => {
   const m = matrizAreaDriver(BASE);
   const c = m.mapa.get("MARKETING||Gestão")!;
@@ -176,7 +179,7 @@ test("com área, TUDO que descreve a resposta passa a ser dela", () => {
   // populações sem avisar. Foi o que aconteceu duas vezes -- primeiro o `n`
   // ficou em 485 ao lado da nota de 81 pessoas, depois o `score` da empresa
   // (4,06) ficou encostado no % de Marketing (53%) na mesma linha da tela.
-  const { linhas } = perguntasNoRecorte(PERGUNTAS, RECORTES, "MARKETING");
+  const { linhas } = perguntasNoRecorte(PERGUNTAS, RECORTES, area("MARKETING"));
   const c1 = linhas.find((p) => p.question === "c1")!;
   assert.equal(c1.favoravel, 55);
   assert.equal(c1.n, 81);
@@ -189,13 +192,13 @@ test("sem score da área, o da empresa fica -- é detalhe, não a leitura", () =
   const semScore: DriverPorRecorte[] = [
     { ...l("area", "MARKETING", "Comunicação", "c1", 55), n: 81, score: null },
   ];
-  const { linhas } = perguntasNoRecorte(PERGUNTAS, semScore, "MARKETING");
+  const { linhas } = perguntasNoRecorte(PERGUNTAS, semScore, area("MARKETING"));
   assert.equal(linhas[0].favoravel, 55);
   assert.equal(linhas[0].score, 4.0);
 });
 
 test("pergunta sem nota da área sai da lista e é contada", () => {
-  const r = perguntasNoRecorte(PERGUNTAS, RECORTES, "MARKETING");
+  const r = perguntasNoRecorte(PERGUNTAS, RECORTES, area("MARKETING"));
   assert.equal(r.linhas.length, 2);
   assert.equal(r.suprimidas, 1);
   assert.ok(!r.linhas.some((p) => p.question === "g1"));
@@ -205,8 +208,8 @@ test("os dois cartões recebem exatamente a mesma lista", () => {
   // O teste que descreve o motivo da função existir: chamada duas vezes com a
   // mesma entrada, ela não pode devolver coisas diferentes -- e enquanto a
   // lógica estava copiada em um cartão só, devolvia.
-  const a = perguntasNoRecorte(PERGUNTAS, RECORTES, "MARKETING");
-  const b = perguntasNoRecorte(PERGUNTAS, RECORTES, "MARKETING");
+  const a = perguntasNoRecorte(PERGUNTAS, RECORTES, area("MARKETING"));
+  const b = perguntasNoRecorte(PERGUNTAS, RECORTES, area("MARKETING"));
   assert.deepEqual(a.linhas, b.linhas);
   assert.equal(a.suprimidas, b.suprimidas);
 });
@@ -214,7 +217,7 @@ test("os dois cartões recebem exatamente a mesma lista", () => {
 test("área sem quebra nenhuma esvazia a lista, em vez de cair na empresa", () => {
   // Silêncio aqui viraria "esta área responde igual à empresa", que é
   // afirmação -- e ninguém mediu isso.
-  const r = perguntasNoRecorte(PERGUNTAS, RECORTES, "LEGAL");
+  const r = perguntasNoRecorte(PERGUNTAS, RECORTES, area("LEGAL"));
   assert.equal(r.linhas.length, 0);
   assert.equal(r.suprimidas, 3);
 });

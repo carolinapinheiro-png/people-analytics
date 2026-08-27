@@ -79,15 +79,34 @@ interface Ponto {
   numero: number;
 }
 
+/**
+ * O recorte que este cartão está mostrando.
+ *
+ * `departamentoSelecionado` continua sendo o caso comum e vira
+ * `{ cutType: 'area', valor }`. A prop `recorte` existe para os perfis --
+ * tempo de casa, modelo de trabalho -- e para o cruzamento dos dois, onde o
+ * cutType e o valor não são deriváveis de um nome de área.
+ */
+function recorteDo(
+  departamentoSelecionado: string | null | undefined,
+  recorte: { cutType: string; valor: string } | null | undefined,
+): { cutType: string; valor: string } | null {
+  if (recorte) return recorte;
+  return departamentoSelecionado ? { cutType: 'area', valor: departamentoSelecionado } : null;
+}
+
 export default function DriverImportance({
   rows,
   drivers = [],
   departamentoSelecionado = null,
+  recorte = null,
 }: {
   rows: SurveyImportance[];
   /** Notas por recorte, para o eixo vertical seguir o filtro. Ver abaixo. */
   drivers?: DriverPorRecorte[];
   departamentoSelecionado?: string | null;
+  /** Recorte de perfil ou cruzado. Ver `recorteDo`. */
+  recorte?: { cutType: string; valor: string } | null;
 }) {
   const [detalhe, setDetalhe] = useState<QuadKey | null>('prioridade');
 
@@ -109,8 +128,8 @@ export default function DriverImportance({
   // função. Enquanto ela esteve copiada aqui dentro, os dois cartões voltaram
   // a discordar sob filtro -- a mesma pergunta em quadrantes diferentes.
   const escopo = useMemo(
-    () => perguntasNoRecorte(rows, drivers, departamentoSelecionado),
-    [rows, drivers, departamentoSelecionado],
+    () => perguntasNoRecorte(rows, drivers, recorteDo(departamentoSelecionado, recorte)),
+    [rows, drivers, departamentoSelecionado, recorte],
   );
 
   const { pontos, corteR, corteNota } = useMemo(() => {

@@ -1,7 +1,9 @@
 import ChartCard from '@/components/dashboard/ChartCard';
 import AreaDriverPanel from '@/components/dashboard/AreaDriverPanel';
+import DriversDeepDive from '@/components/dashboard/DriversDeepDive';
+import DriverPriority from '@/components/dashboard/DriverPriority';
 import { COLORS } from '@/lib/colors';
-import type { SurveyCut, DriverPorRecorte } from '@/lib/survey.functions';
+import type { SurveyCut, DriverPorRecorte, SurveyImportance } from '@/lib/survey.functions';
 
 /**
  * A aba quando o recorte é um PERFIL, e não uma área.
@@ -46,6 +48,7 @@ export default function RecorteDePerfil({
   valor,
   rotulo,
   soValor,
+  importancia = [],
   minimoExibicao = 5,
 }: {
   cuts: SurveyCut[];
@@ -64,6 +67,12 @@ export default function RecorteDePerfil({
    * Tempo de casa: Marketing || 24+ meses", com o separador cru na tela.
    */
   soValor: string;
+  /**
+   * A associação com o eNPS, por pergunta. Não existe por perfil -- só por
+   * empresa e por área --, então aqui ela entra como ORDEM: quais perguntas
+   * mais movem o engajamento na Flutter Brazil, com a nota DESTE grupo.
+   */
+  importancia?: SurveyImportance[];
   minimoExibicao?: number;
 }) {
   const grupo = cuts.find((c) => c.cutType === cutType && c.cutValue === valor);
@@ -179,6 +188,47 @@ export default function RecorteDePerfil({
           )}
         </p>
       </ChartCard>
+
+      {/* ------------------------------------------------------------------
+          OS CARTÕES DE CLIMA, RECORTADOS
+          ------------------------------------------------------------------
+          A primeira versão desta tela tinha três números e uma lista. O pedido
+          foi que o filtro valesse "para todos os indicadores e cards", e a
+          maior parte dele é possível: as notas por pergunta existem para este
+          grupo, e é delas que saem tema por tema e pergunta a pergunta.
+
+          O que NÃO vem junto, e por quê:
+
+            fila por área, grade área × tema, dispersão entre áreas
+              comparam ÁREAS ENTRE SI. Com um grupo só não há comparação --
+              e isso não muda com dado nenhum.
+
+            série ao longo das ondas
+              modelo de trabalho só foi perguntado em ago/26. Uma "série" de
+              um ponto é um ponto.
+
+            a associação com o eNPS
+              só existe por empresa e por área. Aqui ela entra como ORDEM --
+              quais perguntas mais movem o engajamento na empresa -- com a
+              NOTA deste grupo. É o mesmo tratamento que uma área pequena
+              demais para ter correlação própria já recebia. */}
+      {temClima && (
+        <>
+          <DriversDeepDive
+            drivers={[]}
+            porArea={drivers}
+            recorte={{ cutType, valor }}
+          />
+          {importancia.length > 0 && (
+            <DriverPriority
+              rows={importancia}
+              drivers={drivers}
+              recorte={{ cutType, valor }}
+              departamentoSelecionado={soValor}
+            />
+          )}
+        </>
+      )}
 
       {temClima ? (
         <AreaDriverPanel

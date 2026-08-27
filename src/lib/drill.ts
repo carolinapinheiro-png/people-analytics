@@ -332,14 +332,15 @@ export function perfilUniforme(
 // A tela precisa dizer isso, e diz.
 
 /** As linhas da área, indexadas por driver||pergunta. Só as que têm nota. */
-export function linhasDaArea(
+export function linhasDoRecorte(
   linhas: readonly DriverPorRecorte[],
-  area: string,
+  cutType: string,
+  valor: string,
 ): Map<string, DriverPorRecorte> {
-  const alvo = (area ?? '').trim().toLowerCase();
+  const alvo = (valor ?? '').trim().toLowerCase();
   const m = new Map<string, DriverPorRecorte>();
   for (const l of linhas) {
-    if (l.cutType !== 'area') continue;
+    if (l.cutType !== cutType) continue;
     if (l.cutValue.trim().toLowerCase() !== alvo) continue;
     // `favoravel` vem null quando a supressão por n baixo apagou a nota. A
     // pergunta simplesmente não entra -- plotar a da empresa no lugar seria
@@ -348,6 +349,14 @@ export function linhasDaArea(
     m.set(chave(l), l);
   }
   return m;
+}
+
+/** O caso comum. Ver `linhasDoRecorte`. */
+export function linhasDaArea(
+  linhas: readonly DriverPorRecorte[],
+  area: string,
+): Map<string, DriverPorRecorte> {
+  return linhasDoRecorte(linhas, 'area', area);
 }
 
 /**
@@ -407,25 +416,41 @@ export function perguntasNoRecorte<
 >(
   perguntas: readonly T[],
   porRecorte: readonly DriverPorRecorte[],
-  area: string | null | undefined,
+  /**
+   * O recorte: uma área, um perfil, ou o cruzamento dos dois.
+   *
+   * ------------------------------------------------------------------
+   * ERA SÓ ÁREA, E A CONTA NUNCA FOI SOBRE ÁREA
+   * ------------------------------------------------------------------
+   * A função troca a NOTA de cada pergunta pela do recorte, mantendo a ORDEM
+   * -- que vem da associação com o eNPS. Isso vale igual para "Marketing",
+   * "Híbrido" e "Marketing || Híbrido"; o `cutType` fixo em 'area' era o
+   * único impedimento.
+   *
+   * Para perfil, a associação não existe (survey_driver_importance só tem
+   * company e area), então `assocDaEmpresa` fica true e a ordem é a da
+   * empresa -- que é o comportamento correto e já estava escrito para o caso
+   * de área pequena demais para ter correlação própria.
+   */
+  recorte: { cutType: string; valor: string } | null | undefined,
 ): { linhas: T[]; suprimidas: number; assocDaEmpresa: boolean } {
   const daEmpresa = perguntas.filter((p) => (p.cutType ?? 'company') === 'company');
-  if (!area) {
+  if (!recorte) {
     return { linhas: [...daEmpresa], suprimidas: 0, assocDaEmpresa: true };
   }
 
-  // A associação DA ÁREA, quando ela passou do mínimo de respostas.
-  const alvo = (area ?? '').trim().toLowerCase();
+  // A associação DO RECORTE, quando ele passou do mínimo de respostas.
+  const alvo = (recorte.valor ?? '').trim().toLowerCase();
   const assocArea = new Map<string, T>();
   for (const p of perguntas) {
-    if ((p.cutType ?? 'company') !== 'area') continue;
+    if ((p.cutType ?? 'company') !== recorte.cutType) continue;
     if ((p.cutValue ?? '').trim().toLowerCase() !== alvo) continue;
     assocArea.set(chave(p), p);
   }
   const assocDaEmpresa = assocArea.size === 0;
 
-  // A NOTA da área -- essa existe para qualquer área, e vem de outra tabela.
-  const notas = linhasDaArea(porRecorte, area);
+  // A NOTA do recorte -- essa vem de outra tabela e existe para todos eles.
+  const notas = linhasDoRecorte(porRecorte, recorte.cutType, recorte.valor);
 
   const base = assocDaEmpresa ? daEmpresa : [...assocArea.values()];
   const linhas = base.flatMap((p) => {

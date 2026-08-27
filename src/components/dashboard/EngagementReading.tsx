@@ -168,7 +168,7 @@ export default function EngagementReading({
       // usar a nota da área e a frase continuou na da empresa. As duas vezes o
       // sintoma foi o mesmo -- a leitura do topo contando uma quantidade de
       // perguntas que não batia com a lista logo abaixo dela.
-      const { linhas: noRecorte } = perguntasNoRecorte(importancia, drivers, departamento);
+      const { linhas: noRecorte } = perguntasNoRecorte(importancia, drivers, departamento ? { cutType: 'area', valor: departamento } : null);
       const { itens } = classifyPerguntas(noRecorte);
       const prioridade = itens.filter((i) => i.quadrante === 'prioridade');
       const { tema, quantas } = temaDominante(prioridade);

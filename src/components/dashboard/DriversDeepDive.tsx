@@ -5,7 +5,7 @@ import { COLORS } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import type { EngagementDriver } from "@/lib/experience.functions";
 import type { DriverPorRecorte } from "@/lib/survey.functions";
-import { linhasDaArea } from "@/lib/drill";
+import { linhasDoRecorte } from "@/lib/drill";
 
 const ESCALA_MAX = 5;
 
@@ -28,6 +28,7 @@ export default function DriversDeepDive({
   drivers,
   porArea = [],
   departamentoSelecionado = null,
+  recorte = null,
 }: {
   drivers: EngagementDriver[];
   /**
@@ -47,10 +48,16 @@ export default function DriversDeepDive({
    */
   porArea?: DriverPorRecorte[];
   departamentoSelecionado?: string | null;
+  /** Recorte de perfil ou cruzado, quando não for uma área. */
+  recorte?: { cutType: string; valor: string } | null;
 }) {
-  const daArea = departamentoSelecionado
-    ? linhasDaArea(porArea, departamentoSelecionado)
-    : null;
+  // O recorte pode ser uma área, um perfil (tempo de casa, modelo) ou o
+  // cruzamento dos dois. A conta é a mesma: trocar a nota de cada pergunta
+  // pela do grupo. Ver `linhasDoRecorte`.
+  const alvo = recorte ?? (departamentoSelecionado
+    ? { cutType: "area", valor: departamentoSelecionado }
+    : null);
+  const daArea = alvo ? linhasDoRecorte(porArea, alvo.cutType, alvo.valor) : null;
 
   const perguntas = useMemo<Pergunta[]>(() => {
     // Com filtro, as notas da área substituem as da empresa. A dispersão passa
@@ -71,6 +78,7 @@ export default function DriversDeepDive({
   }, [drivers, daArea]);
 
   const daEmpresa = !daArea || daArea.size === 0;
+  const rotuloDoRecorte = alvo?.valor ?? departamentoSelecionado ?? '';
 
   // ------------------------------------------------------------------
   // O DRIVER ABRE, E SÓ UM DE CADA VEZ
@@ -147,18 +155,18 @@ export default function DriversDeepDive({
   // amplitude de 485 pessoas para quem pediu a de 41. Régua da empresa é uma
   // linha de referência ao lado do número da área; isto era o número da
   // empresa NO LUGAR do da área.
-  if (departamentoSelecionado && daEmpresa) {
+  if (alvo && daEmpresa) {
     return (
       <ChartCard
         title="Tema por tema, e o que a média esconde"
       ajuda="temaPorTema"
-        subtitle={departamentoSelecionado}
+        subtitle={rotuloDoRecorte}
         icon={Layers}
       >
         <p className="text-sm text-muted-foreground py-5 leading-relaxed">
           As notas por pergunta não foram carregadas com recorte de área nesta onda, então não há
           esta dispersão para{' '}
-          <strong className="text-foreground">{departamentoSelecionado}</strong>. Não é limite do
+          <strong className="text-foreground">{rotuloDoRecorte}</strong>. Não é limite do
           dado — cada resposta traz área e pergunta juntas —, e reimportar a onda passa a trazer.
           Até lá fica de fora, em vez de mostrar a amplitude da empresa inteira no lugar.
         </p>
@@ -172,7 +180,7 @@ export default function DriversDeepDive({
         title="Tema por tema, e o que a média esconde"
       ajuda="temaPorTema"
         subtitle={`da pergunta mais baixa à mais alta · ordenado pela amplitude${
-          daEmpresa ? '' : ` · ${departamentoSelecionado}`
+          daEmpresa ? '' : ` · ${rotuloDoRecorte}`
         }`}
         icon={Layers}
       >
