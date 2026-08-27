@@ -6,6 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { SCOPE_TO_DEPT } from "@/lib/engagement-context";
 import { TEMPO_ORDEM } from "@/lib/aggregator/polly-survey";
 import { isGlobalProfile, normalizeDept } from "@/lib/permissions";
+import { aplicarFiltro } from "@/lib/aplicar-filtro";
 import {
   filtersForTab,
   unavailableFilters,
@@ -216,29 +217,37 @@ export default function FilterBar() {
   const ativos = disponiveis.filter((k) => filters[k] !== "Todos");
   const ativosForaDaAba = TODAS.filter((k) => filters[k] !== "Todos" && !disponiveis.includes(k));
 
+  /**
+   * O que foi zerado na última mudança, para a barra poder dizer.
+   *
+   * ------------------------------------------------------------------
+   * O VALOR SUMIA EM SILÊNCIO
+   * ------------------------------------------------------------------
+   * Escolher tempo de casa zera modelo de trabalho -- eles não se cruzam na
+   * pesquisa. A regra é correta e o comportamento era mudo: o outro seletor
+   * simplesmente voltava para "Todos".
+   *
+   * Chegou como "os filtros não estão se cruzando", junto com departamento,
+   * que NÃO é zerado por nada. Quem vê um valor sumir sozinho conclui que o
+   * conjunto todo não combina -- e para de tentar as combinações que
+   * funcionam.
+   */
+  const [aviso, setAviso] = useState<string | null>(null);
+
   const set = (key: FilterKey, value: string) => {
-    const next = { ...filters, [key]: value };
-    // Exclusividade: escolher um recorte de dimensao limpa os outros dois. A
-    // serie nao guarda o cruzamento entre eles, entao manter dois ativos
-    // produziria um numero que parece filtrado pelos dois e nao e por nenhum.
-    if (RECORTES_EXCLUSIVOS.includes(key) && value !== "Todos") {
-      for (const outro of RECORTES_EXCLUSIVOS) {
-        if (outro !== key) next[outro] = "Todos";
-      }
-    }
-    // Tempo de casa e modelo se excluem ENTRE SI, e agora somam com área --
-    // ver PERFIS_EXCLUSIVOS. O cruzamento gravado é sempre com área
-    // ('area+tempo', 'area+modelo'); 'tempo+modelo' não existe.
-    if (
-      activeTab === "engagement" &&
-      PERFIS_EXCLUSIVOS.includes(key) &&
-      value !== "Todos"
-    ) {
-      for (const outro of PERFIS_EXCLUSIVOS) {
-        if (outro !== key) next[outro] = "Todos";
-      }
-    }
-    setFilters(next);
+    // A regra mora em `lib/aplicar-filtro.ts`, com teste. Dentro do componente
+    // a única forma de conferir era ler o `if` e torcer.
+    const { filtros, limpos } = aplicarFiltro(filters, key, value, activeTab);
+    setAviso(
+      limpos.length
+        ? `${limpos.map((k) => FILTER_LABELS[k]).join(' e ')} ${
+            limpos.length > 1 ? 'voltaram' : 'voltou'
+          } para Todos: a pesquisa não guarda o cruzamento ${
+            limpos.length > 1 ? 'entre eles' : 'com ' + FILTER_LABELS[key]
+          }. Departamento soma com qualquer um dos dois.`
+        : null,
+    );
+    setFilters(filtros);
   };
   const limparUm = (key: FilterKey) => set(key, "Todos");
   const limparTudo = () =>
@@ -294,6 +303,12 @@ export default function FilterBar() {
             </button>
           </span>
         ))}
+
+        {aviso && (
+          <span className="text-[11px] text-amber-600 dark:text-amber-500 basis-full">
+            {aviso}
+          </span>
+        )}
 
         {ativos.length + ativosForaDaAba.length > 1 && (
           <button
