@@ -20,7 +20,29 @@ const ORG = [
 
 test('nome igual casa e traz a camada', () => {
   const r = vincular([{ id: '1', name: 'Ana Souza' }], ORG);
-  assert.deepEqual(r.casados, [{ id: '1', nome: 'Ana Souza', camada: 'N-3' }]);
+  assert.deepEqual(r.casados, [
+    { id: '1', nome: 'Ana Souza', camada: 'N-3', convenia_id: null },
+  ]);
+});
+
+test('o casamento leva o convenia_id junto, para ser gravado na folha', () => {
+  // O elo existe para PARAR de casar por nome na hora de ler. Este casamento
+  // por nome já devolveu 0% duas vezes esta semana, por dois defeitos
+  // diferentes no mesmo campo do Convenia -- e tudo que dependia dele caiu
+  // junto, em silêncio. Guardado, o elo é conferido uma vez e vira chave.
+  const r = vincular(
+    [{ id: '1', name: 'Ana Souza' }],
+    [{ nome: 'Ana Souza', camada: 'N-3', convenia_id: 'abc-123' }],
+  );
+  assert.equal(r.casados[0].convenia_id, 'abc-123');
+});
+
+test('sem convenia_id na origem, o elo sai null e a camada continua', () => {
+  // Null significa "não casou", e o que depende do elo não aparece. A camada,
+  // que é o que controla ACESSO, não pode cair junto.
+  const r = vincular([{ id: '1', name: 'Ana Souza' }], ORG);
+  assert.equal(r.casados[0].convenia_id, null);
+  assert.equal(r.casados[0].camada, 'N-3');
 });
 
 test('acento, caixa e espaço extra não impedem o casamento', () => {

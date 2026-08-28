@@ -12,6 +12,7 @@ import { useDashboard } from '@/data/DashboardContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { isGlobalProfile } from '@/lib/permissions';
 import { camadaDe, descreverRecorte } from '@/lib/comp-scope';
+import EquidadeCompRatio from '@/components/dashboard/EquidadeCompRatio';
 
 /**
  * CompRatio individual (587 ativos). Dado sensivel: vem da server function
@@ -290,6 +291,20 @@ export default function CompRatioTab() {
           </table>
         </div>
       </ChartCard>
+
+      {/* ------------------------------------------------------------------
+          EQUIDADE, DEPOIS DA LISTA
+          ------------------------------------------------------------------
+          Fica no fim de propósito. A tela começa com o comp-ratio de cada
+          pessoa, que é o dado que quem abre esta aba veio buscar; a leitura
+          por grupo vem depois, quando o significado do número já está na
+          cabeça de quem lê.
+
+          Herda a permissão desta aba inteira -- a mesma `podeVerLinha` que
+          decide quais linhas individuais aparecem decide quem entra na conta.
+          Um gestor vê a equidade da própria área, com as células pequenas
+          suprimidas, e não a da empresa. */}
+      <EquidadeCompRatio />
     </div>
   );
 }

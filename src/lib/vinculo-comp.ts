@@ -26,6 +26,15 @@ export interface PessoaOrgNome {
   /** Nome como está no Convenia. */
   nome: string;
   camada: string | null;
+  /**
+   * A chave da pessoa no Convenia.
+   *
+   * Vai junto da camada para ser GRAVADA na folha -- ver a migração
+   * 20260828160000. Depois disso, quem precisa ligar remuneração a cadastro
+   * usa um join por chave em vez de refazer o casamento por nome, que já
+   * devolveu 0% duas vezes esta semana por defeitos diferentes no mesmo campo.
+   */
+  convenia_id?: string | null;
 }
 
 export interface LinhaComp {
@@ -34,8 +43,8 @@ export interface LinhaComp {
 }
 
 export interface ResultadoVinculo {
-  /** id da linha de comp -> camada a gravar. */
-  casados: Array<{ id: string; nome: string; camada: string }>;
+  /** id da linha de comp -> o que gravar nela. */
+  casados: Array<{ id: string; nome: string; camada: string; convenia_id: string | null }>;
   /** Nome não encontrado no organograma. */
   semCorrespondencia: string[];
   /**
@@ -102,7 +111,10 @@ export function vincular(
     if (achado === 'ambiguo') { ambiguos.push(l.name); continue; }
     if (!achado.camada) { semCamadaNaOrigem.push(l.name); continue; }
 
-    casados.push({ id: l.id, nome: l.name, camada: achado.camada });
+    casados.push({
+      id: l.id, nome: l.name, camada: achado.camada,
+      convenia_id: achado.convenia_id ?? null,
+    });
   }
 
   return { casados, semCorrespondencia, ambiguos, semCamadaNaOrigem };

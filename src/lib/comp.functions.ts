@@ -11,6 +11,9 @@ import { valorFiltro } from '@/lib/filtro-sentinela';
 import {
   camadaDe, filtrarLinhas, podeVerLinha, temCamadaNosDados, type EscopoComp,
 } from '@/lib/comp-scope';
+import {
+  agruparEquidade, N_MINIMO_EQUIDADE, type CompEquidade,
+} from '@/lib/equidade';
 
 /**
  * Acesso ao salario individual + comp ratio dos ativos (587).
@@ -535,7 +538,7 @@ export const vincularCamadaComp = createServerFn({ method: 'POST' })
 
     const [comp, org] = await Promise.all([
       db.from('comp_ratio').select('id, name'),
-      db.from('org_pessoas').select('nome, camada'),
+      db.from('org_pessoas').select('nome, camada, convenia_id'),
     ]);
     if (comp.error) throw new Error(`Falha ao ler a folha: ${comp.error.message}`);
     if (org.error) {
@@ -545,7 +548,9 @@ export const vincularCamadaComp = createServerFn({ method: 'POST' })
     }
 
     const linhas = (comp.data ?? []) as Array<{ id: string; name: string }>;
-    const organograma = (org.data ?? []) as Array<{ nome: string; camada: string | null }>;
+    const organograma = (org.data ?? []) as Array<{
+      nome: string; camada: string | null; convenia_id: string | null;
+    }>;
 
     if (organograma.length === 0) {
       return {
@@ -607,7 +612,29 @@ export const vincularCamadaComp = createServerFn({ method: 'POST' })
       }
     }
 
-    return { ...out, gravado: true };
+    // ------------------------------------------------------------------
+    // O ELO, GRAVADO JUNTO
+    // ------------------------------------------------------------------
+    // A camada dá para agrupar -- são cinco ou seis valores para centenas de
+    // pessoas. O `convenia_id` é único por pessoa, então aqui é uma chamada
+    // por linha mesmo. São ~570 numa ação manual e confirmada, não num
+    // caminho de leitura, e é o preço de nunca mais casar por nome na hora de
+    // ler. Ver a migração 20260828160000.
+    //
+    // Falhar aqui NÃO derruba a camada que acabou de ser gravada: a camada é
+    // o que controla acesso, e ela já entrou. O elo é acessório, e o aviso
+    // conta quantos ficaram sem.
+    let elosGravados = 0;
+    for (const c of r.casados) {
+      if (!c.convenia_id) continue;
+      const { error } = await db
+        .from('comp_ratio')
+        .update({ convenia_id: c.convenia_id } as never)
+        .eq('id', c.id);
+      if (!error) elosGravados++;
+    }
+
+    return { ...out, gravado: true, elosGravados };
   });
 
 /**
@@ -826,5 +853,97 @@ export const getCompAggregates = createServerFn({ method: 'GET' })
       bands: [...bMap.values()],
       levels: [...lMap.values()],
       medians,
+    };
+  });
+
+/* ===========================================================================
+ * EQUIDADE: COMP-RATIO POR GÊNERO E ETNIA
+ * ===========================================================================
+ * O comp-ratio é salário ÷ ponto médio da faixa do cargo. Isso importa aqui
+ * mais do que em qualquer outra tela: nível e família de cargo já estão
+ * controlados POR CONSTRUÇÃO. Comparar comp-ratio entre grupos não é comparar
+ * salário -- é perguntar "dentro da MESMA faixa, quem está posicionado onde".
+ *
+ * É a diferença entre uma leitura de composição (mulheres ganham menos porque
+ * estão em níveis menores) e uma de equidade (no mesmo nível, na mesma faixa,
+ * a posição difere).
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE ESTA TELA EXISTE, E POR QUE NÃO A DE PROMOÇÕES
+ * ---------------------------------------------------------------------------
+ * A pergunta original era cruzar PROMOÇÕES com diversidade. Medido: 62
+ * promoções em três anos, intervalos de ±3 a ±10 pontos, nada significativo em
+ * corte nenhum. Uma tela ali publicaria diferenças que o dado não sustenta.
+ *
+ * Remuneração tem 570 pessoas em vez de 62. É onde a pergunta tem resposta.
+ *
+ * ---------------------------------------------------------------------------
+ * O ELO
+ * ---------------------------------------------------------------------------
+ * `convenia_id` na folha, gravado pela tela de vínculo. NÃO se casa por nome
+ * aqui: esse casamento devolveu 0% duas vezes esta semana, e uma tela de
+ * equidade que silenciosamente perde metade das pessoas é pior que nenhuma.
+ * Linha sem `convenia_id` simplesmente não entra, e o total diz quantas são.
+ */
+
+export const getCompEquidade = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<CompEquidade> => {
+    const { escopoComp } = await authorize(context.claims.email as string | undefined);
+
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const db = supabaseAdmin as unknown as UntypedClient;
+
+    const { data: rows, error } = await db
+      .from('comp_ratio')
+      .select('area, level, n_layer, comp_ratio, convenia_id, in_comp_scope');
+    if (error) throw new Error(`Falha ao carregar equidade: ${error.message}`);
+
+    // A MESMA porta das outras telas de remuneração, e não uma segunda
+    // implementação da ideia. `podeVerLinha` é quem sabe da camada e da área.
+    const visiveis = (rows ?? [])
+      .filter((r) => r.in_comp_scope !== false)
+      .filter((r) => podeVerLinha(escopoComp, { area: r.area, n_layer: r.n_layer }))
+      .filter((r) => typeof r.comp_ratio === 'number' && r.comp_ratio > 0);
+
+    const comElo = visiveis.filter((r) => r.convenia_id);
+    if (!comElo.length) {
+      return { porGenero: [], porEtnia: [], total: visiveis.length, comElo: 0, minimo: N_MINIMO_EQUIDADE };
+    }
+
+    // Demografia lida em BLOCO e reduzida na chegada a duas colunas. A tabela
+    // nunca é consultada por pessoa -- ver a nota na migração 20260814210000.
+    const { data: demo } = await db
+      .from('convenia_pessoas')
+      .select('convenia_id, gender, race')
+      .in('convenia_id', comElo.map((r) => String(r.convenia_id)));
+
+    const porId = new Map(
+      ((demo ?? []) as Array<{ convenia_id: string; gender: string | null; race: string | null }>)
+        .map((d) => [d.convenia_id, d]),
+    );
+
+    const base = comElo.map((r) => {
+      const d = porId.get(String(r.convenia_id));
+      return {
+        nivel: (r.level as string | null) ?? null,
+        genero: d?.gender === 'F' ? 'Feminino' : d?.gender === 'M' ? 'Masculino' : null,
+        etnia: (d?.race ?? '').trim() || null,
+        cr: Number(r.comp_ratio),
+      };
+    });
+
+    return {
+      porGenero: agruparEquidade(
+        base.map((b) => ({ nivel: b.nivel, chave: b.genero, cr: b.cr })),
+        ['Feminino', 'Masculino'],
+      ),
+      porEtnia: agruparEquidade(
+        base.map((b) => ({ nivel: b.nivel, chave: b.etnia, cr: b.cr })),
+        ['Branca', 'Parda', 'Preta', 'Amarela', 'Indígena'],
+      ),
+      total: visiveis.length,
+      comElo: comElo.length,
+      minimo: N_MINIMO_EQUIDADE,
     };
   });
