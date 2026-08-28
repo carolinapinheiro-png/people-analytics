@@ -96,23 +96,53 @@ const ehDesligadoPeloStatus = (s: string | null) => {
 /**
  * O nome completo da pessoa, a partir do que o Convenia devolver.
  *
- * `full_name` primeiro porque e o campo que carrega nome e sobrenome. Se ele
- * nao vier, monta de `first_name`/`last_name`. `name` fica por ultimo: ele
- * existe sempre, e e o primeiro nome -- serve de ultimo recurso para a pessoa
- * nao ficar sem identificacao nenhuma, nao para casar com a folha.
+ * ===========================================================================
+ * POR QUE "TEM ESPACO" NAO SIGNIFICA "ESTA COMPLETO"
+ * ===========================================================================
+ * A primeira versao disto preferia `full_name` sempre que ele tivesse um
+ * espaco, e so montava de first/middle/last se nao tivesse. Parecia seguro e
+ * nao era: o Convenia guarda o primeiro nome em `name` e o RESTO em
+ * `last_name`. A pessoa que na folha e "Tiago Albineli Motta" chegou aqui
+ * como "Albineli Motta" -- dois termos, um espaco, aprovada no teste, e
+ * truncada pela frente.
  *
- * Devolve `null` quando nada serve, porque `vinculo-comp` trata ausencia
- * corretamente (nao casa) e trataria "" como chave vazia, que casaria com
- * qualquer outro vazio.
+ * O casamento com a folha foi de 0 de 606. Antes da correcao anterior tambem
+ * era zero, so que por primeiro nome em vez de por ultimo: o numero na tela
+ * nao mudou, e sem o cartao de conferencia eu teria concluido que funcionou.
+ *
+ * ===========================================================================
+ * A REGRA
+ * ===========================================================================
+ * O primeiro nome e `first_name`, ou `name` quando aquele nao vem. Ele MANDA:
+ * `full_name` so e aceito se comecar por ele. Qualquer outra coisa e montada
+ * na ordem primeiro + meio + resto.
+ *
+ * A comparacao ignora acento e caixa porque as duas fontes divergem nisso --
+ * a folha veio de planilha ("Alvaro") e o Convenia manda "Alvaro" com acento.
  */
+const semAcento = (v: string) =>
+  v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
 export function nomeCompleto(b: Record<string, unknown>): string | null {
-  const txt = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const txt = (v: unknown) => (typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '');
+
+  const primeiro = txt(b.first_name) || txt(b.name);
   const cheio = txt(b.full_name);
-  if (cheio.includes(' ')) return cheio;
-  const partes = [txt(b.first_name), txt(b.middle_name), txt(b.last_name)]
-    .filter(Boolean).join(' ');
-  if (partes.includes(' ')) return partes;
-  return cheio || partes || txt(b.name) || null;
+
+  // `full_name` so vale se contiver o primeiro nome na frente. Sem esta
+  // checagem, um `full_name` truncado passa por completo.
+  if (cheio && primeiro && semAcento(cheio).startsWith(semAcento(primeiro))) return cheio;
+  if (cheio && !primeiro) return cheio || null;
+
+  const resto = [txt(b.middle_name), txt(b.last_name)].filter(Boolean).join(' ');
+  // `last_name` as vezes ja vem com o primeiro nome dentro. Concatenar sem
+  // olhar produziria "Tiago Tiago Albineli Motta".
+  if (resto && primeiro && semAcento(resto).startsWith(semAcento(primeiro))) return resto;
+
+  const montado = [primeiro, resto].filter(Boolean).join(' ');
+  // Devolve `null` no vazio, e nao "": `vinculo-comp` trata ausencia como
+  // "nao casa", mas duas chaves vazias casariam entre si.
+  return montado || null;
 }
 
 /** Quantos nomes vieram com um unico termo -- ou seja, sem sobrenome. */
