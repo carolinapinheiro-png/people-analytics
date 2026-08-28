@@ -197,10 +197,67 @@ test('quebra por área acompanha headcount, entradas e saídas', () => {
   assert.equal(jan.headcount, 2);
   assert.equal(jan.joiners, 2);
   assert.equal(jan.leavers, 1);
-  assert.equal(jan.dept_breakdown.TECH.headcount, 1);
-  assert.equal(jan.dept_breakdown.TECH.joiners, 1);
-  assert.equal(jan.dept_breakdown.TECH.leavers, 1);
-  assert.equal(jan.dept_breakdown.OPERATION.headcount, 1);
+  // `dept_data` -- headcount/entradas/saídas por área. Isto já se chamou
+  // `dept_breakdown` aqui dentro, e esse nome pertence a OUTRA estrutura no
+  // app: as dimensões por área. A carga gravava a coisa fina na coluna da
+  // grossa, e nunca escrevia `dept_data` -- então `applyDeptFilter` não achava
+  // a área e devolvia escalares zerados com os percentuais da empresa.
+  assert.equal(jan.dept_data.TECH.hc, 1);
+  assert.equal(jan.dept_data.TECH.joiners, 1);
+  assert.equal(jan.dept_data.TECH.leavers, 1);
+  assert.equal(jan.dept_data.OPERATION.hc, 1);
+});
+
+test('dept_breakdown traz as dimensões da ÁREA, não as da empresa', () => {
+  // Sem isto o filtro de departamento não tem como recortar gênero e
+  // liderança: `applyDeptFilter` cai no rateio, que multiplica os números da
+  // empresa pela fatia de headcount da área e mantém os percentuais
+  // company-wide. Foi o que deixou "Mulheres — Geral" idêntico ao da empresa
+  // com um departamento selecionado.
+  const pessoas = [
+    p({ id: '1', hiring_date: '2026-01-01', department: { name: 'TECH' }, genero: 'F', raca: 'Preta' }),
+    p({ id: '2', hiring_date: '2026-01-01', department: { name: 'TECH' }, genero: 'M', raca: 'Branca', supervisorId: null }),
+    p({ id: '3', hiring_date: '2026-01-01', department: { name: 'HR' }, genero: 'F', raca: 'Branca', supervisorId: '2' }),
+  ];
+  const { linhas } = reconstruirSerie(pessoas, 'NSX', '2026-01');
+  const bd = linhas[0].dept_breakdown;
+
+  assert.equal(bd.TECH.gender_female, 1);
+  assert.equal(bd.TECH.gender_male, 1);
+  assert.equal(bd.HR.gender_female, 1);
+  assert.equal(bd.HR.gender_male, 0, 'HR não pode herdar o homem que está em TECH');
+
+  // '2' é supervisor de '3', então é gestor -- e é de TECH.
+  assert.equal(bd.TECH.leaders, 1);
+  assert.equal(bd.HR.leaders, 0);
+
+  assert.equal(bd.TECH.race_cross.Preta.total, 1);
+  assert.equal(bd.HR.race_cross.Branca.total, 1);
+  assert.equal(bd.TECH.race_cross.Branca?.total, 1);
+  assert.equal(bd.HR.race_cross.Preta, undefined, 'raça de outra área não vaza');
+
+  assert.equal(bd.TECH.demographics.race.Preta, 1);
+  assert.ok(Object.values(bd.HR.tenure_base).reduce((a, b) => a + b, 0) === 1);
+});
+
+test('a soma das áreas bate com o total da empresa', () => {
+  // A conferência que denuncia dupla contagem ou pessoa perdida: cada pessoa
+  // está em exatamente uma área.
+  const pessoas = [
+    p({ id: '1', hiring_date: '2026-01-01', department: { name: 'TECH' }, genero: 'F' }),
+    p({ id: '2', hiring_date: '2026-01-01', department: { name: 'TECH' }, genero: 'M' }),
+    p({ id: '3', hiring_date: '2026-01-01', department: { name: 'HR' }, genero: 'F' }),
+    p({ id: '4', hiring_date: '2026-01-01', department: { name: 'HR' }, genero: 'M' }),
+  ];
+  const l = reconstruirSerie(pessoas, 'NSX', '2026-01').linhas[0];
+  const soma = (campo: 'gender_female' | 'gender_male') =>
+    Object.values(l.dept_breakdown).reduce((a, b) => a + b[campo], 0);
+  assert.equal(soma('gender_female'), l.gender_female);
+  assert.equal(soma('gender_male'), l.gender_male);
+  assert.equal(
+    Object.values(l.dept_data).reduce((a, b) => a + b.hc, 0),
+    l.headcount,
+  );
 });
 
 test('lista vazia não explode, devolve série vazia com aviso', () => {

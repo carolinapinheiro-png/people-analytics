@@ -602,6 +602,11 @@ export async function executarSyncConvenia(
         joiners: l.joiners,
         leavers: l.leavers,
         attrition_rate: l.attrition_rate,
+        // AS DUAS, e com significados diferentes -- ver LinhaMensal.
+        // `dept_data` e onde `applyDeptFilter` ACHA a area; `dept_breakdown`
+        // sao as dimensoes dela. Esta carga gravava a primeira na coluna da
+        // segunda e nunca escrevia a de verdade.
+        dept_data: l.dept_data,
         dept_breakdown: l.dept_breakdown,
         gender_female: l.gender_female,
         gender_male: l.gender_male,

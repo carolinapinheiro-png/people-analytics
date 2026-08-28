@@ -92,8 +92,21 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
     ([k]) => k.toUpperCase() === dept.toUpperCase()
   );
   if (!deptEntry) {
-    // Department not found in this month — return zeroed record
-    return { ...record, headcount: 0, joiners: 0, leavers: 0, leaders: 0, promotions: 0 };
+    // ------------------------------------------------------------------
+    // NAO ACHOU A AREA: ZERA OS ESCALARES **E SE DECLARA APROXIMADO**
+    // ------------------------------------------------------------------
+    // O `dept_filter_exact` faltava aqui, e este ramo e o mais perigoso dos
+    // tres: ele zera headcount, joiners, leavers, leaders e promotions -- mas
+    // deixa gender_female_pct, leader_female_pct, level_base, tenure_base,
+    // demographics e race_cross com os valores da EMPRESA.
+    //
+    // Filtrar por uma area entao devolvia "Mulheres - Geral: 33,6%" identico
+    // ao da empresa inteira, ao lado de um headcount zero. Sem a marca, nada
+    // rio abaixo tinha como saber que aquilo nao era do departamento.
+    return {
+      ...record, dept_filter_exact: false,
+      headcount: 0, joiners: 0, leavers: 0, leaders: 0, promotions: 0,
+    };
   }
   const [deptName, deptInfo] = deptEntry;
   const ratio = record.headcount > 0 ? deptInfo.hc / record.headcount : 0;

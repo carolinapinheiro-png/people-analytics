@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getMonthData } from './helpers';
+import { quebraPorArea } from './compose-metrics';
 import type { MonthRecord } from './raw-data';
 
 /**
@@ -89,4 +90,38 @@ test('departamento que só existe numa marca sobrevive à soma', () => {
   const c = getMonthData(dados, '2026-08', 'combined');
   assert.equal(c.dept_breakdown?.LEGAL.gender_female, 4);
   assert.equal(c.dept_breakdown?.TECH.gender_female, 1);
+});
+
+// ---------------------------------------------------------------------------
+// A FORMA, CONFERIDA EM TEMPO DE EXECUÇÃO
+// ---------------------------------------------------------------------------
+
+test('a quebra antiga, sem dimensões, é recusada em vez de aceita por um cast', () => {
+  // A carga gravava `{ headcount, joiners, leavers }` nesta coluna, e um `as`
+  // no compose dizia que era a estrutura rica. `applyDeptFilter` então leria
+  // `db.gender_female` de um objeto que não o tem -- undefined virando 0, e 0
+  // virando "esta área não tem nenhuma mulher".
+  const antiga = { COMMERCIAL: { headcount: 48, joiners: 2, leavers: 1 } };
+  assert.equal(quebraPorArea(antiga), undefined);
+});
+
+test('a quebra nova é aceita', () => {
+  const nova = { COMMERCIAL: db({ gender_female: 20, gender_male: 28 }) };
+  assert.ok(quebraPorArea(nova));
+});
+
+test('vazio e nulo devolvem undefined, não objeto', () => {
+  assert.equal(quebraPorArea({}), undefined);
+  assert.equal(quebraPorArea(null), undefined);
+  assert.equal(quebraPorArea(undefined), undefined);
+});
+
+test('mistura de formas é recusada inteira', () => {
+  // Meia quebra é pior que nenhuma: as áreas boas apareceriam e as antigas
+  // sairiam zeradas, sem nada na tela distinguindo as duas.
+  const mista = {
+    TECH: db({ gender_female: 5 }),
+    HR: { headcount: 10, joiners: 0, leavers: 0 },
+  };
+  assert.equal(quebraPorArea(mista), undefined);
 });

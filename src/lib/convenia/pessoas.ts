@@ -32,6 +32,23 @@
  * um erro silencioso não é.
  */
 
+/** As mesmas contas da linha mensal, restritas a uma área. */
+export interface DeptBreakdownPorArea {
+  gender_female: number;
+  gender_male: number;
+  leaders: number;
+  leader_female: number;
+  level_base: Record<string, number>;
+  tenure_base: Record<string, number>;
+  demographics: {
+    age: Record<string, number>;
+    race: Record<string, number>;
+    marital: Record<string, number>;
+    origin: Record<string, number>;
+  };
+  race_cross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
+}
+
 export interface PessoaConvenia {
   id: string;
   /** ISO ou dd/mm/aaaa. Pode faltar. */
@@ -60,7 +77,39 @@ export interface LinhaMensal {
   joiners: number;
   leavers: number;
   attrition_rate: number | null;
-  dept_breakdown: Record<string, { headcount: number; joiners: number; leavers: number }>;
+  /**
+   * Headcount, entradas e saídas por área.
+   *
+   * ------------------------------------------------------------------
+   * O NOME ERA `dept_breakdown`, E ESSE NOME JÁ ESTAVA OCUPADO
+   * ------------------------------------------------------------------
+   * O app tem DUAS estruturas por departamento, com significados diferentes:
+   *
+   *   dept_data ......... { hc, avg_salary_* } -- é o que `applyDeptFilter`
+   *                       usa para ACHAR a área e tirar a fatia.
+   *   dept_breakdown .... { gender_female, leaders, level_base, demographics,
+   *                       race_cross } -- as dimensões recortadas por área.
+   *
+   * Esta carga gravava `{headcount, joiners, leavers}` na coluna
+   * `dept_breakdown`, e nunca escrevia `dept_data`. As duas pontas usavam o
+   * mesmo nome para coisas distintas.
+   *
+   * O efeito: `applyDeptFilter` não achava a área em `dept_data` (vazio) e
+   * saía cedo, devolvendo headcount/leaders/joiners zerados COM todos os
+   * percentuais e distribuições da empresa intactos. Filtrar por uma área
+   * deixava "Mulheres — Geral" igual ao da empresa inteira -- que foi
+   * exatamente o que apareceu na tela do DEI.
+   */
+  dept_data: Record<string, { hc: number; joiners: number; leavers: number }>;
+  /**
+   * As dimensões por área -- gênero, liderança, nível, tempo de casa,
+   * demografia e raça. É o que permite o filtro de departamento recortar de
+   * VERDADE em vez de rateio.
+   *
+   * Nunca foi produzido por esta carga. `applyDeptFilter` tem o caminho exato
+   * escrito e esperando por ele desde sempre.
+   */
+  dept_breakdown: Record<string, DeptBreakdownPorArea>;
   /** Quantas das pessoas presentes no mês são gestoras. */
   leaders: number;
   leaders_pct: number | null;
@@ -400,11 +449,21 @@ export function reconstruirSerie(
   const linhas: LinhaMensal[] = [];
 
   for (const mes of mesesEntre(primeiroMes, ateMes)) {
-    const dept: LinhaMensal['dept_breakdown'] = {};
-    const bump = (area: string, campo: 'headcount' | 'joiners' | 'leavers') => {
-      dept[area] ??= { headcount: 0, joiners: 0, leavers: 0 };
+    const dept: LinhaMensal['dept_data'] = {};
+    const bump = (area: string, campo: 'hc' | 'joiners' | 'leavers') => {
+      dept[area] ??= { hc: 0, joiners: 0, leavers: 0 };
       dept[area][campo]++;
     };
+
+    // As MESMAS contas da linha, por área. É o que faz o filtro de
+    // departamento recortar gênero e liderança de verdade.
+    const porArea: Record<string, DeptBreakdownPorArea> = {};
+    const areaDe_ = (a: string): DeptBreakdownPorArea => (porArea[a] ??= {
+      gender_female: 0, gender_male: 0, leaders: 0, leader_female: 0,
+      level_base: {}, tenure_base: {},
+      demographics: { age: {}, race: {}, marital: {}, origin: {} },
+      race_cross: {},
+    });
 
     let headcount = 0, joiners = 0, leavers = 0, leaders = 0;
     let gF = 0, gM = 0, lidF = 0, generoConhecido = 0, racaConhecida = 0;
@@ -424,15 +483,21 @@ export function reconstruirSerie(
 
       if (presente) {
         headcount++;
-        bump(x.area, 'headcount');
+        bump(x.area, 'hc');
+        // A MESMA pessoa entra na conta da empresa e na da área dela. Duas
+        // linhas por conta, e não uma segunda passada: separar as duas somas
+        // é como elas divergem.
+        const A = areaDe_(x.area);
 
         const ehGestor = gestores.has(x.p.id);
-        if (ehGestor) leaders++;
+        if (ehGestor) { leaders++; A.leaders++; }
 
         if (x.p.genero) {
           generoConhecido++;
-          if (x.p.genero === 'F') { gF++; if (ehGestor) lidF++; }
-          else gM++;
+          if (x.p.genero === 'F') {
+            gF++; A.gender_female++;
+            if (ehGestor) { lidF++; A.leader_female++; }
+          } else { gM++; A.gender_male++; }
         }
 
         const raca = (x.p.raca ?? '').trim();
@@ -442,6 +507,11 @@ export function reconstruirSerie(
           porRaca[raca].total++;
           if (x.p.genero === 'F') porRaca[raca].female++;
           if (ehGestor) porRaca[raca].leaders++;
+
+          const rc = (A.race_cross[raca] ??= { total: 0, female: 0, leaders: 0, female_leaders: 0 });
+          rc.total++;
+          if (x.p.genero === 'F') { rc.female++; if (ehGestor) rc.female_leaders++; }
+          if (ehGestor) rc.leaders++;
         }
 
         if (typeof x.p.salary === 'number' && x.p.salary > 0) {
@@ -453,16 +523,23 @@ export function reconstruirSerie(
 
         const faixa = faixaTempoDeCasa(x.entrada!, mes);
         tenure_base[faixa] = (tenure_base[faixa] ?? 0) + 1;
+        A.tenure_base[faixa] = (A.tenure_base[faixa] ?? 0) + 1;
 
         const idade = faixaEtaria(x.p.birth_date, mes);
-        if (idade) porIdade[idade] = (porIdade[idade] ?? 0) + 1;
+        if (idade) {
+          porIdade[idade] = (porIdade[idade] ?? 0) + 1;
+          A.demographics.age[idade] = (A.demographics.age[idade] ?? 0) + 1;
+        }
 
         // A MESMA raça que alimenta `race_cross`, aqui só contada.
         // `race_cross` tem regra de cobertura porque cruza com gênero e
         // liderança; esta é a distribuição simples, que a aba de Demográficos
         // já sabe rotular como "Não informado" quando falta.
         const racaDemo = (x.p.raca ?? '').trim();
-        if (racaDemo) porRacaDemo[racaDemo] = (porRacaDemo[racaDemo] ?? 0) + 1;
+        if (racaDemo) {
+          porRacaDemo[racaDemo] = (porRacaDemo[racaDemo] ?? 0) + 1;
+          A.demographics.race[racaDemo] = (A.demographics.race[racaDemo] ?? 0) + 1;
+        }
       }
 
       if (x.entrada === mes) { joiners++; bump(x.area, 'joiners'); }
@@ -478,7 +555,8 @@ export function reconstruirSerie(
       brand: marca,
       headcount, joiners, leavers,
       attrition_rate: expostos > 0 ? Math.round((leavers / expostos) * 1000) / 10 : null,
-      dept_breakdown: dept,
+      dept_data: dept,
+      dept_breakdown: porArea,
       leaders,
       leaders_pct: headcount > 0 ? Math.round((leaders / headcount) * 1000) / 10 : null,
       avg_salary_leaders: media(salLideres),

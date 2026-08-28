@@ -15,6 +15,35 @@ import type { MonthlyMetricRow } from '@/lib/metrics.functions';
 
 const num = (v: number | null | undefined): number => (v == null ? 0 : Number(v));
 
+/**
+ * A quebra por área, aceita só quando tem a FORMA certa.
+ *
+ * ===========================================================================
+ * DUAS COISAS DIFERENTES JÁ MORARAM NESTA COLUNA
+ * ===========================================================================
+ * A carga do Convenia gravava `{ headcount, joiners, leavers }` por área aqui
+ * -- o que o app chama de `dept_data` -- enquanto `dept_breakdown`, no app,
+ * significa as DIMENSÕES por área: gênero, liderança, nível, tempo de casa,
+ * demografia e raça. Mesmo nome, significados distintos, e um `as` no meio
+ * dizendo ao compilador que estava tudo bem.
+ *
+ * Enquanto a carga não roda de novo, o banco ainda tem a forma antiga. Sem
+ * esta checagem, `applyDeptFilter` a aceitaria como exata e leria
+ * `db.gender_female` de um objeto que não o tem: `undefined` virando 0 e 0
+ * virando "esta área não tem nenhuma mulher".
+ *
+ * Um `as` não é uma verificação. A forma é conferida em tempo de execução
+ * porque é em tempo de execução que ela chega.
+ */
+export function quebraPorArea(v: unknown): MonthRecord['dept_breakdown'] {
+  if (!v || typeof v !== 'object') return undefined;
+  const entradas = Object.entries(v as Record<string, unknown>);
+  if (!entradas.length) return undefined;
+  const temDimensoes = entradas.every(([, d]) =>
+    !!d && typeof d === 'object' && 'gender_female' in (d as object));
+  return temDimensoes ? (v as MonthRecord['dept_breakdown']) : undefined;
+}
+
 const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
   const ym = String(r.month).slice(0, 7); // 'YYYY-MM-01' -> 'YYYY-MM'
   return {
@@ -53,10 +82,7 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
       r.demographics && Object.keys(r.demographics).length > 0 ? r.demographics : undefined,
     race_cross:
       r.race_cross && Object.keys(r.race_cross).length > 0 ? r.race_cross : undefined,
-    dept_breakdown:
-      r.dept_breakdown && Object.keys(r.dept_breakdown).length > 0
-        ? (r.dept_breakdown as MonthRecord['dept_breakdown'])
-        : undefined,
+    dept_breakdown: quebraPorArea(r.dept_breakdown),
   };
 };
 
