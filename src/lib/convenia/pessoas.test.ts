@@ -397,3 +397,62 @@ test('mulheres em liderança usa a mesma regra de cobertura', () => {
   assert.equal(m.leader_female, 1);
   assert.equal(m.leader_female_pct, 100);
 });
+
+// ---------------------------------------------------------------------------
+// RECORTE POR RAÇA
+// ---------------------------------------------------------------------------
+// A tabela do DEI já existia inteira, atrás de um `hasRaceCross` que nunca foi
+// verdadeiro: `race_cross` saía `{}` em todas as linhas porque ninguém a
+// calculava. O dado estava gravado em `convenia_pessoas` o tempo todo.
+// ---------------------------------------------------------------------------
+
+test('race_cross conta pessoas, mulheres e gestoras por raça', () => {
+  const pessoas = [
+    p({ id: '1', hiring_date: '2026-01-01', genero: 'F', raca: 'Preta' }),
+    p({ id: '2', hiring_date: '2026-01-01', genero: 'M', raca: 'Preta', supervisorId: null }),
+    p({ id: '3', hiring_date: '2026-01-01', genero: 'F', raca: 'Branca', supervisorId: '2' }),
+  ];
+  const { linhas } = reconstruirSerie(pessoas, 'NSX', '2026-01');
+  const rc = linhas[0].race_cross;
+  assert.equal(rc.Preta.total, 2);
+  assert.equal(rc.Preta.female, 1);
+  assert.equal(rc.Branca.total, 1);
+  assert.equal(rc.Branca.female, 1);
+  // Quem tem alguém reportando é gestor -- '2' é supervisor de '3'.
+  assert.equal(rc.Preta.leaders, 1);
+  assert.equal(rc.Branca.leaders, 0);
+});
+
+test('race_cross vem VAZIO quando a cobertura de raça é baixa', () => {
+  // Esta é a regra que impede a tabela de mentir. Ela divide `total` pelo
+  // headcount do mês: com uma pessoa de dez tendo raça conhecida, "Branca:
+  // 10% do quadro" seria lido como representatividade, e é desconhecimento.
+  //
+  // Vazio ESCONDE a tabela inteira, e é o comportamento certo -- ela some em
+  // vez de publicar um número que ninguém consegue conferir.
+  const pessoas = Array.from({ length: 10 }, (_, i) =>
+    p({ id: String(i), hiring_date: '2026-01-01', raca: i === 0 ? 'Branca' : null }));
+  const { linhas } = reconstruirSerie(pessoas, 'NSX', '2026-01');
+  assert.deepEqual(linhas[0].race_cross, {});
+  // O contador bruto continua saindo: é ele que explica POR QUE está vazio.
+  assert.equal(linhas[0].raca_conhecida, 1);
+});
+
+test('race_cross aparece quando a cobertura passa do mínimo', () => {
+  const pessoas = Array.from({ length: 10 }, (_, i) =>
+    p({ id: String(i), hiring_date: '2026-01-01', raca: i === 0 ? null : 'Parda' }));
+  const { linhas } = reconstruirSerie(pessoas, 'NSX', '2026-01');
+  assert.equal(linhas[0].race_cross.Parda.total, 9);
+  assert.equal(linhas[0].raca_conhecida, 9);
+});
+
+test('raça em branco não vira grupo próprio', () => {
+  // "" e "  " como chave criariam uma linha sem nome na tabela do DEI.
+  const pessoas = [
+    p({ id: '1', hiring_date: '2026-01-01', raca: '   ' }),
+    p({ id: '2', hiring_date: '2026-01-01', raca: 'Branca' }),
+  ];
+  const { linhas } = reconstruirSerie(pessoas, 'NSX', '2026-01');
+  assert.deepEqual(Object.keys(linhas[0].race_cross), []);
+  assert.equal(linhas[0].raca_conhecida, 1);
+});

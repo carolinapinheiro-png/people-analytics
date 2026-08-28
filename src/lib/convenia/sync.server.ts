@@ -209,10 +209,22 @@ export async function executarSyncConvenia(
     const LOTE_GENERO = 200;
     const { data: pessoasCache } = await db
       .from('convenia_pessoas')
-      .select('convenia_id, gender');
+      .select('convenia_id, gender, race');
     const cacheGenero = new Map<string, 'F' | 'M' | null>(
       ((pessoasCache ?? []) as { convenia_id: string; gender: string | null }[])
         .map((r) => [r.convenia_id, (r.gender as 'F' | 'M' | null) ?? null]),
+    );
+    // A raça já era GRAVADA em `convenia_pessoas` desde que o gênero entrou --
+    // e nunca era LIDA de volta. Ficava 772 linhas preenchidas no banco
+    // enquanto a tabela do DEI não renderizava por falta do agregado.
+    //
+    // Cache próprio, e não um campo a mais no de gênero, porque o de gênero
+    // decide QUEM BUSCAR no detalhe: `cacheGenero.has(id)` significa "já
+    // perguntei por esta pessoa". Raça e gênero vêm da mesma requisição, então
+    // as duas chegam juntas ou nenhuma chega.
+    const cacheRaca = new Map<string, string | null>(
+      ((pessoasCache ?? []) as { convenia_id: string; race: string | null }[])
+        .map((r) => [r.convenia_id, r.race ?? null]),
     );
     // Quem já foi buscado e voltou sem gênero não é buscado de novo: a linha
     // existe no cache com valor nulo, e isso é a resposta, não uma falha.
@@ -309,6 +321,7 @@ export async function executarSyncConvenia(
           id: p.id, hiring_date: p.hiring_date, department: p.department, status: p.status,
           supervisorId: p.supervisorId, salary: p.salary, birth_date: p.birth_date, uf: p.uf,
           genero: cacheGenero.get(p.id) ?? null,
+          raca: cacheRaca.get(p.id) ?? null,
         }));
 
 
@@ -427,6 +440,7 @@ export async function executarSyncConvenia(
             );
             const raca = (det2.ethnicity as { name?: string } | null)?.name ?? null;
             cacheGenero.set(alvo.id, g);
+            cacheRaca.set(alvo.id, raca);
             generoBuscadosAgora++;
             await db.from('convenia_pessoas').upsert({
               convenia_id: alvo.id,
@@ -441,7 +455,10 @@ export async function executarSyncConvenia(
         }
 
         // Reaplica o que acabou de ser resolvido.
-        for (const r of registros) r.genero = cacheGenero.get(r.id) ?? null;
+        for (const r of registros) {
+          r.genero = cacheGenero.get(r.id) ?? null;
+          r.raca = cacheRaca.get(r.id) ?? null;
+        }
 
         const lista = porMarca.get(f.marca) ?? [];
         lista.push(...registros);
@@ -596,6 +613,9 @@ export async function executarSyncConvenia(
         avg_salary_leaders: l.avg_salary_leaders,
         avg_salary_non_leaders: l.avg_salary_non_leaders,
         state_mix: l.state_mix,
+        // O campo existia na tabela e era gravado sempre vazio. Ver
+        // `race_cross` em pessoas.ts: a tela do DEI depende dele para existir.
+        race_cross: l.race_cross,
         tenure_base: l.tenure_base,
         demographics: l.demographics,
         quality_flag: marcaQualidade,

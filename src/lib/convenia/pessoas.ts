@@ -46,6 +46,8 @@ export interface PessoaConvenia {
   uf?: string | null;
   /** 'F' | 'M' | null. Vem do cache, não da listagem. */
   genero?: 'F' | 'M' | null;
+  /** Cor/raça, como o Convenia escreve ("Branca", "Parda"). Também do cache. */
+  raca?: string | null;
   /** Preenchidos pelo cruzamento com a listagem de desligados. */
   dataSaida?: string | null;
   tipoSaida?: string | null;
@@ -78,6 +80,22 @@ export interface LinhaMensal {
   leader_female_pct: number | null;
   /** Quantas das pessoas presentes têm gênero conhecido. */
   genero_conhecido: number;
+  /**
+   * Representatividade por cor/raça entre quem estava presente no mês.
+   *
+   * `{ Branca: { total, female, leaders }, ... }` -- a forma que a tabela do
+   * DEI espera. Ela já existia, escrita e completa, atrás de um
+   * `hasRaceCross` que nunca foi verdadeiro: este campo saía `{}` em todas as
+   * linhas porque ninguém o calculava, e a tela inteira não renderizava.
+   *
+   * Vem VAZIO quando a cobertura de raça do mês não sustenta percentual --
+   * mesma regra do gênero. A tabela divide `total` pelo headcount do mês, e
+   * com metade das pessoas sem raça conhecida "Branca: 20% do quadro" seria
+   * lido como representatividade quando é desconhecimento.
+   */
+  race_cross: Record<string, { total: number; female: number; leaders: number }>;
+  /** Quantas das pessoas presentes têm raça conhecida. */
+  raca_conhecida: number;
 }
 
 /**
@@ -371,7 +389,8 @@ export function reconstruirSerie(
     };
 
     let headcount = 0, joiners = 0, leavers = 0, leaders = 0;
-    let gF = 0, gM = 0, lidF = 0, generoConhecido = 0;
+    let gF = 0, gM = 0, lidF = 0, generoConhecido = 0, racaConhecida = 0;
+    const porRaca: Record<string, { total: number; female: number; leaders: number }> = {};
     const salLideres: number[] = [];
     const salDemais: number[] = [];
     const state_mix: Record<string, number> = {};
@@ -395,6 +414,15 @@ export function reconstruirSerie(
           generoConhecido++;
           if (x.p.genero === 'F') { gF++; if (ehGestor) lidF++; }
           else gM++;
+        }
+
+        const raca = (x.p.raca ?? '').trim();
+        if (raca) {
+          racaConhecida++;
+          porRaca[raca] ??= { total: 0, female: 0, leaders: 0 };
+          porRaca[raca].total++;
+          if (x.p.genero === 'F') porRaca[raca].female++;
+          if (ehGestor) porRaca[raca].leaders++;
         }
 
         if (typeof x.p.salary === 'number' && x.p.salary > 0) {
@@ -443,6 +471,14 @@ export function reconstruirSerie(
         ? Math.round((lidF / leaders) * 1000) / 10
         : null,
       genero_conhecido: generoConhecido,
+      raca_conhecida: racaConhecida,
+      // Mesma régua do gênero, e pelo mesmo motivo: a tabela do DEI divide
+      // pelo headcount do mês, então cobertura parcial vira subnotificação
+      // apresentada como representatividade. Vazio esconde a tabela inteira,
+      // que é o comportamento certo -- ela some em vez de mentir.
+      race_cross: headcount > 0 && racaConhecida / headcount >= COBERTURA_MINIMA_GENERO
+        ? porRaca
+        : {},
     });
   }
 
