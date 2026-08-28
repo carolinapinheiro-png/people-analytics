@@ -27,8 +27,27 @@ import {
 } from 'lucide-react';
 
 export default function DEITab() {
-  const { currentData, prevData, allMonthsData, currentMonth, brand } = useDashboard();
+  const { currentData, prevData, allMonthsData, currentMonth, brand, filteredDeptKey } = useDashboard();
   const curr = currentData;
+
+  /* ------------------------------------------------------------------
+     O RECORTE POR ÁREA É EXATO, OU NÃO É NADA
+     ------------------------------------------------------------------
+     `applyDeptFilter` tem dois caminhos. Com `dept_breakdown`, recorta de
+     verdade. Sem ela, RATEIA: multiplica os números da empresa pela fatia de
+     headcount do departamento e mantém os percentuais company-wide.
+
+     O rateio chegou à tela como bug: com Commercial selecionado, "Mulheres —
+     Geral" e "Mulheres na liderança" ficavam idênticos aos da empresa
+     (percentual company-wide) enquanto o gráfico de composição de liderança
+     mudava (contagem rateada) -- e o arredondamento do rateio zerava as
+     mulheres, fazendo parecer que a área não tem nenhuma na liderança.
+
+     Dois números contraditórios na mesma tela, e o mais alarmante era o
+     inventado. Agora, quando o recorte não é exato, esta aba não mostra número
+     de gênero nenhum: diz que não tem a quebra. */
+  const recorteAproximado = !!filteredDeptKey
+    && allMonthsData.some((m) => m.dept_filter_exact === false);
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
 
   const fpDelta = prevData
@@ -189,10 +208,25 @@ export default function DEITab() {
         </div>
       )}
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {kpis.map(k => <KpiCard key={k.label} label={k.label} value={k.value} color={k.color} sub={k.sub} icon={k.label.includes('Líder') ? Award : Users} />)}
-      </div>
+      {recorteAproximado ? (
+        <ChartCard title={`Gênero e liderança em ${filteredDeptKey}`}>
+          <p className="text-sm text-muted-foreground py-4 leading-relaxed">
+            <strong className="text-foreground">
+              A série não guarda a quebra de gênero deste departamento nesta marca ou neste período.
+            </strong>{' '}
+            Os números de mulheres, liderança e cor/raça ficam de fora do recorte em vez de
+            aparecerem rateados — o rateio multiplicaria os totais da empresa pela fatia de
+            headcount da área, o que produz gente que não existe e some com gente que existe.
+            Escolha uma marca específica, ou volte o departamento para <em>Todos</em>, para ver os
+            números de verdade.
+          </p>
+        </ChartCard>
+      ) : (
+        <>
+          {/* KPI Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {kpis.map(k => <KpiCard key={k.label} label={k.label} value={k.value} color={k.color} sub={k.sub} icon={k.label.includes('Líder') ? Award : Users} />)}
+          </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -257,7 +291,9 @@ export default function DEITab() {
             <span className="text-xs text-muted-foreground ml-1">líderes mulheres</span>
           </div>
         </ChartCard>
-      </div>
+          </div>
+        </>
+      )}
 
       {/* Liderança feminina por área */}
       {leaderByArea.length > 0 && (

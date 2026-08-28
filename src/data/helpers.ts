@@ -1,4 +1,4 @@
-import { MonthRecord, DeptData } from './raw-data';
+import type { MonthRecord, DeptData, DeptBreakdownRecord } from './raw-data';
 
 export function getMonthsOrder(data: MonthRecord[]): string[] {
   return [...new Set(data.map(d => d.month))].sort();
@@ -115,6 +115,26 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       tenure_base: mergeLevels(n.tenure_base, b.tenure_base, f.tenure_base),
       demographics: mergeDemographics(n.demographics, b.demographics, f.demographics),
       race_cross: mergeRaceCross(n.race_cross, b.race_cross, f.race_cross),
+      // ------------------------------------------------------------------
+      // A QUEBRA POR DEPARTAMENTO TAMBÉM SOMA
+      // ------------------------------------------------------------------
+      // Faltava aqui, e o efeito era grande e mudo. `applyDeptFilter` usa
+      // `dept_breakdown` para recortar gênero, liderança, nível e demografia
+      // DE VERDADE; sem ela, cai num rateio proporcional que multiplica os
+      // números da empresa pela fatia de headcount do departamento e MANTÉM os
+      // percentuais company-wide.
+      //
+      // Como "Combinado" é a marca padrão do painel, era o caminho de todo
+      // mundo: filtrar por Commercial no DEI deixava "Mulheres — Geral" e
+      // "Mulheres na liderança" exatamente iguais aos da empresa, enquanto o
+      // gráfico de composição de liderança mudava -- porque ele lê as
+      // contagens rateadas. Dois números contraditórios na mesma tela, e o
+      // rateio arredondando para zero fazia parecer que o Commercial não tem
+      // nenhuma mulher na liderança.
+      //
+      // Somar por departamento é aritmética: cada marca traz a sua quebra, e
+      // uma pessoa está em exatamente uma delas.
+      dept_breakdown: mergeDeptBreakdown(n.dept_breakdown, b.dept_breakdown, f.dept_breakdown),
     };
   }
   return data.find(d => d.month === month && d.brand === brand) || { month } as MonthRecord;
@@ -194,6 +214,55 @@ function mergeRaceCross(...bases: Array<RaceCross | undefined>): RaceCross | und
       cur.female += v.female || 0;
       cur.leaders += v.leaders || 0;
       cur.female_leaders += v.female_leaders || 0;
+      any = true;
+    }
+  }
+  return any ? out : undefined;
+}
+
+/**
+ * Soma a quebra por departamento das marcas, campo a campo.
+ *
+ * Devolve `undefined` quando nenhuma marca trouxe quebra -- e aí
+ * `applyDeptFilter` marca `dept_filter_exact: false`, que é o sinal de que o
+ * recorte é aproximado. Devolver `{}` diria "quebra existe e está vazia", que
+ * é diferente e pior: o filtro pensaria que recortou.
+ */
+function mergeDeptBreakdown(
+  ...bases: Array<Record<string, DeptBreakdownRecord> | undefined>
+): Record<string, DeptBreakdownRecord> | undefined {
+  const out: Record<string, DeptBreakdownRecord> = {};
+  let any = false;
+  const somarMapa = (alvo: Record<string, number>, fonte?: Record<string, number>) => {
+    for (const [k, v] of Object.entries(fonte || {})) alvo[k] = (alvo[k] || 0) + (v || 0);
+  };
+  for (const base of bases) {
+    if (!base) continue;
+    for (const [dept, v] of Object.entries(base)) {
+      const cur = (out[dept] = out[dept] || {
+        gender_female: 0, gender_male: 0, leaders: 0, leader_female: 0,
+        level_base: {}, tenure_base: {},
+        demographics: { age: {}, race: {}, marital: {}, origin: {} },
+        race_cross: {},
+      });
+      cur.gender_female += v.gender_female || 0;
+      cur.gender_male += v.gender_male || 0;
+      cur.leaders += v.leaders || 0;
+      cur.leader_female += v.leader_female || 0;
+      somarMapa(cur.level_base, v.level_base);
+      somarMapa(cur.tenure_base, v.tenure_base);
+      somarMapa(cur.demographics.age, v.demographics?.age);
+      somarMapa(cur.demographics.race, v.demographics?.race);
+      somarMapa(cur.demographics.marital, v.demographics?.marital);
+      somarMapa(cur.demographics.origin, v.demographics?.origin);
+      for (const [raca, r] of Object.entries(v.race_cross || {})) {
+        const c = (cur.race_cross[raca] = cur.race_cross[raca]
+          || { total: 0, female: 0, leaders: 0, female_leaders: 0 });
+        c.total += r.total || 0;
+        c.female += r.female || 0;
+        c.leaders += r.leaders || 0;
+        c.female_leaders += r.female_leaders || 0;
+      }
       any = true;
     }
   }
