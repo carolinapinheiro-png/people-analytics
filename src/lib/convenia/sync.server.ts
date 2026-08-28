@@ -93,6 +93,33 @@ const ehDesligadoPeloStatus = (s: string | null) => {
   return t.includes('deslig') || t.includes('inativ') || t.includes('dismiss');
 };
 
+/**
+ * O nome completo da pessoa, a partir do que o Convenia devolver.
+ *
+ * `full_name` primeiro porque e o campo que carrega nome e sobrenome. Se ele
+ * nao vier, monta de `first_name`/`last_name`. `name` fica por ultimo: ele
+ * existe sempre, e e o primeiro nome -- serve de ultimo recurso para a pessoa
+ * nao ficar sem identificacao nenhuma, nao para casar com a folha.
+ *
+ * Devolve `null` quando nada serve, porque `vinculo-comp` trata ausencia
+ * corretamente (nao casa) e trataria "" como chave vazia, que casaria com
+ * qualquer outro vazio.
+ */
+export function nomeCompleto(b: Record<string, unknown>): string | null {
+  const txt = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  const cheio = txt(b.full_name);
+  if (cheio.includes(' ')) return cheio;
+  const partes = [txt(b.first_name), txt(b.middle_name), txt(b.last_name)]
+    .filter(Boolean).join(' ');
+  if (partes.includes(' ')) return partes;
+  return cheio || partes || txt(b.name) || null;
+}
+
+/** Quantos nomes vieram com um unico termo -- ou seja, sem sobrenome. */
+export function soPrimeiroNome(nomes: Array<string | null>): number {
+  return nomes.filter((n) => n != null && !n.trim().includes(' ')).length;
+}
+
 export async function executarSyncConvenia(
   db: Db,
   { confirm, origem }: { confirm: boolean; origem: string },
@@ -199,10 +226,27 @@ export async function executarSyncConvenia(
             // ele a camada N teria de continuar sendo digitada a mao -- e
             // digitada a mao ela envelhece calada a cada promocao.
             email: ((b.corporate_email ?? b.email) as string | null) ?? null,
-            // Nome: unica ponte com `comp_ratio`, que veio de planilha e nao
-            // tem e-mail. Ver vinculo-comp.ts -- e a nota na migracao
-            // 20260814210000, que explica por que ele passou a entrar.
-            nome: ((b.name ?? b.full_name) as string | null) ?? null,
+            // ------------------------------------------------------------
+            // NOME COMPLETO, E NESTA ORDEM
+            // ------------------------------------------------------------
+            // Unica ponte com `comp_ratio`, que veio de planilha e nao tem
+            // e-mail. Ver vinculo-comp.ts e a migracao 20260814210000.
+            //
+            // Estava `b.name ?? b.full_name`, e `name` no Convenia e o
+            // PRIMEIRO NOME. O banco encheu de "Barbara", "Joao" -- e
+            // `vinculo-comp` compara nome completo normalizado, entao casava
+            // quase nada. A aba de Salarios escondia linhas por falta de
+            // camada, e o motivo aparente era "o Convenia nao mandou".
+            //
+            // Medido antes de mexer, sobre as 62 pessoas com promocao:
+            //   por primeiro nome ............ 15 unicas, 46 ambiguas
+            //   primeiro nome + area ......... 34 unicas, 25 ambiguas
+            //
+            // Nenhuma das duas serve, e a segunda e pior do que parece: quem
+            // fica de fora sao os primeiros nomes comuns, e distribuicao de
+            // nome correlaciona com grupo demografico. Descartar 45% de forma
+            // nao-aleatoria na dimensao que se quer medir fabrica diferenca.
+            nome: nomeCompleto(b),
             // O Convenia manda salário ora número, ora string ("3.218,00").
             // Number() em "3.218,00" dá NaN, que viraria média silenciosamente
             // errada -- por isso a normalização explícita.
@@ -576,6 +620,29 @@ export async function executarSyncConvenia(
           profundidade: porPessoa.get(p.id)?.profundidade ?? null,
           atualizado_em: new Date().toISOString(),
         }));
+
+        // ------------------------------------------------------------------
+        // O SYNC PRECISA DIZER SE O NOME VEIO INTEIRO
+        // ------------------------------------------------------------------
+        // `nomeCompleto` supoe que o Convenia devolve `full_name`. Se um dia
+        // nao devolver -- ou se a API mudar --, o fallback entrega o primeiro
+        // nome e TUDO continua funcionando: nenhuma excecao, nenhuma linha a
+        // menos, so o casamento com a folha voltando a zero em silencio.
+        //
+        // Foi exatamente assim que o problema anterior durou: `b.name` era o
+        // primeiro nome, nada quebrou, e o sintoma apareceu longe daqui, como
+        // linhas sem camada na aba de Salarios.
+        const semSobrenome = soPrimeiroNome(linhasOrg.map((l) => l.nome));
+        if (semSobrenome > linhasOrg.length / 10) {
+          avisos.push(
+            // Sem nome de empresa de proposito: `orgTodos` junta todas as
+            // fontes, porque a cadeia de reporte atravessa as empresas.
+            `Organograma: ${semSobrenome} de ${linhasOrg.length} nomes vieram sem sobrenome. ` +
+            'A ponte com a folha de remuneracao compara nome completo, entao esses nao casam: ' +
+            'a aba de Salarios fica sem camada para eles, e o cruzamento de promocao com ' +
+            'genero e etnia perde essas pessoas. Conferir se o Convenia ainda devolve full_name.',
+          );
+        }
 
         for (let i = 0; i < linhasOrg.length; i += 500) {
           const { error } = await db.from('org_pessoas')
