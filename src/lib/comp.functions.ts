@@ -571,12 +571,40 @@ export const vincularCamadaComp = createServerFn({ method: 'POST' })
 
     if (!data.confirm) return out;
 
-    // Grava em lotes. Só as que casaram: quem não casou fica com n_layer nulo,
-    // que ESCONDE a linha -- o lado seguro do erro.
-    for (let i = 0; i < r.casados.length; i += 500) {
-      const lote = r.casados.slice(i, i + 500).map((c) => ({ id: c.id, n_layer: c.camada }));
-      const { error } = await db.from('comp_ratio').upsert(lote as never, { onConflict: 'id' });
-      if (error) throw new Error(`Falha ao gravar a camada: ${error.message}`);
+    // ------------------------------------------------------------------
+    // UPDATE, E NÃO UPSERT
+    // ------------------------------------------------------------------
+    // Isto era `upsert({ id, n_layer }, { onConflict: 'id' })`, e o upsert do
+    // PostgREST é um INSERT com fallback: o Postgres cobra as colunas
+    // obrigatórias da tabela, e `name` é NOT NULL. Estourava com
+    // "null value in column name violates not-null constraint" -- para linhas
+    // que JÁ EXISTEM e cujo nome ninguém queria tocar.
+    //
+    // Nunca tinha aparecido porque nunca tinha rodado: enquanto o casamento
+    // por nome dava 0%, `casados` vinha vazio e o laço não executava. O bug
+    // esperou o primeiro vínculo bem-sucedido para se manifestar -- 571
+    // linhas de uma vez.
+    //
+    // Agrupado por camada em vez de uma chamada por linha: são cinco ou seis
+    // camadas distintas contra 571 pessoas, então são cinco ou seis idas ao
+    // banco em vez de 571.
+    const porCamada = new Map<string, string[]>();
+    for (const c of r.casados) {
+      const lista = porCamada.get(c.camada) ?? [];
+      lista.push(c.id);
+      porCamada.set(c.camada, lista);
+    }
+
+    // Só as que casaram: quem não casou fica com n_layer nulo, que ESCONDE a
+    // linha -- o lado seguro do erro.
+    for (const [camada, ids] of porCamada) {
+      for (let i = 0; i < ids.length; i += 500) {
+        const { error } = await db
+          .from('comp_ratio')
+          .update({ n_layer: camada } as never)
+          .in('id', ids.slice(i, i + 500));
+        if (error) throw new Error(`Falha ao gravar a camada: ${error.message}`);
+      }
     }
 
     return { ...out, gravado: true };
