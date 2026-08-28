@@ -299,8 +299,51 @@ test('liderança, salários, estado, tempo e idade entram na linha mensal', () =
   assert.equal(m.state_mix['Pernambuco'], 5);
   assert.equal(m.state_mix['São Paulo'], 1);
   assert.equal(m.tenure_base['0-6 meses'], 6);
-  assert.equal(m.demographics['25-34'], 5);
-  assert.equal(m.demographics['35-44'], 1);
+  assert.equal(m.demographics.age['25-34'], 5);
+  assert.equal(m.demographics.age['35-44'], 1);
+});
+
+// ---------------------------------------------------------------------------
+// A FORMA DE `demographics`
+// ---------------------------------------------------------------------------
+// Este campo já foi um mapa PLANO de faixas etárias enquanto a aba de
+// Demográficos lia `dg.age` e `dg.race`. As duas leituras davam `undefined`, e
+// os dois gráficos ficavam vazios sem erro nenhum. Passou despercebido porque
+// a série antiga, que gravava a forma certa, era a que estava no ar.
+//
+// O teste que existia aqui afirmava a forma plana -- ele travava o defeito em
+// vez de denunciá-lo. Estes conferem o CONTRATO com a tela.
+// ---------------------------------------------------------------------------
+
+test('demographics vem aninhado em age e race, que é o que a tela lê', () => {
+  const pessoas = [
+    p({ id: '1', hiring_date: '2026-01-01', birth_date: '1995-05-05', raca: 'Parda' }),
+    p({ id: '2', hiring_date: '2026-01-01', birth_date: '1990-05-05', raca: 'Branca' }),
+  ];
+  const d = reconstruirSerie(pessoas, 'NSX', '2026-01').linhas[0].demographics;
+  assert.deepEqual(Object.keys(d).sort(), ['age', 'race']);
+  assert.equal(d.race.Parda, 1);
+  assert.equal(d.race.Branca, 1);
+  assert.ok(Object.values(d.age).some((v) => v > 0), 'idade não pode vir vazia');
+});
+
+test('a faixa mais nova é "<25", o rótulo que a tela e a série antiga usam', () => {
+  // Com '18-24', a MESMA faixa vira duas categorias ao comparar as séries, e
+  // o gráfico a ordena antes de todas as outras (AGE_ORDER não a reconhece).
+  const nasc = `${new Date().getFullYear() - 20}-01-01`;
+  const d = reconstruirSerie(
+    [p({ id: '1', hiring_date: '2026-01-01', birth_date: nasc })],
+    'NSX', '2026-01',
+  ).linhas[0].demographics;
+  assert.equal(Object.keys(d.age)[0], '<25');
+});
+
+test('raça ausente não cria categoria vazia em demographics', () => {
+  const d = reconstruirSerie(
+    [p({ id: '1', hiring_date: '2026-01-01', raca: null })],
+    'NSX', '2026-01',
+  ).linhas[0].demographics;
+  assert.deepEqual(d.race, {});
 });
 
 test('quem saiu deixa de contar como gestor a partir do mês da saída', () => {

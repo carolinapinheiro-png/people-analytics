@@ -70,8 +70,22 @@ export interface LinhaMensal {
   state_mix: Record<string, number>;
   /** Faixas de tempo de casa. */
   tenure_base: Record<string, number>;
-  /** Faixas etárias. */
-  demographics: Record<string, number>;
+  /**
+   * Demográficos aninhados: `{ age, race }`.
+   *
+   * ------------------------------------------------------------------
+   * A FORMA IMPORTA, E ESTAVA ERRADA
+   * ------------------------------------------------------------------
+   * Isto era um mapa PLANO de faixas etárias -- `{ '25-34': 313, ... }` --
+   * enquanto a aba de Demográficos lê `dg.age` e `dg.race`. Com a forma
+   * plana, as duas leituras davam `undefined`: o gráfico de idade E o de
+   * cor/raça ficavam vazios, sem erro nenhum.
+   *
+   * Passou despercebido porque a série `reconstruido`, que gravava a forma
+   * certa, era a que estava no ar. Quando o Convenia a substituiu, os dois
+   * gráficos perderam o dado -- e a tela não tinha como dizer isso.
+   */
+  demographics: { age: Record<string, number>; race: Record<string, number> };
   gender_female: number;
   gender_male: number;
   /** `null` enquanto a cobertura de gênero for baixa demais para ser honesta. */
@@ -169,7 +183,11 @@ export function faixaEtaria(nascimento: string | null | undefined, mes: string):
   const [by, bm] = mes.split('-').map(Number);
   const anos = Math.floor(((by - ay) * 12 + (bm - am)) / 12);
   if (anos < 18 || anos > 90) return null; // data implausível: fora em vez de errada
-  if (anos < 25) return '18-24';
+  // '<25', e nao '18-24'. O rotulo tem de bater com AGE_ORDER na tela e com a
+  // serie `reconstruido` que ficou no banco para o card de comparacao -- senao
+  // a MESMA faixa aparece como duas categorias diferentes ao comparar as
+  // series, e o grafico ordena a nova antes de todas as outras.
+  if (anos < 25) return '<25';
   if (anos < 35) return '25-34';
   if (anos < 45) return '35-44';
   if (anos < 55) return '45-54';
@@ -395,7 +413,8 @@ export function reconstruirSerie(
     const salDemais: number[] = [];
     const state_mix: Record<string, number> = {};
     const tenure_base: Record<string, number> = {};
-    const demographics: Record<string, number> = {};
+    const porIdade: Record<string, number> = {};
+    const porRacaDemo: Record<string, number> = {};
 
     for (const x of comMes) {
       // Presente no mês: entrou até o fim dele e não tinha saído ainda.
@@ -436,7 +455,14 @@ export function reconstruirSerie(
         tenure_base[faixa] = (tenure_base[faixa] ?? 0) + 1;
 
         const idade = faixaEtaria(x.p.birth_date, mes);
-        if (idade) demographics[idade] = (demographics[idade] ?? 0) + 1;
+        if (idade) porIdade[idade] = (porIdade[idade] ?? 0) + 1;
+
+        // A MESMA raça que alimenta `race_cross`, aqui só contada.
+        // `race_cross` tem regra de cobertura porque cruza com gênero e
+        // liderança; esta é a distribuição simples, que a aba de Demográficos
+        // já sabe rotular como "Não informado" quando falta.
+        const racaDemo = (x.p.raca ?? '').trim();
+        if (racaDemo) porRacaDemo[racaDemo] = (porRacaDemo[racaDemo] ?? 0) + 1;
       }
 
       if (x.entrada === mes) { joiners++; bump(x.area, 'joiners'); }
@@ -459,7 +485,7 @@ export function reconstruirSerie(
       avg_salary_non_leaders: media(salDemais),
       state_mix,
       tenure_base,
-      demographics,
+      demographics: { age: porIdade, race: porRacaDemo },
       gender_female: gF,
       gender_male: gM,
       // Percentual só quando a cobertura sustenta. Ver COBERTURA_MINIMA_GENERO.
