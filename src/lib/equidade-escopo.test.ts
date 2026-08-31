@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { podeVerLinha, type EscopoComp } from './comp-scope';
 import { aplicarFiltrosDeComp } from './filtros-comp';
-import { agruparEquidade, N_MINIMO_EQUIDADE } from './equidade';
+import { agruparEquidade, N_MINIMO_SE_SUPRIMIR } from './equidade';
 
 /**
  * O cartão de equidade visto por quem NÃO é global.
@@ -40,7 +40,14 @@ const p = (area: string, camada: string, cr: number, genero: string, nivel = 'L3
   ({ area, n_layer: camada, comp_ratio: cr, genero, level: nivel });
 
 /** A MESMA sequência da server function. */
-const pipeline = (linhas: ReturnType<typeof p>[], escopo: EscopoComp, filtros = {}) => {
+const pipeline = (
+  linhas: ReturnType<typeof p>[], escopo: EscopoComp, filtros = {},
+  // Estes testes são sobre PERMISSÃO e sobre o custo da supressão, então
+  // fixam o mínimo em vez de herdar o padrão -- que hoje é 1. Se o padrão
+  // mudar de novo, o que estes testes afirmam continua sendo o que eles
+  // queriam afirmar.
+  minimo = N_MINIMO_SE_SUPRIMIR,
+) => {
   const visiveis = aplicarFiltrosDeComp(
     linhas.filter((r) => podeVerLinha(escopo, { area: r.area, n_layer: r.n_layer })),
     filtros,
@@ -50,6 +57,7 @@ const pipeline = (linhas: ReturnType<typeof p>[], escopo: EscopoComp, filtros = 
     grupos: agruparEquidade(
       visiveis.map((r) => ({ nivel: r.level, chave: r.genero, cr: r.comp_ratio })),
       ['Feminino', 'Masculino'],
+      minimo,
     ),
   };
 };
@@ -109,7 +117,7 @@ test('a supressão continua valendo DEPOIS do escopo, não antes', () => {
   const geral = grupos.find((g) => g.nivel === 'Geral')!;
   const fem = geral.celulas.find((c) => c.grupo === 'Feminino')!;
   assert.equal(fem.n, 3, 'o grupo continua visível');
-  assert.equal(fem.mediana, null, `abaixo de ${N_MINIMO_EQUIDADE}, sem mediana`);
+  assert.equal(fem.mediana, null, `abaixo de ${N_MINIMO_SE_SUPRIMIR}, sem mediana`);
   assert.equal(geral.celulas.find((c) => c.grupo === 'Masculino')!.mediana, 110);
 });
 
@@ -191,7 +199,7 @@ test('cada área sozinha SUPRIME o grupo feminino; as três juntas, não', () =>
     const { grupos } = pipeline(TRES_AREAS, HRBP, { department: area });
     const geral = grupos.find((g) => g.nivel === 'Geral')!;
     const fem = geral.celulas.find((c) => c.grupo === 'Feminino')!;
-    assert.ok(fem.n < N_MINIMO_EQUIDADE, `${area}: ${fem.n} mulheres`);
+    assert.ok(fem.n < N_MINIMO_SE_SUPRIMIR, `${area}: ${fem.n} mulheres`);
     assert.equal(fem.mediana, null, `${area} não publica mediana feminina`);
   }
 

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mediana, agruparEquidade, N_MINIMO_EQUIDADE } from './equidade';
+import {
+  mediana, agruparEquidade, N_MINIMO_EQUIDADE, N_MINIMO_SE_SUPRIMIR,
+} from './equidade';
 
 const p = (nivel: string | null, chave: string | null, cr: number) => ({ nivel, chave, cr });
 const ORDEM = ['Feminino', 'Masculino'];
@@ -13,15 +15,39 @@ test('mediana, e não média: um outlier não move a leitura', () => {
   assert.equal(mediana([]), null);
 });
 
-test('célula pequena perde a MEDIANA, não a linha', () => {
-  // Some o número, não o grupo. Quem olha precisa saber que existem quatro
-  // pessoas ali e que são poucas para publicar -- não concluir que não há
-  // ninguém. É a mesma troca que este painel passou a semana desfazendo.
+// ---------------------------------------------------------------------------
+// A SUPRESSÃO SAIU -- DECISÃO DA CAROLINA, 28/08/2026
+// ---------------------------------------------------------------------------
+// O fundamento é o acesso: a aba de Compensação é restrita a quem já vê o
+// comp-ratio individual na lista logo acima do cartão. Suprimir a mediana de
+// três pessoas cujos números individuais estão na mesma tela não protege
+// ninguém.
+//
+// A capacidade continua no código, parametrizada. Estes testes cobrem os DOIS
+// estados, porque a premissa é sobre a lista de acesso -- que muda por fora
+// deste arquivo.
+// ---------------------------------------------------------------------------
+
+test('hoje: todo grupo publica mediana, inclusive de uma pessoa', () => {
+  const dados = [
+    p('L6', 'Feminino', 130),
+    ...Array.from({ length: 20 }, () => p('L6', 'Masculino', 131)),
+  ];
+  const r = agruparEquidade(dados, ORDEM);
+  const f = acha(r, 'L6', 'Feminino');
+  assert.equal(f.n, 1);
+  assert.equal(f.mediana, 130, 'com n=1 a "mediana" é o número daquela pessoa');
+});
+
+test('com o mínimo de volta, a célula pequena perde a MEDIANA e não a linha', () => {
+  // O comportamento para o qual voltar é uma troca de valor, não uma edição
+  // de lógica. Some o número, não o grupo: "não aparece" já foi lido como
+  // "não existe" vezes demais neste painel.
   const dados = [
     ...Array.from({ length: 4 }, () => p('L6', 'Feminino', 130)),
     ...Array.from({ length: 20 }, () => p('L6', 'Masculino', 131)),
   ];
-  const r = agruparEquidade(dados, ORDEM);
+  const r = agruparEquidade(dados, ORDEM, N_MINIMO_SE_SUPRIMIR);
   const f = acha(r, 'L6', 'Feminino');
   assert.equal(f.n, 4, 'o n real continua visível');
   assert.equal(f.mediana, null, 'a mediana é suprimida');
@@ -29,8 +55,16 @@ test('célula pequena perde a MEDIANA, não a linha', () => {
 });
 
 test('exatamente no mínimo a célula aparece', () => {
-  const dados = Array.from({ length: N_MINIMO_EQUIDADE }, () => p('L4', 'Feminino', 85));
-  assert.equal(acha(agruparEquidade(dados, ORDEM), 'L4', 'Feminino').mediana, 85);
+  const dados = Array.from({ length: N_MINIMO_SE_SUPRIMIR }, () => p('L4', 'Feminino', 85));
+  assert.equal(
+    acha(agruparEquidade(dados, ORDEM, N_MINIMO_SE_SUPRIMIR), 'L4', 'Feminino').mediana, 85);
+});
+
+test('a proteção não foi apagada, só desligada', () => {
+  // Se alguém remover o parâmetro, este teste cai -- e com ele o caminho de
+  // volta. É a diferença entre "decidimos não usar" e "não temos mais".
+  assert.equal(N_MINIMO_EQUIDADE, 1, 'hoje, sem supressão');
+  assert.equal(N_MINIMO_SE_SUPRIMIR, 5, 'o valor para o qual voltar');
 });
 
 test('"Geral" NÃO é a soma dos níveis, e as duas linhas convivem', () => {

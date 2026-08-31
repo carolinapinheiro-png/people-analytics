@@ -53,16 +53,47 @@ export function mediana(v: number[]): number | null {
 }
 
 /**
- * Mesmo mínimo do resto do painel. Célula menor que isso sai com `mediana`
- * nula e o `n` REAL -- some o número, não a linha. Quem olha precisa saber que
- * o grupo existe e que é pequeno demais para publicar, em vez de concluir que
- * não há ninguém ali.
+ * O mínimo para publicar uma mediana. HOJE: 1, ou seja, sem supressão.
+ *
+ * ===========================================================================
+ * A DECISÃO, E O QUE ELA SUPÕE
+ * ===========================================================================
+ * Decisão da Carolina, 28/08/2026: mostrar todos os grupos, de qualquer
+ * tamanho. O fundamento é o acesso -- a aba de Compensação hoje é restrita, e
+ * quem a enxerga já vê o comp-ratio individual de cada pessoa na lista logo
+ * acima deste cartão. Suprimir a mediana de três pessoas cujos números
+ * individuais estão na mesma tela não protege ninguém.
+ *
+ * ===========================================================================
+ * O QUE MUDA SE ESSA SUPOSIÇÃO MUDAR
+ * ===========================================================================
+ * Ela vale enquanto a premissa valer, e a premissa é sobre a LISTA DE ACESSO,
+ * que muda por fora deste arquivo. No dia em que alguém com escopo restrito
+ * -- um HRBP, um gestor de área -- ganhar a aba de Compensação, isto passa a
+ * publicar:
+ *
+ *   n = 1  a "mediana" É o comp-ratio daquela pessoa.
+ *   n = 3  a mediana É o comp-ratio da pessoa do meio, exato.
+ *
+ * E comp-ratio é reversível: ele é salário ÷ ponto médio da faixa, e a faixa
+ * está publicada na mesma aba. Quem vê "L5, Legal, feminino: 84%" recupera o
+ * salário com uma divisão.
+ *
+ * Por isso a constante continua existindo em vez de o código perder o
+ * conceito: voltar a proteger é trocar 1 por 5. E a TELA diz que está
+ * mostrando grupos de qualquer tamanho -- se a premissa cair, o estado está
+ * escrito onde alguém lê, e não só aqui.
  */
-export const N_MINIMO_EQUIDADE = 5;
+export const N_MINIMO_EQUIDADE = 1;
+
+/** O valor que a supressão usaria se voltasse. Ver acima. */
+export const N_MINIMO_SE_SUPRIMIR = 5;
 
 export function agruparEquidade(
   pessoas: Array<{ nivel: string | null; chave: string | null; cr: number }>,
   ordem: string[],
+  /** Parametrizado para a decisão ser um valor, e não uma edição de lógica. */
+  minimo: number = N_MINIMO_EQUIDADE,
 ): RecorteEquidade[] {
   const porNivel = new Map<string, Map<string, number[]>>();
   const add = (nivel: string, chave: string, cr: number) => {
@@ -95,7 +126,7 @@ export function agruparEquidade(
         return {
           grupo,
           n: vs.length,
-          mediana: vs.length >= N_MINIMO_EQUIDADE ? mediana(vs) : null,
+          mediana: vs.length >= minimo ? mediana(vs) : null,
         };
       }),
     };

@@ -28,13 +28,17 @@ import { Scale } from 'lucide-react';
  * ===========================================================================
  * POR QUE A CONTAGEM VEM SEMPRE JUNTO
  * ===========================================================================
- * Uma mediana de onze pessoas e uma de noventa e quatro se parecem na tela e
+ * Uma mediana de duas pessoas e uma de noventa e quatro se parecem na tela e
  * não valem o mesmo. Sem o `n` ao lado, uma diferença de dois pontos numa
- * célula pequena é lida como achado.
+ * célula minúscula é lida como achado.
  *
- * Célula abaixo do mínimo mostra o `n` e esconde a mediana. Some o NÚMERO, não
- * a linha: o grupo continua visível, porque "não aparece" já foi lido como
- * "não existe" vezes demais neste painel.
+ * Isso passou a valer MAIS, não menos, desde que a supressão saiu: o `n` é
+ * agora a única coisa na tela dizendo quanto peso cada número tem. Ver
+ * `N_MINIMO_EQUIDADE` -- a decisão de mostrar todo grupo supõe que a aba de
+ * Compensação continue restrita a quem já vê salário individual.
+ *
+ * O rodapé diz isso em português. Não é ornamento: é onde a suposição fica
+ * visível para quem eventualmente abrir a aba para mais gente.
  */
 
 export default function EquidadeCompRatio() {
@@ -190,10 +194,16 @@ export default function EquidadeCompRatio() {
           nível essa explicação não existe.
         </p>
         <p>
-          O número entre parênteses é quantas pessoas há na célula. Célula com menos de{' '}
-          {dados.minimo} aparece como <span className="tabular-nums">n=…</span>: o grupo existe, e é
-          pequeno demais para publicar uma mediana. Diferença calculada só quando os dois lados têm
-          número próprio.
+          O número entre parênteses é quantas pessoas há na célula, e aqui{' '}
+          <strong>todo grupo aparece, de qualquer tamanho</strong> — inclusive de uma pessoa só.
+          Com n baixo a mediana é o número de alguém específico, então leia a contagem antes do
+          percentual: uma diferença grande entre células de duas e três pessoas não é um achado.
+        </p>
+        <p>
+          Isso vale porque esta aba é restrita a quem já vê o comp-ratio individual na lista acima.
+          <strong> Se Compensação for aberta para perfis com escopo de área</strong> — um HRBP, um
+          gestor —, esta tabela passa a publicar salário individual por dedução, e o mínimo de
+          exibição precisa voltar.
         </p>
       </div>
     </ChartCard>
