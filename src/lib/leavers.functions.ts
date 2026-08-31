@@ -75,7 +75,10 @@ async function authorize(userEmail: string | undefined) {
   // painel, antes de qualquer aba ser escolhida. Lancar 'Forbidden' aqui
   // faria um perfil de aba unica ver um erro na propria aba a que tem
   // direito. Vazio e a resposta certa: nao ha desligados para este perfil.
-  const podeVerDesligados = canSeeTab(e.profile, 'attrition', e.extraTabs);
+  // `e.tabs` entrou junto: sem ele, uma pessoa com lista própria SEM Atrição
+  // continuaria recebendo a lista de desligados. O preset dela ainda inclui a
+  // aba, e era o preset que esta linha consultava.
+  const podeVerDesligados = canSeeTab(e.profile, 'attrition', e.extraTabs, e.tabs);
   return {
     email: e.email, role: e.role, scope: e.scope, podeVerDesligados,
     podeVerIndividual: e.podeVerIndividual,

@@ -66,9 +66,22 @@ export interface CompRatioRow {
  * A aba declarada ('comp') e permissao, nao decoracao: um perfil que nao a
  * enxerga leva 'Forbidden' aqui, e nao so deixa de ver o item no menu.
  */
-async function authorize(userEmail: string | undefined) {
+async function authorize(
+  userEmail: string | undefined,
+  /**
+   * De qual SUB-ABA vem a chamada.
+   *
+   * Cada função deste arquivo alimenta uma sub-aba específica, e até agora
+   * isso não era permissão: quem tinha a aba de Salários alcançava as três
+   * pela API, mesmo com o menu mostrando uma. `resolverEscopo` recusa.
+   *
+   * Opcional porque nem toda função é de sub-aba -- `getEmployeeProfile` e o
+   * vínculo de camada não pertencem a nenhuma.
+   */
+  subAba?: string,
+) {
   const { resolverEscopo } = await import('@/lib/escopo.server');
-  const e = await resolverEscopo(userEmail, 'comp');
+  const e = await resolverEscopo(userEmail, 'comp', subAba);
   // `podeVerIndividual` ja vem resolvido (flag por usuario quando existe,
   // perfil quando nao existe). Recalcular aqui a partir do perfil ignoraria o
   // flag -- que e exatamente o caso que ele existe para cobrir.
@@ -118,7 +131,8 @@ export const listCompRatio = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ListInput.parse(input))
   .handler(async ({ context, data }): Promise<CompRatioLista> => {
-    const { email, scope, podeVerIndividual, escopoComp } = await authorize(context.claims.email as string | undefined);
+    const { email, scope, podeVerIndividual, escopoComp } =
+      await authorize(context.claims.email as string | undefined, 'compratio');
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -644,7 +658,7 @@ export interface CompByRole {
 export const getCompByLevelRole = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<CompByRole> => {
-    const { escopoComp } = await authorize(context.claims.email as string | undefined);
+    const { escopoComp } = await authorize(context.claims.email as string | undefined, 'custos');
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -763,7 +777,7 @@ export const getHeadcountMix = createServerFn({ method: 'GET' })
 export const getCompAggregates = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<CompAggregates> => {
-    const { escopoComp } = await authorize(context.claims.email as string | undefined);
+    const { escopoComp } = await authorize(context.claims.email as string | undefined, 'custos');
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -879,7 +893,7 @@ export const getCompEquidade = createServerFn({ method: 'GET' })
   // inteira, sem nada na tela dizendo qual era qual.
   .validator((input: unknown) => ListInput.parse(input))
   .handler(async ({ context, data }): Promise<CompEquidade> => {
-    const { escopoComp } = await authorize(context.claims.email as string | undefined);
+    const { escopoComp } = await authorize(context.claims.email as string | undefined, 'compratio');
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;

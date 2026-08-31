@@ -139,6 +139,55 @@ export function visibleExperienceSubTabs(
   return escolhidas.filter((s) => preset.includes(s));
 }
 
+/**
+ * Todas as sub-abas do produto, e a aba de cada uma.
+ *
+ * Existe para a permissão de sub-aba ser genérica em vez de um `if` por aba.
+ * Fechada de propósito: uma sub-aba nova que não entre aqui é RECUSADA no
+ * cadastro (ver `SubTabsSchema`) e ignorada aqui -- que é o lado seguro do
+ * erro. Melhor não conseguir conceder do que conceder algo que a regra não
+ * sabe interpretar.
+ */
+export const SUB_ABAS_DO_PRODUTO: Record<string, DashboardTab> = {
+  engajamento: 'engagement',
+  onboarding: 'engagement',
+  inclusao: 'engagement',
+  custos: 'comp',
+  compratio: 'comp',
+  movimentacoes: 'comp',
+  desligamentos: 'attrition',
+  'nao-desejada': 'attrition',
+};
+
+/**
+ * A pessoa pode abrir ESTA sub-aba?
+ *
+ * ===========================================================================
+ * A MESMA REGRA DE `visibleTabs`, GENERALIZADA
+ * ===========================================================================
+ * Lista da pessoa vazia = vale tudo o que a aba dá. Preenchida = é exatamente
+ * aquilo -- mas só para as sub-abas DA MESMA ABA. Quem marcou só as de
+ * Compensação não disse nada sobre Experiência, e o silêncio ali não pode
+ * virar recusa.
+ *
+ * NÃO confere a aba: quem chama já passou por `resolverEscopo(email, aba)`.
+ * Duas checagens da mesma coisa em pontos diferentes é como uma delas fica
+ * para trás.
+ */
+export function podeVerSubAba(
+  sub: string,
+  subTabsDaPessoa?: readonly string[] | null,
+): boolean {
+  if (!subTabsDaPessoa?.length) return true;
+  const aba = SUB_ABAS_DO_PRODUTO[sub];
+  // Sub-aba desconhecida: recusa. Ver o comentário de SUB_ABAS_DO_PRODUTO.
+  if (!aba) return false;
+  const irmas = subTabsDaPessoa.filter((s) => SUB_ABAS_DO_PRODUTO[s] === aba);
+  // Nenhuma irmã escolhida = a pessoa não falou desta aba. Vale tudo.
+  if (!irmas.length) return true;
+  return irmas.includes(sub);
+}
+
 export function canSeeExperienceSubTab(
   profile: AccessProfile,
   sub: string,

@@ -2,6 +2,7 @@ import { getRequest } from '@tanstack/react-start/server';
 import { supabaseAdmin } from '@/integrations/supabase/client.server';
 import { CABECALHO_VER_COMO } from '@/lib/ver-como/estado';
 import { decidirEscopo, perfilDe, type EscopoResolvido, type LinhaAcesso } from '@/lib/ver-como/regras';
+import { podeVerSubAba } from '@/lib/permissions';
 import { canSeeTab, type DashboardTab } from '@/lib/permissions';
 
 /**
@@ -87,6 +88,14 @@ function registrar(campos: Record<string, unknown>): void {
 export async function resolverEscopo(
   userEmail: string | undefined,
   aba?: DashboardTab,
+  /**
+   * A SUB-ABA de onde a chamada vem, quando existe.
+   *
+   * Mesma razão da aba: esconder no menu não impede nada. Passa aqui em vez
+   * de cada função conferir por conta própria -- dezessete lugares para
+   * lembrar é dezesseis chances de esquecer um.
+   */
+  subAba?: string,
 ): Promise<EscopoEfetivo> {
   if (!userEmail) throw new Error('Unauthorized');
 
@@ -134,6 +143,23 @@ export async function resolverEscopo(
     registrar({
       email: userEmail, action: 'aba_negada', allowed: false,
       metadata: { aba, perfil: resolvido.profile },
+    });
+    throw new Error('Forbidden: seu perfil não tem acesso a esta seção.');
+  }
+
+  // A SUB-ABA, pela mesma porta e pelo mesmo motivo.
+  //
+  // Até aqui só Experiência era barrada de verdade, e por um caminho próprio:
+  // `getExperienceData` removia onboarding e inclusão do payload. Salários e
+  // Atrição tinham corte só de navegação -- a sub-aba sumia do menu e a
+  // função continuava respondendo a quem soubesse chamá-la.
+  //
+  // A tela do admin chegou a exibir um aviso em âmbar dizendo isso. Um aviso
+  // é honesto; não é proteção.
+  if (subAba && !podeVerSubAba(subAba, resolvido.subTabs)) {
+    registrar({
+      email: userEmail, action: 'aba_negada', allowed: false,
+      metadata: { aba, subAba, perfil: resolvido.profile },
     });
     throw new Error('Forbidden: seu perfil não tem acesso a esta seção.');
   }

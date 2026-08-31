@@ -84,9 +84,15 @@ const SUB_ABAS: Array<{ aba: DashboardTab; id: string; rotulo: string; noServido
   { aba: 'engagement', id: 'engajamento', rotulo: 'Engajamento', noServidor: true },
   { aba: 'engagement', id: 'onboarding', rotulo: 'Onboarding', noServidor: true },
   { aba: 'engagement', id: 'inclusao', rotulo: 'Inclusão & Pertencimento', noServidor: true },
-  { aba: 'comp', id: 'custos', rotulo: 'Custos & Bandas', noServidor: false },
-  { aba: 'comp', id: 'compratio', rotulo: 'Comp Ratio individual', noServidor: false },
+  { aba: 'comp', id: 'custos', rotulo: 'Custos & Bandas', noServidor: true },
+  { aba: 'comp', id: 'compratio', rotulo: 'Comp Ratio individual', noServidor: true },
+  // Movimentações lê a série mensal do contexto, a mesma que Overview e
+  // Demográficos já carregam -- não tem função de servidor própria para
+  // recusar. Barrar aqui é tirar do menu, e o dado continua no cliente por
+  // causa das outras abas. Marcado como o que é.
   { aba: 'comp', id: 'movimentacoes', rotulo: 'Movimentações', noServidor: false },
+  { aba: 'attrition', id: 'desligamentos', rotulo: 'Desligamentos', noServidor: true },
+  { aba: 'attrition', id: 'nao-desejada', rotulo: 'Atrição não desejada', noServidor: false },
 ];
 
 const SUB_ABA_LABEL: Record<string, string> = Object.fromEntries(
@@ -1247,10 +1253,10 @@ function UserAccessFormFields({
               </p>
               {semCorteNoServidor.length > 0 && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-500">
-                  <strong>Atenção:</strong> em Salários e Atrição este corte ainda é só de
-                  navegação — a sub-aba some do menu, mas o servidor continua devolvendo o dado
-                  para quem souber pedir. Em Experiência o corte vale no servidor. Não use isto
-                  como proteção nas duas primeiras.
+                  <strong>Atenção:</strong> {semCorteNoServidor.map((sb) => sb.rotulo).join(' e ')}{' '}
+                  {semCorteNoServidor.length > 1 ? 'leem' : 'lê'} a série mensal que outras abas já
+                  carregam, então aqui o corte é só de navegação: some do menu, mas o dado continua
+                  disponível para quem souber pedir. Nas demais sub-abas o corte vale no servidor.
                 </p>
               )}
             </>

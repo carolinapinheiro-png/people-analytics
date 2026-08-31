@@ -4,7 +4,7 @@ import {
   ACCESS_PROFILES, PROFILE_LABELS, PROFILE_DESCRIPTIONS,
   visibleTabs, canSeeTab, isGlobalProfile, canSeeIndividualData, canManageUsers,
   visibleExperienceSubTabs, canSeeExperienceSubTab, isInScope,
-  isExtraTab, sugerirAbas,
+  isExtraTab, sugerirAbas, podeVerSubAba, SUB_ABAS_DO_PRODUTO,
   type AccessProfile,
 } from './permissions';
 
@@ -268,4 +268,61 @@ test('canSee* concorda com visible* nas duas listas', () => {
   assert.equal(canSeeTab('hrbp', 'engagement', [], ['engagement']), true);
   assert.equal(canSeeExperienceSubTab('hrbp', 'onboarding', ['engajamento']), false);
   assert.equal(canSeeExperienceSubTab('hrbp', 'engajamento', ['engajamento']), true);
+});
+
+// ---------------------------------------------------------------------------
+// SUB-ABA COMO PERMISSÃO DE SERVIDOR
+// ---------------------------------------------------------------------------
+// Até aqui só Experiência era barrada de verdade. Salários e Atrição tinham
+// corte de navegação: a sub-aba sumia do menu e a função continuava
+// respondendo a quem soubesse chamá-la. A tela do admin chegou a exibir um
+// aviso dizendo isso -- um aviso é honesto, não é proteção.
+// ---------------------------------------------------------------------------
+
+test('sem lista de sub-abas, todas passam', () => {
+  assert.equal(podeVerSubAba('compratio'), true);
+  assert.equal(podeVerSubAba('custos', []), true);
+  assert.equal(podeVerSubAba('desligamentos', null), true);
+});
+
+test('com lista, só as escolhidas DA MESMA aba passam', () => {
+  assert.equal(podeVerSubAba('custos', ['custos']), true);
+  assert.equal(podeVerSubAba('compratio', ['custos']), false);
+  assert.equal(podeVerSubAba('movimentacoes', ['custos']), false);
+});
+
+test('escolher sub-abas de UMA aba não barra as de outra', () => {
+  // Quem marcou só as de Salários não disse nada sobre Atrição, e silêncio
+  // não pode virar recusa. É a mesma regra que já valia em Experiência.
+  assert.equal(podeVerSubAba('desligamentos', ['custos']), true);
+  assert.equal(podeVerSubAba('engajamento', ['custos', 'compratio']), true);
+});
+
+test('a lista barra dentro da própria aba mesmo com irmãs de outras marcadas', () => {
+  const lista = ['custos', 'engajamento'];
+  assert.equal(podeVerSubAba('custos', lista), true);
+  assert.equal(podeVerSubAba('compratio', lista), false, 'irmã de Salários não marcada');
+  assert.equal(podeVerSubAba('engajamento', lista), true);
+  assert.equal(podeVerSubAba('onboarding', lista), false);
+  assert.equal(podeVerSubAba('desligamentos', lista), true, 'Atrição não foi mencionada');
+});
+
+test('sub-aba desconhecida é RECUSADA, e não ignorada', () => {
+  // O lado seguro do erro: uma sub-aba que a regra não sabe interpretar não
+  // pode passar por omissão. `SubTabsSchema` já a recusaria no cadastro, e
+  // isto é a segunda porta.
+  assert.equal(podeVerSubAba('inventada', ['custos']), false);
+});
+
+test('o mapa cobre TODAS as sub-abas que o cadastro aceita', () => {
+  // Se alguém acrescentar uma sub-aba ao schema e esquecer do mapa, ela cai
+  // no ramo "desconhecida" e some para quem tiver qualquer lista -- um bug
+  // de acesso que ninguém veria até alguém reclamar de tela faltando.
+  const doSchema = [
+    'engajamento', 'onboarding', 'inclusao',
+    'custos', 'compratio', 'movimentacoes',
+  ];
+  for (const s of doSchema) {
+    assert.ok(SUB_ABAS_DO_PRODUTO[s], `${s} fora de SUB_ABAS_DO_PRODUTO`);
+  }
 });

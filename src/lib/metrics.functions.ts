@@ -42,7 +42,13 @@ async function authorize(userEmail: string | undefined) {
   // Devolver vazio e a resposta honesta: nao ha serie mensal para este
   // perfil. As abas que a desenhariam nao estao no menu dele nem passam pelo
   // servidor -- cada uma delas declara a sua aba e recusa por conta propria.
-  const podeVerSerie = canSeeTab(e.profile, 'overview');
+  // As DUAS listas individuais entram, e faltavam as duas.
+  //
+  // Sem `extraTabs`, quem recebeu Overview como concessão individual não
+  // recebia a série -- via a aba no menu e a tela vazia. Sem `tabs`, o
+  // inverso e pior: quem tem lista própria SEM Overview continuava recebendo,
+  // porque a checagem olhava só o preset do perfil.
+  const podeVerSerie = canSeeTab(e.profile, 'overview', e.extraTabs, e.tabs);
   return { email: e.email, role: e.role, podeVerSerie };
 }
 
