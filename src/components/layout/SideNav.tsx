@@ -14,7 +14,7 @@ import { readNavState, writeNavState } from '@/lib/nav-state';
 
 export default function SideNav() {
   const { activeTab, setActiveTab, activeSubTab, setActiveSubTab } = useDashboard();
-  const { profile, extraTabs, tabs, subTabs } = useAuth();
+  const { profile, extraTabs, tabs, subTabs, podeVerIndividual } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   // Quais seções com sub-abas estão abertas no índice. A seção ativa abre
   // sozinha; as outras a pessoa expande para dar uma olhada sem sair de onde está.
@@ -37,7 +37,7 @@ export default function SideNav() {
   const perfil = profile ?? 'dept_leader';
   // A lista DESTA pessoa quando existe; senão, preset mais concedidas. Ver a
   // nota em `visibleTabs`: uma lista manda por vez.
-  const allowed = visibleTabs(perfil, extraTabs, tabs);
+  const allowed = visibleTabs(perfil, extraTabs, tabs, podeVerIndividual);
 
   // As SUB-ABAS tambem sao permissao.
   //

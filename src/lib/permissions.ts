@@ -305,17 +305,39 @@ export function visibleTabs(
    * o resultado dele não pode ser "esta pessoa não vê nada".
    */
   tabsDaPessoa?: readonly string[] | null,
+  /**
+   * Já resolvido (`canSeeIndividualData`). Quando FALSO, a aba `individual`
+   * sai da lista, venha de onde vier.
+   *
+   * ------------------------------------------------------------------
+   * A ABA `individual` É DADO INDIVIDUAL -- ESTÁ NO NOME
+   * ------------------------------------------------------------------
+   * Ela é uma busca por nome que abre a faixa e o comp-ratio de UMA pessoa.
+   * Oferecê-la a quem está marcado como "não vê dado individual" é a
+   * contradição escrita na tela.
+   *
+   * Valia para `dept_leader` inteiro desde 14/08: a descrição dele é "vê só o
+   * próprio time, em números agregados -- SEM dado individual", e o preset
+   * entregava a aba mesmo assim.
+   *
+   * Apareceu ao abrir o painel como um HRBP com o campo em "Não, mesmo que o
+   * perfil veja". O servidor já recusa (ver `searchEmployees`); isto tira o
+   * item do menu, para o painel não prometer o que vai negar.
+   */
+  podeVerIndividual?: boolean,
 ): DashboardTab[] {
+  const semIndividual = (l: DashboardTab[]) =>
+    podeVerIndividual === false ? l.filter((t) => t !== 'individual') : l;
   if (tabsDaPessoa?.length) {
     const set = new Set<string>(tabsDaPessoa);
     // Filtrado por ALL_TABS: uma aba que não existe mais no produto sai da
     // lista sozinha, em vez de virar item fantasma no cadastro.
-    return ALL_TABS.filter((t) => set.has(t));
+    return semIndividual(ALL_TABS.filter((t) => set.has(t)));
   }
   const base = tabsDoPerfil(profile);
-  if (!extraTabs?.length) return base;
+  if (!extraTabs?.length) return semIndividual(base);
   const set = new Set<string>([...base, ...extraTabs]);
-  return ALL_TABS.filter((t) => set.has(t));
+  return semIndividual(ALL_TABS.filter((t) => set.has(t)));
 }
 
 export function canSeeTab(
@@ -323,8 +345,9 @@ export function canSeeTab(
   tab: DashboardTab,
   extraTabs?: readonly string[] | null,
   tabsDaPessoa?: readonly string[] | null,
+  podeVerIndividual?: boolean,
 ): boolean {
-  return visibleTabs(profile, extraTabs, tabsDaPessoa).includes(tab);
+  return visibleTabs(profile, extraTabs, tabsDaPessoa, podeVerIndividual).includes(tab);
 }
 
 /** Aba concedida que veio de `extra_tabs`, e nao do preset. Para a tela rotular. */

@@ -336,3 +336,51 @@ test('Movimentações é barrável: tem campo próprio na série', () => {
   assert.equal(podeVerSubAba('movimentacoes', ['desligamentos']), true,
     'Atrição marcada não fala de Salários');
 });
+
+// ---------------------------------------------------------------------------
+// A ABA `individual` É DADO INDIVIDUAL
+// ---------------------------------------------------------------------------
+// Ela é uma busca por nome que abre a faixa e o comp-ratio de UMA pessoa.
+// Oferecê-la a quem está marcado como "não vê dado individual" é a contradição
+// escrita na tela -- e era o que acontecia com `dept_leader` inteiro, cuja
+// descrição é "vê só o próprio time, em números agregados, SEM dado
+// individual".
+//
+// Apareceu ao abrir o painel como um HRBP com o campo em "Não, mesmo que o
+// perfil veja": o item estava no menu e as funções por trás nunca consultavam
+// a flag.
+// ---------------------------------------------------------------------------
+
+test('sem dado individual, a aba `individual` sai do preset', () => {
+  assert.ok(visibleTabs('hrbp').includes('individual'), 'com a flag ligada, entra');
+  assert.ok(!visibleTabs('hrbp', [], [], false).includes('individual'));
+});
+
+test('sai também da lista escolhida à mão', () => {
+  // Marcá-la no cadastro não vence a flag: são duas perguntas diferentes, e a
+  // mais restritiva manda.
+  const r = visibleTabs('hrbp', [], ['overview', 'individual', 'engagement'], false);
+  assert.deepEqual(r, ['overview', 'engagement']);
+});
+
+test('sai também quando veio por concessão individual', () => {
+  assert.ok(!visibleTabs('dept_leader', ['individual'], null, false).includes('individual'));
+});
+
+test('as outras abas não são afetadas', () => {
+  const com = visibleTabs('hrbp', [], [], true);
+  const sem = visibleTabs('hrbp', [], [], false);
+  assert.deepEqual(sem, com.filter((t) => t !== 'individual'));
+});
+
+test('sem informar a flag, o comportamento é o de antes', () => {
+  // `undefined` não é `false`: quem chama sem saber da flag não pode passar a
+  // esconder a aba de todo mundo.
+  assert.deepEqual(visibleTabs('hrbp', [], []), visibleTabs('hrbp'));
+  assert.ok(visibleTabs('hrbp', [], [], undefined).includes('individual'));
+});
+
+test('canSeeTab concorda', () => {
+  assert.equal(canSeeTab('hrbp', 'individual', [], [], false), false);
+  assert.equal(canSeeTab('hrbp', 'individual', [], [], true), true);
+});

@@ -394,7 +394,24 @@ export const searchEmployees = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => SearchInput.parse(input))
   .handler(async ({ context, data }): Promise<EmployeeSearchResult[]> => {
-    const { email, scope } = await authorize(context.claims.email as string | undefined, { aba: 'individual' });
+    const { email, scope, podeVerIndividual } =
+      await authorize(context.claims.email as string | undefined, { aba: 'individual' });
+    // ------------------------------------------------------------------
+    // A BUSCA POR NOME É DADO INDIVIDUAL
+    // ------------------------------------------------------------------
+    // Esta função nunca consultou `podeVerIndividual` -- só `listCompRatio`
+    // consultava. Então quem estava marcado como "não vê dado individual"
+    // conseguia buscar pessoas pelo nome e abrir o perfil de cada uma, que é
+    // exatamente o que o campo existe para impedir.
+    //
+    // Vale para `dept_leader` inteiro, cuja descrição é "vê só o próprio
+    // time, em números agregados -- sem dado individual", e que recebe a aba
+    // `individual` no preset. A contradição estava no produto desde que o
+    // campo foi separado do perfil, em 14/08.
+    //
+    // Lista vazia, e não erro: a tela já sabe desenhar "nenhum resultado", e
+    // um erro aqui pareceria falha do painel em vez de limite de acesso.
+    if (!podeVerIndividual) return [];
     const q = (data.query ?? '').trim();
     if (q.length < 2) return [];
 
@@ -429,7 +446,14 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ProfileInput.parse(input))
   .handler(async ({ context, data }): Promise<EmployeeProfile | null> => {
-    const { email, scope, escopoComp } = await authorize(context.claims.email as string | undefined, { aba: 'individual' });
+    const { email, scope, escopoComp, podeVerIndividual } =
+      await authorize(context.claims.email as string | undefined, { aba: 'individual' });
+    // Ver `searchEmployees`: o perfil de UMA pessoa é dado individual por
+    // definição. Aqui é `throw` e não lista vazia porque a chamada pede uma
+    // pessoa específica -- devolver "não encontrei" mentiria sobre existir.
+    if (!podeVerIndividual) {
+      throw new Error('Forbidden: seu acesso não inclui dado individual.');
+    }
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
