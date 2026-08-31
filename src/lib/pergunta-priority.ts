@@ -101,10 +101,32 @@ export function favoravelDe(p: PerguntaEntrada): number {
  * nenhuma. O tooltip do cartão já diz isso; aqui o que se garante é que o
  * sinal não seja perdido no caminho.
  */
+/**
+ * Abaixo disto, `r` é indistinguível de zero e não tem direção.
+ *
+ * Sem este piso, a checagem de sinal exagerava para o outro lado: um
+ * `r = -0,001` virava "anda ao contrário", que promete uma relação inversa
+ * onde não há relação nenhuma. Trocar "relação fraca lida como forte" por
+ * "ruído lido como achado" é a mesma classe de erro na direção oposta.
+ *
+ * Conferido no banco: das 359 correlações gravadas, cinco são negativas, e
+ * TODAS entre -0,09 e 0. Ou seja, o caso que existe hoje é exatamente o que
+ * este piso cobre -- nenhuma delas é uma relação inversa de verdade.
+ *
+ * 0,10 não é um número mágico da estatística: é onde uma correlação deixa de
+ * mover a ordem da lista de forma perceptível. O piso vale para os DOIS
+ * lados, então "puxa pouco" passa a significar "não acompanha", que é o que
+ * ele sempre deveria ter significado.
+ */
+export const R_INDISTINGUIVEL_DE_ZERO = 0.1;
+
 export function forcaDaAssociacao(
   r: number,
   cortes: { alto: number; medio: number },
 ): string {
+  // Perto de zero, dos dois lados: sem direção. Vem ANTES da checagem de
+  // sinal, senão -0,001 seria classificado como inverso.
+  if (Math.abs(r) < R_INDISTINGUIVEL_DE_ZERO) return 'puxa pouco';
   if (r < 0) return 'anda ao contrário';
   return r >= cortes.alto ? 'puxa muito' : r >= cortes.medio ? 'puxa' : 'puxa pouco';
 }

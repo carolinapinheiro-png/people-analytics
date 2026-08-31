@@ -98,24 +98,37 @@ test('a escala em palavra segue os cortes da lista', () => {
   assert.equal(forcaDaAssociacao(0.1, c), 'puxa pouco');
 });
 
-test('correlação NEGATIVA não é "puxa pouco"', () => {
+test('correlação negativa RELEVANTE não é "puxa pouco"', () => {
   // Relação inversa é uma relação forte andando ao contrário, não uma relação
   // fraca. Uma pergunta com r = -0,30 separa engajado de não engajado tanto
   // quanto uma com +0,30; chamá-la de "puxa pouco" a esconderia no fim da
   // lista, que é exatamente onde ninguém olha.
-  const c = { alto: 0.4, medio: 0.25 };
-  assert.equal(forcaDaAssociacao(-0.3, c), 'anda ao contrário');
-  assert.equal(forcaDaAssociacao(-0.01, c), 'anda ao contrário');
+  assert.equal(forcaDaAssociacao(-0.3, { alto: 0.4, medio: 0.25 }), 'anda ao contrário');
 });
 
-test('zero continua sendo "puxa pouco", e não inverso', () => {
-  // Ausência de relação não é relação inversa.
-  assert.equal(forcaDaAssociacao(0, { alto: 0.4, medio: 0.25 }), 'puxa pouco');
+test('negativo PERTO DE ZERO não vira relação inversa', () => {
+  // A primeira versão desta função dizia `if (r < 0)` e pronto: -0,001 virava
+  // "anda ao contrário", prometendo uma relação inversa onde não há relação
+  // nenhuma. Trocar "fraca lida como forte" por "ruído lido como achado" é a
+  // mesma classe de erro na direção oposta.
+  //
+  // Conferido no banco: das 359 correlações gravadas, cinco são negativas e
+  // TODAS entre -0,09 e 0. O caso que existe hoje é exatamente este.
+  const c = { alto: 0.4, medio: 0.25 };
+  assert.equal(forcaDaAssociacao(-0.001, c), 'puxa pouco');
+  assert.equal(forcaDaAssociacao(-0.093, c), 'puxa pouco', 'a mais negativa do banco');
+});
+
+test('o piso vale para os DOIS lados', () => {
+  // Positivo perto de zero também não acompanha nada.
+  const c = { alto: 0.4, medio: 0.25 };
+  assert.equal(forcaDaAssociacao(0, c), 'puxa pouco');
+  assert.equal(forcaDaAssociacao(0.05, c), 'puxa pouco');
 });
 
 test('com todos os cortes negativos, o sinal ainda manda', () => {
   // Os cortes saem da própria lista: num recorte onde tudo é fraco, o quartil
   // superior pode ser negativo. O rótulo não pode chamar um r negativo de
   // "puxa muito" só porque ele é o melhor de um conjunto ruim.
-  assert.equal(forcaDaAssociacao(-0.1, { alto: -0.2, medio: -0.3 }), 'anda ao contrário');
+  assert.equal(forcaDaAssociacao(-0.25, { alto: -0.2, medio: -0.3 }), 'anda ao contrário');
 });
