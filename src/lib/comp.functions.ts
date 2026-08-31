@@ -68,6 +68,7 @@ export interface CompRatioRow {
  */
 async function authorize(
   userEmail: string | undefined,
+  {
   /**
    * De qual SUB-ABA vem a chamada.
    *
@@ -78,10 +79,27 @@ async function authorize(
    * Opcional porque nem toda função é de sub-aba -- `getEmployeeProfile` e o
    * vínculo de camada não pertencem a nenhuma.
    */
-  subAba?: string,
-) {
+  subAba,
+  /**
+   * A ABA exigida. 'comp' na maioria, porque a maioria destas funções
+   * alimenta a tela de Salários.
+   *
+   * `individual` existe para as duas de Perfil Individual. Elas estavam
+   * exigindo 'comp' -- uma aba que HRBP e Department Leader NÃO têm por
+   * padrão desde 14/08. O item aparecia no menu deles (o preset inclui
+   * `individual`) e a busca respondia Forbidden: menu prometendo uma tela
+   * que o servidor recusa.
+   *
+   * Apareceu ao abrir o painel como um HRBP e clicar em Perfil Individual.
+   *
+   * O escopo continua valendo -- `isInScope` filtra por área nas duas --,
+   * então trocar a aba exigida não amplia o que a pessoa alcança: só deixa de
+   * exigir uma aba que não é a desta tela.
+   */
+  aba = 'comp' as 'comp' | 'individual',
+}: { subAba?: string; aba?: 'comp' | 'individual' } = {}) {
   const { resolverEscopo } = await import('@/lib/escopo.server');
-  const e = await resolverEscopo(userEmail, 'comp', subAba);
+  const e = await resolverEscopo(userEmail, aba, subAba);
   // `podeVerIndividual` ja vem resolvido (flag por usuario quando existe,
   // perfil quando nao existe). Recalcular aqui a partir do perfil ignoraria o
   // flag -- que e exatamente o caso que ele existe para cobrir.
@@ -132,7 +150,7 @@ export const listCompRatio = createServerFn({ method: 'GET' })
   .validator((input: unknown) => ListInput.parse(input))
   .handler(async ({ context, data }): Promise<CompRatioLista> => {
     const { email, scope, podeVerIndividual, escopoComp } =
-      await authorize(context.claims.email as string | undefined, 'compratio');
+      await authorize(context.claims.email as string | undefined, { subAba: 'compratio' });
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -376,7 +394,7 @@ export const searchEmployees = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => SearchInput.parse(input))
   .handler(async ({ context, data }): Promise<EmployeeSearchResult[]> => {
-    const { email, scope } = await authorize(context.claims.email as string | undefined);
+    const { email, scope } = await authorize(context.claims.email as string | undefined, { aba: 'individual' });
     const q = (data.query ?? '').trim();
     if (q.length < 2) return [];
 
@@ -411,7 +429,7 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ProfileInput.parse(input))
   .handler(async ({ context, data }): Promise<EmployeeProfile | null> => {
-    const { email, scope, escopoComp } = await authorize(context.claims.email as string | undefined);
+    const { email, scope, escopoComp } = await authorize(context.claims.email as string | undefined, { aba: 'individual' });
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -658,7 +676,7 @@ export interface CompByRole {
 export const getCompByLevelRole = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<CompByRole> => {
-    const { escopoComp } = await authorize(context.claims.email as string | undefined, 'custos');
+    const { escopoComp } = await authorize(context.claims.email as string | undefined, { subAba: 'custos' });
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -777,7 +795,7 @@ export const getHeadcountMix = createServerFn({ method: 'GET' })
 export const getCompAggregates = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }): Promise<CompAggregates> => {
-    const { escopoComp } = await authorize(context.claims.email as string | undefined, 'custos');
+    const { escopoComp } = await authorize(context.claims.email as string | undefined, { subAba: 'custos' });
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -893,7 +911,7 @@ export const getCompEquidade = createServerFn({ method: 'GET' })
   // inteira, sem nada na tela dizendo qual era qual.
   .validator((input: unknown) => ListInput.parse(input))
   .handler(async ({ context, data }): Promise<CompEquidade> => {
-    const { escopoComp } = await authorize(context.claims.email as string | undefined, 'compratio');
+    const { escopoComp } = await authorize(context.claims.email as string | undefined, { subAba: 'compratio' });
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;

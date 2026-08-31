@@ -111,8 +111,9 @@ export default function RecorteDePerfil({
                 {minimoExibicao}.
               </strong>{' '}
               O grupo existe — o que não aparece é a nota, porque com tão poucas respostas ela
-              apontaria para indivíduos. Tire um dos filtros para ver o número: com dois recortes
-              de perfil sobre uma área, a maioria das combinações fica abaixo do mínimo.
+              apontaria para indivíduos. <strong className="text-foreground">Abaixo continua a
+              leitura da área</strong>, que não depende deste recorte; tire um dos filtros para
+              ver este grupo com número próprio.
             </>
           )}
         </p>

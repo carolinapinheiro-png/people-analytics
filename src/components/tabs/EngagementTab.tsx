@@ -151,6 +151,29 @@ function EngagementSection({
   // CW GROUP): ali `semDadoDaArea` já assume, e trocar por null faria os
   // cartões acharem que nada está filtrado.
   const deptSelPesquisa = deptSel ? (scopeForDept(deptSel) ?? deptSel) : null;
+
+  // ------------------------------------------------------------------
+  // O RECORTE SÓ TOMA A ABA INTEIRA QUANDO TEM O QUE MOSTRAR
+  // ------------------------------------------------------------------
+  // A aba troca de conteúdo quando há recorte de perfil, e isso está certo:
+  // quem escolheu "24+ meses" quer os números daquele grupo, não os da
+  // empresa com o resultado escondido lá embaixo.
+  //
+  // Mas quando o grupo fica abaixo do mínimo, a troca vira punição: a pessoa
+  // perde a aba INTEIRA e fica com um cartão de aviso numa tela vazia. Foi o
+  // que apareceu com Finance + 9-12 meses -- três pessoas -- visto pelos
+  // olhos de um HRBP.
+  //
+  // Ela ainda pode ver a área. Então o aviso aparece EM CIMA da aba normal,
+  // que já está filtrada por Finance, em vez de no lugar dela. O recorte que
+  // não deu certo não apaga o que deu.
+  const grupoDoRecorte = recortePerfil && survey
+    ? survey.cuts.find(
+      (c) => c.cutType === recortePerfil.cutType && c.cutValue === recortePerfil.valor,
+    )
+    : null;
+  const recorteTemDado = !!grupoDoRecorte
+    && grupoDoRecorte.n >= (survey?.minimoExibicao ?? 5);
   const areaSel = deptSel ? (depts[0] ?? null) : null;
   // Nem todo departamento do catálogo aparece na pesquisa -- CW GROUP,
   // DIRETORIA, PORTO e TECHNOLOGY GROUP não têm linha. Sem este caso separado,
@@ -282,7 +305,7 @@ function EngagementSection({
 
           Agora o ternário abre aqui, antes de tudo: ou a aba é do grupo, ou é
           a de sempre. Ver RecorteDePerfil.tsx. */}
-      {recortePerfil && survey ? (
+      {recortePerfil && survey && (
         <RecorteDePerfil
           cuts={survey.cuts}
           drivers={survey.driversPorArea}
@@ -293,7 +316,8 @@ function EngagementSection({
           importancia={survey.importancia}
           minimoExibicao={survey.minimoExibicao ?? 5}
         />
-      ) : (
+      )}
+      {!(recortePerfil && survey && recorteTemDado) && (
       <>
 
       {/* ------------------------------------------------------------------
