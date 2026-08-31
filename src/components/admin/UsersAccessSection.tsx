@@ -251,8 +251,16 @@ function accessSummary(form: UserFormState, email: string): string {
     ? 'Vê nome e salário individuais.'
     : 'Só números agregados, sem nome de pessoa.';
 
-  if (form.profile === 'engagement_viewer' && form.extraTabs.length === 0) {
+  // O resumo passa a NOMEAR as abas quando há lista própria. Antes ele só
+  // sabia falar do caso `engagement_viewer`, e para todo o resto dizia apenas
+  // o escopo -- justo agora que a lista de abas é a decisão principal.
+  const abas = visibleTabs(form.profile, form.extraTabs, form.tabs);
+  if (form.profile === 'engagement_viewer' && form.tabs.length === 0 && form.extraTabs.length === 0) {
     return `${areas} — e só a aba Experiência › Engajamento. Nenhuma outra seção do painel, nem as outras sub-abas de Experiência.`;
+  }
+  if (form.tabs.length > 0) {
+    const nomes = abas.map((t) => TAB_LABELS[t]).join(', ');
+    return `${areas} — e só ${abas.length === 1 ? 'a aba' : 'as abas'}: ${nomes || 'nenhuma'}. ${individual}`;
   }
   return `${areas}. ${individual}`;
 }
@@ -1099,26 +1107,91 @@ function UserAccessFormFields({
   const levelListId = `job-levels-${idSuffix}`;
   // Salarios so aparece por concessao individual desde 14/08/2026 -- e quando
   // aparece, o Level deixa de ser decorativo e passa a decidir o recorte.
-  const isCompVisivel = visibleTabs(value.profile, value.extraTabs).includes('comp');
+  // `value.tabs` entra: sem ele, o aviso da camada N seguiria o preset do
+  // perfil e mentiria para quem tem lista própria -- nos dois sentidos.
+  const isCompVisivel = visibleTabs(value.profile, value.extraTabs, value.tabs).includes('comp');
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Perfil de acesso</Label>
-          <select
-            value={value.profile}
-            onChange={(e) => patch({ profile: e.target.value as AccessProfile })}
-            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            {ACCESS_PROFILES.map((p) => (
-              <option key={p} value={p}>
-                {PROFILE_LABELS[p]}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-muted-foreground">{PROFILE_DESCRIPTIONS[value.profile]}</p>
+      {/* ==================================================================
+          A ORDEM DA TELA É A ORDEM DAS DECISÕES
+          ==================================================================
+          O perfil vinha espremido numa grade de três colunas, com a descrição
+          quebrando em quatro linhas num espaço estreito -- e ele é a PRIMEIRA
+          decisão, a que muda todo o resto do formulário.
+
+          Pior: o escopo (departamentos) ficava no fim, DEPOIS de tudo, e a
+          mensagem de erro que exige o escopo aparecia lá embaixo. Quem
+          preenchia de cima para baixo terminava o formulário para então
+          descobrir que faltava o campo obrigatório.
+
+          Agora: quem é (perfil) -> o que alcança (escopo) -> o que vê (abas)
+          -> detalhes. Cargo e camada N desceram: são importantes, mas não
+          são a primeira pergunta.
+      ================================================================== */}
+      <div className="space-y-1.5">
+        <Label className="text-xs text-muted-foreground">Perfil de acesso</Label>
+        <select
+          value={value.profile}
+          onChange={(e) => patch({ profile: e.target.value as AccessProfile })}
+          className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:max-w-xs"
+        >
+          {ACCESS_PROFILES.map((p) => (
+            <option key={p} value={p}>
+              {PROFILE_LABELS[p]}
+            </option>
+          ))}
+        </select>
+        <p className="text-xs text-muted-foreground">{PROFILE_DESCRIPTIONS[value.profile]}</p>
+      </div>
+
+      {isScopedProfileValue(value.profile) && (
+        <div className="space-y-3 rounded-lg border border-border p-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <MultiSelect
+              id={`dept-${idSuffix}`}
+              label="Departamentos atendidos"
+              options={departmentOptions}
+              value={value.departments}
+              onChange={(departments) => patch({ departments })}
+              placeholder="Selecionar departamentos"
+              searchPlaceholder="Buscar departamento..."
+            />
+            <MultiSelect
+              id={`fam-${idSuffix}`}
+              label="Job type families atendidas"
+              options={JOB_TYPE_FAMILIES}
+              value={value.jobFamilies}
+              onChange={(jobFamilies) => patch({ jobFamilies })}
+              placeholder="Selecionar famílias"
+              searchPlaceholder="Buscar família..."
+            />
+          </div>
+
+          {/* Resumo do efeito. Fica SEMPRE visivel -- antes a explicacao da
+              uniao era trocada pela mensagem de erro, ou seja, sumia justo
+              quando a pessoa mais precisava dela. */}
+          <div className="rounded-md bg-muted/50 p-2.5 space-y-1">
+            <p className="text-xs">
+              <Eye className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5 text-muted-foreground" />
+              {accessSummary(value, emailPreview ?? '')}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Departamento <strong>ou</strong> família: quem bate em qualquer um dos dois entra no
+              escopo. Marcar os dois <em>amplia</em> o acesso, não restringe.
+            </p>
+          </div>
+
+          {showError && validationError && (
+            <p className="text-[11px] text-destructive flex items-center gap-1.5">
+              <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+              {validationError}
+            </p>
+          )}
         </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Cargo</Label>
           <Input
@@ -1182,12 +1255,24 @@ function UserAccessFormFields({
           {value.responsibilities.length > 0 && (
             <button
               type="button"
-              onClick={() => patch({ extraTabs: sugerirAbas(value.responsibilities) })}
+              // Preenche a lista DESTA pessoa, e não mais `extraTabs`: aquele
+              // campo saiu da tela, e um botão que altera um campo invisível
+              // é um botão que não faz nada aos olhos de quem clica.
+              //
+              // A sugestão SOMA ao que já existe em vez de substituir: quem
+              // marcou responsabilidades depois de ajustar as abas não quer
+              // perder o ajuste.
+              onClick={() => patch({
+                tabs: [...new Set([
+                  ...visibleTabs(value.profile, value.extraTabs, value.tabs),
+                  ...sugerirAbas(value.responsibilities),
+                ])],
+              })}
               className="text-[11px] underline underline-offset-2 text-muted-foreground hover:text-foreground"
               // Sugerir, e nunca aplicar sozinho: uma aba que aparece por
               // efeito colateral de marcar uma responsabilidade e permissao
               // que ninguem lembra de ter concedido.
-              title="Preenche as abas a partir das responsabilidades marcadas"
+              title="Acrescenta às abas desta pessoa as que as responsabilidades sugerem"
             >
               sugerir pelas responsabilidades
             </button>
@@ -1196,60 +1281,74 @@ function UserAccessFormFields({
 
         <PreviaDeAbas form={value} />
 
-        {/* ------------------------------------------------------------------
-            A LISTA DESTA PESSOA, E DEPOIS A DE EXTRAS
-            ------------------------------------------------------------------
-            Vêm nesta ordem porque é a ordem em que decidem: preenchida a
-            primeira, a segunda deixa de valer. Deixar "extras" em cima faria
-            alguém preencher os dois e não entender por que um foi ignorado. */}
-        <MultiSelect
-          id={`tabs-proprias-${idSuffix}`}
-          label="Abas desta pessoa"
-          options={Object.keys(TAB_LABELS)}
-          value={value.tabs}
-          onChange={(tabs) => patch({ tabs })}
-          placeholder="Vazio = as do perfil"
-          searchPlaceholder="Buscar aba..."
-        />
-        <p className="text-[11px] text-muted-foreground -mt-1">
-          {value.tabs.length === 0 ? (
-            <>Vazio: valem as abas do perfil, mais as concedidas abaixo.</>
-          ) : (
-            <>
-              <strong className="text-foreground">Preenchido: é exatamente esta lista.</strong> O
-              pacote do perfil e as abas concedidas abaixo não valem enquanto houver escolha aqui —
-              é assim que se libera uma aba por vez e amplia depois.
-            </>
-          )}
-        </p>
+        {/* ==================================================================
+            UMA PERGUNTA, UM CONTROLE
+            ==================================================================
+            Aqui havia TRÊS seletores -- "abas desta pessoa", "abas concedidas
+            além do perfil" e "sub-abas" --, todos respondendo à mesma
+            pergunta: o que essa pessoa vê. Cada um com o seu texto de apoio
+            explicando como interagia com os outros.
 
-        <MultiSelect
-          id={`tabs-${idSuffix}`}
-          label="Abas concedidas além do perfil"
-          options={Object.keys(TAB_LABELS)}
-          value={value.extraTabs}
-          onChange={(extraTabs) => patch({ extraTabs })}
-          placeholder="Nenhuma (só as do perfil)"
-          searchPlaceholder="Buscar aba..."
-          disabled={value.tabs.length > 0}
-        />
-        {value.tabs.length > 0 && value.extraTabs.length > 0 && (
-          <p className="text-[11px] text-amber-600 dark:text-amber-500">
-            Estas abas concedidas estão sendo ignoradas: a lista acima manda. Limpe-a para voltar a
-            usar o pacote do perfil mais estas.
-          </p>
+            Chegou como "não consigo escolher o perfil e entender essa tela", e
+            estava certo: a regra por baixo é "uma lista manda por vez", e a
+            tela mostrava as duas listas ao mesmo tempo pedindo que a pessoa
+            fizesse a conta.
+
+            Agora é uma escolha (seguir o perfil ou não) e uma lista. As abas
+            concedidas saíram da tela: ninguém as usa, elas continuam
+            funcionando para quem já tiver, e o mesmo efeito se obtém marcando
+            a aba na lista.
+        ================================================================== */}
+        <div className="flex gap-1 rounded-md bg-muted p-0.5 w-fit">
+          {([
+            ['perfil', 'Segue o perfil'],
+            ['proprias', 'Escolher abas'],
+          ] as const).map(([modo, rotulo]) => {
+            const ativo = modo === 'proprias' ? value.tabs.length > 0 : value.tabs.length === 0;
+            return (
+              <button
+                key={modo}
+                type="button"
+                onClick={() => patch({
+                  // Ao personalizar, começa do preset do perfil em vez de
+                  // vazio: quem clica quer AJUSTAR, não recomeçar. Lista
+                  // vazia significaria "segue o perfil" e o botão pareceria
+                  // não funcionar.
+                  tabs: modo === 'proprias' ? visibleTabs(value.profile, value.extraTabs) : [],
+                  subTabs: modo === 'proprias' ? value.subTabs : [],
+                })}
+                className={`rounded px-2.5 py-1 text-[12px] ${
+                  ativo ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground'
+                }`}
+              >
+                {rotulo}
+              </button>
+            );
+          })}
+        </div>
+
+        {value.tabs.length > 0 && (
+          <MultiSelect
+            id={`tabs-proprias-${idSuffix}`}
+            label="Abas"
+            options={Object.keys(TAB_LABELS)}
+            labels={TAB_LABELS}
+            value={value.tabs}
+            onChange={(tabs) => patch({ tabs })}
+            placeholder="Nenhuma — a pessoa entra e não vê nada"
+            searchPlaceholder="Buscar aba..."
+          />
         )}
 
         {/* ------------------------------------------------------------------
             SUB-ABAS
             ------------------------------------------------------------------
-            Só as das abas que a pessoa realmente vê: oferecer "Onboarding" a
-            quem não tem Experiência é pedir uma decisão que não existe. */}
+            Só das abas que a pessoa realmente vê: oferecer "Onboarding" a quem
+            não tem Experiência é pedir uma decisão que não existe. */}
         {(() => {
           const abasVisiveis = visibleTabs(value.profile, value.extraTabs, value.tabs);
           const disponiveis = SUB_ABAS.filter((sb) => abasVisiveis.includes(sb.aba));
           if (!disponiveis.length) return null;
-          // Marcada UMA de um par que compartilha dado, sem a irmã.
           const parPartido = disponiveis.filter(
             (sb) => SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id]
               && value.subTabs.includes(sb.id)
@@ -1261,30 +1360,26 @@ function UserAccessFormFields({
             <>
               <MultiSelect
                 id={`subtabs-${idSuffix}`}
-                label="Sub-abas desta pessoa"
+                label="Sub-abas (opcional)"
                 options={disponiveis.map((sb) => sb.id)}
                 labels={SUB_ABA_LABEL}
                 value={value.subTabs}
                 onChange={(subTabs) => patch({ subTabs })}
-                placeholder="Vazio = todas as das abas acima"
+                placeholder="Vazio = todas"
                 searchPlaceholder="Buscar sub-aba..."
               />
-              <p className="text-[11px] text-muted-foreground -mt-1">
-                Vazio significa todas. Marcar as de uma aba não mexe nas outras: quem escolhe só as
-                de Experiência continua vendo todas as de Salários.
-              </p>
               {parPartido.length > 0 && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-500">
                   <strong>Atenção:</strong>{' '}
                   {parPartido.map((sb) => sb.rotulo).join(' e ')} e{' '}
                   {parPartido.map((sb) => SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id]).join(' e ')} leem a
-                  MESMA lista de pessoas — são duas leituras do mesmo dado. Marcar uma sem a outra
-                  tira do menu, mas não protege: quem recebe uma recebe a base da outra junto.
+                  MESMA lista de pessoas. Marcar uma sem a outra tira do menu, mas não protege.
                 </p>
               )}
             </>
           );
         })()}
+
         {value.extraTabs.includes('data') && !isGlobalProfile(value.profile) && (
           <p className="text-[11px] text-amber-600 dark:text-amber-500">
             A aba <strong>Dados</strong> é da empresa inteira e não tem recorte por área —
@@ -1332,51 +1427,7 @@ function UserAccessFormFields({
         </div>
       </div>
 
-      {isScopedProfileValue(value.profile) && (
-        <div className="space-y-3 rounded-lg border border-border p-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <MultiSelect
-              id={`dept-${idSuffix}`}
-              label="Departamentos atendidos"
-              options={departmentOptions}
-              value={value.departments}
-              onChange={(departments) => patch({ departments })}
-              placeholder="Selecionar departamentos"
-              searchPlaceholder="Buscar departamento..."
-            />
-            <MultiSelect
-              id={`fam-${idSuffix}`}
-              label="Job type families atendidas"
-              options={JOB_TYPE_FAMILIES}
-              value={value.jobFamilies}
-              onChange={(jobFamilies) => patch({ jobFamilies })}
-              placeholder="Selecionar famílias"
-              searchPlaceholder="Buscar família..."
-            />
-          </div>
 
-          {/* Resumo do efeito. Fica SEMPRE visivel -- antes a explicacao da
-              uniao era trocada pela mensagem de erro, ou seja, sumia justo
-              quando a pessoa mais precisava dela. */}
-          <div className="rounded-md bg-muted/50 p-2.5 space-y-1">
-            <p className="text-xs">
-              <Eye className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5 text-muted-foreground" />
-              {accessSummary(value, emailPreview ?? '')}
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              Departamento <strong>ou</strong> família: quem bate em qualquer um dos dois entra no
-              escopo. Marcar os dois <em>amplia</em> o acesso, não restringe.
-            </p>
-          </div>
-
-          {showError && validationError && (
-            <p className="text-[11px] text-destructive flex items-center gap-1.5">
-              <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
-              {validationError}
-            </p>
-          )}
-        </div>
-      )}
     </div>
   );
 }
