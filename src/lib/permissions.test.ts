@@ -179,3 +179,93 @@ test('tirar `comp` do padrao nao derrubou as outras abas do perfil', () => {
     assert.equal(canSeeTab('dept_leader', t), true, `dept_leader perdeu ${t}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// A LISTA DA PESSOA: UMA MANDA POR VEZ
+// ---------------------------------------------------------------------------
+// `extra_tabs` só soma, de propósito. Isso impedia o caso real -- liberar um
+// HRBP só para Engajamento nesta onda e ampliar depois.
+//
+// A saída não foi acrescentar uma lista de subtração (a combinação que o
+// código evitou), e sim deixar a lista explícita SUBSTITUIR o preset. Estes
+// testes fixam qual das duas manda em cada situação.
+// ---------------------------------------------------------------------------
+
+test('sem lista própria, nada muda: preset do perfil', () => {
+  // Os nove cadastrados hoje estão neste caso. A mudança não pode mexer neles.
+  assert.deepEqual(visibleTabs('hr_leader', [], []), visibleTabs('hr_leader'));
+  assert.deepEqual(visibleTabs('hrbp', null, null), visibleTabs('hrbp'));
+});
+
+test('lista própria SUBSTITUI o preset, inclusive reduzindo', () => {
+  // O caso da Carolina: HRBP liberado só para Engajamento nesta onda.
+  const r = visibleTabs('hrbp', [], ['engagement']);
+  assert.deepEqual(r, ['engagement']);
+  assert.ok(!r.includes('overview'), 'o preset não sobra por baixo');
+});
+
+test('lista própria também amplia, e ignora os extras', () => {
+  // Uma lista manda por vez: com `tabs` preenchida, `extra_tabs` não soma
+  // nada. Se as duas somassem, ler o cadastro exigiria fazer a conta.
+  const r = visibleTabs('hrbp', ['data'], ['engagement', 'comp']);
+  assert.deepEqual(r.sort(), ['comp', 'engagement']);
+  assert.ok(!r.includes('data'), 'extra_tabs não entra quando há lista própria');
+});
+
+test('lista VAZIA é "não definida", não "não vê nada"', () => {
+  // Salvar sem marcar nada é o gesto mais fácil de fazer sem querer. O
+  // resultado dele não pode ser trancar a pessoa para fora.
+  assert.deepEqual(visibleTabs('hrbp', [], []), visibleTabs('hrbp'));
+});
+
+test('aba que não existe mais some da lista em vez de virar fantasma', () => {
+  const r = visibleTabs('hrbp', [], ['engagement', 'aba_que_nao_existe']);
+  assert.deepEqual(r, ['engagement']);
+});
+
+test('a ordem do menu é sempre a de ALL_TABS, não a do cadastro', () => {
+  const r = visibleTabs('hrbp', [], ['attrition', 'overview', 'dei']);
+  assert.deepEqual(r, ['overview', 'dei', 'attrition']);
+});
+
+// ---------------------------------------------------------------------------
+// SUB-ABAS, MESMA MECÂNICA
+// ---------------------------------------------------------------------------
+
+test('sub-abas: sem lista própria, vale o preset do perfil', () => {
+  assert.deepEqual(visibleExperienceSubTabs('hrbp'), ['engajamento', 'onboarding', 'inclusao']);
+  assert.deepEqual(visibleExperienceSubTabs('engagement_viewer'), ['engajamento']);
+});
+
+test('sub-abas: lista própria reduz', () => {
+  assert.deepEqual(
+    visibleExperienceSubTabs('hrbp', ['engajamento']),
+    ['engajamento'],
+  );
+});
+
+test('sub-abas: a lista da pessoa NÃO amplia um perfil de aba única', () => {
+  // Perfil de aba única é exatamente o que foi autorizado -- não um piso a
+  // ampliar. Marcar onboarding num engagement_viewer não pode conceder.
+  assert.deepEqual(
+    visibleExperienceSubTabs('engagement_viewer', ['engajamento', 'onboarding']),
+    ['engajamento'],
+  );
+});
+
+test('sub-abas de OUTRA aba na lista não concedem nem barram Experiência', () => {
+  // A lista é achatada entre as abas. Alguém que marcou só sub-abas de
+  // Compensação não disse "não vê nada em Experiência" -- disse "não falei de
+  // Experiência". Nesse caso o preset volta.
+  assert.deepEqual(
+    visibleExperienceSubTabs('hrbp', ['custos', 'compratio']),
+    ['engajamento', 'onboarding', 'inclusao'],
+  );
+});
+
+test('canSee* concorda com visible* nas duas listas', () => {
+  assert.equal(canSeeTab('hrbp', 'overview', [], ['engagement']), false);
+  assert.equal(canSeeTab('hrbp', 'engagement', [], ['engagement']), true);
+  assert.equal(canSeeExperienceSubTab('hrbp', 'onboarding', ['engajamento']), false);
+  assert.equal(canSeeExperienceSubTab('hrbp', 'engajamento', ['engajamento']), true);
+});

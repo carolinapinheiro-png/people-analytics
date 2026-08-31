@@ -16,8 +16,12 @@ export interface LinhaAcesso {
   profile?: string | null;
   departments?: string[] | null;
   job_families?: string[] | null;
-  /** Abas concedidas alem das do perfil. */
+  /** Abas concedidas alem das do perfil. So SOMA. */
   extra_tabs?: string[] | null;
+  /** Abas DESTA pessoa. Preenchida, substitui o preset e os extras. */
+  tabs?: string[] | null;
+  /** Sub-abas desta pessoa, mesma regra. Lista achatada entre as abas. */
+  sub_tabs?: string[] | null;
   /** true/false forcam; null = conforme o perfil. */
   can_see_individual?: boolean | null;
   /** Acesso temporario. Passou da data, a conta para de valer. */
@@ -39,8 +43,17 @@ export interface EscopoResolvido {
   jobFamilies: string[];
   scope: AccessScope;
   verComo: { email: string; profile: AccessProfile } | null;
-  /** Abas concedidas a esta pessoa alem das do perfil. */
+  /** Abas concedidas a esta pessoa alem das do perfil. So SOMA. */
   extraTabs: string[];
+  /**
+   * A lista de abas DESTA pessoa. Vazia = vale o preset do perfil.
+   *
+   * Ver `visibleTabs`: uma lista manda por vez. Aqui ela e so carregada; quem
+   * decide e `permissions.ts`, para a regra nao existir em dois lugares.
+   */
+  tabs: string[];
+  /** As sub-abas desta pessoa. Mesma regra, lista achatada entre as abas. */
+  subTabs: string[];
   /**
    * Ja resolvido: flag por usuario quando existe, perfil quando nao existe.
    * Os quatro pontos que mostram dado individual leem daqui, para nao
@@ -132,9 +145,17 @@ function montar(
     jobFamilies: linha.job_families ?? [],
   };
   const extraTabs = (linha.extra_tabs ?? []).filter(Boolean);
+  // `filter(Boolean)` nas tres pelo mesmo motivo: um nulo ou string vazia
+  // vindo do banco nao pode virar item de lista -- em `tabs` ele faria a
+  // lista parecer preenchida e a pessoa perderia o preset por causa de uma
+  // linha em branco no cadastro.
+  const tabs = (linha.tabs ?? []).filter(Boolean);
+  const subTabs = (linha.sub_tabs ?? []).filter(Boolean);
   return {
     email,
     extraTabs,
+    tabs,
+    subTabs,
     // O flag por usuario resolvido aqui, uma vez, para os quatro pontos que
     // mostram dado individual nao repetirem a regra cada um do seu jeito.
     podeVerIndividual: canSeeIndividualData(profile, linha.can_see_individual ?? null),

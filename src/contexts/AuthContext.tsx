@@ -46,6 +46,9 @@ interface AuthContextType {
    * ver `visibleTabs(profile, extraTabs)`.
    */
   extraTabs: string[];
+  /** A lista desta pessoa; vazia = vale o preset. Ver `visibleTabs`. */
+  tabs: string[];
+  subTabs: string[];
   /** Ja resolvido no servidor: flag por usuario quando existe, perfil quando nao. */
   podeVerIndividual: boolean;
   /** Validade do acesso, quando temporario. */
@@ -84,6 +87,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [verComo, setVerComo] = useState<{ email: string; profile: string } | null>(null);
   const [nivel, setNivel] = useState<string | null>(null);
   const [extraTabs, setExtraTabs] = useState<string[]>([]);
+  const [tabs, setTabs] = useState<string[]>([]);
+  const [subTabs, setSubTabs] = useState<string[]>([]);
   const [podeVerIndividual, setPodeVerIndividual] = useState(false);
   const [expiraEm, setExpiraEm] = useState<string | null>(null);
   const checkAccessFn = useServerFn(checkAccess);
@@ -115,6 +120,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setVerComo((result as { verComo?: { email: string; profile: string } | null }).verComo ?? null);
           setNivel((result as { nivel?: string | null }).nivel ?? null);
           setExtraTabs((result as { extraTabs?: string[] }).extraTabs ?? []);
+          setTabs((result as { tabs?: string[] }).tabs ?? []);
+          setSubTabs((result as { subTabs?: string[] }).subTabs ?? []);
           setPodeVerIndividual(!!(result as { podeVerIndividual?: boolean }).podeVerIndividual);
           setExpiraEm((result as { expiraEm?: string | null }).expiraEm ?? null);
           return 'allowed';
@@ -285,6 +292,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         verComo,
         nivel,
         extraTabs,
+        tabs,
+        subTabs,
         podeVerIndividual,
         expiraEm,
         signIn,

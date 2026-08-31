@@ -49,9 +49,19 @@ type UntypedClient = SupabaseClient<any, 'public', any>;
  * decide quem voce e -- e o unico que sabe do "ver como". Antes cada arquivo
  * tinha sua propria copia desta consulta; treze copias, quatro formatos.
  */
-async function authorize(userEmail: string | undefined): Promise<AccessScope> {
+/**
+ * Devolve o escopo E as sub-abas da pessoa.
+ *
+ * Antes devolvia só `scope`, e a lista de sub-abas saía do PERFIL. Com a
+ * escolha por pessoa, o perfil deixou de ser suficiente: um HRBP liberado só
+ * para Engajamento nesta onda tem o mesmo perfil de outro que vê as três.
+ */
+async function authorize(
+  userEmail: string | undefined,
+): Promise<{ scope: AccessScope; subTabs: string[] }> {
   const { resolverEscopo } = await import('@/lib/escopo.server');
-  return (await resolverEscopo(userEmail, 'engagement')).scope;
+  const e = await resolverEscopo(userEmail, 'engagement');
+  return { scope: e.scope, subTabs: e.subTabs };
 }
 
 export interface EngagementScore {
@@ -161,7 +171,7 @@ export const getExperienceData = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => DeptFilterInput.parse(input))
   .handler(async ({ context, data: input }): Promise<ExperienceData> => {
-    const scope = await authorize(context.claims.email as string | undefined);
+    const { scope, subTabs } = await authorize(context.claims.email as string | undefined);
 
     // ======================================================================
     // O FILTRO PEDIDO NÃO PODE AMPLIAR O ESCOPO -- SÓ ESTREITAR
@@ -330,7 +340,11 @@ export const getExperienceData = createServerFn({ method: 'GET' })
     //
     // A lista de sub-abas visíveis é a mesma que a UI usa (`permissions.ts`),
     // para as duas não poderem discordar.
-    const subs = visibleExperienceSubTabs(scope.profile);
+    // As sub-abas DESTA pessoa, e não as do perfil dela. É aqui que o corte
+    // vale de verdade: mais abaixo, `soEngajamento` remove onboarding e
+    // inclusão do PAYLOAD. Esconder na tela deixaria o dado na resposta HTTP,
+    // e "escondido por CSS continua entregue".
+    const subs = visibleExperienceSubTabs(scope.profile, subTabs);
     const soEngajamento = !subs.includes('onboarding') && !subs.includes('inclusao');
 
     // Contagem REAL por onda, em vez de um rotulo escrito a mao.
@@ -520,7 +534,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => DeptFilterInput.parse(input))
   .handler(async ({ context, data: input }): Promise<EngagementCrossData> => {
-    const scope = await authorize(context.claims.email as string | undefined);
+    const { scope } = await authorize(context.claims.email as string | undefined);
     const podeVerTudo = isGlobalProfile(scope.profile);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');

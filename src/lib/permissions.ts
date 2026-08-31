@@ -108,12 +108,43 @@ export type ExperienceSubTab = 'engajamento' | 'onboarding' | 'inclusao';
 
 const TODAS_SUBABAS: ExperienceSubTab[] = ['engajamento', 'onboarding', 'inclusao'];
 
-export function visibleExperienceSubTabs(profile: AccessProfile): ExperienceSubTab[] {
-  return profile === 'engagement_viewer' ? ['engajamento'] : TODAS_SUBABAS;
+/**
+ * As sub-abas de Experiência que a pessoa enxerga.
+ *
+ * Mesma regra de `visibleTabs`: lista da pessoa preenchida manda; vazia cai
+ * no preset do perfil.
+ *
+ * O cadastro guarda uma lista ACHATADA, com sub-abas de todas as abas
+ * misturadas ('engajamento', 'custos', 'desligamentos'...). Aqui só as de
+ * Experiência interessam, então o resto é ignorado -- e ignorar é o
+ * comportamento certo: uma sub-aba de Compensação nesta lista não pode
+ * silenciosamente conceder nem barrar nada aqui.
+ *
+ * SE A INTERSEÇÃO FICAR VAZIA, o preset volta. É o mesmo cuidado da lista de
+ * abas: alguém que marcou só sub-abas de Compensação não está dizendo "não vê
+ * nada em Experiência", está dizendo "não falei de Experiência".
+ */
+export function visibleExperienceSubTabs(
+  profile: AccessProfile,
+  subTabsDaPessoa?: readonly string[] | null,
+): ExperienceSubTab[] {
+  const preset = profile === 'engagement_viewer' ? (['engajamento'] as ExperienceSubTab[]) : TODAS_SUBABAS;
+  if (!subTabsDaPessoa?.length) return preset;
+  const set = new Set<string>(subTabsDaPessoa);
+  const escolhidas = TODAS_SUBABAS.filter((s) => set.has(s));
+  if (!escolhidas.length) return preset;
+  // A escolha individual NÃO amplia o preset do perfil: um engagement_viewer
+  // com 'onboarding' marcado continua sem onboarding. Perfil de aba única é
+  // exatamente o que foi autorizado -- ver `tabsDoPerfil`.
+  return escolhidas.filter((s) => preset.includes(s));
 }
 
-export function canSeeExperienceSubTab(profile: AccessProfile, sub: string): boolean {
-  return visibleExperienceSubTabs(profile).includes(sub as ExperienceSubTab);
+export function canSeeExperienceSubTab(
+  profile: AccessProfile,
+  sub: string,
+  subTabsDaPessoa?: readonly string[] | null,
+): boolean {
+  return visibleExperienceSubTabs(profile, subTabsDaPessoa).includes(sub as ExperienceSubTab);
 }
 
 export interface AccessScope {
@@ -202,7 +233,36 @@ function tabsDoPerfil(profile: AccessProfile): DashboardTab[] {
 export function visibleTabs(
   profile: AccessProfile,
   extraTabs?: readonly string[] | null,
+  /**
+   * A lista da PESSOA. Quando vem preenchida, é ela e mais nada -- nem o
+   * preset do perfil, nem `extraTabs`.
+   *
+   * ------------------------------------------------------------------
+   * UMA LISTA MANDA POR VEZ
+   * ------------------------------------------------------------------
+   * `extraTabs` só soma, e a razão está escrita acima: duas listas, uma
+   * somando e outra subtraindo, produzem combinações que ninguém prevê lendo
+   * o cadastro. A razão continua boa.
+   *
+   * Só que ela impedia o caso real -- liberar um HRBP só para Engajamento
+   * nesta onda e ampliar depois. Reduzir era impossível.
+   *
+   * A saída não é uma lista de subtração, que seria exatamente a combinação
+   * evitada. É esta: ou o preset manda, ou a lista explícita manda. Quem lê o
+   * cadastro vê o que a pessoa enxerga, sem fazer conta.
+   *
+   * Um cadastro com lista VAZIA (`[]`) é tratado como "não definida", igual a
+   * null. Salvar sem marcar nada é o gesto mais fácil de fazer sem querer, e
+   * o resultado dele não pode ser "esta pessoa não vê nada".
+   */
+  tabsDaPessoa?: readonly string[] | null,
 ): DashboardTab[] {
+  if (tabsDaPessoa?.length) {
+    const set = new Set<string>(tabsDaPessoa);
+    // Filtrado por ALL_TABS: uma aba que não existe mais no produto sai da
+    // lista sozinha, em vez de virar item fantasma no cadastro.
+    return ALL_TABS.filter((t) => set.has(t));
+  }
   const base = tabsDoPerfil(profile);
   if (!extraTabs?.length) return base;
   const set = new Set<string>([...base, ...extraTabs]);
@@ -213,8 +273,9 @@ export function canSeeTab(
   profile: AccessProfile,
   tab: DashboardTab,
   extraTabs?: readonly string[] | null,
+  tabsDaPessoa?: readonly string[] | null,
 ): boolean {
-  return visibleTabs(profile, extraTabs).includes(tab);
+  return visibleTabs(profile, extraTabs, tabsDaPessoa).includes(tab);
 }
 
 /** Aba concedida que veio de `extra_tabs`, e nao do preset. Para a tela rotular. */

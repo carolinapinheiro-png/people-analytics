@@ -36,7 +36,7 @@ export type EscopoEfetivo = EscopoResolvido;
 async function buscarLinha(email: string): Promise<LinhaAcesso | null> {
   const { data, error } = await supabaseAdmin
     .from('allowed_emails')
-    .select('role, profile, departments, job_families, extra_tabs, can_see_individual, expires_at, job_level')
+    .select('role, profile, departments, job_families, extra_tabs, tabs, sub_tabs, can_see_individual, expires_at, job_level')
     .ilike('email', email)
     .maybeSingle();
   // Falha de consulta NÃO é negação: um erro transitório de banco não pode se
@@ -130,7 +130,7 @@ export async function resolverEscopo(
   // `extraTabs` entra na conta: uma aba concedida individualmente vale tanto
   // quanto uma que veio do preset. Sem passar isto aqui, o menu mostraria a
   // aba concedida e o servidor a recusaria -- o pior dos dois mundos.
-  if (aba && !canSeeTab(resolvido.profile, aba, resolvido.extraTabs)) {
+  if (aba && !canSeeTab(resolvido.profile, aba, resolvido.extraTabs, resolvido.tabs)) {
     registrar({
       email: userEmail, action: 'aba_negada', allowed: false,
       metadata: { aba, perfil: resolvido.profile },

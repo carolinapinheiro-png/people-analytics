@@ -54,6 +54,8 @@ export const checkAccess = createServerFn({ method: 'GET' })
       jobFamilies: [] as string[],
       verComo: null as { email: string; profile: string } | null,
       extraTabs: [] as string[],
+      tabs: [] as string[],
+      subTabs: [] as string[],
       podeVerIndividual: false,
       expiraEm: null as string | null,
       nivel: null as string | null,
@@ -104,6 +106,13 @@ export const checkAccess = createServerFn({ method: 'GET' })
       jobFamilies: e.jobFamilies,
       /** Abas concedidas alem das do perfil -- o menu precisa somar as duas. */
       extraTabs: e.extraTabs,
+      /**
+       * A lista DESTA pessoa. Preenchida, o menu usa ela e ignora o preset --
+       * ver `visibleTabs`. O menu precisa da mesma regra do servidor, senao
+       * mostra item que a resposta recusa.
+       */
+      tabs: e.tabs,
+      subTabs: e.subTabs,
       podeVerIndividual: e.podeVerIndividual,
       expiraEm: e.expiraEm,
       /** Nivel proprio -- a aba de Salarios usa para dizer que recorte a pessoa esta vendo. */
@@ -313,7 +322,7 @@ async function fotoAtual(id: string): Promise<{ email: string; foto: PermissaoSn
   const { supabaseAdmin } = await import('./access-rules.server');
   const { data } = await supabaseAdmin
     .from('allowed_emails')
-    .select('email, profile, departments, job_families, extra_tabs, can_see_individual, expires_at')
+    .select('email, profile, departments, job_families, extra_tabs, tabs, sub_tabs, can_see_individual, expires_at')
     .eq('id', id)
     .maybeSingle();
   if (!data) return null;
@@ -495,7 +504,7 @@ export const bulkUpdateAllowedEmails = createServerFn({ method: 'POST' })
 
     const { data: linhas, error: eLer } = await supabaseAdmin
       .from('allowed_emails')
-      .select('id, email, profile, departments, job_families, extra_tabs, can_see_individual, expires_at')
+      .select('id, email, profile, departments, job_families, extra_tabs, tabs, sub_tabs, can_see_individual, expires_at')
       .in('id', data.ids);
     if (eLer) throw new Error(eLer.message);
 
@@ -571,7 +580,7 @@ export const exportAllowedEmailsCsv = createServerFn({ method: 'GET' })
 
     const { data, error } = await supabaseAdmin
       .from('allowed_emails')
-      .select('email, profile, departments, job_families, extra_tabs, job_title, job_level, expires_at, can_see_individual, last_login_at')
+      .select('email, profile, departments, job_families, extra_tabs, tabs, sub_tabs, job_title, job_level, expires_at, can_see_individual, last_login_at')
       .order('email');
     if (error) throw new Error(error.message);
 

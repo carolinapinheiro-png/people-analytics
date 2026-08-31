@@ -29,11 +29,11 @@ const tabs: { id: TabType; label: string }[] = [
 
 export default function TabNavigation() {
   const { activeTab, setActiveTab, brand } = useDashboard();
-  const { profile, extraTabs } = useAuth();
+  const { profile, extraTabs, tabs: tabsDaPessoa } = useAuth();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
 
   // O perfil define quais abas existem para esta pessoa.
-  const allowed = visibleTabs(profile ?? 'dept_leader', extraTabs);
+  const allowed = visibleTabs(profile ?? 'dept_leader', extraTabs, tabsDaPessoa);
   const shownTabs = tabs.filter((t) => allowed.includes(t.id));
 
   useEffect(() => {
