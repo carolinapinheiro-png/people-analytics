@@ -175,3 +175,23 @@ test('área que só existe numa marca passa inteira', () => {
   ];
   assert.equal(getMonthData(dados, '2026-08', 'combined').dept_data.LEGAL.avg_salary_leaders, 9000);
 });
+
+test('entradas e saídas por área somam entre marcas', () => {
+  const dados = [
+    mes('NSX', { headcount: 90, joiners: 5, leavers: 3, dept_data: { TECH: dd({ hc: 90, joiners: 5, leavers: 3 }) } }),
+    mes('Betfair BR', { headcount: 10, joiners: 1, leavers: 0, dept_data: { TECH: dd({ hc: 10, joiners: 1, leavers: 0 }) } }),
+  ];
+  const tech = getMonthData(dados, '2026-08', 'combined').dept_data.TECH;
+  assert.equal(tech.joiners, 6);
+  assert.equal(tech.leavers, 3);
+});
+
+test('linha antiga sem entradas/saídas por área devolve undefined, não zero', () => {
+  // `undefined` faz `applyDeptFilter` cair no rateio, que é o comportamento
+  // anterior. Zero diria "esta área não teve nenhuma saída", que é afirmação.
+  const dados = [
+    mes('NSX', { headcount: 90, dept_data: { OPS: dd({ hc: 90 }) } }),
+    mes('Betfair BR', { headcount: 10, dept_data: { OPS: dd({ hc: 10 }) } }),
+  ];
+  assert.equal(getMonthData(dados, '2026-08', 'combined').dept_data.OPS.leavers, undefined);
+});

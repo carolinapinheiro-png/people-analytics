@@ -331,6 +331,12 @@ function mergeDepts(a: Record<string, DeptData>, b: Record<string, DeptData>): R
         y.avg_salary_non_leaders, y.n_non_leaders_salario),
       n_leaders_salario: (x.n_leaders_salario ?? 0) + (y.n_leaders_salario ?? 0),
       n_non_leaders_salario: (x.n_non_leaders_salario ?? 0) + (y.n_non_leaders_salario ?? 0),
+      // Contagens: somam. `undefined` de um lado não pode virar zero do outro,
+      // então só somam quando ao menos um dos dois trouxe o número.
+      joiners: x.joiners == null && y.joiners == null
+        ? undefined : (x.joiners ?? 0) + (y.joiners ?? 0),
+      leavers: x.leavers == null && y.leavers == null
+        ? undefined : (x.leavers ?? 0) + (y.leavers ?? 0),
     };
   }
   return r;

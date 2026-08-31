@@ -6,6 +6,11 @@ export interface DeptData {
    *  visão combinada apresentava a média de UMA marca como a do conjunto. */
   n_leaders_salario?: number;
   n_non_leaders_salario?: number;
+  /** Entradas e saídas DA ÁREA, contadas. Ver `applyDeptFilter`: sem elas ele
+   *  rateava as da empresa pela fatia de headcount -- e a atrição do recorte
+   *  saía de um numerador estimado sobre um denominador exato. */
+  joiners?: number;
+  leavers?: number;
 }
 
 export interface MonthRecord {

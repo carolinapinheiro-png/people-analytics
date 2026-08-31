@@ -124,8 +124,25 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
     // misture headcount de departamento com distribuicao de empresa.
     dept_filter_exact: !!db,
     headcount: deptInfo.hc,
-    joiners: Math.round((record.joiners || 0) * ratio),
-    leavers: Math.round((record.leavers || 0) * ratio),
+    // ------------------------------------------------------------------
+    // ENTRADAS E SAIDAS: EXATAS QUANDO EXISTEM
+    // ------------------------------------------------------------------
+    // Isto rateava sempre -- entradas da empresa vezes a fatia de headcount da
+    // area. A carga conta as duas POR AREA desde sempre; o que faltava era
+    // guarda-las. Com o numerador estimado sobre um denominador exato, a
+    // atricao do recorte saia de duas populacoes diferentes.
+    //
+    // O rateio fica como reserva para linhas antigas, que nao tem os campos.
+    joiners: deptInfo.joiners ?? Math.round((record.joiners || 0) * ratio),
+    leavers: deptInfo.leavers ?? Math.round((record.leavers || 0) * ratio),
+    // Recalculada da area, e nao herdada. `...record` trazia a taxa da EMPRESA
+    // para dentro do recorte -- um numero que nao tinha nada a ver com o
+    // departamento selecionado e que ninguem tinha como conferir na tela.
+    attrition_rate: (() => {
+      const sai = deptInfo.leavers ?? Math.round((record.leavers || 0) * ratio);
+      const expostos = deptInfo.hc + sai;
+      return expostos > 0 ? Math.round((sai / expostos) * 1000) / 10 : 0;
+    })(),
     leaders: Math.round((record.leaders || 0) * ratio),
     promotions: Math.round((record.promotions || 0) * ratio),
     gender_female: Math.round((record.gender_female || 0) * ratio),
