@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Activity } from "lucide-react";
 import ChartCard from "@/components/dashboard/ChartCard";
 import { COLORS } from "@/lib/colors";
+import { METRICAS, type Metrica } from "@/lib/metricas-pesquisa";
 import { cn } from "@/lib/utils";
 import type { OndaEnps, PontoOnda } from "@/lib/experience.functions";
 
@@ -101,49 +102,15 @@ const pct = (parte: number | null, total: number | null) =>
 const fmt1 = (v: number | null) =>
   v == null ? "—" : v.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
 
-/**
- * As três métricas, e o que cada uma tem de diferente.
- *
- * `inverso` marca a única em que SUBIR é ruim. Sem isso, um leitor que
- * atravessa os três painéis da esquerda para a direita lê a terceira subida
- * como boa notícia -- e ela é o oposto. A nota sob o título diz isso em
- * palavras, porque cor sozinha não sobrevive a um print em preto e branco.
- */
-const METRICAS = [
-  {
-    chave: "enps" as const,
-    titulo: "eNPS",
-    nota: "maior é melhor",
-    valor: (p: PontoOnda) => p.enps as number | null,
-    formatar: (v: number) => String(Math.round(v)),
-    inverso: false,
-  },
-  {
-    chave: "satisfacao" as const,
-    titulo: "Satisfação",
-    nota: "média de 0 a 10 · maior é melhor",
-    valor: (p: PontoOnda) => p.satisfacao,
-    formatar: (v: number) => fmt1(v),
-    inverso: false,
-  },
-  {
-    chave: "risco" as const,
-    titulo: "Risco de saída",
-    nota: "% · menor é melhor",
-    valor: (p: PontoOnda) => p.risco,
-    formatar: (v: number) => `${fmt1(v)}%`,
-    inverso: true,
-  },
-];
 
-type Metrica = (typeof METRICAS)[number];
 
 interface Alvo {
   area: string;
   cor: string;
   ondaLabel: string;
   ponto: PontoOnda;
-  metrica: string;
+  /** Qual painel está sob o mouse. Decide o número em destaque no balão. */
+  metrica: Metrica["chave"];
   x: number;
   y: number;
 }
@@ -540,11 +507,26 @@ function Painel({
 }
 
 /**
- * O balão traz os TRÊS indicadores, esteja o mouse em qual painel estiver.
+ * O balão traz os TRÊS indicadores, esteja o mouse em qual painel estiver --
+ * mas o número GRANDE é o do painel onde o mouse está.
  *
- * Foi o que motivou os três painéis, então seria estranho o detalhe voltar a
- * mostrar um só: quem parou o mouse na queda de satisfação quer saber, ali
- * mesmo, o que o eNPS e o risco daquela área fizeram no mesmo mês.
+ * ===========================================================================
+ * A HIERARQUIA ESTAVA FIXA NO eNPS
+ * ===========================================================================
+ * Mostrar os três é o ponto do cartão: quem para o mouse na queda de
+ * satisfação quer saber, ali mesmo, o que o eNPS e o risco fizeram no mesmo
+ * mês. Isso continua.
+ *
+ * O que estava errado era a ORDEM. O número em corpo grande era sempre o
+ * eNPS, e satisfação e risco iam para duas linhas de 11px no rodapé. Apontando
+ * para a coluna de Satisfação, o destaque era um número de outra coluna.
+ *
+ * Relatado pela Marília: "independente da coluna, o número que mostra é o de
+ * eNPS". Ela leu a hierarquia, que é o que uma hierarquia serve para ser
+ * lida -- o maior número é o que se está apontando.
+ *
+ * `alvo.metrica` já sabia qual painel estava sob o mouse; só ninguém usava
+ * para decidir o destaque.
  */
 function Balao({ alvo }: { alvo: Alvo }) {
   return (
@@ -570,16 +552,29 @@ function Balao({ alvo }: { alvo: Alvo }) {
         {alvo.area}
       </p>
 
-      <div className="mt-1.5 flex items-baseline gap-2">
-        <span className="text-2xl font-bold tabular-nums">{Math.round(alvo.ponto.enps)}</span>
-        <span className="text-[11px] text-muted-foreground">
-          eNPS · {alvo.ponto.n ?? "—"} respostas
-        </span>
-      </div>
+      {(() => {
+        const emFoco = METRICAS.find((m) => m.chave === alvo.metrica) ?? METRICAS[0];
+        const v = emFoco.valor(alvo.ponto);
+        return (
+          <div className="mt-1.5 flex items-baseline gap-2">
+            <span className="text-2xl font-bold tabular-nums">
+              {v == null ? "—" : emFoco.formatar(v)}
+            </span>
+            <span className="text-[11px] text-muted-foreground">
+              {emFoco.titulo} · {alvo.ponto.n ?? "—"} respostas
+            </span>
+          </div>
+        );
+      })()}
 
       {/* A composição por trás da subtração. Absoluto E porcentagem:
           "17 de 24" e "71%" respondem perguntas diferentes, e quem lê
-          usa as duas. */}
+          usa as duas.
+
+          Só quando o eNPS é o número em foco: promotores e detratores
+          explicam a subtração DELE. Debaixo de uma média de satisfação eles
+          seriam três linhas que não explicam o número acima. */}
+      {alvo.metrica === "enps" && (
       <div className="mt-2 space-y-0.5 text-[11px]">
         {(
           [
@@ -602,16 +597,22 @@ function Balao({ alvo }: { alvo: Alvo }) {
           </div>
         ))}
       </div>
+      )}
 
-      <div className="mt-2 pt-1.5 border-t border-border/60 flex items-center justify-between gap-3 text-[11px]">
-        <span className="text-muted-foreground">Satisfação</span>
-        <span className="tabular-nums">{fmt1(alvo.ponto.satisfacao)}</span>
-      </div>
-      <div className="flex items-center justify-between gap-3 text-[11px]">
-        <span className="text-muted-foreground">Risco de saída</span>
-        <span className="tabular-nums">
-          {alvo.ponto.risco == null ? "—" : `${fmt1(alvo.ponto.risco)}%`}
-        </span>
+      {/* Os OUTROS dois, sempre -- é para isso que os três painéis existem.
+          Derivados de METRICAS em vez de escritos à mão: com a lista à mão,
+          acrescentar um indicador exigiria lembrar deste rodapé, e a mesma
+          forma de esquecimento já custou uma semana neste painel. */}
+      <div className="mt-2 pt-1.5 border-t border-border/60 space-y-0.5">
+        {METRICAS.filter((m) => m.chave !== alvo.metrica).map((m) => {
+          const v = m.valor(alvo.ponto);
+          return (
+            <div key={m.chave} className="flex items-center justify-between gap-3 text-[11px]">
+              <span className="text-muted-foreground">{m.titulo}</span>
+              <span className="tabular-nums">{v == null ? "—" : m.formatar(v)}</span>
+            </div>
+          );
+        })}
       </div>
 
       {/* A ressalva que só aparece quando é verdade. Com n pequeno, o
