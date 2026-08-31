@@ -86,14 +86,30 @@ const SUB_ABAS: Array<{ aba: DashboardTab; id: string; rotulo: string; noServido
   { aba: 'engagement', id: 'inclusao', rotulo: 'Inclusão & Pertencimento', noServidor: true },
   { aba: 'comp', id: 'custos', rotulo: 'Custos & Bandas', noServidor: true },
   { aba: 'comp', id: 'compratio', rotulo: 'Comp Ratio individual', noServidor: true },
-  // Movimentações lê a série mensal do contexto, a mesma que Overview e
-  // Demográficos já carregam -- não tem função de servidor própria para
-  // recusar. Barrar aqui é tirar do menu, e o dado continua no cliente por
-  // causa das outras abas. Marcado como o que é.
-  { aba: 'comp', id: 'movimentacoes', rotulo: 'Movimentações', noServidor: false },
+  // Movimentações lê a série mensal do contexto, mas consome UM campo que
+  // mais ninguém consome (`raise_events`). O corte existe -- é sobre o campo,
+  // não sobre a chamada: quem não pode ver recebe a série sem ele.
+  { aba: 'comp', id: 'movimentacoes', rotulo: 'Movimentações', noServidor: true },
   { aba: 'attrition', id: 'desligamentos', rotulo: 'Desligamentos', noServidor: true },
-  { aba: 'attrition', id: 'nao-desejada', rotulo: 'Atrição não desejada', noServidor: false },
+  { aba: 'attrition', id: 'nao-desejada', rotulo: 'Atrição não desejada', noServidor: true },
 ];
+
+/**
+ * Sub-abas que leem exatamente o MESMO dado de uma irmã.
+ *
+ * Desligamentos e Atrição não desejada são duas leituras da mesma lista de
+ * pessoas. Separá-las no servidor exigiria partir a lista em duas por um
+ * critério que não existe no dado -- seria inventar uma fronteira para poder
+ * defendê-la.
+ *
+ * Então a tela diz a verdade: marcar uma sem a outra tira do menu, e não
+ * protege. Diferente do aviso anterior, que dizia isso de Salários inteiro e
+ * já não é mais verdade.
+ */
+const SUB_ABAS_QUE_COMPARTILHAM_DADO: Record<string, string> = {
+  desligamentos: 'Atrição não desejada',
+  'nao-desejada': 'Desligamentos',
+};
 
 const SUB_ABA_LABEL: Record<string, string> = Object.fromEntries(
   SUB_ABAS.map((s) => [s.id, `${TAB_LABELS[s.aba]} › ${s.rotulo}`]),
@@ -1233,8 +1249,14 @@ function UserAccessFormFields({
           const abasVisiveis = visibleTabs(value.profile, value.extraTabs, value.tabs);
           const disponiveis = SUB_ABAS.filter((sb) => abasVisiveis.includes(sb.aba));
           if (!disponiveis.length) return null;
-          const semCorteNoServidor = disponiveis
-            .filter((sb) => !sb.noServidor && value.subTabs.includes(sb.id));
+          // Marcada UMA de um par que compartilha dado, sem a irmã.
+          const parPartido = disponiveis.filter(
+            (sb) => SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id]
+              && value.subTabs.includes(sb.id)
+              && !value.subTabs.includes(
+                disponiveis.find((x) => x.rotulo === SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id])?.id ?? '',
+              ),
+          );
           return (
             <>
               <MultiSelect
@@ -1251,12 +1273,13 @@ function UserAccessFormFields({
                 Vazio significa todas. Marcar as de uma aba não mexe nas outras: quem escolhe só as
                 de Experiência continua vendo todas as de Salários.
               </p>
-              {semCorteNoServidor.length > 0 && (
+              {parPartido.length > 0 && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-500">
-                  <strong>Atenção:</strong> {semCorteNoServidor.map((sb) => sb.rotulo).join(' e ')}{' '}
-                  {semCorteNoServidor.length > 1 ? 'leem' : 'lê'} a série mensal que outras abas já
-                  carregam, então aqui o corte é só de navegação: some do menu, mas o dado continua
-                  disponível para quem souber pedir. Nas demais sub-abas o corte vale no servidor.
+                  <strong>Atenção:</strong>{' '}
+                  {parPartido.map((sb) => sb.rotulo).join(' e ')} e{' '}
+                  {parPartido.map((sb) => SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id]).join(' e ')} leem a
+                  MESMA lista de pessoas — são duas leituras do mesmo dado. Marcar uma sem a outra
+                  tira do menu, mas não protege: quem recebe uma recebe a base da outra junto.
                 </p>
               )}
             </>

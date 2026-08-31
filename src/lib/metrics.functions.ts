@@ -49,7 +49,22 @@ async function authorize(userEmail: string | undefined) {
   // inverso e pior: quem tem lista própria SEM Overview continuava recebendo,
   // porque a checagem olhava só o preset do perfil.
   const podeVerSerie = canSeeTab(e.profile, 'overview', e.extraTabs, e.tabs);
-  return { email: e.email, role: e.role, podeVerSerie };
+  // ------------------------------------------------------------------
+  // MOVIMENTAÇÕES NÃO TEM FUNÇÃO PRÓPRIA -- TEM UM CAMPO PRÓPRIO
+  // ------------------------------------------------------------------
+  // A sub-aba "Movimentações" lê a série mensal do contexto, a mesma que
+  // Overview e Demográficos carregam. Não há chamada para recusar.
+  //
+  // Mas ela consome UM campo que mais ninguém consome: `raise_events`. Então
+  // o corte existe -- é sobre o campo, não sobre a chamada. Quem não pode ver
+  // a sub-aba recebe a série sem ele, e a tela desenha zeros em vez de
+  // números que não deveria ter.
+  //
+  // Isto é o que fazia a tela do admin exibir um aviso dizendo que ali o
+  // corte era só de navegação. Deixa de ser.
+  const { podeVerSubAba } = await import('@/lib/permissions');
+  const podeVerMovimentacoes = podeVerSubAba('movimentacoes', e.subTabs);
+  return { email: e.email, role: e.role, podeVerSerie, podeVerMovimentacoes };
 }
 
 /**
@@ -326,17 +341,33 @@ export const getMonthlyMetrics = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .validator((input: unknown) => ListInput.parse(input))
   .handler(async ({ context, data }) => {
-    const { podeVerSerie } = await authorize(context.claims.email as string | undefined);
+    const { podeVerSerie, podeVerMovimentacoes } =
+      await authorize(context.claims.email as string | undefined);
     if (!podeVerSerie) return [];
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
 
-    let q = db
-      .from('monthly_metrics')
-      .select(
+    // `raise_events` fora do SELECT quando a pessoa não pode ver
+    // Movimentações -- e não removido depois, no map.
+    //
+    // A diferença importa: removido depois, o campo atravessa a rede e o
+    // banco antes de sumir, e a próxima pessoa a mexer no `map` tem como
+    // devolvê-lo sem perceber. Fora do SELECT, ele não existe na resposta
+    // porque nunca foi pedido.
+    //
+    // Dois literais em vez de uma string montada: o tipo do PostgREST lê o
+    // `select` em tempo de compilação, e uma string dinâmica o transforma em
+    // erro de parser. Duas linhas quase iguais aqui valem mais que um `as
+    // unknown` que apagaria a conferência de tipo da resposta inteira.
+    const tabela = db.from('monthly_metrics');
+    let q = (podeVerMovimentacoes
+      ? tabela.select(
         'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, raise_events, pcd, apprentice, leader_dept, tenure_base, demographics, race_cross, dept_breakdown',
       )
+      : tabela.select(
+        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, pcd, apprentice, leader_dept, tenure_base, demographics, race_cross, dept_breakdown',
+      ))
       .is('quality_flag', null)
       .order('month', { ascending: true });
 

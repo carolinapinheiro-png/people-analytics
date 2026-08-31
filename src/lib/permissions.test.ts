@@ -326,3 +326,13 @@ test('o mapa cobre TODAS as sub-abas que o cadastro aceita', () => {
     assert.ok(SUB_ABAS_DO_PRODUTO[s], `${s} fora de SUB_ABAS_DO_PRODUTO`);
   }
 });
+
+test('Movimentações é barrável: tem campo próprio na série', () => {
+  // Ela não tem função de servidor própria, mas consome `raise_events`, que
+  // mais ninguém consome. O corte é sobre o CAMPO -- `getMonthlyMetrics` não
+  // o pede no SELECT quando a pessoa não pode ver a sub-aba.
+  assert.equal(podeVerSubAba('movimentacoes', ['custos']), false);
+  assert.equal(podeVerSubAba('movimentacoes', ['movimentacoes']), true);
+  assert.equal(podeVerSubAba('movimentacoes', ['desligamentos']), true,
+    'Atrição marcada não fala de Salários');
+});
