@@ -173,6 +173,25 @@ export default function DEITab() {
     .sort((a, b) => (RACE_ORDER.indexOf(a.race) - RACE_ORDER.indexOf(b.race)) || b.total - a.total);
   const hasRaceCross = raceRows.length > 0;
 
+  /* ------------------------------------------------------------------
+     POR QUE A TABELA DE RAÇA NÃO ESTÁ AQUI
+     ------------------------------------------------------------------
+     `race_cross` vem vazio de propósito quando a cobertura de raça do mês não
+     sustenta percentual -- a tabela divide pelo headcount, e com metade das
+     pessoas sem raça "Branca: 20% do quadro" seria lido como
+     representatividade quando é desconhecimento.
+
+     Só que "vem vazio" fazia a seção inteira sumir sem uma palavra, que é a
+     mesma troca que este painel passou a semana desfazendo: ausência lida
+     como inexistência. Em ago/26 isso acontece na Flutter International --
+     9 de 21 pessoas com raça conhecida.
+
+     A cobertura não precisa de campo novo: `demographics.race` já traz a
+     contagem por raça, e a soma dela sobre o headcount É a cobertura. */
+  const comRaca = Object.values(curr.demographics?.race ?? {})
+    .reduce((a: number, b: number) => a + b, 0);
+  const coberturaRaca = (curr.headcount || 0) > 0 ? comRaca / (curr.headcount || 1) : 0;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -310,6 +329,21 @@ export default function DEITab() {
               <Bar dataKey="pct" fill={COLORS.female + '99'} stroke={COLORS.female} strokeWidth={1} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </ChartCard>
+      )}
+
+      {!hasRaceCross && (curr.headcount || 0) > 0 && (
+        <ChartCard title="Recorte por raça">
+          <p className="text-sm text-muted-foreground py-4 leading-relaxed">
+            <strong className="text-foreground">
+              {comRaca} de {curr.headcount} pessoas têm cor/raça preenchida neste recorte
+              ({Math.round(coberturaRaca * 100)}%).
+            </strong>{' '}
+            Abaixo de 90% a tabela não é publicada: ela divide cada grupo pelo total do quadro, e
+            com parte das pessoas sem a informação os percentuais mediriam o preenchimento do
+            cadastro, não a representatividade. O dado que existe está guardado — o que falta é
+            cobertura para publicá-lo.
+          </p>
         </ChartCard>
       )}
 
