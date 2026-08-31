@@ -287,12 +287,51 @@ function mergeLeaderDept(
   return any ? out : undefined;
 }
 
+/**
+ * Junta a fatia por departamento de duas marcas.
+ *
+ * ===========================================================================
+ * A MÉDIA SALARIAL É PONDERADA, E ANTES NÃO ERA
+ * ===========================================================================
+ * Isto fazia `a.avg_salary_leaders || b.avg_salary_leaders`: pegava a média de
+ * UMA das marcas e a apresentava como a do conjunto. Média de médias sem peso
+ * já seria errada; pegar uma e ignorar a outra é pior.
+ *
+ * Nunca apareceu porque `dept_data` vinha vazio do banco -- a carga gravava a
+ * fatia por área na coluna errada. Assim que ela passou a ser gravada, este
+ * caminho passaria a rodar, e a média da NSX (578 pessoas) sairia rotulada
+ * como a do combinado com a Flutter (21).
+ *
+ * Com o `n` de cada média, a ponderação é a conta certa. Sem ele -- linhas
+ * antigas, antes da carga nova -- cai no comportamento anterior, porque
+ * inventar um peso seria pior que manter o que já estava lá.
+ */
 function mergeDepts(a: Record<string, DeptData>, b: Record<string, DeptData>): Record<string, DeptData> {
   const r = { ...a };
+  const ponderar = (
+    va: number | undefined, na: number | undefined,
+    vb: number | undefined, nb: number | undefined,
+  ): number => {
+    // Sem os pesos não dá para combinar: mantém o primeiro que existir.
+    if (na == null || nb == null) return (va || vb) as number;
+    const pa = va ? na : 0;
+    const pb = vb ? nb : 0;
+    if (pa + pb === 0) return 0;
+    return Math.round((((va || 0) * pa + (vb || 0) * pb) / (pa + pb)) * 100) / 100;
+  };
   for (const k of Object.keys(b)) {
-    r[k] = r[k]
-      ? { hc: (r[k].hc || 0) + (b[k].hc || 0), avg_salary_leaders: r[k].avg_salary_leaders || b[k].avg_salary_leaders, avg_salary_non_leaders: r[k].avg_salary_non_leaders || b[k].avg_salary_non_leaders }
-      : b[k];
+    if (!r[k]) { r[k] = b[k]; continue; }
+    const x = r[k], y = b[k];
+    r[k] = {
+      hc: (x.hc || 0) + (y.hc || 0),
+      avg_salary_leaders: ponderar(
+        x.avg_salary_leaders, x.n_leaders_salario, y.avg_salary_leaders, y.n_leaders_salario),
+      avg_salary_non_leaders: ponderar(
+        x.avg_salary_non_leaders, x.n_non_leaders_salario,
+        y.avg_salary_non_leaders, y.n_non_leaders_salario),
+      n_leaders_salario: (x.n_leaders_salario ?? 0) + (y.n_leaders_salario ?? 0),
+      n_non_leaders_salario: (x.n_non_leaders_salario ?? 0) + (y.n_non_leaders_salario ?? 0),
+    };
   }
   return r;
 }

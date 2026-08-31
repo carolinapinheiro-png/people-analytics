@@ -100,7 +100,30 @@ export interface LinhaMensal {
    * deixava "Mulheres — Geral" igual ao da empresa inteira -- que foi
    * exatamente o que apareceu na tela do DEI.
    */
-  dept_data: Record<string, { hc: number; joiners: number; leavers: number }>;
+  dept_data: Record<string, {
+    hc: number; joiners: number; leavers: number;
+    /**
+     * Médias salariais DA ÁREA. `null` quando o grupo é pequeno demais --
+     * mesmo piso da média da empresa (`MIN_GRUPO_SALARIO`), e aqui ele pesa
+     * mais: uma área com um gestor só teria o salário dele publicado como
+     * "média da liderança". Agregar não anonimiza, só disfarça.
+     */
+    avg_salary_leaders: number | null;
+    avg_salary_non_leaders: number | null;
+    /**
+     * Quantas pessoas entraram em cada média.
+     *
+     * Existem para a visão COMBINADA poder ponderar. `mergeDepts` fazia
+     * `a.avg || b.avg` -- pegava a média de uma marca e a apresentava como a
+     * do conjunto. Nunca aparecia porque `dept_data` vinha vazio do banco;
+     * assim que ela passou a ser gravada, passaria a aparecer.
+     *
+     * Média de médias sem peso é errada sempre que os grupos têm tamanhos
+     * diferentes, e aqui têm: NSX tem 578 pessoas e a Flutter, 21.
+     */
+    n_leaders_salario: number;
+    n_non_leaders_salario: number;
+  }>;
   /**
    * As dimensões por área -- gênero, liderança, nível, tempo de casa,
    * demografia e raça. É o que permite o filtro de departamento recortar de
@@ -451,9 +474,16 @@ export function reconstruirSerie(
   for (const mes of mesesEntre(primeiroMes, ateMes)) {
     const dept: LinhaMensal['dept_data'] = {};
     const bump = (area: string, campo: 'hc' | 'joiners' | 'leavers') => {
-      dept[area] ??= { hc: 0, joiners: 0, leavers: 0 };
+      dept[area] ??= {
+        hc: 0, joiners: 0, leavers: 0,
+        avg_salary_leaders: null, avg_salary_non_leaders: null,
+        n_leaders_salario: 0, n_non_leaders_salario: 0,
+      };
       dept[area][campo]++;
     };
+    // Salários por área, guardados crus e mediados no fim -- a média só sai
+    // quando o grupo passa do piso, e isso não dá para decidir no meio do laço.
+    const salPorArea: Record<string, { lideres: number[]; demais: number[] }> = {};
 
     // As MESMAS contas da linha, por área. É o que faz o filtro de
     // departamento recortar gênero e liderança de verdade.
@@ -516,6 +546,8 @@ export function reconstruirSerie(
 
         if (typeof x.p.salary === 'number' && x.p.salary > 0) {
           (ehGestor ? salLideres : salDemais).push(x.p.salary);
+          const sa = (salPorArea[x.area] ??= { lideres: [], demais: [] });
+          (ehGestor ? sa.lideres : sa.demais).push(x.p.salary);
         }
 
         const uf = x.p.uf?.trim();
@@ -549,6 +581,18 @@ export function reconstruirSerie(
     // Denominador: headcount do fim do mês mais quem saiu nele -- ou seja, o
     // conjunto de pessoas expostas ao risco de sair naquele mês. Usar só o
     // headcount final subestimaria a taxa, porque quem saiu já não está lá.
+    // As médias por área, agora que os grupos estão fechados.
+    for (const [area, sal] of Object.entries(salPorArea)) {
+      const d = dept[area];
+      if (!d) continue;
+      d.avg_salary_leaders = media(sal.lideres);
+      d.avg_salary_non_leaders = media(sal.demais);
+      // O n vai junto mesmo quando a média foi suprimida: ele é o que permite
+      // ponderar na visão combinada, e não revela salário de ninguém.
+      d.n_leaders_salario = sal.lideres.length;
+      d.n_non_leaders_salario = sal.demais.length;
+    }
+
     const expostos = headcount + leavers;
     linhas.push({
       month: `${mes}-01`,

@@ -2,6 +2,10 @@ export interface DeptData {
   hc: number;
   avg_salary_leaders: number;
   avg_salary_non_leaders: number;
+  /** Quantas pessoas entraram em cada média. Ver `mergeDepts`: sem elas, a
+   *  visão combinada apresentava a média de UMA marca como a do conjunto. */
+  n_leaders_salario?: number;
+  n_non_leaders_salario?: number;
 }
 
 export interface MonthRecord {

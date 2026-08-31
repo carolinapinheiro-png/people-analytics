@@ -125,3 +125,53 @@ test('mistura de formas é recusada inteira', () => {
   };
   assert.equal(quebraPorArea(mista), undefined);
 });
+
+// ---------------------------------------------------------------------------
+// A MÉDIA SALARIAL DA VISÃO COMBINADA
+// ---------------------------------------------------------------------------
+
+const dd = (o: Partial<import('./raw-data').DeptData>) => ({
+  hc: 0, avg_salary_leaders: 0, avg_salary_non_leaders: 0, ...o,
+});
+
+test('a média salarial combinada é PONDERADA pelo tamanho de cada grupo', () => {
+  // `a.avg || b.avg` devolveria 10000 -- a média da NSX rotulada como a do
+  // conjunto. Com 90 pessoas a 10.000 e 10 a 20.000, a média é 11.000.
+  const dados = [
+    mes('NSX', { headcount: 90, dept_data: { TECH: dd({ hc: 90, avg_salary_non_leaders: 10000, n_non_leaders_salario: 90 }) } }),
+    mes('Betfair BR', { headcount: 10, dept_data: { TECH: dd({ hc: 10, avg_salary_non_leaders: 20000, n_non_leaders_salario: 10 }) } }),
+  ];
+  const tech = getMonthData(dados, '2026-08', 'combined').dept_data.TECH;
+  assert.equal(tech.hc, 100);
+  assert.equal(tech.avg_salary_non_leaders, 11000);
+  assert.equal(tech.n_non_leaders_salario, 100);
+});
+
+test('grupo com média suprimida não puxa a ponderação para baixo', () => {
+  // Uma área onde a média foi suprimida por grupo pequeno entra com peso zero
+  // -- e não como se todo mundo lá ganhasse zero.
+  const dados = [
+    mes('NSX', { headcount: 50, dept_data: { HR: dd({ hc: 50, avg_salary_leaders: 15000, n_leaders_salario: 8 }) } }),
+    mes('Betfair BR', { headcount: 3, dept_data: { HR: dd({ hc: 3, avg_salary_leaders: 0, n_leaders_salario: 1 }) } }),
+  ];
+  const hr = getMonthData(dados, '2026-08', 'combined').dept_data.HR;
+  assert.equal(hr.avg_salary_leaders, 15000);
+});
+
+test('sem os pesos, mantém o comportamento antigo em vez de inventar', () => {
+  // Linhas gravadas antes da carga nova não têm `n`. Supor um peso seria pior
+  // que manter o que já estava lá.
+  const dados = [
+    mes('NSX', { headcount: 90, dept_data: { OPS: dd({ hc: 90, avg_salary_non_leaders: 10000 }) } }),
+    mes('Betfair BR', { headcount: 10, dept_data: { OPS: dd({ hc: 10, avg_salary_non_leaders: 20000 }) } }),
+  ];
+  assert.equal(getMonthData(dados, '2026-08', 'combined').dept_data.OPS.avg_salary_non_leaders, 10000);
+});
+
+test('área que só existe numa marca passa inteira', () => {
+  const dados = [
+    mes('NSX', { headcount: 10, dept_data: { LEGAL: dd({ hc: 10, avg_salary_leaders: 9000, n_leaders_salario: 3 }) } }),
+    mes('Betfair BR', { headcount: 5, dept_data: {} }),
+  ];
+  assert.equal(getMonthData(dados, '2026-08', 'combined').dept_data.LEGAL.avg_salary_leaders, 9000);
+});
