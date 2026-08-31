@@ -4,6 +4,7 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import { getCompEquidade } from '@/lib/comp.functions';
 import type { CompEquidade, RecorteEquidade } from '@/lib/equidade';
 import { COLORS } from '@/lib/colors';
+import { useDashboard } from '@/data/DashboardContext';
 import { Scale } from 'lucide-react';
 
 /**
@@ -38,18 +39,41 @@ import { Scale } from 'lucide-react';
 
 export default function EquidadeCompRatio() {
   const buscar = useServerFn(getCompEquidade);
+  const { filters } = useDashboard();
   const [dados, setDados] = useState<CompEquidade | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
+  // ------------------------------------------------------------------
+  // OS MESMOS SEIS FILTROS DA LISTA LOGO ACIMA
+  // ------------------------------------------------------------------
+  // Este cartão nasceu chamando `buscar({})` -- sem filtro nenhum. Ele respeita
+  // a permissão, mas ignorava o seletor: com Technology escolhido, a lista de
+  // comp-ratio mostrava Technology e a tabela de equidade mostrava a empresa
+  // inteira, na mesma tela, sem nada dizendo qual era qual.
+  //
+  // Duas populações na mesma página é pior que nenhum filtro: quem lê supõe
+  // que as duas descrevem o mesmo grupo, e é uma suposição razoável.
   useEffect(() => {
     let cancelado = false;
-    buscar({})
+    buscar({
+      data: {
+        department: filters.departamento,
+        level: filters.level,
+        contract: filters.tipoContrato,
+        jobFamily: filters.jobFamily,
+        tenureBand: filters.tempoCasa,
+        salaryBand: filters.faixaSalarial,
+      },
+    })
       .then((d) => { if (!cancelado) setDados(d as CompEquidade); })
       .catch((e: unknown) => {
         if (!cancelado) setErro(e instanceof Error ? e.message : String(e));
       });
     return () => { cancelado = true; };
-  }, [buscar]);
+  }, [
+    buscar, filters.departamento, filters.level, filters.tipoContrato,
+    filters.jobFamily, filters.tempoCasa, filters.faixaSalarial,
+  ]);
 
   if (erro) {
     return (

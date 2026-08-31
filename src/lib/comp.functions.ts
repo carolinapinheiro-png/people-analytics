@@ -14,6 +14,7 @@ import {
 import {
   agruparEquidade, N_MINIMO_EQUIDADE, type CompEquidade,
 } from '@/lib/equidade';
+import { aplicarFiltrosDeComp } from '@/lib/filtros-comp';
 
 /**
  * Acesso ao salario individual + comp ratio dos ativos (587).
@@ -130,14 +131,7 @@ export const listCompRatio = createServerFn({ method: 'GET' })
 
     // So a populacao do arquivo de comp (in_comp_scope). Os ativos carregados do
     // historico so para o Perfil Individual (People/diretoria) ficam de fora aqui.
-    const fDept = sel(data?.department);
-    const fLevel = sel(data?.level);
-    const fContract = sel(data?.contract);
-    const fFamily = sel(data?.jobFamily);
-    const fTenure = sel(data?.tenureBand);
-    const fBand = sel(data?.salaryBand);
-
-    const scoped = (rows ?? [])
+    const scoped0 = (rows ?? [])
       .filter((r) => r.in_comp_scope !== false)
       // UMA REGRA DE AREA SO, E E ESTA.
       //
@@ -155,21 +149,12 @@ export const listCompRatio = createServerFn({ method: 'GET' })
       // RECORTE POR NIVEL -- aplicado ANTES de qualquer filtro de tela, e
       // antes de a linha existir na resposta HTTP. Filtrar depois, ou na tela,
       // deixaria o salario no payload: escondido por CSS continua entregue.
-      .filter((r) => podeVerLinha(escopoComp, { area: r.area, n_layer: r.n_layer }))
-      // Filtros de tela: comp_ratio e person-level, entao aqui TODOS funcionam
-      // de verdade -- ao contrario da serie mensal, que so guarda a quebra por
-      // departamento.
-      .filter((r) => !fDept || (r.area ?? '').trim().toUpperCase() === fDept.toUpperCase())
-      .filter((r) => !fLevel || (r.level ?? '').trim() === fLevel)
-      .filter((r) => !fContract || (r.contract ?? '').trim() === fContract)
-      .filter((r) => !fFamily || (r.job_type_family ?? '').trim() === fFamily)
-      // As duas faixas derivadas. Quem nao tem admissao/salario no cadastro cai
-      // em 'Não informado' e sai do recorte -- e o comportamento honesto: nao
-      // sabemos a faixa dessa pessoa, entao ela nao entra na faixa escolhida.
-      .filter((r) => !fTenure || tenureBandFromHire(r.hire) === fTenure)
-      .filter(
-        (r) => !fBand || salaryBand(r.salary == null ? null : Number(r.salary)) === fBand,
-      );
+      .filter((r) => podeVerLinha(escopoComp, { area: r.area, n_layer: r.n_layer }));
+
+    // Filtros de tela DEPOIS da permissão, e via `aplicarFiltrosDeComp` --
+    // o mesmo helper que o cartão de equidade usa. Duas cópias da cadeia
+    // divergiriam, e nesta tela as duas leituras aparecem juntas.
+    const scoped = aplicarFiltrosDeComp(scoped0, data);
 
     const visible = podeVerIndividual
       ? scoped
@@ -888,7 +873,12 @@ export const getCompAggregates = createServerFn({ method: 'GET' })
 
 export const getCompEquidade = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<CompEquidade> => {
+  // OS MESMOS filtros da lista logo acima, e pelo mesmo validador. Este cartão
+  // nasceu sem nenhum -- chamava o servidor sem argumento -- e com Technology
+  // selecionado a lista mostrava Technology enquanto ele mostrava a empresa
+  // inteira, sem nada na tela dizendo qual era qual.
+  .validator((input: unknown) => ListInput.parse(input))
+  .handler(async ({ context, data }): Promise<CompEquidade> => {
     const { escopoComp } = await authorize(context.claims.email as string | undefined);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
@@ -896,15 +886,20 @@ export const getCompEquidade = createServerFn({ method: 'GET' })
 
     const { data: rows, error } = await db
       .from('comp_ratio')
-      .select('area, level, n_layer, comp_ratio, convenia_id, in_comp_scope');
+      .select('area, level, n_layer, comp_ratio, convenia_id, in_comp_scope, contract, job_type_family, hire, salary');
     if (error) throw new Error(`Falha ao carregar equidade: ${error.message}`);
 
     // A MESMA porta das outras telas de remuneração, e não uma segunda
     // implementação da ideia. `podeVerLinha` é quem sabe da camada e da área.
-    const visiveis = (rows ?? [])
-      .filter((r) => r.in_comp_scope !== false)
-      .filter((r) => podeVerLinha(escopoComp, { area: r.area, n_layer: r.n_layer }))
-      .filter((r) => typeof r.comp_ratio === 'number' && r.comp_ratio > 0);
+    const visiveis = aplicarFiltrosDeComp(
+      (rows ?? [])
+        .filter((r) => r.in_comp_scope !== false)
+        // Permissão PRIMEIRO, filtro de tela depois: estreitar o que a pessoa
+        // já pode ver, nunca ampliar.
+        .filter((r) => podeVerLinha(escopoComp, { area: r.area, n_layer: r.n_layer }))
+        .filter((r) => typeof r.comp_ratio === 'number' && r.comp_ratio > 0),
+      data,
+    );
 
     const comElo = visiveis.filter((r) => r.convenia_id);
     if (!comElo.length) {
