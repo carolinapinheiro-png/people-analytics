@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Eye, X } from 'lucide-react';
 import { definirVerComo, inscreverVerComo, lerVerComo } from '@/lib/ver-como/estado';
 import { useAuth } from '@/contexts/AuthContext';
@@ -30,6 +30,42 @@ import { PROFILE_LABELS, type AccessProfile } from '@/lib/permissions';
 export default function FaixaVerComo() {
   const [alvo, setAlvo] = useState<string | null>(null);
   const { accessStatus, verComo } = useAuth();
+  const faixaRef = useRef<HTMLDivElement | null>(null);
+
+  // ======================================================================
+  // A FAIXA E O CABEÇALHO DISPUTAVAM O MESMO topo
+  // ======================================================================
+  // Os dois são `sticky top-0`. A faixa tem z-index maior, então ela ficava
+  // POR CIMA do cabeçalho: "Flutter Brazil · People Analytics" e o aviso de
+  // simulação escritos um sobre o outro, ilegíveis.
+  //
+  // Apareceu no primeiro uso real do "ver como" -- ninguém tinha simulado
+  // ninguém desde que a faixa existe.
+  //
+  // A altura vai para uma variável de CSS e o cabeçalho gruda ABAIXO dela.
+  // Medida em vez de fixada porque a faixa quebra em duas linhas em tela
+  // estreita, e um valor cravado deixaria uma fresta ou uma sobreposição
+  // menor -- que é pior, porque ninguém nota e ela fica.
+  useEffect(() => {
+    const raiz = document.documentElement;
+    const el = faixaRef.current;
+    if (!el) {
+      raiz.style.setProperty('--faixa-ver-como', '0px');
+      return;
+    }
+    const medir = () => {
+      raiz.style.setProperty('--faixa-ver-como', `${el.offsetHeight}px`);
+    };
+    medir();
+    const obs = new ResizeObserver(medir);
+    obs.observe(el);
+    return () => {
+      obs.disconnect();
+      // Zerar ao sair da simulação: sem isto o cabeçalho ficaria grudado
+      // quarenta pixels abaixo do topo para sempre.
+      raiz.style.setProperty('--faixa-ver-como', '0px');
+    };
+  }, [alvo, accessStatus, verComo]);
 
   // O estado nasce no cliente: ler no primeiro render quebraria a hidratacao
   // (servidor nao tem sessionStorage e renderizaria sem a faixa).
@@ -55,6 +91,7 @@ export default function FaixaVerComo() {
   if (naoChegou) {
     return (
       <div
+        ref={faixaRef}
         role="alert"
         className="sticky top-0 z-[60] flex items-center justify-center gap-3 border-b border-red-500/50 bg-red-500/20 px-4 py-2 text-red-900 dark:text-red-200"
       >
@@ -81,6 +118,7 @@ export default function FaixaVerComo() {
   return (
     <div
       role="status"
+      ref={faixaRef}
       className="sticky top-0 z-[60] flex items-center justify-center gap-3 border-b border-amber-500/40 bg-amber-500/15 px-4 py-2 text-amber-900 dark:text-amber-200"
     >
       <Eye className="h-4 w-4 shrink-0" />

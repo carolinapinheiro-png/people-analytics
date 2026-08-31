@@ -363,11 +363,30 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // que a onda não tinha o recorte -- enquanto três blocos de comentário
     // logo acima afirmavam que o cruzamento funcionava.
     //
-    // A área vem de `deptForScope(sel)`, e NÃO do cliente: `sel` já passou
-    // pela checagem de escopo trinta linhas acima. Aceitar o nome pronto de
-    // quem está pedindo seria deixar a chave do recorte -- que é o que a
-    // permissão lê -- ser escolhida pelo próprio solicitante.
-    const areaGravada = sel ? deptForScope(sel) : null;
+    // A área vem do ESCOPO já verificado, e não do cliente: `sel` passou pela
+    // checagem trinta linhas acima. Aceitar o nome pronto de quem está
+    // pedindo seria deixar a chave do recorte -- que é o que a permissão lê
+    // -- ser escolhida pelo próprio solicitante.
+    //
+    // ------------------------------------------------------------------
+    // `scopeForDept`, E NÃO `deptForScope`: AS DUAS EXISTEM E VÃO EM
+    // DIREÇÕES OPOSTAS
+    // ------------------------------------------------------------------
+    // `sel` está no vocabulário do FILTRO ('HR', 'MARKETING'). A pesquisa
+    // grava no vocabulário dela ('Human Resources', 'Marketing').
+    //
+    //   scopeForDept('HR') ....... 'Human Resources'   <- esta
+    //   deptForScope('HR') ....... null                <- estava aqui
+    //
+    // Com `deptForScope`, HR virava null e o cruzamento não era nem pedido.
+    // Marketing era pior porque parecia funcionar: devolvia 'MARKETING', que
+    // não casa com 'Marketing' gravado -- zero linhas, sem erro, e a tela
+    // dizendo que a onda não tem o recorte.
+    //
+    // Apareceu ao olhar o painel pelos olhos de um HRBP de HR: a aba inteira
+    // vinha vazia. É a terceira vez esta semana que este arquivo erra na
+    // fronteira entre os dois vocabulários.
+    const areaGravada = sel ? scopeForDept(sel) : null;
     const cruzadoPedido = !perfil
       ? null
       : areaGravada

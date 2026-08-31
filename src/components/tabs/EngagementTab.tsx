@@ -131,6 +131,26 @@ function EngagementSection({
   // `depts[0]` é seguro: o servidor devolve no máximo uma área quando há
   // filtro, e para perfil restrito devolve só a dele.
   const deptSel = data.escopo?.departamento ?? null;
+  // ------------------------------------------------------------------
+  // O NOME QUE OS CARTÕES PRECISAM É O DA PESQUISA, NÃO O DO FILTRO
+  // ------------------------------------------------------------------
+  // `deptSel` está no vocabulário do FILTRO: 'HR', 'MARKETING'. Todo cartão
+  // que casa contra `survey_driver_scores` ou contra um cruzamento precisa do
+  // vocabulário da PESQUISA: 'Human Resources', 'Marketing'.
+  //
+  // Sem esta conversão, a comparação nunca casa e a tela conclui que a área
+  // não tem dado. Apareceu ao olhar o painel pelos olhos de um HRBP de HR:
+  // "HR tem 0 respostas" e "34 perguntas ficou de fora por ter a nota da área
+  // suprimida", com 20 respostas e nenhuma supressão no banco.
+  //
+  // Marketing escondia melhor: 'MARKETING' e 'Marketing' erram pelo mesmo
+  // motivo, e quem testasse com uma área de nome curto veria a tela vazia sem
+  // suspeitar do vocabulário.
+  //
+  // Cai de volta em `deptSel` quando a área não existe na pesquisa (PORTO,
+  // CW GROUP): ali `semDadoDaArea` já assume, e trocar por null faria os
+  // cartões acharem que nada está filtrado.
+  const deptSelPesquisa = deptSel ? (scopeForDept(deptSel) ?? deptSel) : null;
   const areaSel = deptSel ? (depts[0] ?? null) : null;
   // Nem todo departamento do catálogo aparece na pesquisa -- CW GROUP,
   // DIRETORIA, PORTO e TECHNOLOGY GROUP não têm linha. Sem este caso separado,
@@ -459,7 +479,7 @@ function EngagementSection({
       {survey && (
         <SurveyCuts
           cuts={survey.cuts}
-          departamentoSelecionado={deptSel}
+          departamentoSelecionado={deptSelPesquisa}
           drivers={survey.driversPorArea}
           minimoExibicao={survey.minimoExibicao ?? 5}
         />
@@ -538,7 +558,7 @@ function EngagementSection({
           dimensaoPlural="marcas"
           minimoOndas={2}
           ondasSemDado={cross.serieMarca.ondasSemDado}
-          departamentoSelecionado={deptSel}
+          departamentoSelecionado={deptSelPesquisa}
           daArea={cross.serieMarca.daArea}
         />
       )}
@@ -548,7 +568,7 @@ function EngagementSection({
       {cross?.tempoDeCasa && (
         <TempoDeCasa
           ondas={cross.tempoDeCasa.ondas}
-          departamentoSelecionado={deptSel}
+          departamentoSelecionado={deptSelPesquisa}
           daArea={cross.tempoDeCasa.daArea}
         />
       )}
@@ -584,7 +604,7 @@ function EngagementSection({
         <DriversDeepDive
           drivers={data.drivers}
           porArea={survey.driversPorArea}
-          departamentoSelecionado={deptSel}
+          departamentoSelecionado={deptSelPesquisa}
         />
       )}
 
@@ -594,7 +614,7 @@ function EngagementSection({
         <DriverPriority
           rows={survey.importancia}
           drivers={survey.driversPorArea}
-          departamentoSelecionado={deptSel}
+          departamentoSelecionado={deptSelPesquisa}
         />
       )}
 
@@ -629,7 +649,7 @@ function EngagementSection({
             dados={cross.risco}
             ondaLabel={cross.risco.ondaLabel}
             janela={janela}
-            departamentoSelecionado={deptSel}
+            departamentoSelecionado={deptSelPesquisa}
           />
         )}
 
@@ -732,7 +752,7 @@ function EngagementSection({
           <DriverImportance
             rows={survey.importancia}
             drivers={survey.driversPorArea}
-            departamentoSelecionado={deptSel}
+            departamentoSelecionado={deptSelPesquisa}
           />
         )}
 

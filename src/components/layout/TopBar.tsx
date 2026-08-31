@@ -69,7 +69,7 @@ export default function TopBar() {
   ];
 
   return (
-    <header className="bg-card border-b border-border px-4 md:px-7 py-3 flex items-center justify-between sticky top-0 z-50">
+    <header className="bg-card border-b border-border px-4 md:px-7 py-3 flex items-center justify-between sticky top-[var(--faixa-ver-como,0px)] z-50">
       {/* shrink-0 e whitespace-nowrap: sem isto o titulo quebrava em duas
           linhas e o subtitulo em tres, empurrando tema e usuario para baixo
           dele -- um layout que ninguem desenhou, produzido pelo flex-wrap. */}
