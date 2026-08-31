@@ -249,6 +249,10 @@ export interface PermissaoSnapshot {
   departments?: string[];
   jobFamilies?: string[];
   extraTabs?: string[];
+  /** A lista própria entra no histórico: mudar de "preset" para "só
+   *  Engajamento" é mudança de permissão, e precisa ficar registrada. */
+  tabs?: string[];
+  subTabs?: string[];
   canSeeIndividual?: boolean | null;
   expiresAt?: string | null;
 }
@@ -372,6 +376,8 @@ export const addAllowedEmail = createServerFn({ method: 'POST' })
       job_level: data.jobLevel || null,
       responsibilities: data.responsibilities,
       extra_tabs: data.extraTabs,
+      tabs: data.tabs,
+      sub_tabs: data.subTabs,
       can_see_individual: data.canSeeIndividual,
       expires_at: data.expiresAt,
     } as never);
@@ -425,6 +431,8 @@ export const updateAllowedEmailUser = createServerFn({ method: 'POST' })
         job_level: data.jobLevel || null,
         responsibilities: data.responsibilities,
         extra_tabs: data.extraTabs,
+        tabs: data.tabs,
+        sub_tabs: data.subTabs,
         can_see_individual: data.canSeeIndividual,
         expires_at: data.expiresAt,
       } as never)
@@ -441,6 +449,8 @@ export const updateAllowedEmailUser = createServerFn({ method: 'POST' })
           departments: scoped ? data.departments : [],
           jobFamilies: scoped ? data.jobFamilies : [],
           extraTabs: data.extraTabs,
+          tabs: data.tabs,
+          subTabs: data.subTabs,
           canSeeIndividual: data.canSeeIndividual,
           expiresAt: data.expiresAt,
         },

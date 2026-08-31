@@ -30,6 +30,10 @@ export interface AllowedEmailRow {
   created_at: string;
   updated_at: string;
   extra_tabs: string[];
+  /** Abas DESTA pessoa. Vazio = preset do perfil + extra_tabs. */
+  tabs: string[];
+  /** Sub-abas desta pessoa, mesma regra. Achatada entre as abas. */
+  sub_tabs: string[];
   can_see_individual: boolean | null;
   expires_at: string | null;
   last_login_at: string | null;
@@ -115,6 +119,32 @@ export const ExtraTabsSchema = z
   .default([]);
 
 /**
+ * A lista de abas DESTA pessoa. Mesmos valores das extras, outra semântica:
+ * preenchida, ela SUBSTITUI o preset do perfil e as extras.
+ *
+ * Validada contra a mesma lista real -- uma aba inventada não entra no
+ * cadastro, senão a pessoa ficaria com um item que nunca resolve para tela
+ * nenhuma e ninguém entenderia por que ela não vê nada.
+ */
+export const TabsSchema = ExtraTabsSchema;
+
+/**
+ * As sub-abas desta pessoa, achatadas entre as abas.
+ *
+ * O enum é fechado pelo mesmo motivo das abas. Se uma sub-aba nova nascer no
+ * produto e não entrar aqui, o cadastro a recusa -- que é o lado seguro do
+ * erro: melhor não conseguir conceder do que conceder algo que a regra não
+ * sabe interpretar.
+ */
+export const SubTabsSchema = z
+  .array(z.enum([
+    'engajamento', 'onboarding', 'inclusao',
+    'custos', 'compratio', 'movimentacoes',
+  ]))
+  .max(6)
+  .default([]);
+
+/**
  * `null` = conforme o perfil. E o padrao de propósito: um booleano de dois
  * estados obrigaria a decidir por todo mundo agora, e "conforme o perfil" e a
  * resposta certa para quase todos os cadastros.
@@ -139,6 +169,8 @@ export const AddAllowedEmailSchema = z.object({
   jobLevel: JobLevelSchema,
   responsibilities: ResponsibilitiesSchema,
   extraTabs: ExtraTabsSchema,
+  tabs: TabsSchema,
+  subTabs: SubTabsSchema,
   canSeeIndividual: CanSeeIndividualSchema,
   expiresAt: ExpiresAtSchema,
 });
@@ -152,6 +184,8 @@ export const UpdateAllowedEmailUserSchema = z.object({
   jobLevel: JobLevelSchema,
   responsibilities: ResponsibilitiesSchema,
   extraTabs: ExtraTabsSchema,
+  tabs: TabsSchema,
+  subTabs: SubTabsSchema,
   canSeeIndividual: CanSeeIndividualSchema,
   expiresAt: ExpiresAtSchema,
 });

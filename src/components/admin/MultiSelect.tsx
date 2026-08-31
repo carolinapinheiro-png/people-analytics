@@ -37,6 +37,8 @@ export default function MultiSelect({
   placeholder = 'Selecionar...',
   searchPlaceholder = 'Buscar...',
   id,
+  labels,
+  disabled = false,
 }: {
   label: string;
   hint?: string;
@@ -46,7 +48,22 @@ export default function MultiSelect({
   placeholder?: string;
   searchPlaceholder?: string;
   id?: string;
+  /**
+   * Rótulo por opção, quando o identificador não se explica sozinho.
+   * "custos" na tela precisa ser "Salários › Custos & Bandas".
+   */
+  labels?: Record<string, string>;
+  /**
+   * Desligado com o valor PRESERVADO, e não apagado.
+   *
+   * Serve para o caso em que outra escolha tornou esta irrelevante -- abas
+   * concedidas quando há lista própria. Limpar o campo destruiria o que a
+   * pessoa tinha configurado antes; desligar deixa recuperável ao desfazer a
+   * outra escolha, e a tela explica que está sendo ignorado.
+   */
+  disabled?: boolean;
 }) {
+  const rotulo = (opt: string) => labels?.[opt] ?? opt;
   const [open, setOpen] = useState(false);
 
   const toggle = (opt: string) =>
@@ -60,7 +77,7 @@ export default function MultiSelect({
         <Label className="text-xs text-muted-foreground" htmlFor={id}>
           {label}
         </Label>
-        {value.length > 0 && (
+        {value.length > 0 && !disabled && (
           <button
             type="button"
             onClick={clear}
@@ -94,6 +111,7 @@ export default function MultiSelect({
             variant="outline"
             role="combobox"
             aria-expanded={open}
+            disabled={disabled}
             className="w-full justify-between font-normal"
           >
             <span className={value.length ? '' : 'text-muted-foreground'}>
@@ -124,7 +142,7 @@ export default function MultiSelect({
                       >
                         {selected && <Check className="h-3 w-3" />}
                       </span>
-                      {opt}
+                      {rotulo(opt)}
                     </CommandItem>
                   );
                 })}
@@ -139,12 +157,17 @@ export default function MultiSelect({
       {value.length > 0 && (
         <div className="flex flex-wrap gap-1 pt-0.5">
           {value.map((v) => (
-            <Badge key={v} variant="secondary" className="text-[11px] font-normal gap-1 pr-1">
-              {v}
+            <Badge
+              key={v}
+              variant="secondary"
+              className={`text-[11px] font-normal gap-1 pr-1 ${disabled ? 'opacity-50' : ''}`}
+            >
+              {rotulo(v)}
               <button
                 type="button"
                 onClick={() => toggle(v)}
-                aria-label={`Remover ${v}`}
+                disabled={disabled}
+                aria-label={`Remover ${rotulo(v)}`}
                 className="rounded-full hover:bg-background/60 p-0.5"
               >
                 <X className="h-3 w-3" />

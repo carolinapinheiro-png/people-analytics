@@ -70,6 +70,30 @@ const TAB_LABELS: Record<DashboardTab, string> = {
 };
 
 /**
+ * As sub-abas que existem, agrupadas pela aba a que pertencem.
+ *
+ * Uma lista ACHATADA vai para o banco -- os identificadores são únicos --, mas
+ * na tela elas precisam do contexto: "Custos & Bandas" sozinho não diz que é
+ * de Salários.
+ *
+ * O ALCANCE DE CADA UMA É DIFERENTE, e a tela diz isso: em Experiência o corte
+ * vale no servidor (o dado não entra na resposta); em Salários e Atrição ainda
+ * é corte de navegação. Esconder na tela não é esconder.
+ */
+const SUB_ABAS: Array<{ aba: DashboardTab; id: string; rotulo: string; noServidor: boolean }> = [
+  { aba: 'engagement', id: 'engajamento', rotulo: 'Engajamento', noServidor: true },
+  { aba: 'engagement', id: 'onboarding', rotulo: 'Onboarding', noServidor: true },
+  { aba: 'engagement', id: 'inclusao', rotulo: 'Inclusão & Pertencimento', noServidor: true },
+  { aba: 'comp', id: 'custos', rotulo: 'Custos & Bandas', noServidor: false },
+  { aba: 'comp', id: 'compratio', rotulo: 'Comp Ratio individual', noServidor: false },
+  { aba: 'comp', id: 'movimentacoes', rotulo: 'Movimentações', noServidor: false },
+];
+
+const SUB_ABA_LABEL: Record<string, string> = Object.fromEntries(
+  SUB_ABAS.map((s) => [s.id, `${TAB_LABELS[s.aba]} › ${s.rotulo}`]),
+);
+
+/**
  * As abas que o cadastro atual produz, em chips.
  *
  * O resumo em texto ja explicava o ESCOPO (quais areas). Nao explicava o
@@ -78,11 +102,13 @@ const TAB_LABELS: Record<DashboardTab, string> = {
  * respondia, e marcam o que foi concedido a mais.
  */
 function PreviaDeAbas({ form }: { form: UserFormState }) {
-  const abas = visibleTabs(form.profile, form.extraTabs);
+  const abas = visibleTabs(form.profile, form.extraTabs, form.tabs);
   return (
     <div className="flex flex-wrap items-center gap-1">
       {abas.map((t) => {
-        const extra = isExtraTab(form.profile, t);
+        // Com lista própria, "extra" perde o sentido: não há preset por baixo
+        // para algo estar além dele. O chip volta a ser neutro.
+        const extra = !form.tabs.length && isExtraTab(form.profile, t);
         return (
           <span
             key={t}
@@ -116,6 +142,10 @@ export interface AllowedEmail {
   responsibilities: string[];
   created_at: string;
   extra_tabs?: string[] | null;
+  /** Abas DESTA pessoa. Vazio = preset do perfil + extra_tabs. */
+  tabs?: string[] | null;
+  /** Sub-abas desta pessoa, mesma regra. */
+  sub_tabs?: string[] | null;
   can_see_individual?: boolean | null;
   expires_at?: string | null;
   last_login_at?: string | null;
@@ -135,8 +165,15 @@ interface UserFormState {
   jobTitle: string;
   jobLevel: string;
   responsibilities: string[];
-  /** Abas concedidas alem das do perfil. */
+  /** Abas concedidas alem das do perfil. So SOMA. */
   extraTabs: string[];
+  /**
+   * A lista DESTA pessoa. Preenchida, substitui o preset e os extras.
+   * Ver `visibleTabs`: uma lista manda por vez.
+   */
+  tabs: string[];
+  /** Sub-abas desta pessoa, mesma regra. Achatada entre as abas. */
+  subTabs: string[];
   /** null = conforme o perfil. */
   canSeeIndividual: boolean | null;
   /** '' = sem prazo. */
@@ -151,6 +188,8 @@ const EMPTY_FORM: UserFormState = {
   jobLevel: '',
   responsibilities: [],
   extraTabs: [],
+  tabs: [],
+  subTabs: [],
   canSeeIndividual: null,
   expiresAt: '',
 };
@@ -487,6 +526,8 @@ export default function UsersAccessSection({
       jobLevel: item.job_level ?? '',
       responsibilities: item.responsibilities ?? [],
       extraTabs: item.extra_tabs ?? [],
+      tabs: item.tabs ?? [],
+      subTabs: item.sub_tabs ?? [],
       canSeeIndividual: item.can_see_individual ?? null,
       // O input de data quer 'YYYY-MM-DD'; o banco guarda timestamptz.
       expiresAt: item.expires_at ? String(item.expires_at).slice(0, 10) : '',
@@ -942,6 +983,8 @@ export default function UsersAccessSection({
                     ...EMPTY_FORM,
                     profile: removendo.profile,
                     extraTabs: removendo.extra_tabs ?? [],
+                    tabs: removendo.tabs ?? [],
+                    subTabs: removendo.sub_tabs ?? [],
                   }}
                 />
                 {(removendo.departments?.length || removendo.job_families?.length) ? (
@@ -1131,6 +1174,33 @@ function UserAccessFormFields({
 
         <PreviaDeAbas form={value} />
 
+        {/* ------------------------------------------------------------------
+            A LISTA DESTA PESSOA, E DEPOIS A DE EXTRAS
+            ------------------------------------------------------------------
+            Vêm nesta ordem porque é a ordem em que decidem: preenchida a
+            primeira, a segunda deixa de valer. Deixar "extras" em cima faria
+            alguém preencher os dois e não entender por que um foi ignorado. */}
+        <MultiSelect
+          id={`tabs-proprias-${idSuffix}`}
+          label="Abas desta pessoa"
+          options={Object.keys(TAB_LABELS)}
+          value={value.tabs}
+          onChange={(tabs) => patch({ tabs })}
+          placeholder="Vazio = as do perfil"
+          searchPlaceholder="Buscar aba..."
+        />
+        <p className="text-[11px] text-muted-foreground -mt-1">
+          {value.tabs.length === 0 ? (
+            <>Vazio: valem as abas do perfil, mais as concedidas abaixo.</>
+          ) : (
+            <>
+              <strong className="text-foreground">Preenchido: é exatamente esta lista.</strong> O
+              pacote do perfil e as abas concedidas abaixo não valem enquanto houver escolha aqui —
+              é assim que se libera uma aba por vez e amplia depois.
+            </>
+          )}
+        </p>
+
         <MultiSelect
           id={`tabs-${idSuffix}`}
           label="Abas concedidas além do perfil"
@@ -1139,7 +1209,53 @@ function UserAccessFormFields({
           onChange={(extraTabs) => patch({ extraTabs })}
           placeholder="Nenhuma (só as do perfil)"
           searchPlaceholder="Buscar aba..."
+          disabled={value.tabs.length > 0}
         />
+        {value.tabs.length > 0 && value.extraTabs.length > 0 && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-500">
+            Estas abas concedidas estão sendo ignoradas: a lista acima manda. Limpe-a para voltar a
+            usar o pacote do perfil mais estas.
+          </p>
+        )}
+
+        {/* ------------------------------------------------------------------
+            SUB-ABAS
+            ------------------------------------------------------------------
+            Só as das abas que a pessoa realmente vê: oferecer "Onboarding" a
+            quem não tem Experiência é pedir uma decisão que não existe. */}
+        {(() => {
+          const abasVisiveis = visibleTabs(value.profile, value.extraTabs, value.tabs);
+          const disponiveis = SUB_ABAS.filter((sb) => abasVisiveis.includes(sb.aba));
+          if (!disponiveis.length) return null;
+          const semCorteNoServidor = disponiveis
+            .filter((sb) => !sb.noServidor && value.subTabs.includes(sb.id));
+          return (
+            <>
+              <MultiSelect
+                id={`subtabs-${idSuffix}`}
+                label="Sub-abas desta pessoa"
+                options={disponiveis.map((sb) => sb.id)}
+                labels={SUB_ABA_LABEL}
+                value={value.subTabs}
+                onChange={(subTabs) => patch({ subTabs })}
+                placeholder="Vazio = todas as das abas acima"
+                searchPlaceholder="Buscar sub-aba..."
+              />
+              <p className="text-[11px] text-muted-foreground -mt-1">
+                Vazio significa todas. Marcar as de uma aba não mexe nas outras: quem escolhe só as
+                de Experiência continua vendo todas as de Salários.
+              </p>
+              {semCorteNoServidor.length > 0 && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-500">
+                  <strong>Atenção:</strong> em Salários e Atrição este corte ainda é só de
+                  navegação — a sub-aba some do menu, mas o servidor continua devolvendo o dado
+                  para quem souber pedir. Em Experiência o corte vale no servidor. Não use isto
+                  como proteção nas duas primeiras.
+                </p>
+              )}
+            </>
+          );
+        })()}
         {value.extraTabs.includes('data') && !isGlobalProfile(value.profile) && (
           <p className="text-[11px] text-amber-600 dark:text-amber-500">
             A aba <strong>Dados</strong> é da empresa inteira e não tem recorte por área —
