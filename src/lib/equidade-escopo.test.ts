@@ -139,3 +139,99 @@ test('a ordem importa: filtrar antes da permissão devolveria dado de fora', () 
     'só a permissão barra a camada de cima',
   );
 });
+
+// ---------------------------------------------------------------------------
+// O HRBP: TRÊS ÁREAS, UM ESCOPO
+// ---------------------------------------------------------------------------
+// A permissão sempre soube lidar com N áreas -- `areas` é lista e
+// `podeVerLinha` faz `includes`. O que não existe é a visão do CONJUNTO: a
+// opção "Todos" só aparece para quem cobre todas as áreas da empresa, então um
+// HRBP de três áreas olha uma por vez e nunca vê o portfólio dele.
+//
+// Estes testes fixam o comportamento atual e medem o custo dele, para a
+// decisão de criar ou não um "Minhas áreas" ser tomada com número.
+// ---------------------------------------------------------------------------
+
+const HRBP: EscopoComp = {
+  global: false, camada: 2,
+  areas: ['FINANCE', 'LEGAL', 'HUMAN RESOURCES'],
+};
+
+const TRES_AREAS = [
+  ...Array.from({ length: 4 }, () => p('FINANCE', 'N-4', 84, 'Feminino')),
+  ...Array.from({ length: 7 }, () => p('FINANCE', 'N-4', 106, 'Masculino')),
+  ...Array.from({ length: 3 }, () => p('LEGAL', 'N-4', 90, 'Feminino')),
+  ...Array.from({ length: 5 }, () => p('LEGAL', 'N-4', 108, 'Masculino')),
+  ...Array.from({ length: 4 }, () => p('HUMAN RESOURCES', 'N-4', 86, 'Feminino')),
+  ...Array.from({ length: 4 }, () => p('HUMAN RESOURCES', 'N-4', 104, 'Masculino')),
+  // Fora do escopo dele.
+  ...Array.from({ length: 20 }, () => p('TECHNOLOGY', 'N-4', 130, 'Masculino')),
+];
+
+test('o escopo admite as TRÊS áreas e recusa a quarta', () => {
+  const { visiveis } = pipeline(TRES_AREAS, HRBP);
+  assert.equal(visiveis.length, 27, 'as 27 das três áreas dele');
+  assert.ok(visiveis.every((r) => r.area !== 'TECHNOLOGY'));
+  assert.deepEqual(
+    [...new Set(visiveis.map((r) => r.area))].sort(),
+    ['FINANCE', 'HUMAN RESOURCES', 'LEGAL'],
+  );
+});
+
+test('cada área sozinha SUPRIME o grupo feminino; as três juntas, não', () => {
+  // É o custo de não ter a visão do conjunto, em número.
+  //
+  // Finance tem 4 mulheres, Legal 3, HR 4 -- todas abaixo do mínimo de 5.
+  // Olhando uma por vez, o HRBP não vê mediana feminina em NENHUMA das três.
+  // Somadas são 11, bem acima do mínimo.
+  //
+  // Ou seja: a leitura de equidade que é justamente o trabalho dele fica
+  // invisível, não por falta de dado, mas por falta de uma opção na tela.
+  for (const area of ['FINANCE', 'LEGAL', 'HUMAN RESOURCES']) {
+    const { grupos } = pipeline(TRES_AREAS, HRBP, { department: area });
+    const geral = grupos.find((g) => g.nivel === 'Geral')!;
+    const fem = geral.celulas.find((c) => c.grupo === 'Feminino')!;
+    assert.ok(fem.n < N_MINIMO_EQUIDADE, `${area}: ${fem.n} mulheres`);
+    assert.equal(fem.mediana, null, `${area} não publica mediana feminina`);
+  }
+
+  // Sem filtro de área -- o que a interface hoje NÃO permite a ele.
+  const { grupos } = pipeline(TRES_AREAS, HRBP);
+  const fem = grupos.find((g) => g.nivel === 'Geral')!.celulas
+    .find((c) => c.grupo === 'Feminino')!;
+  assert.equal(fem.n, 11);
+  assert.ok(fem.mediana != null, 'juntas, o grupo passa do mínimo');
+});
+
+test('somar as três NÃO revela nenhuma delas por subtração', () => {
+  // A objeção óbvia a um "Minhas áreas": ver o conjunto e cada parte permitiria
+  // deduzir a que está suprimida. Não permite -- porque o que se suprime é a
+  // MEDIANA, e mediana não é aditiva. O `n` já é público de propósito.
+  //
+  // Se o cartão publicasse a MÉDIA, a objeção valeria: média ponderada com
+  // duas partes conhecidas devolve a terceira.
+  const juntas = pipeline(TRES_AREAS, HRBP).grupos
+    .find((g) => g.nivel === 'Geral')!.celulas.find((c) => c.grupo === 'Feminino')!;
+  const fin = pipeline(TRES_AREAS, HRBP, { department: 'FINANCE' }).grupos
+    .find((g) => g.nivel === 'Geral')!.celulas.find((c) => c.grupo === 'Feminino')!;
+  const leg = pipeline(TRES_AREAS, HRBP, { department: 'LEGAL' }).grupos
+    .find((g) => g.nivel === 'Geral')!.celulas.find((c) => c.grupo === 'Feminino')!;
+
+  assert.equal(juntas.n - fin.n - leg.n, 4, 'o n de HR sai por subtração — e já era público');
+  assert.equal(fin.mediana, null);
+  assert.equal(leg.mediana, null);
+  // A mediana do conjunto não permite recuperar as das partes.
+  assert.ok(juntas.mediana != null);
+});
+
+test('a camada continua valendo dentro de cada uma das três', () => {
+  // Escopo mais largo não afrouxa a regra de nível: o HRBP não vê os pares
+  // dele em nenhuma das áreas.
+  const comChefes = [
+    ...TRES_AREAS,
+    ...Array.from({ length: 6 }, () => p('LEGAL', 'N-2', 160, 'Masculino')),
+  ];
+  const { visiveis } = pipeline(comChefes, HRBP);
+  assert.equal(visiveis.length, 27);
+  assert.ok(visiveis.every((r) => r.n_layer === 'N-4'));
+});
