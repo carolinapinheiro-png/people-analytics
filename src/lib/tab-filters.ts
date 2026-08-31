@@ -113,6 +113,41 @@ const FILTERS_BY_SUBTAB: Record<string, FilterKey[]> = {
   custos: ['departamento'],
   compratio: ['departamento', 'level', 'tipoContrato', 'jobFamily', 'tempoCasa', 'faixaSalarial'],
   movimentacoes: ['departamento'],
+
+  // ------------------------------------------------------------------
+  // EXPERIÊNCIA: AS TRÊS SUB-ABAS NÃO RECORTAM IGUAL
+  // ------------------------------------------------------------------
+  // Faltavam aqui, então herdavam os três filtros da aba -- e dois deles não
+  // existem fora de Engajamento. Achado na revisão pré-lançamento.
+  //
+  //   engajamento .. os três funcionam. `survey_cut_scores` e
+  //                  `survey_driver_scores` guardam área, tempo de casa,
+  //                  modelo e os cruzamentos entre eles.
+  //   onboarding ... só área. A pesquisa é fatiada por `department`,
+  //                  `overall` e `cohort_month`. Tempo de casa ali seria vazio
+  //                  de sentido: quem está em onboarding tem 0-3 meses por
+  //                  definição. Modelo não foi perguntado.
+  //   inclusao ..... NENHUM. `experience_distributions` não tem coluna de
+  //                  recorte -- é distribuição da empresa inteira, e o
+  //                  servidor não a filtra por nada. O seletor de área
+  //                  aparecia e não fazia efeito algum.
+  engajamento: ['departamento', 'tempoCasa', 'modeloTrabalho'],
+  onboarding: ['departamento'],
+  inclusao: [],
+};
+
+/**
+ * Por que um filtro não se aplica a uma SUB-ABA.
+ *
+ * `FILTER_UNAVAILABLE_REASON` responde por aba e por natureza do dado. Estes
+ * são mais específicos: dentro do mesmo agrupador, uma sub-aba recorta e a
+ * outra não, e a diferença não é adivinhável de fora.
+ */
+const MOTIVO_POR_SUBABA: Record<string, string> = {
+  onboarding:
+    'A pesquisa de onboarding é fatiada por área, empresa e mês de entrada. Tempo de casa não recorta aqui porque quem está em onboarding tem 0-3 meses por definição, e modelo de trabalho não foi perguntado nela.',
+  inclusao:
+    'A pesquisa de inclusão guarda só a distribuição da empresa inteira: não há recorte gravado, nem por área. Recortar exigiria recoletar com a quebra.',
 };
 
 /**
@@ -142,6 +177,18 @@ export function unavailableFilters(
   if (abasDeSerie.includes(tab)) {
     for (const k of daSerie) {
       if (!ativos.has(k)) out.push({ key: k, reason: FILTER_UNAVAILABLE_REASON.serie });
+    }
+  }
+
+  // O que a ABA oferece mas esta SUB-ABA não honra. Some da lista ativa e
+  // aparece esmaecido com o motivo -- sumir sem explicação faria a pessoa
+  // concluir que o painel não recorta aquilo em lugar nenhum, quando recorta
+  // na sub-aba ao lado.
+  const motivo = subTab ? MOTIVO_POR_SUBABA[subTab] : undefined;
+  if (motivo) {
+    const daAba = FILTERS_BY_TAB[tab] ?? [];
+    for (const k of daAba) {
+      if (!ativos.has(k) && !out.some((o) => o.key === k)) out.push({ key: k, reason: motivo });
     }
   }
   return out;
