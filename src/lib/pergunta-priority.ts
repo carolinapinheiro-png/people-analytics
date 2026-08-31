@@ -78,6 +78,37 @@ export function favoravelDe(p: PerguntaEntrada): number {
   return p.favoravel ?? p.score * 20;
 }
 
+/**
+ * A força da associação, em palavra.
+ *
+ * ===========================================================================
+ * CORRELAÇÃO NEGATIVA NÃO É "POUCA" CORRELAÇÃO
+ * ===========================================================================
+ * A escala era `r >= alto ? 'puxa muito' : r >= medio ? 'puxa' : 'puxa pouco'`
+ * -- uma reta, com o pior rótulo no fim. Um `r` negativo cairia em "puxa
+ * pouco", e isso é falso de um jeito específico: relação inversa é uma relação
+ * FORTE andando ao contrário, não uma relação fraca.
+ *
+ * Uma pergunta com r = -0,30 separa engajado de não engajado tanto quanto uma
+ * com +0,30. Chamá-la de "puxa pouco" a esconderia no fim da lista, que é
+ * exatamente onde ninguém olha.
+ *
+ * Não sei se existe alguma hoje -- o banco estava fora quando fui conferir.
+ * Isso é parte do motivo de consertar: o rótulo não deve depender de o dado
+ * de hoje ser bem comportado.
+ *
+ * A palavra "puxa" também carrega direção, e a associação não tem direção
+ * nenhuma. O tooltip do cartão já diz isso; aqui o que se garante é que o
+ * sinal não seja perdido no caminho.
+ */
+export function forcaDaAssociacao(
+  r: number,
+  cortes: { alto: number; medio: number },
+): string {
+  if (r < 0) return 'anda ao contrário';
+  return r >= cortes.alto ? 'puxa muito' : r >= cortes.medio ? 'puxa' : 'puxa pouco';
+}
+
 export function classifyPerguntas<T extends PerguntaEntrada>(
   rows: readonly T[],
 ): ClassificacaoPerguntas<T> {

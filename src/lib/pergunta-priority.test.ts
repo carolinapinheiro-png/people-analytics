@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  forcaDaAssociacao,
   classifyPerguntas,
   favoravelDe,
   temaDominante,
@@ -83,4 +84,38 @@ test("lista vazia não inventa tema", () => {
   assert.equal(t.tema, null);
   assert.equal(t.quantas, 0);
   assert.equal(t.categorias, 0);
+});
+
+// ---------------------------------------------------------------------------
+// A PALAVRA QUE TRADUZ O r
+// ---------------------------------------------------------------------------
+
+test('a escala em palavra segue os cortes da lista', () => {
+  const c = { alto: 0.4, medio: 0.25 };
+  assert.equal(forcaDaAssociacao(0.55, c), 'puxa muito');
+  assert.equal(forcaDaAssociacao(0.4, c), 'puxa muito', 'o corte é inclusivo');
+  assert.equal(forcaDaAssociacao(0.3, c), 'puxa');
+  assert.equal(forcaDaAssociacao(0.1, c), 'puxa pouco');
+});
+
+test('correlação NEGATIVA não é "puxa pouco"', () => {
+  // Relação inversa é uma relação forte andando ao contrário, não uma relação
+  // fraca. Uma pergunta com r = -0,30 separa engajado de não engajado tanto
+  // quanto uma com +0,30; chamá-la de "puxa pouco" a esconderia no fim da
+  // lista, que é exatamente onde ninguém olha.
+  const c = { alto: 0.4, medio: 0.25 };
+  assert.equal(forcaDaAssociacao(-0.3, c), 'anda ao contrário');
+  assert.equal(forcaDaAssociacao(-0.01, c), 'anda ao contrário');
+});
+
+test('zero continua sendo "puxa pouco", e não inverso', () => {
+  // Ausência de relação não é relação inversa.
+  assert.equal(forcaDaAssociacao(0, { alto: 0.4, medio: 0.25 }), 'puxa pouco');
+});
+
+test('com todos os cortes negativos, o sinal ainda manda', () => {
+  // Os cortes saem da própria lista: num recorte onde tudo é fraco, o quartil
+  // superior pode ser negativo. O rótulo não pode chamar um r negativo de
+  // "puxa muito" só porque ele é o melhor de um conjunto ruim.
+  assert.equal(forcaDaAssociacao(-0.1, { alto: -0.2, medio: -0.3 }), 'anda ao contrário');
 });

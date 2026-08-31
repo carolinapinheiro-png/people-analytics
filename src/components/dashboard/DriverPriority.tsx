@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
-import { classifyPerguntas, temaDominante as temaDeLista } from '@/lib/pergunta-priority';
+import { forcaDaAssociacao, classifyPerguntas, temaDominante as temaDeLista } from '@/lib/pergunta-priority';
 import { N_MINIMO_CORRELACAO } from '@/lib/aggregator/polly-survey';
 import { cn } from '@/lib/utils';
 import {
@@ -57,10 +57,8 @@ const corFav = (f: number | null) =>
   : f >= 70 ? COLORS.warning
   : COLORS.danger;
 
-/** Força da associação em palavra. O número exato fica no tooltip. */
-function forca(r: number, cortes: { alto: number; medio: number }): string {
-  return r >= cortes.alto ? 'puxa muito' : r >= cortes.medio ? 'puxa' : 'puxa pouco';
-}
+/** Ver `forcaDaAssociacao`: mora no lib porque lá tem teste. */
+const forca = forcaDaAssociacao;
 
 /**
  * As áreas mais distantes da empresa numa pergunta, nas duas direções.
