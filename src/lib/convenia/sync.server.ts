@@ -624,6 +624,18 @@ export async function executarSyncConvenia(
         tenure_base: l.tenure_base,
         demographics: l.demographics,
         quality_flag: marcaQualidade,
+        // O CONFLITO E EM (month, brand, source), ENTAO TODA CARGA SEMANAL E
+        // UPDATE -- e `DEFAULT now()` so vale no INSERT. Sem esta linha e sem
+        // trigger, `updated_at` congela na data do primeiro insert e nunca
+        // mais anda, mesmo com a gravacao funcionando perfeitamente.
+        //
+        // Isso nao afeta nenhum grafico: o painel le `month`, nao este campo.
+        // O que quebra e a CONFERENCIA -- o vigia semanal pergunta "o dado
+        // avancou?" e recebe sempre a mesma data de 12/08/2026, o que e
+        // indistinguivel de uma carga que parou de gravar. Um campo que
+        // ninguem le vira o unico sinal de que algo esta errado, e ele estava
+        // mentindo.
+        updated_at: new Date().toISOString(),
       }));
       const { error } = await db.from('monthly_metrics')
         .upsert(registros, { onConflict: 'month,brand,source' });
