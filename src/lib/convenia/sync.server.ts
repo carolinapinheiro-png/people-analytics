@@ -242,7 +242,7 @@ export async function executarSyncConvenia(
     const LOTE_GENERO = 200;
     const { data: pessoasCache } = await db
       .from('convenia_pessoas')
-      .select('convenia_id, gender, race');
+      .select('convenia_id, gender, race, job_title');
     const cacheGenero = new Map<string, 'F' | 'M' | null>(
       ((pessoasCache ?? []) as { convenia_id: string; gender: string | null }[])
         .map((r) => [r.convenia_id, (r.gender as 'F' | 'M' | null) ?? null]),
@@ -258,6 +258,24 @@ export async function executarSyncConvenia(
     const cacheRaca = new Map<string, string | null>(
       ((pessoasCache ?? []) as { convenia_id: string; race: string | null }[])
         .map((r) => [r.convenia_id, r.race ?? null]),
+    );
+    // ------------------------------------------------------------------
+    // O CARGO TAMBEM SO EXISTE NO DETALHE -- E ISSO CUSTOU UMA CARGA INTEIRA
+    // ------------------------------------------------------------------
+    // `cargoDe` foi escrito para ler o payload da LISTAGEM, tentando sete
+    // nomes de campo. Nenhum deles existe la. Medido em 01/09, com a sync ja
+    // rodada: 0 de 638 pessoas com cargo em `org_pessoas`.
+    //
+    // O aviso de ">50% sem cargo" existia e teria disparado. O que nao
+    // aconteceu foi alguem reparar, porque o efeito visivel -- campo Cargo em
+    // branco no cadastro -- era identico ao comportamento anterior. Ausencia
+    // que se parece com o estado de ontem nao chama atencao.
+    //
+    // Nao custa requisicao nova: o laco de genero JA busca esse detalhe e
+    // descarta o resto da resposta. O cargo sai da mesma chamada.
+    const cacheCargo = new Map<string, string | null>(
+      ((pessoasCache ?? []) as { convenia_id: string; job_title: string | null }[])
+        .map((r) => [r.convenia_id, r.job_title ?? null]),
     );
     // Quem já foi buscado e voltou sem gênero não é buscado de novo: a linha
     // existe no cache com valor nulo, e isso é a resposta, não uma falha.
@@ -473,13 +491,18 @@ export async function executarSyncConvenia(
               (typeof det2.gender === 'string' ? det2.gender : (det2.gender as { name?: string })?.name),
             );
             const raca = (det2.ethnicity as { name?: string } | null)?.name ?? null;
+            // Mesma resposta, mais um campo lido. `cargoDe` continua tentando
+            // os sete nomes: aqui ela finalmente tem onde encontrar.
+            const cargo = cargoDe(det2);
             cacheGenero.set(alvo.id, g);
             cacheRaca.set(alvo.id, raca);
+            cacheCargo.set(alvo.id, cargo);
             generoBuscadosAgora++;
             await db.from('convenia_pessoas').upsert({
               convenia_id: alvo.id,
               gender: g,
               race: raca,
+              job_title: cargo,
               birth_month: mesDe(alvo.birth_date ?? null),
             }, { onConflict: 'convenia_id' });
           } catch {
@@ -711,11 +734,17 @@ export async function executarSyncConvenia(
           );
         }
 
+        // O cargo é resolvido DEPOIS de `orgTodos` ser montado -- ele sai do
+        // laço de detalhe, que roda mais adiante --, então a junção acontece
+        // aqui, no último momento antes de gravar.
+        //
+        // A listagem tem precedência: se um dia o Convenia passar a mandar o
+        // cargo lá, ele vale e o detalhe vira redundância barata.
         const linhasOrg = orgTodos.map((p) => ({
           convenia_id: p.id,
           email: p.email ? p.email.trim().toLowerCase() : null,
           nome: p.nome,
-          job_title: p.cargo,
+          job_title: p.cargo || (cacheCargo.get(p.id) ?? null),
           supervisor_id: p.supervisorId,
           department: p.department,
           camada: porPessoa.get(p.id)?.camada ?? null,
@@ -736,12 +765,33 @@ export async function executarSyncConvenia(
         // linhas sem camada na aba de Salarios.
         // Mesmo cuidado do nome: se o campo do cargo mudar de lugar na API,
         // nada quebra -- o cadastro so volta a ser digitado a mao, calado.
-        const semCargo = linhasOrg.filter((l) => !l.job_title).length;
-        if (semCargo > linhasOrg.length / 2) {
+        // ------------------------------------------------------------------
+        // O AVISO PRECISA DISTINGUIR "AINDA NAO BUSCADO" DE "NAO TEM"
+        // ------------------------------------------------------------------
+        // A versao anterior dizia so "vieram sem cargo", e isso era verdadeiro
+        // e inutil: com o cargo saindo do detalhe em lotes de 200, a primeira
+        // execucao SEMPRE deixa a maioria em branco. Um aviso que dispara toda
+        // vez, por desenho, ensina a ignorar avisos.
+        //
+        // `cacheCargo.has(id)` e a diferenca: significa "ja perguntei por esta
+        // pessoa". Quem esta no cache com valor nulo nao tem cargo no
+        // Convenia; quem nao esta ainda vai ser buscado.
+        const semCargo = linhasOrg.filter((l) => !l.job_title);
+        const aindaNaoBuscados = semCargo.filter((l) => !cacheCargo.has(l.convenia_id)).length;
+        const buscadosSemCargo = semCargo.length - aindaNaoBuscados;
+        if (aindaNaoBuscados > 0) {
           avisos.push(
-            `Organograma: ${semCargo} de ${linhasOrg.length} pessoas vieram sem cargo. ` +
-            'O cadastro de acesso deixa de preencher o campo Cargo sozinho -- ele continua ' +
-            'digitavel. Conferir em que campo o Convenia guarda o cargo hoje.',
+            `Cargo: ${linhasOrg.length - semCargo.length} de ${linhasOrg.length} pessoas resolvidas, ` +
+            `${aindaNaoBuscados} pendentes. O cargo so existe no detalhe individual do Convenia, ` +
+            `entao ele avanca no mesmo lote do genero -- rode de novo para adiantar. Ate la o campo ` +
+            'Cargo do cadastro continua digitavel.',
+          );
+        }
+        if (buscadosSemCargo > linhasOrg.length / 2) {
+          avisos.push(
+            `Cargo: ${buscadosSemCargo} pessoas foram buscadas no detalhe e voltaram SEM cargo. ` +
+            'Isso nao e atraso de lote -- e o campo nao existir onde `cargoDe` procura. ' +
+            'Conferir em que campo o Convenia guarda o cargo hoje.',
           );
         }
 

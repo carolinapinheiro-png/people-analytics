@@ -1256,10 +1256,59 @@ function UserAccessFormFields({
           preenchia de cima para baixo terminava o formulário para então
           descobrir que faltava o campo obrigatório.
 
-          Agora: quem é (perfil) -> o que alcança (escopo) -> o que vê (abas)
-          -> detalhes. Cargo e camada N desceram: são importantes, mas não
-          são a primeira pergunta.
+          Agora: quem é (cargo e camada, que vêm sozinhos do e-mail) -> quem
+          é no painel (as três chaves) -> o que alcança (escopo) -> o que vê
+          (abas).
+
+          Cargo e camada tinham DESCIDO nesta ordem, com o argumento de que não
+          são a primeira pergunta. O argumento envelheceu no dia em que eles
+          passaram a se preencher sozinhos ao sair do campo de e-mail: um campo
+          que se preenche a dois terços de rolagem do gesto que o preencheu não
+          é lido como automático, é lido como não tendo acontecido. Subiram de
+          volta, agora por um motivo melhor -- o efeito ao alcance da vista da
+          causa.
       ================================================================== */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Cargo</Label>
+          <Input
+            placeholder="Ex.: HRBP, Tech Lead"
+            value={value.jobTitle}
+            maxLength={80}
+            onChange={(e) => patch({ jobTitle: e.target.value })}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground" htmlFor={levelListId}>Camada N</Label>
+          {/* ------------------------------------------------------------------
+              LISTA FECHADA, E NAO MAIS TEXTO LIVRE
+              ------------------------------------------------------------------
+              Este campo era decorativo -- ninguem lia. Desde 14/08/2026 ele
+              decide, na aba de Salarios, ate que degrau a pessoa enxerga
+              remuneracao.
+              Com texto livre, "Diretor" em vez de "Director" nao daria erro
+              nenhum: o nivel simplesmente nao seria reconhecido, e a pessoa
+              abriria a aba sem ver ninguem. O suporte diria "esta sem dado".
+          ------------------------------------------------------------------ */}
+          <select
+            id={levelListId}
+            value={value.jobLevel}
+            onChange={(e) => patch({ jobLevel: e.target.value })}
+            className="w-full rounded border border-border bg-secondary px-2 py-1.5 text-sm"
+          >
+            <option value="">— não definida —</option>
+            {JOB_LEVEL_PRESETS.map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+          {isCompVisivel && !value.jobLevel && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-500">
+              Sem a camada N, esta pessoa abre a aba de Salários e não vê ninguém.
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* ==================================================================
           TRÊS PERGUNTAS NO LUGAR DE UM SELETOR DE PERFIL
           ==================================================================
@@ -1383,47 +1432,6 @@ function UserAccessFormFields({
           )}
         </div>
       )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Cargo</Label>
-          <Input
-            placeholder="Ex.: HRBP, Tech Lead"
-            value={value.jobTitle}
-            maxLength={80}
-            onChange={(e) => patch({ jobTitle: e.target.value })}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground" htmlFor={levelListId}>Camada N</Label>
-          {/* ------------------------------------------------------------------
-              LISTA FECHADA, E NAO MAIS TEXTO LIVRE
-              ------------------------------------------------------------------
-              Este campo era decorativo -- ninguem lia. Desde 14/08/2026 ele
-              decide, na aba de Salarios, ate que degrau a pessoa enxerga
-              remuneracao.
-              Com texto livre, "Diretor" em vez de "Director" nao daria erro
-              nenhum: o nivel simplesmente nao seria reconhecido, e a pessoa
-              abriria a aba sem ver ninguem. O suporte diria "esta sem dado".
-          ------------------------------------------------------------------ */}
-          <select
-            id={levelListId}
-            value={value.jobLevel}
-            onChange={(e) => patch({ jobLevel: e.target.value })}
-            className="w-full rounded border border-border bg-secondary px-2 py-1.5 text-sm"
-          >
-            <option value="">— não definida —</option>
-            {JOB_LEVEL_PRESETS.map((l) => (
-              <option key={l} value={l}>{l}</option>
-            ))}
-          </select>
-          {isCompVisivel && !value.jobLevel && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-500">
-              Sem a camada N, esta pessoa abre a aba de Salários e não vê ninguém.
-            </p>
-          )}
-        </div>
-      </div>
 
       {/* ==================================================================
           "RESPONSABILIDADES" ERA A LISTA DE ABAS COM OUTRO NOME
