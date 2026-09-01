@@ -1,13 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { lerCustomFields, valorDe, escritorioDe, NOMES_DE_ESCRITORIO } from './custom-fields';
+import {
+  lerCustomFields, valorDe, escritorioDe, empresaDe, valorEhSensivel,
+  NOMES_DE_ESCRITORIO,
+} from './custom-fields';
 
 /**
  * Estes testes existem porque o dado ainda não existe.
  *
- * `custom_fields` está vazio em 8 de 8 da amostra -- o RH ainda não terminou de
- * configurar. Ou seja: o código vai rodar pela primeira vez contra uma forma
- * que ninguém aqui viu.
+ * Quando foram escritos, `custom_fields` parecia vazio em 8 de 8 -- eu media
+ * pelo caminho errado -- e o código ia rodar pela primeira vez contra uma
+ * forma que ninguém aqui tinha visto. Os primeiros onze testes são desse
+ * momento e ficam: a forma real é uma das quatro, e as outras três continuam
+ * cobertas para o dia em que a API mudar.
  *
  * Foi exatamente essa a situação do `cargoDe`, que tentou sete nomes de campo
  * na resposta errada e acertou zero em 638, calado. A diferença é que lá o
@@ -99,4 +104,70 @@ test('não acha o que não está lá, em vez de devolver o primeiro campo', () =
 test('sem custom_fields no cadastro, escritorioDe devolve null', () => {
   assert.equal(escritorioDe({}), null);
   assert.equal(escritorioDe({ custom_fields: [] }), null);
+});
+
+// ---------------------------------------------------------------------------
+// O QUE A PRIMEIRA EXECUÇÃO REAL MOSTROU
+// ---------------------------------------------------------------------------
+// A sonda rodou e o campo não estava vazio: 5 de 8 em Recife. São dois campos
+// distintos, e tratá-los como um só devolveria o que viesse primeiro.
+// ---------------------------------------------------------------------------
+
+/** Recorte do cadastro real de Recife, com os valores sensíveis encurtados. */
+const RECIFE = {
+  custom_fields: [
+    { name: 'Level', value: 'L5' },
+    { name: 'Modelo de Jornada de Trabalho', value: 'Presencial' },
+    { name: 'Escritório', value: 'Recife - Boa Viagem' },
+    { name: 'WorkDay Level', value: 'N-5' },
+    { name: 'Career Band', value: 'D - Manager + Specialist roles' },
+    { name: 'Empresa', value: 'NSX Brasil Recife' },
+    { name: 'Job Type Family', value: 'Product & Technology' },
+    { name: 'Liderança ?', value: 'Sim' },
+    { name: 'Razão Social (quando PJ)', value: 'FULANO CONSULTORIA EM TECN' },
+    { name: 'CNPJ (quando PJs)', value: '00.000.000/0001-00' },
+  ],
+};
+
+test('empresa e escritório saem separados, e não um pelo outro', () => {
+  assert.equal(empresaDe(RECIFE), 'NSX Brasil Recife');
+  assert.equal(escritorioDe(RECIFE), 'Recife - Boa Viagem');
+});
+
+test('"Razão Social (quando PJ)" NÃO é a empresa', () => {
+  // É a empresa do PRESTADOR. Se entrasse, cada PJ viraria uma marca com uma
+  // pessoa só e o painel ganharia dezenas de marcas fantasma, sem erro nenhum.
+  assert.equal(
+    empresaDe({ custom_fields: [{ name: 'Razão Social (quando PJ)', value: 'FULANO LTDA' }] }),
+    null,
+  );
+});
+
+test('"Remoto" é um escritório válido -- não é ausência', () => {
+  assert.equal(
+    escritorioDe({ custom_fields: [{ name: 'Escritório', value: 'Remoto' }] }),
+    'Remoto',
+  );
+});
+
+test('valores de CNPJ, razão social e endereço não são exibíveis', () => {
+  // A sonda imprimiu CNPJ e endereço de prestador numa tela de admin, debaixo
+  // de uma frase minha dizendo que isso não atravessava o filtro.
+  for (const n of ['CNPJ (quando PJs)', 'Razão Social (quando PJ)', 'Endereço PJs',
+    'CPF', 'Conta bancária', 'Banco', 'Data de nascimento']) {
+    assert.ok(valorEhSensivel(n), `deveria ocultar o valor de "${n}"`);
+  }
+});
+
+test('e os campos que interessam continuam exibíveis', () => {
+  // Um filtro que esconde tudo protege e não informa -- a sonda existe para
+  // mostrar com que nome o RH criou cada campo.
+  for (const n of ['Escritório', 'Empresa', 'Job Type Family', 'Career Band',
+    'Modelo de Jornada de Trabalho', 'Liderança ?', 'Level']) {
+    assert.equal(valorEhSensivel(n), false, `não deveria ocultar "${n}"`);
+  }
+});
+
+test('a lista de escritório não pega "Empresa" por engano', () => {
+  assert.equal(valorDe(lerCustomFields(RECIFE.custom_fields), NOMES_DE_ESCRITORIO), 'Recife - Boa Viagem');
 });

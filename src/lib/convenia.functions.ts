@@ -529,7 +529,8 @@ export const sondarCamposDaPessoa = createServerFn({ method: 'POST' })
         const naListagem = new Map<string, { n: number; vals: Set<string> }>();
         for (const p of amostra) acumular(naListagem, p);
 
-        const { lerCustomFields, escritorioDe } = await import('@/lib/convenia/custom-fields');
+        const { lerCustomFields, escritorioDe, valorEhSensivel } =
+          await import('@/lib/convenia/custom-fields');
         const personalizados = new Map<string, { n: number; vals: Set<string> }>();
 
         const noDetalhe = new Map<string, { n: number; vals: Set<string> }>();
@@ -544,10 +545,22 @@ export const sondarCamposDaPessoa = createServerFn({ method: 'POST' })
           // Os campos personalizados entram por fora do filtro de chaves: o
           // NOME deles é dado pelo RH, não pela API, então nenhum padrão meu
           // acertaria. O valor sai truncado igual ao resto.
+          // Um campo pode vir repetido no mesmo cadastro. Contando ocorrências,
+          // a tela imprimiu "Level 10/8" -- numerador maior que denominador, que
+          // além de errado faz duvidar do resto do quadro.
+          const vistosNestaPessoa = new Set<string>();
           for (const c2 of lerCustomFields(det.custom_fields)) {
+            if (vistosNestaPessoa.has(c2.nome)) continue;
+            vistosNestaPessoa.add(c2.nome);
             const atual = personalizados.get(c2.nome) ?? { n: 0, vals: new Set<string>() };
             atual.n++;
-            if (atual.vals.size < 8) atual.vals.add(c2.valor.slice(0, 40));
+            // O NOME e a CONTAGEM sempre saem; o valor, não. Ver VALOR_SENSIVEL:
+            // a primeira execução desta sonda imprimiu CNPJ e endereço de
+            // prestador numa tela de admin, debaixo de uma frase minha dizendo
+            // que isso não acontecia.
+            if (!valorEhSensivel(c2.nome) && atual.vals.size < 8) {
+              atual.vals.add(c2.valor.slice(0, 40));
+            }
             personalizados.set(c2.nome, atual);
           }
           if (escritorioDe(det)) linha.escritorioResolvido++;
