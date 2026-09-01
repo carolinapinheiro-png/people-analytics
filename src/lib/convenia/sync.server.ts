@@ -242,7 +242,7 @@ export async function executarSyncConvenia(
     const LOTE_GENERO = 200;
     const { data: pessoasCache } = await db
       .from('convenia_pessoas')
-      .select('convenia_id, gender, race, job_title');
+      .select('convenia_id, gender, race, job_title, job_title_em');
     const cacheGenero = new Map<string, 'F' | 'M' | null>(
       ((pessoasCache ?? []) as { convenia_id: string; gender: string | null }[])
         .map((r) => [r.convenia_id, (r.gender as 'F' | 'M' | null) ?? null]),
@@ -276,6 +276,20 @@ export async function executarSyncConvenia(
     const cacheCargo = new Map<string, string | null>(
       ((pessoasCache ?? []) as { convenia_id: string; job_title: string | null }[])
         .map((r) => [r.convenia_id, r.job_title ?? null]),
+    );
+    // ------------------------------------------------------------------
+    // A MARCA DA PERGUNTA, SEPARADA DA RESPOSTA
+    // ------------------------------------------------------------------
+    // `cacheCargo.has(id)` NAO serve para saber se ja perguntamos: as 805
+    // linhas de `convenia_pessoas` foram gravadas pelo laco de GENERO, que
+    // nunca leu cargo. Todas tem `job_title` nulo, e nenhuma delas e uma
+    // resposta -- sao ausencias de pergunta.
+    //
+    // Sem essa distincao, "nao veio cargo" vira "o Convenia nao tem cargo", e
+    // foi exatamente isso que a tela de cadastro passou a afirmar em amarelo.
+    const cargoBuscado = new Set(
+      ((pessoasCache ?? []) as { convenia_id: string; job_title_em: string | null }[])
+        .filter((r) => r.job_title_em != null).map((r) => r.convenia_id),
     );
     // Quem já foi buscado e voltou sem gênero não é buscado de novo: a linha
     // existe no cache com valor nulo, e isso é a resposta, não uma falha.
@@ -497,12 +511,17 @@ export async function executarSyncConvenia(
             cacheGenero.set(alvo.id, g);
             cacheRaca.set(alvo.id, raca);
             cacheCargo.set(alvo.id, cargo);
+            cargoBuscado.add(alvo.id);
             generoBuscadosAgora++;
             await db.from('convenia_pessoas').upsert({
               convenia_id: alvo.id,
               gender: g,
               race: raca,
               job_title: cargo,
+              // Marca a PERGUNTA. Com cargo nulo e esta data preenchida, a
+              // ausencia passa a ser uma resposta do Convenia -- e so entao
+              // alguem pode dizer "nao esta preenchido la".
+              job_title_em: new Date().toISOString(),
               birth_month: mesDe(alvo.birth_date ?? null),
             }, { onConflict: 'convenia_id' });
           } catch {
@@ -777,7 +796,7 @@ export async function executarSyncConvenia(
         // pessoa". Quem esta no cache com valor nulo nao tem cargo no
         // Convenia; quem nao esta ainda vai ser buscado.
         const semCargo = linhasOrg.filter((l) => !l.job_title);
-        const aindaNaoBuscados = semCargo.filter((l) => !cacheCargo.has(l.convenia_id)).length;
+        const aindaNaoBuscados = semCargo.filter((l) => !cargoBuscado.has(l.convenia_id)).length;
         const buscadosSemCargo = semCargo.length - aindaNaoBuscados;
         if (aindaNaoBuscados > 0) {
           avisos.push(

@@ -810,6 +810,7 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
                 camada: string | null;
                 department: string | null;
                 job_title: string | null;
+                convenia_id: string | null;
               } | null;
               error: { message: string } | null;
             }>;
@@ -818,7 +819,7 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
       };
     })
       .from('org_pessoas')
-      .select('camada, department, job_title')
+      .select('camada, department, job_title, convenia_id')
       .ilike('email', email)
       .maybeSingle();
 
@@ -830,6 +831,46 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
         motivo: 'Este e-mail não está no Convenia. Pode ser terceiro, conta de serviço, ou alguém que ainda não foi cadastrado no RH — preencha à mão.',
       };
     }
+    // ========================================================================
+    // "NÃO ESTÁ PREENCHIDO NO CONVENIA" É UMA AFIRMAÇÃO SOBRE O CONVENIA
+    // ========================================================================
+    // Esta função dizia isso, em amarelo, sempre que `job_title` vinha nulo. E
+    // chegou a resposta certa: "o cargo sempre está preenchido no Convenia, é
+    // mandatório... como assim não está?".
+    //
+    // Estava. O que não existia era a nossa leitura: o cargo só vem no detalhe
+    // individual, e até 01/09 nenhum código o lia. Um null do nosso lado virou
+    // fato sobre o lado de lá, saiu na tela com cara de diagnóstico, e o
+    // próximo passo natural de quem lê é digitar à mão para sempre.
+    //
+    // Mesma troca que este painel passou a semana desfazendo: "não existe" no
+    // lugar de "não foi calculado".
+    //
+    // `job_title_em` é a marca da PERGUNTA. Sem ela preenchida, nada se pode
+    // afirmar -- e a frase passa a falar de nós, não do Convenia.
+    const cargoFoiBuscado = async (): Promise<boolean> => {
+      if (!linha.convenia_id) return false;
+      const { data: c } = await (supabaseAdmin as unknown as {
+        from: (t: string) => { select: (s: string) => { eq: (c: string, v: string) => {
+          maybeSingle: () => PromiseLike<{ data: { job_title_em: string | null } | null }>;
+        } } };
+      })
+        .from('convenia_pessoas')
+        .select('job_title_em')
+        .eq('convenia_id', linha.convenia_id)
+        .maybeSingle();
+      return c?.job_title_em != null;
+    };
+
+    /** A frase sobre o cargo, quando ele não veio. Nunca afirma pelo Convenia. */
+    const motivoDoCargo = async (): Promise<string> => {
+      if (linha.job_title) return '';
+      return (await cargoFoiBuscado())
+        // Só AQUI a ausência é resposta: perguntamos e voltou vazio.
+        ? 'O cargo desta pessoa está em branco no Convenia — perguntamos e voltou vazio. Digite à mão.'
+        : 'O cargo ainda não foi carregado: ele só existe no detalhe individual do Convenia, e a sync busca em lotes de 200 por execução. Rode a sync mais uma ou duas vezes e ele passa a vir sozinho. Até lá, digite à mão.';
+    };
+
     if (!linha.camada) {
       return {
         ...vazio,
@@ -847,11 +888,10 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
       camada: linha.camada,
       departamento: linha.department ?? null,
       cargo: linha.job_title ?? null,
-      motivo: linha.job_title
-        ? ''
-        // Dizer o que NÃO veio, em vez de deixar o campo vazio calado: quem
-        // cadastra precisa saber se digita ou se espera a próxima carga.
-        : 'Camada e departamento vieram do Convenia; o cargo não está preenchido lá, então digite à mão.',
+      // Dizer o que NÃO veio, em vez de deixar o campo vazio calado: quem
+      // cadastra precisa saber se digita ou se espera a próxima carga. O que
+      // mudou é QUEM a frase acusa.
+      motivo: await motivoDoCargo(),
     };
   });
 
