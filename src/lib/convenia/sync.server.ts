@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { reconstruirSerie, type LinhaMensal, type PessoaConvenia } from './pessoas';
+import { empresaDe, escritorioDe } from './custom-fields';
 
 /**
  * Carga do Convenia: cinco empresas, uma série mensal por marca.
@@ -242,7 +243,7 @@ export async function executarSyncConvenia(
     const LOTE_GENERO = 200;
     const { data: pessoasCache } = await db
       .from('convenia_pessoas')
-      .select('convenia_id, gender, race, job_title, job_title_em');
+      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio');
     const cacheGenero = new Map<string, 'F' | 'M' | null>(
       ((pessoasCache ?? []) as { convenia_id: string; gender: string | null }[])
         .map((r) => [r.convenia_id, (r.gender as 'F' | 'M' | null) ?? null]),
@@ -287,6 +288,17 @@ export async function executarSyncConvenia(
     //
     // Sem essa distincao, "nao veio cargo" vira "o Convenia nao tem cargo", e
     // foi exatamente isso que a tela de cadastro passou a afirmar em amarelo.
+    // Empresa e escritório vêm de `custom_fields`, no mesmo detalhe individual.
+    // Ver custom-fields.ts: "Empresa" é a marca, "Escritório" é a localidade, e
+    // são campos distintos -- juntá-los devolveria o que viesse primeiro.
+    const cacheEmpresa = new Map<string, string | null>(
+      ((pessoasCache ?? []) as { convenia_id: string; empresa: string | null }[])
+        .map((r) => [r.convenia_id, r.empresa ?? null]),
+    );
+    const cacheEscritorio = new Map<string, string | null>(
+      ((pessoasCache ?? []) as { convenia_id: string; escritorio: string | null }[])
+        .map((r) => [r.convenia_id, r.escritorio ?? null]),
+    );
     const cargoBuscado = new Set(
       ((pessoasCache ?? []) as { convenia_id: string; job_title_em: string | null }[])
         .filter((r) => r.job_title_em != null).map((r) => r.convenia_id),
@@ -491,7 +503,21 @@ export async function executarSyncConvenia(
         // os ativos, a cobertura de 2019 fica perto de zero e o percentual de
         // gênero some justamente onde a série é mais longa -- foi o que
         // aconteceu na primeira rodada, 15 meses com percentual de 272.
-        const semGenero = registros.filter((x) => !cacheGenero.has(x.id));
+        // ------------------------------------------------------------------
+        // QUEM BUSCAR: NAO E MAIS "QUEM NAO TEM GENERO"
+        // ------------------------------------------------------------------
+        // O detalhe individual passou a trazer TRES coisas alem de genero e
+        // raca: cargo, empresa e escritorio. As 781 pessoas ja resolvidas foram
+        // lidas por codigo que nao olhava para nenhuma das tres -- entao "tem
+        // genero" deixou de significar "ja perguntei tudo o que preciso".
+        //
+        // `job_title_em` e a marca de "li este cadastro com o codigo atual".
+        // Quem nao a tem entra na fila, mesmo com genero resolvido. Sao ~638
+        // releituras uma unica vez, em lotes de 200 -- tres ou quatro execucoes
+        // e converge, e depois volta a ser ~0 por carga.
+        const semGenero = registros.filter(
+          (x) => !cacheGenero.has(x.id) || !cargoBuscado.has(x.id),
+        );
         for (const alvo of semGenero) {
           if (generoBuscadosAgora >= LOTE_GENERO) break;
           try {
@@ -508,9 +534,13 @@ export async function executarSyncConvenia(
             // Mesma resposta, mais um campo lido. `cargoDe` continua tentando
             // os sete nomes: aqui ela finalmente tem onde encontrar.
             const cargo = cargoDe(det2);
+            const empresa = empresaDe(det2);
+            const escritorio = escritorioDe(det2);
             cacheGenero.set(alvo.id, g);
             cacheRaca.set(alvo.id, raca);
             cacheCargo.set(alvo.id, cargo);
+            cacheEmpresa.set(alvo.id, empresa);
+            cacheEscritorio.set(alvo.id, escritorio);
             cargoBuscado.add(alvo.id);
             generoBuscadosAgora++;
             await db.from('convenia_pessoas').upsert({
@@ -518,6 +548,8 @@ export async function executarSyncConvenia(
               gender: g,
               race: raca,
               job_title: cargo,
+              empresa,
+              escritorio,
               // Marca a PERGUNTA. Com cargo nulo e esta data preenchida, a
               // ausencia passa a ser uma resposta do Convenia -- e so entao
               // alguem pode dizer "nao esta preenchido la".
@@ -871,6 +903,43 @@ export async function executarSyncConvenia(
             'Isso nao e atraso de lote -- e o campo nao existir onde `cargoDe` procura. ' +
             'Conferir em que campo o Convenia guarda o cargo hoje.',
           );
+        }
+
+        // ------------------------------------------------------------------
+        // O CENSO DE EMPRESA E ESCRITORIO
+        // ------------------------------------------------------------------
+        // Nao e curiosidade: e o numero que decide se a marca pode deixar de
+        // sair do token. Na amostra de 8 deu 5 preenchidos; virar a chave com
+        // 60% joga 40% da empresa numa marca nula, e a serie fica pior do que
+        // travada.
+        //
+        // A conta so vale sobre quem JA FOI LIDO com o codigo atual. Misturar
+        // quem ainda esta na fila faria a cobertura parecer baixa por atraso de
+        // lote, que e outra coisa -- o mesmo cuidado do aviso de cargo.
+        const lidos = linhasOrg.filter((l) => cargoBuscado.has(l.convenia_id));
+        const comEmpresa = lidos.filter((l) => cacheEmpresa.get(l.convenia_id)).length;
+        const comEscritorio = lidos.filter((l) => cacheEscritorio.get(l.convenia_id)).length;
+        const naFila = linhasOrg.length - lidos.length;
+        if (lidos.length) {
+          const pct = (n: number) => Math.round((n / lidos.length) * 100);
+          avisos.push(
+            `Censo de custom_fields: de ${lidos.length} cadastros ja lidos, ` +
+            `Empresa preenchida em ${comEmpresa} (${pct(comEmpresa)}%) e ` +
+            `Escritorio em ${comEscritorio} (${pct(comEscritorio)}%).` +
+            (naFila > 0 ? ` Faltam ${naFila} na fila -- rode de novo.` : '') +
+            ' A marca so deve passar a sair do cadastro quando Empresa estiver perto de 100%:' +
+            ' com cobertura parcial, quem estiver sem o campo cai numa marca nula.',
+          );
+          const valoresEmpresa = new Set(
+            lidos.map((l) => cacheEmpresa.get(l.convenia_id)).filter(Boolean),
+          );
+          if (comEmpresa && valoresEmpresa.size === 1) {
+            avisos.push(
+              `Atencao: Empresa tem um valor unico ("${[...valoresEmpresa][0]}") em todos os ` +
+              'cadastros lidos. Existe, mas nao distingue -- como marca, colapsaria a serie ' +
+              'inteira numa marca so.',
+            );
+          }
         }
 
         const semSobrenome = soPrimeiroNome(linhasOrg.map((l) => l.nome));
