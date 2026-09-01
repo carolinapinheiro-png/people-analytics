@@ -5,6 +5,7 @@ import { isInScope, isGlobalProfile, type AccessScope } from '@/lib/permissions'
 import { selectedDept } from '@/lib/dept-filter';
 import { valorFiltro } from '@/lib/filtro-sentinela';
 import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
+import { MIN_GRUPO_SALARIO } from '@/lib/convenia/pessoas';
 import { z } from 'zod';
 
 /** Filtros de tela do Meu Time. comp_ratio e person-level: todos funcionam. */
@@ -68,6 +69,8 @@ export interface TeamSnapshot {
   byDept: NameCount[];
   byFamily: NameCount[];
   med_comp_ratio: number | null;
+  /** Piso para publicar a mediana. Abaixo dele, `med_comp_ratio` vem null. */
+  comp_minimo?: number;
   comp_n: number;
   roles: { managers: number; leaders: number; ics: number };
 }
@@ -149,8 +152,30 @@ export const getTeamSnapshot = createServerFn({ method: 'GET' })
       byContract: toArr(contract),
       byDept: toArr(dept),
       byFamily: toArr(family),
-      med_comp_ratio: median(crs),
+      // ------------------------------------------------------------------
+      // A MEDIANA DO TIME PRECISA DE PISO -- E NÃO TINHA
+      // ------------------------------------------------------------------
+      // Com UMA pessoa no time, esta "mediana" é o comp-ratio dela. E
+      // comp-ratio se desfaz em salário: ele é salário ÷ ponto médio da
+      // faixa, e a faixa está publicada na aba de Salários.
+      //
+      // Meu Time está no preset de TODO perfil escopado, inclusive do
+      // `dept_leader`, cuja descrição é "vê só o próprio time, em números
+      // agregados -- SEM dado individual". Um gestor de dois reportes lia o
+      // comp-ratio de um deles por aqui.
+      //
+      // Achado varrendo as funções de servidor atrás da mesma classe de falha
+      // do Perfil Individual. É a segunda vez que "agregado" serviu de
+      // disfarce para dado de uma pessoa só.
+      //
+      // A decisão de desligar a supressão vale para a tela de EQUIDADE, e o
+      // fundamento dela era o acesso restrito de Compensação. Aqui não se
+      // aplica: Meu Time é a aba mais aberta do painel.
+      med_comp_ratio: crs.length >= MIN_GRUPO_SALARIO ? median(crs) : null,
+      // O `n` continua saindo: é ele que explica a ausência da mediana.
       comp_n: crs.length,
+      /** O piso, para a tela dizer quanto falta em vez de só omitir. */
+      comp_minimo: MIN_GRUPO_SALARIO,
       roles: { managers, leaders, ics: Math.max(0, team.length - managers) },
     };
   });

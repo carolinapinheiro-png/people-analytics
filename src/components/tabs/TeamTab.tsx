@@ -69,7 +69,23 @@ export default function TeamTab() {
         <KpiCard label="Headcount do time" value={String(snap.headcount)} color={COLORS.flutter} icon={Users} />
         <KpiCard label="Gestores de pessoas" value={String(snap.roles.managers)} color={COLORS.nsx} icon={UserCog} sub={`${snap.roles.leaders} líderes (flag)`} />
         <KpiCard label="Contribuidores individuais" value={String(snap.roles.ics)} color={COLORS.info} icon={Users} />
-        <KpiCard label="Comp-ratio mediano" value={snap.med_comp_ratio != null ? `${fmt1(snap.med_comp_ratio)}%` : '—'} color={COLORS.purple} icon={Scale} sub={`${snap.comp_n} com comp-ratio`} help="compRatio" helpValue={snap.med_comp_ratio} />
+        {/* O traço tem DOIS motivos, e a tela precisa distinguir: ninguém no
+            time tem comp-ratio, ou o time é pequeno demais para publicar a
+            mediana sem apontar para uma pessoa. Sem isso, o gestor de dois
+            reportes conclui que falta dado. */}
+        <KpiCard
+          label="Comp-ratio mediano"
+          value={snap.med_comp_ratio != null ? `${fmt1(snap.med_comp_ratio)}%` : '—'}
+          color={COLORS.purple}
+          icon={Scale}
+          sub={
+            snap.med_comp_ratio == null && snap.comp_n > 0
+              ? `${snap.comp_n} com comp-ratio · abaixo de ${snap.comp_minimo ?? 5} a mediana não é publicada`
+              : `${snap.comp_n} com comp-ratio`
+          }
+          help="compRatio"
+          helpValue={snap.med_comp_ratio}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

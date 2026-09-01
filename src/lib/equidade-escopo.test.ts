@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { podeVerLinha, type EscopoComp } from './comp-scope';
 import { aplicarFiltrosDeComp } from './filtros-comp';
-import { agruparEquidade, N_MINIMO_SE_SUPRIMIR } from './equidade';
+import { agruparEquidade, mediana, N_MINIMO_SE_SUPRIMIR } from './equidade';
 
 /**
  * O cartão de equidade visto por quem NÃO é global.
@@ -242,4 +242,27 @@ test('a camada continua valendo dentro de cada uma das três', () => {
   const { visiveis } = pipeline(comChefes, HRBP);
   assert.equal(visiveis.length, 27);
   assert.ok(visiveis.every((r) => r.n_layer === 'N-4'));
+});
+
+// ---------------------------------------------------------------------------
+// "AGREGADO" NÃO É SINÔNIMO DE ANÔNIMO
+// ---------------------------------------------------------------------------
+// Duas vezes esta semana um número apresentado como agregado descrevia uma
+// pessoa só: a mediana de equidade com n=1, e a mediana de comp-ratio de Meu
+// Time sem piso nenhum.
+//
+// A regra vale onde o dado é acessível a perfil escopado. Meu Time é a aba
+// mais aberta do painel -- está no preset de todo perfil com escopo.
+// ---------------------------------------------------------------------------
+
+test('mediana de UMA pessoa é o número dessa pessoa', () => {
+  // O caso que o piso existe para impedir. Não é aproximação: é o valor.
+  assert.equal(mediana([87.4]), 87.4);
+  assert.equal(mediana([87.4, 91.2]), 89.3, 'com duas, é a média das duas');
+});
+
+test('com n ímpar a mediana É o valor de alguém, em qualquer tamanho', () => {
+  // Verdade em n=31 também -- a diferença é que ninguém sabe de quem. Em
+  // grupo pequeno, quem olha conhece as três pessoas.
+  assert.equal(mediana([80, 95, 110]), 95);
 });
