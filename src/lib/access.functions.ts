@@ -855,7 +855,32 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
     };
   });
 
-/** Catalogo de departamentos — leitura para qualquer usuario autenticado. */
+/**
+ * Catalogo de departamentos — leitura para qualquer usuario autenticado.
+ *
+ * ===========================================================================
+ * O CATÁLOGO VEM COM O ALCANCE DE CADA ÁREA, E NÃO SÓ COM O NOME
+ * ===========================================================================
+ * O catálogo e a base de pessoas são duas listas mantidas em lugares
+ * diferentes, e elas se separaram. Medido em 01/09/2026: `CW GROUP`, `PORTO` e
+ * `TECHNOLOGY GROUP` estão ATIVOS aqui e não batem com uma linha sequer de
+ * `comp_ratio` nem de `recruitment_monthly`. `SEM DEPTO` é balde de sobra, não
+ * área que se atribui a alguém.
+ *
+ * Isso importa porque a falha é MUDA. Atribuir um HRBP a `PORTO` salva sem
+ * erro, o `isInScope` não casa com ninguém, e a pessoa entra num painel vazio.
+ * Quem cadastrou não erra de novo pelo mesmo caminho -- vai supor que a área
+ * está sem dado.
+ *
+ * É a mesma armadilha que a camada N em texto livre tinha: "Diretor" em vez de
+ * "Director" não dava erro nenhum, só resultado vazio. A saída lá foi lista
+ * fechada; aqui é mostrar, na hora de escolher, quantas pessoas a área
+ * realmente alcança.
+ *
+ * A contagem sai de `comp_ratio` porque é essa a base que o escopo consulta.
+ * Não removemos nada do catálogo: uma área pode estar legitimamente vazia hoje
+ * e receber gente amanhã. O que a tela ganha é o número.
+ */
 export const getDepartments = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -865,7 +890,24 @@ export const getDepartments = createServerFn({ method: 'GET' })
       .order('name');
 
     if (error) throw new Error(error.message);
-    return data || [];
+    const deps = (data || []) as Array<{
+      id: string; name: string; aliases: string[] | null; active: boolean;
+    }>;
+
+    // Se a contagem falhar, o catálogo continua saindo SEM ela. Um número
+    // ausente vira "—" na tela; um catálogo ausente trava o cadastro.
+    const { data: pessoas } = await context.supabase.from('comp_ratio').select('area');
+    const porArea = new Map<string, number>();
+    for (const r of (pessoas ?? []) as Array<{ area: string | null }>) {
+      const k = (r.area ?? '').trim().toUpperCase();
+      if (k) porArea.set(k, (porArea.get(k) ?? 0) + 1);
+    }
+
+    return deps.map((d) => ({
+      ...d,
+      /** Quantas pessoas o escopo alcança com esta área. `null` = não medido. */
+      pessoas: pessoas ? (porArea.get(d.name.trim().toUpperCase()) ?? 0) : null,
+    }));
   });
 
 export const addDepartment = createServerFn({ method: 'POST' })

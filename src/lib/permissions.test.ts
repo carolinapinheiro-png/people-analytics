@@ -384,3 +384,34 @@ test('canSeeTab concorda', () => {
   assert.equal(canSeeTab('hrbp', 'individual', [], [], false), false);
   assert.equal(canSeeTab('hrbp', 'individual', [], [], true), true);
 });
+
+// ---------------------------------------------------------------------------
+// A TELA DO ADMIN TEM QUE FAZER A MESMA PERGUNTA QUE O LOGIN
+// ---------------------------------------------------------------------------
+// `visibleTabs` tira `individual` no QUARTO argumento. O menu (SideNav,
+// TabNavigation) passava; os SEIS pontos da tela de cadastro, não -- então o
+// admin via o chip "Perfil", marcava a aba, salvava, e a pessoa entrava sem
+// ela. O erro tinha uma direção só: a prévia prometia sempre a mais.
+//
+// Estes testes fixam a propriedade que os seis pontos dependem: omitir o
+// argumento NÃO é o mesmo que passá-lo falso.
+// ---------------------------------------------------------------------------
+
+test('omitir o quarto argumento entrega `individual`; passar false, não', () => {
+  // É esta diferença que a tela de cadastro estava do lado errado.
+  assert.ok(visibleTabs('hrbp', [], []).includes('individual'));
+  assert.ok(!visibleTabs('hrbp', [], [], false).includes('individual'));
+});
+
+test('a lista própria da pessoa não recupera `individual`', () => {
+  // O caso exato do cadastro: marcar a aba à mão para quem não vê dado
+  // individual. Se a lista própria passasse por cima, o seletor da tela seria
+  // uma porta de entrada.
+  const abas = visibleTabs('hrbp', [], ['overview', 'individual', 'engagement'], false);
+  assert.ok(!abas.includes('individual'));
+  assert.deepEqual(abas, ['overview', 'engagement']);
+});
+
+test('nem as abas concedidas por fora recuperam `individual`', () => {
+  assert.ok(!visibleTabs('dept_leader', ['individual'], [], false).includes('individual'));
+});

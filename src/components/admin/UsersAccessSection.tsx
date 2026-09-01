@@ -124,7 +124,23 @@ const SUB_ABA_LABEL: Record<string, string> = Object.fromEntries(
  * respondia, e marcam o que foi concedido a mais.
  */
 function PreviaDeAbas({ form }: { form: UserFormState }) {
-  const abas = visibleTabs(form.profile, form.extraTabs, form.tabs);
+  // ------------------------------------------------------------------
+  // A PRÉVIA PRECISA DA MESMA QUARTA RESPOSTA QUE O LOGIN USA
+  // ------------------------------------------------------------------
+  // `visibleTabs` tira a aba `individual` quando a pessoa não vê dado
+  // individual -- venha ela do preset ou da lista própria. O menu de verdade
+  // (SideNav, TabNavigation) passa esse quarto argumento. Esta prévia não
+  // passava, e por isso exibia o chip "Perfil" para quem tem
+  // "Nome e salário individuais = Não".
+  //
+  // O erro é de UMA direção só: a prévia prometia SEMPRE a mais. Quem
+  // cadastra marca a aba, vê o chip, salva -- e a pessoa entra sem ela.
+  // A tela do admin virava a única fonte de uma permissão que o produto
+  // recusa.
+  const abas = visibleTabs(
+    form.profile, form.extraTabs, form.tabs,
+    canSeeIndividualData(form.profile, form.canSeeIndividual),
+  );
   return (
     <div className="flex flex-wrap items-center gap-1">
       {abas.map((t) => {
@@ -178,6 +194,8 @@ export interface DepartmentOption {
   name: string;
   aliases: string[];
   active: boolean;
+  /** Quantas pessoas esta área alcança hoje. `null`/ausente = não medido. */
+  pessoas?: number | null;
 }
 
 interface UserFormState {
@@ -270,7 +288,10 @@ function accessSummary(form: UserFormState, email: string): string {
   // O resumo passa a NOMEAR as abas quando há lista própria. Antes ele só
   // sabia falar do caso `engagement_viewer`, e para todo o resto dizia apenas
   // o escopo -- justo agora que a lista de abas é a decisão principal.
-  const abas = visibleTabs(form.profile, form.extraTabs, form.tabs);
+  const abas = visibleTabs(
+    form.profile, form.extraTabs, form.tabs,
+    canSeeIndividualData(form.profile, form.canSeeIndividual),
+  );
   if (form.profile === 'engagement_viewer' && form.tabs.length === 0 && form.extraTabs.length === 0) {
     return `${areas} — e só a aba Experiência › Engajamento. Nenhuma outra seção do painel, nem as outras sub-abas de Experiência.`;
   }
@@ -522,6 +543,14 @@ export default function UsersAccessSection({
   const updateAllowedEmailUserFn = useServerFn(updateAllowedEmailUser);
 
   const activeDepartments = departments.filter((d) => d.active).map((d) => d.name);
+  /**
+   * Quantas pessoas cada área alcança. Ver `getDepartments`: o catálogo e a
+   * base de pessoas se separaram, e atribuir alguém a uma área vazia salva
+   * sem erro e entrega um painel em branco.
+   */
+  const alcancePorArea = new Map(
+    departments.map((d) => [d.name, d.pessoas ?? null] as const),
+  );
   const editingUser = emails.find((e) => e.id === editingId) ?? null;
 
   const handleAdd = async (e: React.FormEvent) => {
@@ -658,6 +687,7 @@ export default function UsersAccessSection({
                 setAddForm(next);
               }}
               departmentOptions={activeDepartments}
+              alcancePorArea={alcancePorArea}
               validationError={addValidationError}
               showError={addTouched}
               emailPreview={newEmail}
@@ -1105,6 +1135,7 @@ export default function UsersAccessSection({
             value={editForm}
             onChange={setEditForm}
             departmentOptions={activeDepartments}
+            alcancePorArea={alcancePorArea}
             validationError={editValidationError}
             emailPreview={editingUser?.email}
           />
@@ -1127,6 +1158,7 @@ function UserAccessFormFields({
   value,
   onChange,
   departmentOptions,
+  alcancePorArea,
   validationError,
   /** Erro so aparece depois que a pessoa mexeu: o form nasce em dept_leader
    *  (perfil que exige escopo), entao antes a tela abria ja em vermelho,
@@ -1139,6 +1171,7 @@ function UserAccessFormFields({
   value: UserFormState;
   onChange: (next: UserFormState) => void;
   departmentOptions: string[];
+  alcancePorArea: Map<string, number | null>;
   validationError: string | null;
   showError?: boolean;
   emailPreview?: string;
@@ -1204,7 +1237,10 @@ function UserAccessFormFields({
   // aparece, o Level deixa de ser decorativo e passa a decidir o recorte.
   // `value.tabs` entra: sem ele, o aviso da camada N seguiria o preset do
   // perfil e mentiria para quem tem lista própria -- nos dois sentidos.
-  const isCompVisivel = visibleTabs(value.profile, value.extraTabs, value.tabs).includes('comp');
+  const podeIndividual = canSeeIndividualData(value.profile, value.canSeeIndividual);
+  const isCompVisivel = visibleTabs(
+    value.profile, value.extraTabs, value.tabs, podeIndividual,
+  ).includes('comp');
 
   return (
     <div className="space-y-4">
@@ -1274,10 +1310,26 @@ function UserAccessFormFields({
       {isScopedProfileValue(value.profile) && (
         <div className="space-y-3 rounded-lg border border-border p-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* ------------------------------------------------------------------
+                O NOME DA ÁREA NÃO DIZ SE ELA ALCANÇA ALGUÉM
+                ------------------------------------------------------------------
+                Três áreas ativas do catálogo -- CW GROUP, PORTO e TECHNOLOGY
+                GROUP -- não batem com uma pessoa sequer. Escolher uma delas
+                salva sem erro e entrega um painel vazio, e quem cadastrou
+                conclui que a área está sem dado.
+
+                O número entra no rótulo de cada opção, e um aviso aparece
+                quando o que ficou marcado alcança zero. Nada é removido da
+                lista: uma área pode estar vazia hoje e receber gente amanhã.
+            ------------------------------------------------------------------ */}
             <MultiSelect
               id={`dept-${idSuffix}`}
               label="Departamentos atendidos"
               options={departmentOptions}
+              labels={Object.fromEntries(departmentOptions.map((d) => {
+                const n = alcancePorArea.get(d);
+                return [d, n == null ? d : `${d} · ${n === 0 ? 'ninguém hoje' : `${n} pessoas`}`];
+              }))}
               value={value.departments}
               onChange={(departments) => patch({ departments })}
               placeholder="Selecionar departamentos"
@@ -1307,6 +1359,21 @@ function UserAccessFormFields({
               escopo. Marcar os dois <em>amplia</em> o acesso, não restringe.
             </p>
           </div>
+
+          {(() => {
+            const vazias = value.departments.filter((d) => alcancePorArea.get(d) === 0);
+            if (!vazias.length) return null;
+            return (
+              <p className="text-[11px] text-amber-600 dark:text-amber-500">
+                <strong>{vazias.join(', ')}</strong>{' '}
+                {vazias.length === 1 ? 'não alcança' : 'não alcançam'} ninguém na base hoje. O
+                cadastro salva assim mesmo, mas{' '}
+                {value.jobFamilies.length
+                  ? 'quem entrar vai ver só o que vier pelas job families.'
+                  : 'quem entrar vai abrir o painel em branco — e vai parecer falta de dado, não de escopo.'}
+              </p>
+            );
+          })()}
 
           {showError && validationError && (
             <p className="text-[11px] text-destructive flex items-center gap-1.5">
@@ -1390,7 +1457,7 @@ function UserAccessFormFields({
               // perder o ajuste.
               onClick={() => patch({
                 tabs: [...new Set([
-                  ...visibleTabs(value.profile, value.extraTabs, value.tabs),
+                  ...visibleTabs(value.profile, value.extraTabs, value.tabs, podeIndividual),
                   ...sugerirAbas(value.responsibilities),
                 ])],
               })}
@@ -1440,7 +1507,9 @@ function UserAccessFormFields({
                   // vazio: quem clica quer AJUSTAR, não recomeçar. Lista
                   // vazia significaria "segue o perfil" e o botão pareceria
                   // não funcionar.
-                  tabs: modo === 'proprias' ? visibleTabs(value.profile, value.extraTabs) : [],
+                  tabs: modo === 'proprias'
+                    ? visibleTabs(value.profile, value.extraTabs, null, podeIndividual)
+                    : [],
                   subTabs: modo === 'proprias' ? value.subTabs : [],
                 })}
                 className={`rounded px-2.5 py-1 text-[12px] ${
@@ -1457,7 +1526,9 @@ function UserAccessFormFields({
           <MultiSelect
             id={`tabs-proprias-${idSuffix}`}
             label="Abas"
-            options={Object.keys(TAB_LABELS)}
+            // Oferecer `individual` a quem está marcado como "só números
+            // agregados" é pedir uma decisão que o produto vai ignorar.
+            options={Object.keys(TAB_LABELS).filter((t) => podeIndividual || t !== 'individual')}
             labels={TAB_LABELS}
             value={value.tabs}
             onChange={(tabs) => patch({ tabs })}
@@ -1472,7 +1543,9 @@ function UserAccessFormFields({
             Só das abas que a pessoa realmente vê: oferecer "Onboarding" a quem
             não tem Experiência é pedir uma decisão que não existe. */}
         {(() => {
-          const abasVisiveis = visibleTabs(value.profile, value.extraTabs, value.tabs);
+          const abasVisiveis = visibleTabs(
+            value.profile, value.extraTabs, value.tabs, podeIndividual,
+          );
           const disponiveis = SUB_ABAS.filter((sb) => abasVisiveis.includes(sb.aba));
           if (!disponiveis.length) return null;
           const parPartido = disponiveis.filter(
