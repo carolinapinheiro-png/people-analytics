@@ -372,14 +372,39 @@ export function ConveniaCard() {
                 <RefreshCw className={`mr-2 h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} />
                 {sincronizando ? 'Calculando…' : 'Simular sem gravar'}
               </Button>
-              {r && !r.gravado && r.totalLinhas > 0 && (
+              {/* ------------------------------------------------------------
+                  O BOTÃO NÃO PODE SUMIR SÓ PORQUE A SÉRIE FOI RECUSADA
+                  ------------------------------------------------------------
+                  A condição era `totalLinhas > 0`. Com a trava da unificação
+                  zerando a série, o botão sumia -- e junto com ele o
+                  organograma, o cargo, a empresa e o escritório, que gravam
+                  normalmente e são justamente o que precisa avançar agora.
+
+                  Ficaria assim: a prévia mostra o problema, e não há como
+                  confirmar nada. Uma trava que impede o que ela não queria
+                  impedir. */}
+              {r && !r.gravado && (r.totalLinhas > 0 || r.totalOrg > 0) && (
                 <Button onClick={() => rodarSync(true)} disabled={sincronizando} size="sm">
-                  Gravar {r.totalLinhas} linhas
+                  {r.totalLinhas > 0
+                    ? `Gravar ${r.totalLinhas} linhas`
+                    : `Gravar só o organograma (${r.totalOrg} pessoas)`}
                 </Button>
               )}
             </div>
 
             {erroSync && <p className="mt-2 text-sm" style={{ color: COLORS.danger }}>{erroSync}</p>}
+
+            {/* A recusa da série é a informação mais importante da tela quando
+                acontece. Enterrada no meio da lista de avisos, ela se perde. */}
+            {r?.serieTravada && (
+              <div className="mt-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
+                <p className="text-sm font-medium flex items-center gap-1.5">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  A série mensal não foi gravada
+                </p>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{r.serieTravada}</p>
+              </div>
+            )}
 
             {r && (
               <div className="mt-3 text-sm">

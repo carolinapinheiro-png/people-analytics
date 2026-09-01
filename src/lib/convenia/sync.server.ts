@@ -72,6 +72,10 @@ export interface ResumoSyncConvenia {
   genero: { conhecidos: number; total: number; buscadosAgora: number; pendentes: number };
   linhasPorMarca: { marca: string; linhas: number; de: string | null; ate: string | null }[];
   totalLinhas: number;
+  /** Pessoas no organograma. Grava mesmo com a série travada. */
+  totalOrg: number;
+  /** Motivo, quando a série mensal foi recusada. `null` = seguiu normal. */
+  serieTravada: string | null;
   requisicoes: number;
   avisos: string[];
 }
@@ -640,66 +644,43 @@ export async function executarSyncConvenia(
       avisos.push(`O campo status marca ${marcadosNoStatus} pessoas como desligadas, mas a listagem de desligados traz ${comSaida}. A diferença merece um olhar antes de promover esta série a oficial.`);
     }
 
-    const out: ResumoSyncConvenia = {
-      gravado: false,
-      genero: {
-        conhecidos: comGenero,
-        total: totalAtivos,
-        buscadosAgora: generoBuscadosAgora,
-        pendentes,
-      },
-      empresas,
-      pessoasUnicas: pessoasTodas.length,
-      desligadosSemCadastro,
-      detalhesBuscados: buscadosAgora,
-      naoResolvidos,
-      linhasPorMarca,
-      totalLinhas: todasLinhas.length,
-      requisicoes,
-      avisos,
-    };
-
-    if (!confirm) {
-      await encerrar('preview', { requests: requisicoes, detail: out as unknown as Record<string, unknown> });
-      return out;
+    // ========================================================================
+    // O CENSO DE EMPRESA E ESCRITORIO
+    // ========================================================================
+    // Estava dentro do bloco do organograma, que só roda quando a gravação é
+    // confirmada. Só que a trava abaixo zera a série, o botão "Gravar" some, e
+    // a prévia passa a ser o único caminho alcançável -- justo o caminho em que
+    // o censo não aparecia. O número que a decisão depende ficava escondido
+    // atrás de um botão que a própria trava apagava.
+    //
+    // Ele não precisa de gravação nenhuma: sai de `orgTodos` e dos caches, que
+    // a prévia já preenche.
+    //
+    // A conta só vale sobre quem JÁ FOI LIDO com o código atual. Misturar quem
+    // está na fila faria a cobertura parecer baixa por atraso de lote, que é
+    // outra conversa -- o mesmo cuidado do aviso de cargo.
+    const lidos = orgTodos.filter((p) => cargoBuscado.has(p.id));
+    if (lidos.length) {
+      const comEmpresa = lidos.filter((p) => cacheEmpresa.get(p.id)).length;
+      const comEscritorio = lidos.filter((p) => cacheEscritorio.get(p.id)).length;
+      const naFila = orgTodos.length - lidos.length;
+      const pct = (n: number) => Math.round((n / lidos.length) * 100);
+      avisos.push(
+        `Censo de custom_fields: de ${lidos.length} cadastros ja lidos, ` +
+        `Empresa preenchida em ${comEmpresa} (${pct(comEmpresa)}%) e ` +
+        `Escritorio em ${comEscritorio} (${pct(comEscritorio)}%).` +
+        (naFila > 0 ? ` Faltam ${naFila} na fila -- rode de novo.` : '') +
+        ' A marca so deve passar a sair do cadastro quando Empresa estiver perto de 100%:' +
+        ' com cobertura parcial, quem estiver sem o campo cai numa marca nula.',
+      );
+      const valoresEmpresa = new Set(lidos.map((p) => cacheEmpresa.get(p.id)).filter(Boolean));
+      if (comEmpresa && valoresEmpresa.size === 1) {
+        avisos.push(
+          `Atencao: Empresa tem um valor unico ("${[...valoresEmpresa][0]}") em todos os cadastros ` +
+          'lidos. Existe, mas nao distingue -- como marca, colapsaria a serie inteira numa marca so.',
+        );
+      }
     }
-
-    // ======================================================================
-    // A SERIE MENSAL VEM PRIMEIRO -- E A ORDEM E O PONTO
-    // ======================================================================
-    // Este bloco ja esteve DEPOIS do organograma. Em 17/08 o organograma
-    // falhou (a `org_pessoas` nao existia no banco), o `throw` abortou a
-    // funcao inteira, e a serie nao foi gravada -- com as cinco empresas ja
-    // listadas, os desligados ja resolvidos um a um e o lote de genero ja
-    // processado. Zero linhas, painel parado seis dias.
-    //
-    // A serie e o produto da carga: headcount, entradas, saidas, atricao.
-    // O organograma e acessorio. Acessorio nao precede essencial.
-    // ======================================================================
-    // A MARCA DE QUALIDADE ESTAVA NO CONTADOR ERRADO
-    // ======================================================================
-    // Isto era `desligadosSemCadastro > 0 ? 'parcial' : null`. E esse contador
-    // e sempre maior que zero POR CONSTRUCAO: o comentario la em cima, no
-    // proprio laco que o incrementa, diz que sao bases separadas e que "0 de
-    // 164 cruzaram". Todo desligado cai naquele ramo. Sempre.
-    //
-    // Consequencia: as 272 linhas da serie oficial, de marco/2013 a agosto de
-    // 2026, nasciam marcadas como 'parcial'. E `getMonthlyMetrics` filtra
-    // `quality_flag IS NULL`. A serie inteira era descartada na leitura, e o
-    // painel caia -- em silencio -- para a copia congelada do raw-data.ts, que
-    // termina em jun/26. Foi assim que o seletor de mes ficou dois meses atras
-    // do banco: nao faltava dado, faltava ele passar pelo filtro.
-    //
-    // `naoResolvidos` e o contador certo. Ele conta quem nem a busca no
-    // detalhe individual resolveu -- os unicos que de fato deixam a serie
-    // incompleta. Precisar de busca no detalhe e o caminho normal desta
-    // integracao, nao um defeito dela.
-    //
-    // Uma marca que acende sempre nao informa nada; so desliga o que ela
-    // deveria proteger.
-    const marcaQualidade = naoResolvidos > 0
-      ? `parcial: ${naoResolvidos} desligado(s) sem admissao/area mesmo apos o detalhe individual`
-      : null;
 
     // ========================================================================
     // A TRAVA DA UNIFICACAO DE BASES
@@ -745,6 +726,7 @@ export async function executarSyncConvenia(
     );
     const sumiram = [...marcasHistoricas].filter((m) => !marcasVivas.has(m));
 
+    let serieTravada: string | null = null;
     if (sumiram.length && marcasVivas.size) {
       // `marcasVivas.size` no teste: se NADA voltou, o problema e outro (token
       // vencido, API fora) e ja existe erro por empresa para isso. A assinatura
@@ -757,8 +739,75 @@ export async function executarSyncConvenia(
         'O organograma e a camada N foram gravados normalmente. Para destravar: definir de que campo do cadastro sai a marca ' +
         '(ver sondarCamposDaPessoa no card do Convenia) e passar fontes.ts a ler esse campo em vez do token.';
       avisos.push(recado);
+      serieTravada = recado;
       todasLinhas.length = 0;
     }
+
+
+    const out: ResumoSyncConvenia = {
+      gravado: false,
+      genero: {
+        conhecidos: comGenero,
+        total: totalAtivos,
+        buscadosAgora: generoBuscadosAgora,
+        pendentes,
+      },
+      empresas,
+      pessoasUnicas: pessoasTodas.length,
+      desligadosSemCadastro,
+      detalhesBuscados: buscadosAgora,
+      naoResolvidos,
+      linhasPorMarca,
+      totalLinhas: todasLinhas.length,
+      // Quantas pessoas o organograma vai gravar. Com a serie travada, ISTO e
+      // o que ainda vale confirmar -- camada N, cargo, empresa e escritorio.
+      totalOrg: orgTodos.length,
+      serieTravada,
+      requisicoes,
+      avisos,
+    };
+
+    if (!confirm) {
+      await encerrar('preview', { requests: requisicoes, detail: out as unknown as Record<string, unknown> });
+      return out;
+    }
+
+    // ======================================================================
+    // A SERIE MENSAL VEM PRIMEIRO -- E A ORDEM E O PONTO
+    // ======================================================================
+    // Este bloco ja esteve DEPOIS do organograma. Em 17/08 o organograma
+    // falhou (a `org_pessoas` nao existia no banco), o `throw` abortou a
+    // funcao inteira, e a serie nao foi gravada -- com as cinco empresas ja
+    // listadas, os desligados ja resolvidos um a um e o lote de genero ja
+    // processado. Zero linhas, painel parado seis dias.
+    //
+    // A serie e o produto da carga: headcount, entradas, saidas, atricao.
+    // O organograma e acessorio. Acessorio nao precede essencial.
+    // ======================================================================
+    // A MARCA DE QUALIDADE ESTAVA NO CONTADOR ERRADO
+    // ======================================================================
+    // Isto era `desligadosSemCadastro > 0 ? 'parcial' : null`. E esse contador
+    // e sempre maior que zero POR CONSTRUCAO: o comentario la em cima, no
+    // proprio laco que o incrementa, diz que sao bases separadas e que "0 de
+    // 164 cruzaram". Todo desligado cai naquele ramo. Sempre.
+    //
+    // Consequencia: as 272 linhas da serie oficial, de marco/2013 a agosto de
+    // 2026, nasciam marcadas como 'parcial'. E `getMonthlyMetrics` filtra
+    // `quality_flag IS NULL`. A serie inteira era descartada na leitura, e o
+    // painel caia -- em silencio -- para a copia congelada do raw-data.ts, que
+    // termina em jun/26. Foi assim que o seletor de mes ficou dois meses atras
+    // do banco: nao faltava dado, faltava ele passar pelo filtro.
+    //
+    // `naoResolvidos` e o contador certo. Ele conta quem nem a busca no
+    // detalhe individual resolveu -- os unicos que de fato deixam a serie
+    // incompleta. Precisar de busca no detalhe e o caminho normal desta
+    // integracao, nao um defeito dela.
+    //
+    // Uma marca que acende sempre nao informa nada; so desliga o que ela
+    // deveria proteger.
+    const marcaQualidade = naoResolvidos > 0
+      ? `parcial: ${naoResolvidos} desligado(s) sem admissao/area mesmo apos o detalhe individual`
+      : null;
 
     if (todasLinhas.length) {
       const registros = todasLinhas.map((l) => ({
@@ -903,43 +952,6 @@ export async function executarSyncConvenia(
             'Isso nao e atraso de lote -- e o campo nao existir onde `cargoDe` procura. ' +
             'Conferir em que campo o Convenia guarda o cargo hoje.',
           );
-        }
-
-        // ------------------------------------------------------------------
-        // O CENSO DE EMPRESA E ESCRITORIO
-        // ------------------------------------------------------------------
-        // Nao e curiosidade: e o numero que decide se a marca pode deixar de
-        // sair do token. Na amostra de 8 deu 5 preenchidos; virar a chave com
-        // 60% joga 40% da empresa numa marca nula, e a serie fica pior do que
-        // travada.
-        //
-        // A conta so vale sobre quem JA FOI LIDO com o codigo atual. Misturar
-        // quem ainda esta na fila faria a cobertura parecer baixa por atraso de
-        // lote, que e outra coisa -- o mesmo cuidado do aviso de cargo.
-        const lidos = linhasOrg.filter((l) => cargoBuscado.has(l.convenia_id));
-        const comEmpresa = lidos.filter((l) => cacheEmpresa.get(l.convenia_id)).length;
-        const comEscritorio = lidos.filter((l) => cacheEscritorio.get(l.convenia_id)).length;
-        const naFila = linhasOrg.length - lidos.length;
-        if (lidos.length) {
-          const pct = (n: number) => Math.round((n / lidos.length) * 100);
-          avisos.push(
-            `Censo de custom_fields: de ${lidos.length} cadastros ja lidos, ` +
-            `Empresa preenchida em ${comEmpresa} (${pct(comEmpresa)}%) e ` +
-            `Escritorio em ${comEscritorio} (${pct(comEscritorio)}%).` +
-            (naFila > 0 ? ` Faltam ${naFila} na fila -- rode de novo.` : '') +
-            ' A marca so deve passar a sair do cadastro quando Empresa estiver perto de 100%:' +
-            ' com cobertura parcial, quem estiver sem o campo cai numa marca nula.',
-          );
-          const valoresEmpresa = new Set(
-            lidos.map((l) => cacheEmpresa.get(l.convenia_id)).filter(Boolean),
-          );
-          if (comEmpresa && valoresEmpresa.size === 1) {
-            avisos.push(
-              `Atencao: Empresa tem um valor unico ("${[...valoresEmpresa][0]}") em todos os ` +
-              'cadastros lidos. Existe, mas nao distingue -- como marca, colapsaria a serie ' +
-              'inteira numa marca so.',
-            );
-          }
         }
 
         const semSobrenome = soPrimeiroNome(linhasOrg.map((l) => l.nome));
