@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { reconstruirSerie, type LinhaMensal, type PessoaConvenia } from './pessoas';
 import { empresaDe, escritorioDe } from './custom-fields';
+import { detectarColapso } from './colapso';
 
 /**
  * Carga do Convenia: cinco empresas, uma série mensal por marca.
@@ -719,15 +720,52 @@ export async function executarSyncConvenia(
     const marcasVivas = new Set(todasLinhas.map((l) => l.brand));
     const { data: marcasNoBanco } = await db
       .from('monthly_metrics')
-      .select('brand')
+      .select('brand, month, headcount')
       .eq('source', 'convenia');
-    const marcasHistoricas = new Set(
-      ((marcasNoBanco ?? []) as Array<{ brand: string }>).map((r) => r.brand),
-    );
+    const gravadas = ((marcasNoBanco ?? []) as Array<{
+      brand: string; month: string; headcount: number | null;
+    }>).map((r) => ({ brand: r.brand, month: r.month, headcount: r.headcount ?? 0 }));
+    const marcasHistoricas = new Set(gravadas.map((r) => r.brand));
     const sumiram = [...marcasHistoricas].filter((m) => !marcasVivas.has(m));
 
+    // ------------------------------------------------------------------
+    // SUMIR E ENCOLHER SAO DOIS CASOS, E EU SO TRATAVA UM
+    // ------------------------------------------------------------------
+    // Na execucao de 01/09 a Betfair BR tinha ZERO ativos e ainda assim
+    // produziu 24 meses de serie: a listagem de DESLIGADOS devolve 7 pessoas
+    // dela, e a reconstrucao monta os meses a partir de quem quer que apareca.
+    // Sete desligados bastam para a marca "existir" -- e o headcount de agosto
+    // ia de 34 para perto de zero sem a trava piscar.
+    //
+    // Naquela carga a gravacao foi abortada assim mesmo, por causa da Flutter
+    // International. Ou seja: a protecao funcionou por SORTE. Se o token da
+    // Flutter tambem parar de devolver desligados, nao sobra nada para
+    // disparar, e a Betfair cai de 34 para 2 num painel que continua abrindo.
+    const colapsos = detectarColapso(
+      todasLinhas.map((l) => ({ brand: l.brand, month: l.month, headcount: l.headcount })),
+      gravadas,
+    );
+
     let serieTravada: string | null = null;
-    if (sumiram.length && marcasVivas.size) {
+
+    // Encolhimento vem primeiro: e o caso mais silencioso dos dois.
+    if (colapsos.length) {
+      const lista = colapsos
+        .map((c) => `${c.brand} de ${c.gravado} para ${c.novo} em ${c.month.slice(0, 7)}`)
+        .join('; ');
+      const recado =
+        `Serie NAO gravada: ${lista}. Uma marca perdeu mais da metade do headcount de uma carga ` +
+        'para a outra no mesmo mes. Com a unificacao de bases em curso, o mais provavel e que as ' +
+        'pessoas tenham migrado para a base unica e esta marca esteja sendo remontada so a partir ' +
+        'da listagem de desligados -- o que zera o headcount dela e recontam as mesmas pessoas ' +
+        'dentro da marca que as recebeu. Se a queda for real (encerramento, corte), rode de novo ' +
+        'apos confirmar: a trava so olha para o tamanho, nao sabe distinguir os dois.';
+      avisos.push(recado);
+      serieTravada = recado;
+      todasLinhas.length = 0;
+    }
+
+    if (sumiram.length && marcasVivas.size && !serieTravada) {
       // `marcasVivas.size` no teste: se NADA voltou, o problema e outro (token
       // vencido, API fora) e ja existe erro por empresa para isso. A assinatura
       // da migracao e ESPECIFICA -- umas marcas somem e outras continuam.
