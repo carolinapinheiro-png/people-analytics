@@ -1,0 +1,146 @@
+/**
+ * Os campos personalizados do Convenia.
+ *
+ * ===========================================================================
+ * POR QUE ISTO EXISTE ANTES DE HAVER DADO
+ * ===========================================================================
+ * A unificação de bases tirou a marca do lugar onde ela estava. Até 31/08 a
+ * marca vinha do TOKEN -- cinco tokens, três marcas, escrito à mão em
+ * `fontes.ts`. Em 01/09 três dessas cinco bases voltaram vazias: todo mundo
+ * passou para a base única, e o escritório passa a ser um campo do cadastro.
+ *
+ * O campo é `custom_fields`, confirmado pelo RH. Ele existe no detalhe
+ * individual e hoje está VAZIO em 8 de 8 da amostra -- a configuração do lado
+ * do RH ainda não terminou.
+ *
+ * ===========================================================================
+ * POR QUE UM MÓDULO PURO, COM TESTE, PARA LER UMA LISTA
+ * ===========================================================================
+ * Porque a última vez que escrevi um leitor de campo do Convenia sem ter o
+ * dado na mão, ele acertou zero em 638 -- e o painel passou a AFIRMAR, em
+ * amarelo, que o Convenia não tinha cargo. O código não quebrou; ele devolveu
+ * null, e null virou fato sobre o mundo.
+ *
+ * A diferença de custo é grande: cargo errado deixa um campo em branco na tela
+ * de cadastro; marca errada reescreve a série mensal inteira, retroativamente,
+ * com números que continuam plausíveis.
+ *
+ * Então este arquivo faz uma coisa só -- normalizar a forma -- e faz isso
+ * contra as quatro formas que uma API costuma usar para "lista de pares
+ * nome/valor". Qual delas o Convenia usa, eu não sei ainda. Os testes cobrem
+ * as quatro, então a resposta certa não depende de eu ter adivinhado.
+ *
+ * O que este arquivo NÃO faz: decidir que a marca é isto. Enquanto a cobertura
+ * medida for baixa, `fontes.ts` continua mandando e a série continua travada.
+ * Ler é reversível; gravar não é.
+ */
+
+export interface CampoPersonalizado {
+  nome: string;
+  valor: string;
+}
+
+const texto = (v: unknown): string => {
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  // `{name: 'Recife'}` -- a mesma embalagem que `department` e `ethnicity` usam
+  // nesta API. Se o valor do campo personalizado vier assim, ele é lido.
+  if (v && typeof v === 'object' && 'name' in v) {
+    const n = (v as { name?: unknown }).name;
+    return typeof n === 'string' ? n.trim() : '';
+  }
+  return '';
+};
+
+/**
+ * Normaliza `custom_fields` para uma lista de pares, seja qual for a forma.
+ *
+ * As quatro formas cobertas:
+ *
+ *   1. lista de objetos com nome e valor
+ *      `[{ name: 'Escritório', value: 'Recife' }]`
+ *      -- e as variantes `label`/`field`/`title` para o nome, `content`/`data`
+ *         para o valor, porque cada API escolhe uma.
+ *
+ *   2. objeto simples, chave é o nome
+ *      `{ 'Escritório': 'Recife' }`
+ *
+ *   3. lista de objetos de UM par cada
+ *      `[{ 'Escritório': 'Recife' }]`
+ *
+ *   4. nada: null, undefined, `[]`, `{}`
+ *      -- devolve lista vazia, que é diferente de devolver null. Ver abaixo.
+ *
+ * Devolve SEMPRE uma lista. Quem chama distingue "não tem campo nenhum"
+ * (lista vazia) de "tem campos, nenhum chamado assim" (lista cheia, busca
+ * falha) -- e essas duas coisas dizem ao RH problemas diferentes.
+ */
+export function lerCustomFields(bruto: unknown): CampoPersonalizado[] {
+  const par = (nome: unknown, valor: unknown): CampoPersonalizado | null => {
+    const n = texto(nome);
+    const v = texto(valor);
+    return n && v ? { nome: n, valor: v } : null;
+  };
+
+  const doObjeto = (o: Record<string, unknown>): CampoPersonalizado[] => {
+    const nome = o.name ?? o.label ?? o.field ?? o.title ?? o.key;
+    const valor = o.value ?? o.content ?? o.data ?? o.text;
+    // Forma 1: tem par explícito.
+    if (nome !== undefined || valor !== undefined) {
+      const p = par(nome, valor);
+      return p ? [p] : [];
+    }
+    // Formas 2 e 3: as próprias chaves são os nomes.
+    return Object.entries(o)
+      .map(([k, v]) => par(k, v))
+      .filter((p): p is CampoPersonalizado => p != null);
+  };
+
+  if (bruto == null) return [];
+  if (Array.isArray(bruto)) {
+    return bruto.flatMap((item) =>
+      item && typeof item === 'object' ? doObjeto(item as Record<string, unknown>) : [],
+    );
+  }
+  if (typeof bruto === 'object') return doObjeto(bruto as Record<string, unknown>);
+  return [];
+}
+
+/** Sem acento e em minúscula, para "Escritório" casar com "escritorio". */
+export const chave = (s: string): string =>
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
+
+/**
+ * O valor do primeiro campo cujo NOME casa com um dos procurados.
+ *
+ * A busca é por nome de campo, e não por posição, porque a ordem de
+ * `custom_fields` não é contrato: basta o RH criar um campo novo antes para a
+ * leitura por índice passar a devolver outra coisa, calada.
+ */
+export function valorDe(
+  campos: readonly CampoPersonalizado[],
+  procurados: readonly string[],
+): string | null {
+  const alvos = procurados.map(chave);
+  for (const c of campos) {
+    const k = chave(c.nome);
+    if (alvos.some((a) => k === a || k.includes(a))) return c.valor;
+  }
+  return null;
+}
+
+/**
+ * Nomes que o escritório pode ter no cadastro.
+ *
+ * Lista de PROCURA, não de verdade: ela existe para a sonda medir cobertura,
+ * e a medição é que decide. Se nenhum casar, a sonda mostra os nomes reais dos
+ * campos personalizados e alguém acrescenta o certo aqui -- olhando, não
+ * adivinhando.
+ */
+export const NOMES_DE_ESCRITORIO = [
+  'escritorio', 'escritório', 'office', 'unidade', 'local', 'localidade',
+  'praca', 'praça', 'filial', 'sede', 'base', 'empresa', 'marca',
+];
+
+export const escritorioDe = (detalhe: Record<string, unknown>): string | null =>
+  valorDe(lerCustomFields(detalhe.custom_fields), NOMES_DE_ESCRITORIO);

@@ -243,6 +243,46 @@ export function ConveniaCard() {
                         quer dizer que não está entre as chaves que este filtro deixa passar.
                       </p>
                     )}
+                    {/* ------------------------------------------------------------
+                        O CAMPO CONFIRMADO PELO RH, E SE ELE JÁ TEM CONTEÚDO
+                        ------------------------------------------------------------
+                        Isto é o painel de instrumentos da migração. Enquanto
+                        estiver vazio, `fontes.ts` continua mandando e a série
+                        continua travada -- porque ler é reversível e gravar
+                        não. */}
+                    {!e.erro && (
+                      <div className="mt-1 rounded border border-border/60 p-1.5">
+                        <p className="font-medium">
+                          custom_fields
+                          <span className="text-muted-foreground font-normal">
+                            {' '}· escritório resolvido em {e.escritorioResolvido}/{e.amostra}
+                          </span>
+                        </p>
+                        {e.personalizados.length === 0 ? (
+                          <p className="text-muted-foreground">
+                            Nenhum campo personalizado preenchido nesta amostra. O RH confirmou que
+                            é aqui que o escritório vai ficar — enquanto não vier, a marca continua
+                            saindo do token e a série mensal fica travada.
+                          </p>
+                        ) : (
+                          e.personalizados.map((c3) => (
+                            <div key={c3.nome} className="flex flex-wrap gap-x-2">
+                              <code className="font-mono">{c3.nome}</code>
+                              <span className="text-muted-foreground">{c3.preenchidos}/{e.amostra}</span>
+                              <span>{c3.valores.join(' | ')}</span>
+                            </div>
+                          ))
+                        )}
+                        {e.personalizados.length > 0 && e.escritorioResolvido === 0 && (
+                          <p className="mt-1 text-amber-600 dark:text-amber-500">
+                            Há campos personalizados, mas nenhum com nome de escritório. Me diga qual
+                            desses é — acrescento o nome em <code>NOMES_DE_ESCRITORIO</code> e a
+                            marca passa a sair daqui.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
                     {/* Os nomes de todos os campos, sem valor nenhum. O filtro por
                         nome me protege de vazar CPF, mas ele também esconde a
                         resposta quando o campo certo se chama outra coisa. Nome de

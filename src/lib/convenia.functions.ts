@@ -457,6 +457,17 @@ export interface SondaCampos {
    * candidato certo olhando, e só então pedir o valor dele.
    */
   chaves: string[];
+  /**
+   * Os campos personalizados, por NOME, com quantos vieram preenchidos.
+   *
+   * O RH confirmou que o escritório vai morar em `custom_fields`. Ele está
+   * vazio hoje, então esta lista é o instrumento que avisa quando deixar de
+   * estar -- e mostra com que nome o campo foi criado, que é o que falta para
+   * ligar `fontes.ts` nele.
+   */
+  personalizados: Array<{ nome: string; preenchidos: number; valores: string[] }>;
+  /** Casou com algum nome de escritório? É isto que destrava a marca. */
+  escritorioResolvido: number;
   candidatos: CampoCandidato[];
   erro: string | null;
 }
@@ -489,7 +500,8 @@ export const sondarCamposDaPessoa = createServerFn({ method: 'POST' })
 
     for (const f of fontesConfiguradas()) {
       const linha: SondaCampos = {
-        empresa: f.empresa, amostra: 0, chavesNoDetalhe: 0, chaves: [], candidatos: [], erro: null,
+        empresa: f.empresa, amostra: 0, chavesNoDetalhe: 0, chaves: [],
+        personalizados: [], escritorioResolvido: 0, candidatos: [], erro: null,
       };
       try {
         const client = ConveniaClient.paraToken(f.token!);
@@ -517,6 +529,9 @@ export const sondarCamposDaPessoa = createServerFn({ method: 'POST' })
         const naListagem = new Map<string, { n: number; vals: Set<string> }>();
         for (const p of amostra) acumular(naListagem, p);
 
+        const { lerCustomFields, escritorioDe } = await import('@/lib/convenia/custom-fields');
+        const personalizados = new Map<string, { n: number; vals: Set<string> }>();
+
         const noDetalhe = new Map<string, { n: number; vals: Set<string> }>();
         for (const p of amostra) {
           const env = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(String(p.id)));
@@ -525,7 +540,21 @@ export const sondarCamposDaPessoa = createServerFn({ method: 'POST' })
           // Só os NOMES. Nenhum valor atravessa por aqui.
           linha.chaves = [...new Set([...linha.chaves, ...Object.keys(det)])].sort();
           acumular(noDetalhe, det);
+
+          // Os campos personalizados entram por fora do filtro de chaves: o
+          // NOME deles é dado pelo RH, não pela API, então nenhum padrão meu
+          // acertaria. O valor sai truncado igual ao resto.
+          for (const c2 of lerCustomFields(det.custom_fields)) {
+            const atual = personalizados.get(c2.nome) ?? { n: 0, vals: new Set<string>() };
+            atual.n++;
+            if (atual.vals.size < 8) atual.vals.add(c2.valor.slice(0, 40));
+            personalizados.set(c2.nome, atual);
+          }
+          if (escritorioDe(det)) linha.escritorioResolvido++;
         }
+        linha.personalizados = [...personalizados].map(([nome, d]) => ({
+          nome, preenchidos: d.n, valores: [...d.vals],
+        })).sort((x, y) => y.preenchidos - x.preenchidos);
 
         for (const [campo, d] of naListagem) {
           linha.candidatos.push({
