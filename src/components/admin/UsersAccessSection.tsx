@@ -1425,52 +1425,30 @@ function UserAccessFormFields({
         </div>
       </div>
 
-      <MultiSelect
-        id={`resp-${idSuffix}`}
-        label="Responsabilidades"
-        options={RESPONSIBILITY_PRESETS}
-        value={value.responsibilities}
-        onChange={(responsibilities) => patch({ responsibilities })}
-        placeholder="Nenhuma (opcional)"
-        searchPlaceholder="Buscar responsabilidade..."
-      />
+      {/* ==================================================================
+          "RESPONSABILIDADES" ERA A LISTA DE ABAS COM OUTRO NOME
+          ==================================================================
+          Eram dois seletores na mesma tela: oito "responsabilidades" e nove
+          abas. Chegou como "esses dois são a mesma coisa, não?" -- e eram.
 
-      {/* ------------------------------------------------------------------
-          ABAS, VALIDADE E DADO INDIVIDUAL
-          ------------------------------------------------------------------
-          Os tres campos existem no banco desde 14/08 e ate agora nao tinham
-          onde ser preenchidos. Ficam JUNTOS porque respondem a mesma pergunta
-          por angulos diferentes: o que essa pessoa alcanca, ate quando, e com
-          que profundidade. */}
+          Só que a simetria era falsa, e essa é a parte ruim:
+          `responsibilities` é gravado no banco e NÃO decide nada. Nenhum ponto
+          do produto consulta o campo. Ele alimentava um botão só -- "sugerir
+          pelas responsabilidades" -- que copiava abas para a lista ao lado.
+          Marcar "Comp & Ben" e não clicar no botão não liberava Salários, mas
+          a tela deixava supor que sim.
+
+          É o mesmo defeito dos cinco perfis que saíram daqui: duas perguntas
+          para a mesma decisão, uma delas parecendo mandar sem mandar.
+
+          O atalho era útil e ficou -- virou botão dentro da caixa de abas, que
+          é onde a decisão mora. Soma ao que já está marcado, nunca substitui,
+          e não aplica sozinho. A coluna do banco continua: o formulário
+          devolve o valor que leu, então quem já tem responsabilidades gravadas
+          não perde nada.
+      ================================================================== */}
       <div className="space-y-3 rounded-lg border border-border p-3">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <Label className="text-xs">O que esta pessoa vai ver</Label>
-          {value.responsibilities.length > 0 && (
-            <button
-              type="button"
-              // Preenche a lista DESTA pessoa, e não mais `extraTabs`: aquele
-              // campo saiu da tela, e um botão que altera um campo invisível
-              // é um botão que não faz nada aos olhos de quem clica.
-              //
-              // A sugestão SOMA ao que já existe em vez de substituir: quem
-              // marcou responsabilidades depois de ajustar as abas não quer
-              // perder o ajuste.
-              onClick={() => patch({
-                tabs: [...new Set([
-                  ...visibleTabs(value.profile, value.extraTabs, value.tabs, podeIndividual),
-                  ...sugerirAbas(value.responsibilities),
-                ])],
-              })}
-              className="text-[11px] underline underline-offset-2 text-muted-foreground hover:text-foreground"
-              // Sugerir, e nunca aplicar sozinho: uma aba que aparece por
-              // efeito colateral de marcar uma responsabilidade e permissao
-              // que ninguem lembra de ter concedido.
-              title="Acrescenta às abas desta pessoa as que as responsabilidades sugerem"
-            >
-              sugerir pelas responsabilidades
-            </button>
-          )}
-        </div>
+        <Label className="text-xs">O que esta pessoa vai ver</Label>
 
         <PreviaDeAbas form={value} />
 
@@ -1521,6 +1499,45 @@ function UserAccessFormFields({
             );
           })}
         </div>
+
+        {/* Os atalhos só existem no modo em que há lista para atalhar. Em
+            "Segue o perfil" eles não teriam onde escrever. */}
+        {value.tabs.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="text-[11px] text-muted-foreground mr-0.5">Atalhos:</span>
+            {RESPONSIBILITY_PRESETS.map((r) => {
+              const sugeridas = sugerirAbas([r])
+                .filter((t) => podeIndividual || t !== 'individual');
+              const jaTem = sugeridas.every((t) => value.tabs.includes(t));
+              return (
+                <button
+                  key={r}
+                  type="button"
+                  disabled={jaTem || !sugeridas.length}
+                  // Soma, nunca substitui: quem clica quer acrescentar um
+                  // pedaço, não recomeçar a lista que acabou de ajustar.
+                  onClick={() => patch({
+                    tabs: [...new Set([...value.tabs, ...sugeridas])],
+                    // O atalho é conveniência de quem cadastra, mas também é a
+                    // melhor descrição do PAPEL da pessoa que a tela tem.
+                    // Gravar mantém a coluna viva e o histórico legível.
+                    responsibilities: [...new Set([...value.responsibilities, r])],
+                  })}
+                  title={sugeridas.length
+                    ? `Acrescenta: ${sugeridas.map((t) => TAB_LABELS[t]).join(', ')}`
+                    : 'Nada a acrescentar com as chaves atuais'}
+                  className={`rounded-full border px-2 py-0.5 text-[11px] ${
+                    jaTem
+                      ? 'border-border/50 text-muted-foreground/50'
+                      : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
+                  }`}
+                >
+                  {r}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {value.tabs.length > 0 && (
           <MultiSelect
