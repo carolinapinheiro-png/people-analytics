@@ -669,6 +669,65 @@ export async function executarSyncConvenia(
       ? `parcial: ${naoResolvidos} desligado(s) sem admissao/area mesmo apos o detalhe individual`
       : null;
 
+    // ========================================================================
+    // A TRAVA DA UNIFICACAO DE BASES
+    // ========================================================================
+    // O Convenia esta unificando as pessoas juridicas numa base so (NSX Brasil
+    // Recife), com o escritorio passando a ser um campo do CADASTRO de cada
+    // pessoa. Enquanto a migracao corre, uma carga rodada no meio dela
+    // reescreve a serie inteira -- e reescreve de um jeito que continua
+    // parecendo certo.
+    //
+    // O MECANISMO, porque ele nao e obvio:
+    //
+    // A marca nao vem da pessoa, vem do TOKEN (ver fontes.ts: cinco tokens,
+    // tres marcas). Quando todo mundo migra para um token so:
+    //
+    //   - o token da Betfair passa a devolver zero pessoa. `reconstruirSerie`
+    //     nao gera linha nenhuma, o upsert nao toca nada, e as linhas
+    //     historicas de "Betfair BR" FICAM na tabela -- esta carga nunca apaga;
+    //   - o token unificado devolve todo mundo, e a serie do NSX e
+    //     reconstruida a partir da data de admissao de cada um. As mesmas 55
+    //     pessoas de Betfair e Flutter passam a existir DENTRO do NSX, em
+    //     todos os meses para tras.
+    //
+    // O `combined` da tela soma as marcas pelo NOME (helpers.ts). Resultado:
+    // 55 pessoas contadas duas vezes, retroativamente, com o total ainda
+    // plausivel. Ou, no outro sentido, as marcas antigas param de ter linha
+    // nos meses novos e o total despenca 55 de um mes para o outro, com cara
+    // de demissao em massa.
+    //
+    // Nos dois casos ninguem tem motivo para desconfiar. Por isso a trava
+    // ABORTA a gravacao da serie em vez de avisar: um aviso ao lado de um
+    // numero errado ja gravado nao desfaz o numero.
+    //
+    // O organograma (camada N) continua gravando -- ele e por pessoa, nao por
+    // marca, e nao sofre com a unificacao.
+    const marcasVivas = new Set(todasLinhas.map((l) => l.brand));
+    const { data: marcasNoBanco } = await db
+      .from('monthly_metrics')
+      .select('brand')
+      .eq('source', 'convenia');
+    const marcasHistoricas = new Set(
+      ((marcasNoBanco ?? []) as Array<{ brand: string }>).map((r) => r.brand),
+    );
+    const sumiram = [...marcasHistoricas].filter((m) => !marcasVivas.has(m));
+
+    if (sumiram.length && marcasVivas.size) {
+      // `marcasVivas.size` no teste: se NADA voltou, o problema e outro (token
+      // vencido, API fora) e ja existe erro por empresa para isso. A assinatura
+      // da migracao e ESPECIFICA -- umas marcas somem e outras continuam.
+      const recado =
+        `Serie NAO gravada: ${sumiram.join(', ')} nao devolveu ninguem nesta carga, mas tem historico no painel. ` +
+        'Essa e a assinatura da unificacao de bases do Convenia: as pessoas dessas marcas passaram para a base unica, ' +
+        'a serie delas ficaria congelada no banco e as MESMAS pessoas seriam recontadas dentro de ' +
+        `${[...marcasVivas].join(', ')} em todos os meses para tras. O total do painel some ou dobra, e continua parecendo normal. ` +
+        'O organograma e a camada N foram gravados normalmente. Para destravar: definir de que campo do cadastro sai a marca ' +
+        '(ver sondarCamposDaPessoa no card do Convenia) e passar fontes.ts a ler esse campo em vez do token.';
+      avisos.push(recado);
+      todasLinhas.length = 0;
+    }
+
     if (todasLinhas.length) {
       const registros = todasLinhas.map((l) => ({
         month: l.month,

@@ -392,3 +392,147 @@ export const syncConvenia = createServerFn({ method: 'POST' })
       origem: email,
     });
   });
+
+/**
+ * De que campo do cadastro sai a marca, depois da unificação de bases.
+ *
+ * ===========================================================================
+ * POR QUE UMA SONDA E NÃO UMA LISTA DE NOMES PROVÁVEIS
+ * ===========================================================================
+ * Hoje a marca vem do TOKEN: cinco tokens, três marcas, escrito à mão em
+ * `fontes.ts`. Com a base unificada isso deixa de funcionar -- um token só
+ * devolve todo mundo, e a marca passa a ser um campo do cadastro de cada
+ * pessoa. Falta saber QUAL campo.
+ *
+ * A tentação é escrever a lista de nomes prováveis e ler o primeiro que
+ * responder. Foi exatamente o que `cargoDe` fez, com sete nomes -- e o
+ * resultado foi 0 de 638, porque o cargo não estava em nenhum deles: estava no
+ * detalhe individual, num endereço que a função nunca consultou. E o painel
+ * passou a AFIRMAR, em amarelo, que o Convenia não tinha cargo.
+ *
+ * Chutar de novo aqui custaria mais caro: cargo errado deixa um campo em
+ * branco, marca errada reescreve a série inteira.
+ *
+ * Então esta função não decide nada. Ela olha e reporta.
+ *
+ * ===========================================================================
+ * O QUE ELA DEVOLVE, E O QUE ELA SE RECUSA A DEVOLVER
+ * ===========================================================================
+ * O cadastro do Convenia tem CPF, RG, endereço, conta bancária, dependentes --
+ * 123 campos. Despejar tudo na tela para "ver o que tem" transformaria uma
+ * investigação de dez minutos num vazamento.
+ *
+ * O filtro é pela CHAVE, não pelo valor: só passam campos cujo nome fala de
+ * empresa, marca, centro de custo, escritório, unidade, filial ou local. Os
+ * valores saem truncados. Um campo com nome inocente e conteúdo sensível não
+ * atravessa, porque a lista de chaves permitidas é curta e explícita.
+ *
+ * Cada campo vem com quantas pessoas da amostra o têm preenchido e quais
+ * valores distintos aparecem. É isso que separa "o campo existe" de "o campo
+ * distingue as marcas" -- um campo presente em 100% com um valor único não
+ * serve, e é a cara do "GERALL" que o RH avisou que ia aparecer.
+ */
+export interface CampoCandidato {
+  campo: string;
+  /** Onde ele apareceu: na listagem (barata) ou só no detalhe individual. */
+  origem: 'listagem' | 'detalhe';
+  preenchidos: number;
+  /** Valores distintos encontrados, truncados. Máximo de 8. */
+  valores: string[];
+}
+export interface SondaCampos {
+  empresa: string;
+  amostra: number;
+  /** Total de chaves no cadastro, para dimensionar o que NÃO está sendo lido. */
+  chavesNoDetalhe: number;
+  candidatos: CampoCandidato[];
+  erro: string | null;
+}
+
+/** Chaves cujo NOME fala de empresa/local. Nada fora daqui atravessa. */
+const PADRAO_MARCA =
+  /(company|empresa|brand|marca|cost|custo|centro|office|escritorio|escritório|unit|unidade|branch|filial|establishment|estabelecimento|location|local|site|workplace|subsidiar)/i;
+
+export const sondarCamposDaPessoa = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<SondaCampos[]> => {
+    await authorizeAdmin(context.claims.email as string | undefined);
+
+    const { fontesConfiguradas } = await import('@/lib/convenia/fontes');
+    const { ConveniaClient } = await import('@/lib/convenia/client.server');
+    const { EMPLOYEES, EMPLOYEE_DETAIL } = await import('@/lib/convenia/paths');
+
+    /** Achata `{name: 'X'}` e corta o resto. Valor nunca sai inteiro. */
+    const legivel = (v: unknown): string | null => {
+      if (typeof v === 'string') return v.trim().slice(0, 40) || null;
+      if (typeof v === 'number') return String(v);
+      if (v && typeof v === 'object' && 'name' in v) {
+        const n = (v as { name?: unknown }).name;
+        return typeof n === 'string' ? n.trim().slice(0, 40) || null : null;
+      }
+      return null;
+    };
+
+    const saida: SondaCampos[] = [];
+
+    for (const f of fontesConfiguradas()) {
+      const linha: SondaCampos = {
+        empresa: f.empresa, amostra: 0, chavesNoDetalhe: 0, candidatos: [], erro: null,
+      };
+      try {
+        const client = ConveniaClient.paraToken(f.token!);
+        const pagina = await client.listarTudo<Record<string, unknown>>(EMPLOYEES, {
+          porPagina: 20, maxPaginas: 1,
+        });
+        // Amostra pequena de propósito: o objetivo é descobrir ONDE o campo
+        // mora, não medir cobertura. A cobertura sai depois, na carga inteira.
+        const amostra = pagina.slice(0, 8);
+        linha.amostra = amostra.length;
+
+        const acumular = (
+          mapa: Map<string, { n: number; vals: Set<string> }>,
+          obj: Record<string, unknown>,
+        ) => {
+          for (const [k, v] of Object.entries(obj)) {
+            if (!PADRAO_MARCA.test(k)) continue;
+            const texto = legivel(v);
+            const atual = mapa.get(k) ?? { n: 0, vals: new Set<string>() };
+            if (texto) { atual.n++; if (atual.vals.size < 8) atual.vals.add(texto); }
+            mapa.set(k, atual);
+          }
+        };
+
+        const naListagem = new Map<string, { n: number; vals: Set<string> }>();
+        for (const p of amostra) acumular(naListagem, p);
+
+        const noDetalhe = new Map<string, { n: number; vals: Set<string> }>();
+        for (const p of amostra) {
+          const env = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(String(p.id)));
+          const det = (env?.data ?? env) as Record<string, unknown>;
+          linha.chavesNoDetalhe = Math.max(linha.chavesNoDetalhe, Object.keys(det).length);
+          acumular(noDetalhe, det);
+        }
+
+        for (const [campo, d] of naListagem) {
+          linha.candidatos.push({
+            campo, origem: 'listagem', preenchidos: d.n, valores: [...d.vals],
+          });
+        }
+        // Só entra como 'detalhe' o que NÃO estava na listagem: a listagem é
+        // uma requisição para todo mundo, o detalhe é uma por pessoa. A
+        // diferença entre as duas é de 638 chamadas por carga.
+        for (const [campo, d] of noDetalhe) {
+          if (naListagem.has(campo)) continue;
+          linha.candidatos.push({
+            campo, origem: 'detalhe', preenchidos: d.n, valores: [...d.vals],
+          });
+        }
+        linha.candidatos.sort((a, b) => b.preenchidos - a.preenchidos || a.campo.localeCompare(b.campo));
+      } catch (e) {
+        linha.erro = e instanceof Error ? e.message : String(e);
+      }
+      saida.push(linha);
+    }
+
+    return saida;
+  });

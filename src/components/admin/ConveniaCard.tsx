@@ -4,8 +4,8 @@ import { AlertTriangle, CheckCircle2, KeyRound, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { COLORS } from '@/lib/colors';
 import {
-  getConveniaDiagnostico, testarCruzamento, syncConvenia,
-  type ConveniaDiagnostico, type Cruzamento, type ResumoSyncConvenia,
+  getConveniaDiagnostico, testarCruzamento, syncConvenia, sondarCamposDaPessoa,
+  type ConveniaDiagnostico, type Cruzamento, type ResumoSyncConvenia, type SondaCampos,
 } from '@/lib/convenia.functions';
 
 /**
@@ -31,6 +31,22 @@ export function ConveniaCard() {
       setC({ empresas: [], veredito: '', headcountReal: null, erro: e instanceof Error ? e.message : String(e) });
     } finally {
       setCruzando(false);
+    }
+  };
+
+  const sondar = useServerFn(sondarCamposDaPessoa);
+  const [sonda, setSonda] = useState<SondaCampos[] | null>(null);
+  const [sondando, setSondando] = useState(false);
+  const [erroSonda, setErroSonda] = useState<string | null>(null);
+
+  const rodarSonda = async () => {
+    setSondando(true); setErroSonda(null);
+    try {
+      setSonda(await sondar({}));
+    } catch (e) {
+      setErroSonda(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSondando(false);
     }
   };
 
@@ -185,6 +201,64 @@ export function ConveniaCard() {
                 e não é preciso buscar pessoa por pessoa. Baixa as listas inteiras, então
                 demora ~1 minuto.
               </p>
+              {/* ==================================================================
+                  DE QUE CAMPO SAI A MARCA, DEPOIS DA UNIFICAÇÃO
+                  ==================================================================
+                  A marca hoje vem do TOKEN. Com a base unificada, um token só
+                  devolve todo mundo e a marca tem que sair do cadastro da
+                  pessoa. Esta sonda não decide qual campo é: ela mostra os
+                  candidatos e deixa a escolha ser feita olhando.
+
+                  O motivo de não chutar está fresco: `cargoDe` tentou sete
+                  nomes de campo, acertou zero em 638, e a tela passou a afirmar
+                  que o Convenia não tinha cargo. Cargo errado deixa um campo em
+                  branco; marca errada reescreve a série inteira.
+              ================================================================== */}
+              <div className="mt-4 rounded-lg border border-amber-500/40 bg-amber-500/5 p-3">
+                <p className="text-sm font-medium">Unificação de bases: de onde vem a marca?</p>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                  Lê o cadastro de 8 pessoas por empresa e lista só os campos cujo <em>nome</em> fala
+                  de empresa, marca, centro de custo, escritório, unidade ou local — com quantos
+                  vieram preenchidos e que valores aparecem. CPF, endereço e conta bancária não
+                  atravessam o filtro. Um campo preenchido em 100% com um valor único (o
+                  &quot;GERALL&quot;) não serve: ele existe, mas não distingue.
+                </p>
+                <Button onClick={rodarSonda} disabled={sondando} className="mt-2" variant="outline" size="sm">
+                  <RefreshCw className={`mr-2 h-4 w-4 ${sondando ? 'animate-spin' : ''}`} />
+                  {sondando ? 'Sondando…' : 'Sondar campos do cadastro'}
+                </Button>
+                {erroSonda && <p className="mt-2 text-sm" style={{ color: COLORS.danger }}>{erroSonda}</p>}
+                {sonda?.map((e) => (
+                  <div key={e.empresa} className="mt-3 text-xs">
+                    <p className="font-medium">
+                      {e.empresa}
+                      <span className="text-muted-foreground font-normal">
+                        {' '}· {e.amostra} pessoas, {e.chavesNoDetalhe} campos no cadastro
+                      </span>
+                    </p>
+                    {e.erro && <p style={{ color: COLORS.danger }}>{e.erro}</p>}
+                    {!e.erro && e.candidatos.length === 0 && (
+                      <p className="text-muted-foreground">
+                        Nenhum campo com nome de empresa/local. Isso não quer dizer que não exista —
+                        quer dizer que não está entre as chaves que este filtro deixa passar.
+                      </p>
+                    )}
+                    {e.candidatos.map((c2) => (
+                      <div key={c2.campo} className="flex flex-wrap gap-x-2 py-0.5 border-b border-border/40">
+                        <code className="font-mono">{c2.campo}</code>
+                        <span className="text-muted-foreground">
+                          {c2.origem} · {c2.preenchidos}/{e.amostra}
+                        </span>
+                        <span className={c2.valores.length === 1 ? 'text-amber-600 dark:text-amber-500' : ''}>
+                          {c2.valores.join(' | ') || '—'}
+                          {c2.valores.length === 1 && ' (valor único: não distingue)'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+
               <Button onClick={rodarCruzamento} disabled={cruzando} className="mt-3" variant="outline" size="sm">
                 <RefreshCw className={`mr-2 h-4 w-4 ${cruzando ? 'animate-spin' : ''}`} />
                 {cruzando ? 'Cruzando…' : 'Testar cruzamento'}
