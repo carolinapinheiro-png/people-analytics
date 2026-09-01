@@ -47,6 +47,8 @@ interface Minimo {
   email: string | null;
   /** Ponte com a folha de remuneracao, que nao tem e-mail. */
   nome: string | null;
+  /** Cargo. Preenche o cadastro de acesso sozinho -- ver `cargoDe`. */
+  cargo: string | null;
 }
 
 export interface ResumoSyncConvenia {
@@ -145,6 +147,37 @@ export function nomeCompleto(b: Record<string, unknown>): string | null {
   return montado || null;
 }
 
+/**
+ * O cargo da pessoa, a partir do que o Convenia devolver.
+ *
+ * ===========================================================================
+ * DEFENSIVO DE PROPOSITO
+ * ===========================================================================
+ * Nao sei em qual campo o Convenia guarda o cargo, e esta semana ja custou
+ * duas rodadas eu supor o nome de um campo dele (`full_name` primeiro veio
+ * sem sobrenome, depois sem o primeiro nome). Entao tenta os nomes plausiveis,
+ * aceita objeto com `name` ou string direta, e o sync AVISA quando quase todos
+ * vierem vazios.
+ *
+ * Vazio nao quebra nada: o campo Cargo continua digitavel. O pior caso e o
+ * de hoje, em que ele ja e digitado a mao.
+ */
+export function cargoDe(b: Record<string, unknown>): string | null {
+  const texto = (v: unknown): string => {
+    if (typeof v === 'string') return v.trim();
+    if (v && typeof v === 'object' && 'name' in v) {
+      const n = (v as { name?: unknown }).name;
+      return typeof n === 'string' ? n.trim() : '';
+    }
+    return '';
+  };
+  for (const campo of ['job_title', 'jobTitle', 'role', 'position', 'office', 'cargo', 'job']) {
+    const v = texto(b[campo]);
+    if (v) return v;
+  }
+  return null;
+}
+
 /** Quantos nomes vieram com um unico termo -- ou seja, sem sobrenome. */
 export function soPrimeiroNome(nomes: Array<string | null>): number {
   return nomes.filter((n) => n != null && !n.trim().includes(' ')).length;
@@ -237,7 +270,7 @@ export async function executarSyncConvenia(
     // empresa por empresa criaria topos falsos.
     const orgTodos: Array<{
       id: string; supervisorId: string | null; email: string | null;
-      department: string | null; nome: string | null;
+      department: string | null; nome: string | null; cargo: string | null;
     }> = [];
     const empresas: ResumoSyncConvenia['empresas'] = [];
     let desligadosSemCadastro = 0;
@@ -289,6 +322,7 @@ export async function executarSyncConvenia(
             // nome correlaciona com grupo demografico. Descartar 45% de forma
             // nao-aleatoria na dimensao que se quer medir fabrica diferenca.
             nome: nomeCompleto(b),
+            cargo: cargoDe(b),
             // O Convenia manda salário ora número, ora string ("3.218,00").
             // Number() em "3.218,00" dá NaN, que viraria média silenciosamente
             // errada -- por isso a normalização explícita.
@@ -312,7 +346,7 @@ export async function executarSyncConvenia(
         for (const p of pessoas) {
           orgTodos.push({
             id: p.id, supervisorId: p.supervisorId, email: p.email,
-            department: p.department?.name ?? null, nome: p.nome,
+            department: p.department?.name ?? null, nome: p.nome, cargo: p.cargo,
           });
         }
 
@@ -681,6 +715,7 @@ export async function executarSyncConvenia(
           convenia_id: p.id,
           email: p.email ? p.email.trim().toLowerCase() : null,
           nome: p.nome,
+          job_title: p.cargo,
           supervisor_id: p.supervisorId,
           department: p.department,
           camada: porPessoa.get(p.id)?.camada ?? null,
@@ -699,6 +734,17 @@ export async function executarSyncConvenia(
         // Foi exatamente assim que o problema anterior durou: `b.name` era o
         // primeiro nome, nada quebrou, e o sintoma apareceu longe daqui, como
         // linhas sem camada na aba de Salarios.
+        // Mesmo cuidado do nome: se o campo do cargo mudar de lugar na API,
+        // nada quebra -- o cadastro so volta a ser digitado a mao, calado.
+        const semCargo = linhasOrg.filter((l) => !l.job_title).length;
+        if (semCargo > linhasOrg.length / 2) {
+          avisos.push(
+            `Organograma: ${semCargo} de ${linhasOrg.length} pessoas vieram sem cargo. ` +
+            'O cadastro de acesso deixa de preencher o campo Cargo sozinho -- ele continua ' +
+            'digitavel. Conferir em que campo o Convenia guarda o cargo hoje.',
+          );
+        }
+
         const semSobrenome = soPrimeiroNome(linhasOrg.map((l) => l.nome));
         if (semSobrenome > linhasOrg.length / 10) {
           avisos.push(

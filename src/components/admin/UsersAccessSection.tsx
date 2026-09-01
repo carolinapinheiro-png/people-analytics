@@ -409,9 +409,13 @@ export default function UsersAccessSection({
       const r = await sugerirFn({ data: { email } });
       setOrgAviso(r.motivo ?? '');
       if (!r.encontrado) return;
+      // `f.x || sugestao` em todos: a sugestão preenche o que está VAZIO e
+      // nunca sobrescreve o que já foi digitado. Quem corrigiu um cargo à mão
+      // não pode perdê-lo por trocar uma letra do e-mail.
       setAddForm((f) => ({
         ...f,
         jobLevel: f.jobLevel || (r.camada ?? ''),
+        jobTitle: f.jobTitle || (r.cargo ?? ''),
         departments: f.departments.length ? f.departments : (r.departamento ? [r.departamento.toUpperCase()] : []),
       }));
     } catch {
@@ -619,7 +623,7 @@ export default function UsersAccessSection({
                 className="max-w-md"
               />
               <p className="text-[11px] text-muted-foreground">
-                Ao sair do campo, camada N e departamento vêm do organograma do Convenia.
+                Ao sair do campo, cargo, camada N e departamento vêm do organograma do Convenia.
               </p>
               {orgAviso && (
                 <p className="text-[11px] text-amber-600 dark:text-amber-500 max-w-md">{orgAviso}</p>

@@ -795,6 +795,8 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
       encontrado: false,
       camada: null as string | null,
       departamento: null as string | null,
+      /** Cargo, do Convenia. Ver `cargoDe` em convenia/sync.server.ts. */
+      cargo: null as string | null,
       motivo: '' as string,
     };
     if (!email.includes('@')) return vazio;
@@ -804,7 +806,11 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
         select: (c: string) => {
           ilike: (c: string, v: string) => {
             maybeSingle: () => PromiseLike<{
-              data: { camada: string | null; department: string | null } | null;
+              data: {
+                camada: string | null;
+                department: string | null;
+                job_title: string | null;
+              } | null;
               error: { message: string } | null;
             }>;
           };
@@ -812,7 +818,7 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
       };
     })
       .from('org_pessoas')
-      .select('camada, department')
+      .select('camada, department, job_title')
       .ilike('email', email)
       .maybeSingle();
 
@@ -829,6 +835,10 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
         ...vazio,
         encontrado: true,
         departamento: linha.department ?? null,
+        // O cargo vem MESMO sem camada: são dados independentes, e devolver
+        // menos por causa de outro campo faria a pessoa digitar à mão algo
+        // que o Convenia já sabe.
+        cargo: linha.job_title ?? null,
         motivo: 'Encontrei a pessoa, mas a cadeia de reporte dela no Convenia está quebrada ou em ciclo, então não dá para calcular a camada. Sem camada, ela não vê remuneração de ninguém.',
       };
     }
@@ -836,7 +846,12 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
       encontrado: true,
       camada: linha.camada,
       departamento: linha.department ?? null,
-      motivo: '',
+      cargo: linha.job_title ?? null,
+      motivo: linha.job_title
+        ? ''
+        // Dizer o que NÃO veio, em vez de deixar o campo vazio calado: quem
+        // cadastra precisa saber se digita ou se espera a próxima carga.
+        : 'Camada e departamento vieram do Convenia; o cargo não está preenchido lá, então digite à mão.',
     };
   });
 
