@@ -124,17 +124,34 @@ export default function TaSatisfactionSection() {
           )}
         </div>
 
-        {/* Por area: menor primeiro, que e onde vale olhar. */}
+        {/* ------------------------------------------------------------------
+            POR ÁREA: MENOR PRIMEIRO -- MAS SÓ ENTRE AS QUE TÊM VOLUME
+            ------------------------------------------------------------------
+            A ordem era crescente pela nota, e só. Medido hoje: das 7 áreas, 4
+            têm menos de 5 respostas e COMMERCIAL tem UMA. Uma área de uma
+            resposta pode encabeçar a lista das piores -- e o topo da lista é
+            lido como "onde o problema está".
+
+            Isso é a mesma troca que este cabeçalho já recusa para o nome da
+            recrutadora: com 24 respostas e quase tudo nota 5, a diferença entre
+            primeira e última vem de um gestor.
+
+            As áreas de n baixo continuam na tela, com o número e o n. O que
+            muda é que elas não definem mais o topo. */}
         {d.byArea.length > 1 && (
           <div>
             <p className="text-xs font-medium mb-1.5">Por área contratante</p>
             <div className="space-y-1">
-              {d.byArea.map((a) => (
+              {[...d.byArea]
+                .sort((x, y) => (x.n >= 3 ? 0 : 1) - (y.n >= 3 ? 0 : 1) || x.avg - y.avg)
+                .map((a) => (
                 <div key={a.area} className="flex items-center justify-between text-xs py-0.5">
                   <span className="flex items-center gap-1.5">
                     {a.area}
                     {a.n < 3 && (
-                      <span className="text-[10px] text-muted-foreground">n baixo</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {a.n === 1 ? 'uma resposta só' : 'n baixo'}
+                      </span>
                     )}
                   </span>
                   <span className="text-muted-foreground">
@@ -143,6 +160,13 @@ export default function TaSatisfactionSection() {
                 </div>
               ))}
             </div>
+            {d.byArea.some((a) => a.n < 3) && (
+              <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
+                As áreas com menos de três respostas ficam no fim da lista, não porque estejam bem,
+                mas porque com uma ou duas respostas a &quot;média da área&quot; é a opinião de uma
+                pessoa. Elas contam quem falou, não como a área pensa.
+              </p>
+            )}
           </div>
         )}
 
