@@ -26,6 +26,7 @@ import {
   Eye,
 } from 'lucide-react';
 import MultiSelect from '@/components/admin/MultiSelect';
+import { perfilDeChaves, chavesDoCadastro } from '@/lib/perfil-derivado';
 import { entrarVerComo } from '@/components/layout/FaixaVerComo';
 import {
   addAllowedEmail,
@@ -41,7 +42,6 @@ import {
 import {
   ACCESS_PROFILES,
   PROFILE_LABELS,
-  PROFILE_DESCRIPTIONS,
   isGlobalProfile,
   JOB_TYPE_FAMILIES,
   JOB_LEVEL_PRESETS,
@@ -196,7 +196,18 @@ interface UserFormState {
   tabs: string[];
   /** Sub-abas desta pessoa, mesma regra. Achatada entre as abas. */
   subTabs: string[];
-  /** null = conforme o perfil. */
+  /**
+   * As TRÊS chaves que substituíram o seletor de perfil.
+   *
+   * `profile` continua no estado porque 26 pontos do sistema o consultam --
+   * ver `perfil-derivado.ts`. Ele é DERIVADO destas três e nunca escolhido
+   * direto: quem edita o cadastro responde as perguntas, não escolhe o
+   * rótulo.
+   */
+  global: boolean;
+  admin: boolean;
+  individual: boolean;
+  /** Derivado de `individual`. Mantido porque é o que vai para o banco. */
   canSeeIndividual: boolean | null;
   /** '' = sem prazo. */
   expiresAt: string;
@@ -204,6 +215,11 @@ interface UserFormState {
 
 const EMPTY_FORM: UserFormState = {
   profile: 'dept_leader',
+  // O padrão é o mais restrito das três: escopado, não administra, não vê
+  // individual. Um cadastro salvo sem pensar concede o mínimo.
+  global: false,
+  admin: false,
+  individual: false,
   departments: [],
   jobFamilies: [],
   jobTitle: '',
@@ -562,7 +578,11 @@ export default function UsersAccessSection({
       extraTabs: item.extra_tabs ?? [],
       tabs: item.tabs ?? [],
       subTabs: item.sub_tabs ?? [],
-      canSeeIndividual: item.can_see_individual ?? null,
+      // Traduz o cadastro antigo para as três chaves. Um cadastro gravado
+      // como 'hrbp' abre com Alcance=áreas, Individual=sim, Admin=não -- que
+      // é exatamente o que ele já era.
+      ...chavesDoCadastro(item.profile, item.can_see_individual),
+      canSeeIndividual: chavesDoCadastro(item.profile, item.can_see_individual).individual,
       // O input de data quer 'YYYY-MM-DD'; o banco guarda timestamptz.
       expiresAt: item.expires_at ? String(item.expires_at).slice(0, 10) : '',
     });
@@ -951,18 +971,34 @@ export default function UsersAccessSection({
 
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="lote-perfil">Trocar perfil</Label>
+              <Label htmlFor="lote-perfil">Trocar alcance e dado individual</Label>
+              {/* ------------------------------------------------------------------
+                  A MESMA LINGUAGEM DO CADASTRO INDIVIDUAL
+                  ------------------------------------------------------------------
+                  Aqui dizia "Trocar perfil" e listava os cinco rótulos -- ou
+                  seja, a competição entre perfil e campos voltava pela porta
+                  dos fundos, num lugar que mexe em VÁRIAS pessoas de uma vez.
+
+                  As opções agora dizem o que fazem. São as quatro combinações
+                  que os rótulos internos representam; `engagement_viewer`
+                  saiu porque ele nunca foi uma combinação -- era uma lista de
+                  abas, que não se troca em lote sem olhar caso a caso. */}
               <select
                 id="lote-perfil"
                 value={loteProfile}
                 onChange={(e) => setLoteProfile(e.target.value)}
                 className="w-full rounded border border-border bg-secondary px-2 py-1.5 text-sm"
               >
-                <option value="">— não mexer no perfil —</option>
-                {ACCESS_PROFILES.map((p) => (
-                  <option key={p} value={p}>{PROFILE_LABELS[p]}</option>
-                ))}
+                <option value="">— não mexer —</option>
+                <option value="admin">Empresa toda · vê individual · administra usuários</option>
+                <option value="hr_leader">Empresa toda · vê individual</option>
+                <option value="hrbp">Só as áreas atribuídas · vê individual</option>
+                <option value="dept_leader">Só as áreas atribuídas · só agregados</option>
               </select>
+              <p className="text-[11px] text-muted-foreground">
+                Não mexe nas abas de cada pessoa — só no alcance, no dado individual e em
+                administrar. As abas continuam como estão em cada cadastro.
+              </p>
             </div>
 
             <MultiSelect
@@ -1108,6 +1144,61 @@ function UserAccessFormFields({
   emailPreview?: string;
 }) {
   const patch = (partial: Partial<UserFormState>) => onChange({ ...value, ...partial });
+
+  /**
+   * Mexer numa chave recalcula o `profile` e o `canSeeIndividual`.
+   *
+   * Os dois são DERIVADOS -- ninguém os edita direto. Recalcular aqui, e não
+   * na hora de salvar, faz a prévia de abas e os avisos reagirem na mesma
+   * hora: quem liga "vê a empresa toda" vê o chip de Dados aparecer.
+   */
+  const patchChave = (partial: Partial<Pick<UserFormState, 'global' | 'admin' | 'individual'>>) => {
+    const pedido = {
+      global: value.global, admin: value.admin, individual: value.individual, ...partial,
+    };
+    // ADMIN IMPLICA ALCANCE TOTAL, e o código faz o que o aviso diz.
+    //
+    // Sem isto, "administra usuários" ligado com alcance por área produzia
+    // `perfilDeChaves` -> 'dept_leader', ou seja, o interruptor de admin
+    // ficava ligado na tela e sumia ao salvar. Um controle que se desfaz
+    // sozinho é pior que um controle ausente.
+    //
+    // Quem administra o cadastro consegue se dar qualquer acesso de qualquer
+    // forma; fingir que existe um admin de uma área só seria teatro.
+    const chaves = pedido.admin ? { ...pedido, global: true } : pedido;
+    onChange({
+      ...value,
+      ...chaves,
+      profile: perfilDeChaves(chaves),
+      canSeeIndividual: chaves.individual,
+    });
+  };
+
+  const CHAVES: Array<{
+    campo: 'global' | 'admin' | 'individual';
+    titulo: string;
+    sim: string;
+    nao: string;
+  }> = [
+    {
+      campo: 'global',
+      titulo: 'Alcance',
+      sim: 'A empresa toda',
+      nao: 'Só as áreas atribuídas',
+    },
+    {
+      campo: 'individual',
+      titulo: 'Nome e salário individuais',
+      sim: 'Vê pessoa a pessoa',
+      nao: 'Só números agregados',
+    },
+    {
+      campo: 'admin',
+      titulo: 'Administra usuários',
+      sim: 'Pode cadastrar e remover acessos',
+      nao: 'Não administra',
+    },
+  ];
   const levelListId = `job-levels-${idSuffix}`;
   // Salarios so aparece por concessao individual desde 14/08/2026 -- e quando
   // aparece, o Level deixa de ser decorativo e passa a decidir o recorte.
@@ -1133,20 +1224,51 @@ function UserAccessFormFields({
           -> detalhes. Cargo e camada N desceram: são importantes, mas não
           são a primeira pergunta.
       ================================================================== */}
-      <div className="space-y-1.5">
-        <Label className="text-xs text-muted-foreground">Perfil de acesso</Label>
-        <select
-          value={value.profile}
-          onChange={(e) => patch({ profile: e.target.value as AccessProfile })}
-          className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:max-w-xs"
-        >
-          {ACCESS_PROFILES.map((p) => (
-            <option key={p} value={p}>
-              {PROFILE_LABELS[p]}
-            </option>
-          ))}
-        </select>
-        <p className="text-xs text-muted-foreground">{PROFILE_DESCRIPTIONS[value.profile]}</p>
+      {/* ==================================================================
+          TRÊS PERGUNTAS NO LUGAR DE UM SELETOR DE PERFIL
+          ==================================================================
+          Os cinco perfis, postos lado a lado, codificavam exatamente estas
+          três respostas mais uma lista de abas -- ver `perfil-derivado.ts`.
+          Admin e HR Leader diferiam só em "administra usuários"; HRBP e
+          Department Leader, só em "vê dado individual".
+
+          Então escolher um perfil e depois ajustar os campos ao lado era
+          responder a mesma pergunta duas vezes, em dois lugares, com o
+          segundo vencendo em silêncio. Agora as perguntas são as perguntas.
+      ================================================================== */}
+      <div className="space-y-2">
+        {CHAVES.map((c) => (
+          <div key={c.campo} className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <Label className="text-xs">{c.titulo}</Label>
+              <p className="text-[11px] text-muted-foreground">
+                {value[c.campo] ? c.sim : c.nao}
+              </p>
+            </div>
+            <div className="flex gap-1 rounded-md bg-muted p-0.5">
+              {[false, true].map((v) => (
+                <button
+                  key={String(v)}
+                  type="button"
+                  onClick={() => patchChave({ [c.campo]: v })}
+                  className={`rounded px-2.5 py-1 text-[12px] ${
+                    value[c.campo] === v
+                      ? 'bg-background shadow-sm font-medium'
+                      : 'text-muted-foreground'
+                  }`}
+                >
+                  {v ? 'Sim' : 'Não'}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+        {value.admin && !value.global && (
+          <p className="text-[11px] text-amber-600 dark:text-amber-500">
+            Quem administra usuários alcança todo mundo pelo cadastro de qualquer forma — por isso
+            ligar isto também liga o alcance à empresa toda.
+          </p>
+        )}
       </div>
 
       {isScopedProfileValue(value.profile) && (
@@ -1391,43 +1513,23 @@ function UserAccessFormFields({
           </p>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1">
-            <Label htmlFor={`exp-${idSuffix}`} className="text-xs">Acesso válido até</Label>
-            <Input
-              id={`exp-${idSuffix}`}
-              type="date"
-              value={value.expiresAt}
-              onChange={(e) => patch({ expiresAt: e.target.value })}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              {value.expiresAt
-                ? 'Depois desta data a pessoa deixa de entrar, sem precisar de ninguém.'
-                : 'Em branco = sem prazo.'}
-            </p>
-          </div>
-
-          <div className="space-y-1">
-            <Label htmlFor={`ind-${idSuffix}`} className="text-xs">Nome e salário individuais</Label>
-            <select
-              id={`ind-${idSuffix}`}
-              value={value.canSeeIndividual === null ? 'perfil' : value.canSeeIndividual ? 'sim' : 'nao'}
-              onChange={(e) => patch({
-                canSeeIndividual:
-                  e.target.value === 'perfil' ? null : e.target.value === 'sim',
-              })}
-              className="w-full bg-secondary border border-border rounded px-2 py-1.5 text-sm"
-            >
-              <option value="perfil">Conforme o perfil</option>
-              <option value="sim">Sim, mesmo que o perfil não veja</option>
-              <option value="nao">Não, mesmo que o perfil veja</option>
-            </select>
-            <p className="text-[11px] text-muted-foreground">
-              {canSeeIndividualData(value.profile, value.canSeeIndividual)
-                ? 'Verá nome e salário nas telas de Comp e Desligamentos.'
-                : 'Verá só números agregados.'}
-            </p>
-          </div>
+        {/* "Nome e salário individuais" saiu daqui: virou a segunda das três
+            chaves, no topo. Eram o mesmo campo em dois lugares, e o de baixo
+            tinha três estados ("conforme o perfil") que deixaram de existir
+            quando o perfil deixou de ser escolhido. */}
+        <div className="space-y-1 sm:max-w-xs">
+          <Label htmlFor={`exp-${idSuffix}`} className="text-xs">Acesso válido até</Label>
+          <Input
+            id={`exp-${idSuffix}`}
+            type="date"
+            value={value.expiresAt}
+            onChange={(e) => patch({ expiresAt: e.target.value })}
+          />
+          <p className="text-[11px] text-muted-foreground">
+            {value.expiresAt
+              ? 'Depois desta data a pessoa deixa de entrar, sem precisar de ninguém.'
+              : 'Em branco = sem prazo.'}
+          </p>
         </div>
       </div>
 
