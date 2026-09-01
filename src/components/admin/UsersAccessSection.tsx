@@ -194,8 +194,10 @@ export interface DepartmentOption {
   name: string;
   aliases: string[];
   active: boolean;
-  /** Quantas pessoas esta área alcança hoje. `null`/ausente = não medido. */
+  /** Na folha de remuneração (`comp_ratio`). `null`/ausente = não medido. */
   pessoas?: number | null;
+  /** No headcount do mês mais novo (`dept_data`). Populações diferentes. */
+  pessoasHeadcount?: number | null;
 }
 
 interface UserFormState {
@@ -549,7 +551,10 @@ export default function UsersAccessSection({
    * sem erro e entrega um painel em branco.
    */
   const alcancePorArea = new Map(
-    departments.map((d) => [d.name, d.pessoas ?? null] as const),
+    departments.map((d) => [d.name, {
+      folha: d.pessoas ?? null,
+      headcount: d.pessoasHeadcount ?? null,
+    }] as const),
   );
   const editingUser = emails.find((e) => e.id === editingId) ?? null;
 
@@ -1171,7 +1176,7 @@ function UserAccessFormFields({
   value: UserFormState;
   onChange: (next: UserFormState) => void;
   departmentOptions: string[];
-  alcancePorArea: Map<string, number | null>;
+  alcancePorArea: Map<string, { folha: number | null; headcount: number | null }>;
   validationError: string | null;
   showError?: boolean;
   emailPreview?: string;
@@ -1376,8 +1381,17 @@ function UserAccessFormFields({
               label="Departamentos atendidos"
               options={departmentOptions}
               labels={Object.fromEntries(departmentOptions.map((d) => {
-                const n = alcancePorArea.get(d);
-                return [d, n == null ? d : `${d} · ${n === 0 ? 'ninguém hoje' : `${n} pessoas`}`];
+                const a = alcancePorArea.get(d);
+                if (!a || (a.folha == null && a.headcount == null)) return [d, d];
+                const f = a.folha ?? 0;
+                const h = a.headcount ?? 0;
+                if (!f && !h) return [d, `${d} · ninguém em nenhuma das duas bases`];
+                // Os dois números quando divergem: são populações diferentes,
+                // e a diferença diz em QUE abas a área alcança gente.
+                if (f && h && f !== h) return [d, `${d} · ${h} no headcount, ${f} na folha`];
+                if (!f) return [d, `${d} · ${h} no headcount, ninguém na folha`];
+                if (!h) return [d, `${d} · ${f} na folha, ninguém no headcount`];
+                return [d, `${d} · ${f} pessoas`];
               }))}
               value={value.departments}
               onChange={(departments) => patch({ departments })}
@@ -1410,7 +1424,13 @@ function UserAccessFormFields({
           </div>
 
           {(() => {
-            const vazias = value.departments.filter((d) => alcancePorArea.get(d) === 0);
+            // Só acende quando a área não alcança ninguém em NENHUMA das duas
+            // bases. Zero na folha e 18 no headcount é o caso do PORTO, e
+            // dizer "não alcança ninguém" ali seria falso.
+            const vazias = value.departments.filter((d) => {
+              const a = alcancePorArea.get(d);
+              return a && (a.folha ?? 0) === 0 && (a.headcount ?? 0) === 0;
+            });
             if (!vazias.length) return null;
             return (
               <p className="text-[11px] text-amber-600 dark:text-amber-500">

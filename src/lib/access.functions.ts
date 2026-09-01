@@ -937,17 +937,54 @@ export const getDepartments = createServerFn({ method: 'GET' })
     // Se a contagem falhar, o catálogo continua saindo SEM ela. Um número
     // ausente vira "—" na tela; um catálogo ausente trava o cadastro.
     const { data: pessoas } = await context.supabase.from('comp_ratio').select('area');
-    const porArea = new Map<string, number>();
+    const naFolha = new Map<string, number>();
     for (const r of (pessoas ?? []) as Array<{ area: string | null }>) {
       const k = (r.area ?? '').trim().toUpperCase();
-      if (k) porArea.set(k, (porArea.get(k) ?? 0) + 1);
+      if (k) naFolha.set(k, (naFolha.get(k) ?? 0) + 1);
     }
 
-    return deps.map((d) => ({
-      ...d,
-      /** Quantas pessoas o escopo alcança com esta área. `null` = não medido. */
-      pessoas: pessoas ? (porArea.get(d.name.trim().toUpperCase()) ?? 0) : null,
-    }));
+    // ------------------------------------------------------------------
+    // DUAS POPULAÇÕES, E CONTAR SÓ UMA JÁ MENTIU UMA VEZ
+    // ------------------------------------------------------------------
+    // A primeira versão disto contava só `comp_ratio` -- a folha -- e escrevia
+    // "PORTO · ninguém hoje" no seletor. Falso: PORTO tem 18 pessoas no
+    // headcount, elas só não estão na folha, que veio de planilha e parou em
+    // junho.
+    //
+    // As duas bases existem porque o escopo usa uma OU outra dependendo da
+    // aba: Meu Time e Salários leem `comp_ratio.area`; Overview e as quebras
+    // por área leem `dept_data`. Uma área pode alcançar gente numa e não na
+    // outra, e essa diferença é informação, não ruído.
+    //
+    // Foi o mesmo erro de sempre, cometido por mim ontem: medir uma fonte e
+    // afirmar sobre o mundo.
+    const { data: ultimo } = await context.supabase
+      .from('monthly_metrics')
+      .select('month, dept_data')
+      .eq('source', 'convenia')
+      .order('month', { ascending: false })
+      .limit(6);
+    const linhas = (ultimo ?? []) as Array<{ month: string; dept_data: Record<string, { hc?: number }> | null }>;
+    const mesMaisNovo = linhas[0]?.month ?? null;
+    const noHeadcount = new Map<string, number>();
+    for (const l of linhas) {
+      if (l.month !== mesMaisNovo) continue; // só o mês mais novo, somando as marcas
+      for (const [area, v] of Object.entries(l.dept_data ?? {})) {
+        const k = area.trim().toUpperCase();
+        noHeadcount.set(k, (noHeadcount.get(k) ?? 0) + (v?.hc ?? 0));
+      }
+    }
+
+    return deps.map((d) => {
+      const k = d.name.trim().toUpperCase();
+      return {
+        ...d,
+        /** Na folha de remuneração (`comp_ratio`). `null` = não medido. */
+        pessoas: pessoas ? (naFolha.get(k) ?? 0) : null,
+        /** No headcount do mês mais novo (`dept_data`). `null` = não medido. */
+        pessoasHeadcount: ultimo ? (noHeadcount.get(k) ?? 0) : null,
+      };
+    });
   });
 
 export const addDepartment = createServerFn({ method: 'POST' })

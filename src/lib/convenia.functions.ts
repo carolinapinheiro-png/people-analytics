@@ -445,6 +445,18 @@ export interface SondaCampos {
   amostra: number;
   /** Total de chaves no cadastro, para dimensionar o que NÃO está sendo lido. */
   chavesNoDetalhe: number;
+  /**
+   * TODOS os nomes de campo do cadastro, sem valor nenhum.
+   *
+   * A primeira sonda filtrou por nome e achou só `cost_center` (que é centro
+   * de custo, não marca) e `custom_fields` (vazio). Isso não significa que a
+   * marca não esteja lá: significa que, se estiver, o campo tem outro nome --
+   * e o filtro que me protegia de vazar CPF também escondia a resposta.
+   *
+   * Nome de campo não é dado pessoal. Listar os 47 nomes deixa escolher o
+   * candidato certo olhando, e só então pedir o valor dele.
+   */
+  chaves: string[];
   candidatos: CampoCandidato[];
   erro: string | null;
 }
@@ -477,7 +489,7 @@ export const sondarCamposDaPessoa = createServerFn({ method: 'POST' })
 
     for (const f of fontesConfiguradas()) {
       const linha: SondaCampos = {
-        empresa: f.empresa, amostra: 0, chavesNoDetalhe: 0, candidatos: [], erro: null,
+        empresa: f.empresa, amostra: 0, chavesNoDetalhe: 0, chaves: [], candidatos: [], erro: null,
       };
       try {
         const client = ConveniaClient.paraToken(f.token!);
@@ -510,6 +522,8 @@ export const sondarCamposDaPessoa = createServerFn({ method: 'POST' })
           const env = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(String(p.id)));
           const det = (env?.data ?? env) as Record<string, unknown>;
           linha.chavesNoDetalhe = Math.max(linha.chavesNoDetalhe, Object.keys(det).length);
+          // Só os NOMES. Nenhum valor atravessa por aqui.
+          linha.chaves = [...new Set([...linha.chaves, ...Object.keys(det)])].sort();
           acumular(noDetalhe, det);
         }
 

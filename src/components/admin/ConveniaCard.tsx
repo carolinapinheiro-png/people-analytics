@@ -243,6 +243,20 @@ export function ConveniaCard() {
                         quer dizer que não está entre as chaves que este filtro deixa passar.
                       </p>
                     )}
+                    {/* Os nomes de todos os campos, sem valor nenhum. O filtro por
+                        nome me protege de vazar CPF, mas ele também esconde a
+                        resposta quando o campo certo se chama outra coisa. Nome de
+                        campo não é dado pessoal. */}
+                    {e.chaves.length > 0 && (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-muted-foreground">
+                          ver os {e.chaves.length} nomes de campo (sem valores)
+                        </summary>
+                        <p className="font-mono text-[10px] leading-relaxed mt-1 text-muted-foreground">
+                          {e.chaves.join(', ')}
+                        </p>
+                      </details>
+                    )}
                     {e.candidatos.map((c2) => (
                       <div key={c2.campo} className="flex flex-wrap gap-x-2 py-0.5 border-b border-border/40">
                         <code className="font-mono">{c2.campo}</code>
