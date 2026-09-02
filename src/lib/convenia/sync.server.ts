@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { reconstruirSerie, type LinhaMensal, type PessoaConvenia } from './pessoas';
 import { empresaDe, escritorioDe } from './custom-fields';
 import { detectarColapso } from './colapso';
+import { marcaDeEmpresa, empresasNaoReconhecidas } from './marca';
 
 /**
  * Carga do Convenia: cinco empresas, uma série mensal por marca.
@@ -573,9 +574,30 @@ export async function executarSyncConvenia(
           r.raca = cacheRaca.get(r.id) ?? null;
         }
 
-        const lista = porMarca.get(f.marca) ?? [];
-        lista.push(...registros);
-        porMarca.set(f.marca, lista);
+        // ------------------------------------------------------------------
+        // A MARCA SAI DO CADASTRO, COM O TOKEN COMO RESERVA
+        // ------------------------------------------------------------------
+        // Até 31/08 a marca era o token, e só. A unificação de bases acabou com
+        // isso: um token devolve todo mundo, e a marca passou a ser o campo
+        // `Empresa` do cadastro de cada pessoa.
+        //
+        // O token continua valendo como RESERVA, e isso não é indecisão. Hoje
+        // 39% dos cadastros estão sem `Empresa` -- a migração do RH está em
+        // curso --, e sem reserva essas pessoas ficariam sem marca nenhuma,
+        // fora de toda a série. Cair na marca do token é o comportamento de
+        // ontem, que era correto enquanto cada token era uma empresa.
+        //
+        // O que NÃO acontece é valor desconhecido virar marca nova: `marcaDeEmpresa`
+        // devolve null nesses casos e a reserva assume. Uma entidade nova
+        // criada pelo RH aparece como aviso, não como uma quarta marca no
+        // painel.
+        for (const r of registros) {
+          const doCadastro = marcaDeEmpresa(cacheEmpresa.get(r.id));
+          const marca = doCadastro ?? f.marca;
+          const lista = porMarca.get(marca) ?? [];
+          lista.push(r);
+          porMarca.set(marca, lista);
+        }
         // Contado DEPOIS do laço de detalhes: antes, as ~164 buscas
         // individuais não entravam na conta e o número parecia baixo demais
         // para o que a carga realmente fez.
@@ -674,6 +696,35 @@ export async function executarSyncConvenia(
         ' A marca so deve passar a sair do cadastro quando Empresa estiver perto de 100%:' +
         ' com cobertura parcial, quem estiver sem o campo cai numa marca nula.',
       );
+      // ------------------------------------------------------------------
+      // O DE-PARA TEM QUE DIZER O QUE NAO RECONHECEU, POR NOME
+      // ------------------------------------------------------------------
+      // Um contador de "N ficaram de fora" nao da para agir. Um nome, sim: e
+      // o RH escrevendo a entidade de um jeito que a tabela nao previu, ou uma
+      // empresa nova de verdade. As duas exigem uma decisao humana, e nenhuma
+      // pode virar marca sozinha.
+      const desconhecidas = empresasNaoReconhecidas(lidos.map((p) => cacheEmpresa.get(p.id)));
+      if (desconhecidas.length) {
+        avisos.push(
+          `Empresa: ${desconhecidas.length} valor(es) do cadastro nao estao no de-para de marcas: ` +
+          `${desconhecidas.join(', ')}. Essas pessoas caem na marca do TOKEN por reserva -- nada ` +
+          'vira marca nova sozinho. Se alguma dessas for uma marca de verdade, ela precisa entrar ' +
+          'em `FRAGMENTOS` (ver marca.ts) antes de aparecer no painel.',
+        );
+      }
+
+      // Quantas pessoas ja tem marca vinda do CADASTRO, e nao do token. E este
+      // numero -- nao a cobertura bruta de `Empresa` -- que diz o quanto a
+      // serie ja depende da fonte nova.
+      const comMarcaDoCadastro = lidos.filter((p) => marcaDeEmpresa(cacheEmpresa.get(p.id))).length;
+      avisos.push(
+        `Marca pelo cadastro: ${comMarcaDoCadastro} de ${lidos.length} pessoas ` +
+        `(${Math.round((comMarcaDoCadastro / lidos.length) * 100)}%). As demais caem na marca do ` +
+        'token, que e o comportamento anterior. Enquanto Betfair BR e Flutter International nao ' +
+        'aparecerem no campo `Empresa` de ninguem, a trava continua recusando a serie: elas ' +
+        'existem no historico e a carga nao consegue reproduzi-las.',
+      );
+
       const valoresEmpresa = new Set(lidos.map((p) => cacheEmpresa.get(p.id)).filter(Boolean));
       if (comEmpresa && valoresEmpresa.size === 1) {
         avisos.push(
