@@ -100,10 +100,46 @@ export function calcularCamadas(
           for (const v of vistos) cache.set(v, null);
           return null;
         }
+        // ==================================================================
+        // ESTE `d` SUBIA QUANDO DEVIA DESCER
+        // ==================================================================
+        // `vistos` é preenchido de baixo para cima -- [pessoa, pai, avô...] --
+        // então o reverso é [avô, pai, pessoa]: de cima para baixo. Descendo,
+        // a profundidade AUMENTA. O laço fazia `d--`.
+        //
+        // O ramo logo abaixo (o do topo real) já fazia `d++`, e está certo. Só
+        // este, o do atalho pelo cache, ia ao contrário.
+        //
+        // O QUE ISSO PRODUZIU, medido em 02/09 sobre as 639 pessoas:
+        //
+        //   profundidade  0 ... 37 pessoas   camada N-2
+        //   profundidade -1 ... 31 pessoas   camada N-1
+        //   profundidade -2 ... 11 pessoas   camada N-0
+        //   profundidade -3 ...  2 pessoas   camada "N--1"
+        //   profundidade -4 ...  1 pessoa    camada "N--2"
+        //
+        // E os negativos eram só a ponta visivel. Recalculando a cadeia inteira
+        // no banco, 323 das 639 pessoas -- MAIS DA METADE -- estavam com a
+        // camada rasa demais, e todas na mesma direcao: 225 por dois degraus,
+        // 59 por quatro, 27 por seis, 11 por oito, 1 por dez.
+        //
+        // "Na mesma direcao" e o que torna isso um vazamento e nao um ruido:
+        // errar sempre para cima significa ver sempre mais gente do que devia.
+        //
+        // A âncora do topo é N-2. Quarenta e cinco pessoas ficaram com camada
+        // ACIMA do topo da empresa -- e duas com uma string que não é camada
+        // nenhuma, com dois hifens.
+        //
+        // Não é erro de exibição: `camada` decide até que degrau a pessoa
+        // enxerga remuneração na aba de Salários. Quanto mais alta a camada,
+        // mais gente ela vê. O erro só acontece no atalho pelo cache, então
+        // atinge quem está em cadeia longa -- justamente quem deveria ver
+        // menos.
+        //
+        // Nada quebrou, nada deu erro, e a camada continuou sendo gravada a
+        // cada sync. Só o número estava invertido.
         let d = doChefe + 1;
-        // `vistos` foi preenchido de baixo para cima; a volta atribui de cima
-        // para baixo, então percorre ao contrário.
-        for (const v of [...vistos].reverse()) { cache.set(v, d); d--; }
+        for (const v of [...vistos].reverse()) { cache.set(v, d); d++; }
         return cache.get(id) ?? null;
       }
 
