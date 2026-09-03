@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { reconstruirSerie, type LinhaMensal, type PessoaConvenia } from './pessoas';
-import { empresaDe, escritorioDe } from './custom-fields';
+import { empresaDe, escritorioDe, lerCustomFields } from './custom-fields';
 import { detectarColapso } from './colapso';
 import { marcaDeEmpresa, empresasNaoReconhecidas } from './marca';
 
@@ -40,6 +40,8 @@ type Db = SupabaseClient<any, 'public', any>;
 interface Minimo {
   id: string;
   hiring_date: string | null;
+  /** Centro de custo, da listagem. Coluna CC do report da Controladoria. */
+  cost_center?: string | null;
   department: { name: string | null } | null;
   status: string | null;
   supervisorId: string | null;
@@ -343,6 +345,8 @@ export async function executarSyncConvenia(
           return {
             id: String(b.id ?? ''),
             hiring_date: (b.hiring_date as string) ?? null,
+            // Ja vem na listagem, de graca. "GERALL" e o valor nao-migrado.
+            cost_center: typeof b.cost_center === 'string' ? b.cost_center : null,
             department: (b.department as { name: string | null }) ?? null,
             status: (b.status as string) ?? null,
             supervisorId: sup?.id ? String(sup.id) : null,
@@ -403,6 +407,7 @@ export async function executarSyncConvenia(
         const porId = new Map(pessoas.map((p) => [p.id, p]));
         const registros: PessoaConvenia[] = pessoas.map((p) => ({
           id: p.id, hiring_date: p.hiring_date, department: p.department, status: p.status,
+          cost_center: p.cost_center ?? null,
           supervisorId: p.supervisorId, salary: p.salary, birth_date: p.birth_date, uf: p.uf,
           genero: cacheGenero.get(p.id) ?? null,
           raca: cacheRaca.get(p.id) ?? null,
@@ -548,6 +553,19 @@ export async function executarSyncConvenia(
             cacheEmpresa.set(alvo.id, empresa);
             cacheEscritorio.set(alvo.id, escritorio);
             cargoBuscado.add(alvo.id);
+            // ------------------------------------------------------------
+            // O CADASTRO INTEIRO, E NAO TRES CAMPOS ESCOLHIDOS A DEDO
+            // ------------------------------------------------------------
+            // Esta requisicao ja aconteceu. Ate agora ela rendia genero, raca,
+            // cargo, empresa e escritorio, e o resto da resposta ia embora --
+            // e cada vez que alguem precisava de mais um campo era migracao
+            // nova, mexida na carga e 638 detalhes de novo. Aconteceu tres
+            // vezes seguidas, pelo mesmo motivo.
+            //
+            // O report da Controladoria pede dez campos personalizados. Em vez
+            // de criar dez colunas, guarda-se a lista como ela vem: campo novo
+            // que o RH criar amanha ja entra.
+            const personalizados = lerCustomFields(det2.custom_fields);
             generoBuscadosAgora++;
             await db.from('convenia_pessoas').upsert({
               convenia_id: alvo.id,
@@ -556,6 +574,13 @@ export async function executarSyncConvenia(
               job_title: cargo,
               empresa,
               escritorio,
+              custom_fields: personalizados,
+              // Estes tres vem da LISTAGEM, nao do detalhe -- sao de graca e
+              // chegam para todo mundo em toda carga. Ficam aqui so porque e
+              // aqui que a linha da pessoa e gravada.
+              cost_center: typeof alvo.cost_center === 'string' ? alvo.cost_center : null,
+              hiring_date: alvo.hiring_date || null,
+              status: alvo.status ?? null,
               // Marca a PERGUNTA. Com cargo nulo e esta data preenchida, a
               // ausencia passa a ser uma resposta do Convenia -- e so entao
               // alguem pode dizer "nao esta preenchido la".

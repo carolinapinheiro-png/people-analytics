@@ -53,6 +53,8 @@ export interface PessoaConvenia {
   id: string;
   /** ISO ou dd/mm/aaaa. Pode faltar. */
   hiring_date?: string | null;
+  /** Centro de custo, da listagem. Coluna CC do report da Controladoria. */
+  cost_center?: string | null;
   department?: { name?: string | null } | null;
   status?: string | null;
   /** Quem esta pessoa reporta. Usado para DERIVAR quem é gestor. */
