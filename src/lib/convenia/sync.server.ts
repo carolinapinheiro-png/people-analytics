@@ -251,7 +251,7 @@ export async function executarSyncConvenia(
     const LOTE_GENERO = 200;
     const { data: pessoasCache } = await db
       .from('convenia_pessoas')
-      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio');
+      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields');
     const cacheGenero = new Map<string, 'F' | 'M' | null>(
       ((pessoasCache ?? []) as { convenia_id: string; gender: string | null }[])
         .map((r) => [r.convenia_id, (r.gender as 'F' | 'M' | null) ?? null]),
@@ -306,6 +306,26 @@ export async function executarSyncConvenia(
     const cacheEscritorio = new Map<string, string | null>(
       ((pessoasCache ?? []) as { convenia_id: string; escritorio: string | null }[])
         .map((r) => [r.convenia_id, r.escritorio ?? null]),
+    );
+    // ------------------------------------------------------------------
+    // "JA LIDO" MUDA DE SIGNIFICADO A CADA CAMPO NOVO
+    // ------------------------------------------------------------------
+    // `job_title_em` marcava "li este cadastro com o codigo que le cargo". As
+    // 636 pessoas ganharam essa marca ontem -- e hoje o codigo passou a
+    // guardar `custom_fields`, `cost_center` e `hiring_date`, que nenhuma
+    // delas tem.
+    //
+    // Com o criterio antigo, ninguem seria relido: a carga acharia que ja
+    // perguntou, os campos novos ficariam nulos para sempre, e a unica pista
+    // seria o report da Controladoria saindo com metade das colunas vazias --
+    // que se leria como "o Convenia nao tem", pela terceira vez esta semana.
+    //
+    // `custom_fields is null` e a marca certa AGORA, porque e o campo mais
+    // novo. No dia em que entrar outro, o criterio muda de novo -- e vale a
+    // pena que mude, em vez de a carga mentir que ja perguntou.
+    const cadastroCompleto = new Set(
+      ((pessoasCache ?? []) as { convenia_id: string; custom_fields: unknown }[])
+        .filter((r) => r.custom_fields != null).map((r) => r.convenia_id),
     );
     const cargoBuscado = new Set(
       ((pessoasCache ?? []) as { convenia_id: string; job_title_em: string | null }[])
@@ -527,7 +547,7 @@ export async function executarSyncConvenia(
         // releituras uma unica vez, em lotes de 200 -- tres ou quatro execucoes
         // e converge, e depois volta a ser ~0 por carga.
         const semGenero = registros.filter(
-          (x) => !cacheGenero.has(x.id) || !cargoBuscado.has(x.id),
+          (x) => !cacheGenero.has(x.id) || !cargoBuscado.has(x.id) || !cadastroCompleto.has(x.id),
         );
         for (const alvo of semGenero) {
           if (generoBuscadosAgora >= LOTE_GENERO) break;
@@ -553,6 +573,7 @@ export async function executarSyncConvenia(
             cacheEmpresa.set(alvo.id, empresa);
             cacheEscritorio.set(alvo.id, escritorio);
             cargoBuscado.add(alvo.id);
+            cadastroCompleto.add(alvo.id);
             // ------------------------------------------------------------
             // O CADASTRO INTEIRO, E NAO TRES CAMPOS ESCOLHIDOS A DEDO
             // ------------------------------------------------------------
