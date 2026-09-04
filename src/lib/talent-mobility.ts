@@ -94,6 +94,31 @@ export const chave = (s: string): string =>
   s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase().replace(/[^a-z0-9]/g, '');
 
+/** Palavras da chave, sem os pedaços curtos demais para significar algo. */
+export const palavras = (s: string): string[] =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().split(/[^a-z0-9]+/).filter((p) => p.length > 1);
+
+/**
+ * Quanto o nome do campo cobre o nome da coluna, dos dois lados.
+ *
+ * Contido-em era permissivo demais: `Level` está contido em `Supervisory Org
+ * Level 2`, em `Cost centre Hierarchy Level 5` e em mais dez, e a primeira
+ * execução real entregou doze colunas a um campo só -- todas com `L0 | L5 |
+ * L3`, que é Compensation Grade e nada mais. A coluna certa ficou órfã porque
+ * o campo dela já tinha sido gasto.
+ *
+ * Fração de palavras em comum, pelo pior dos dois lados: `Level` cobre 1 de 4
+ * palavras de `Supervisory Org Level 2` e não passa; `salary` cobre 1 de 2 de
+ * `Basic Salary` e passa, marcado para conferência.
+ */
+export function forcaDoCasamento(coluna: string, campo: string): number {
+  const a = palavras(coluna), b = palavras(campo);
+  if (!a.length || !b.length) return 0;
+  const comuns = a.filter((p) => b.includes(p)).length;
+  return Math.min(comuns / a.length, comuns / b.length);
+}
+
 /**
  * Casa as 51 colunas com os campos vistos no cadastro.
  *
@@ -101,27 +126,45 @@ export const chave = (s: string): string =>
  * `Career Band` casaria por pedaço com `Career Band Level` só porque este veio
  * antes na lista, e a coluna certa ficaria órfã. A ordem de `custom_fields`
  * não é contrato.
+ *
+ * E um campo vale por UMA coluna. Sem isso, o melhor palpite vira o palpite de
+ * todo mundo.
  */
 export function casarCampos(campos: readonly CampoVisto[]): Casamento[] {
   const usados = new Set<string>();
   const porChave = new Map<string, CampoVisto>();
   for (const c of campos) if (!porChave.has(chave(c.nome))) porChave.set(chave(c.nome), c);
 
-  const exatas = new Map<string, CampoVisto>();
+  const escolhido = new Map<string, { campo: CampoVisto; forca: 'exata' | 'parcial' }>();
   for (const col of COLUNAS_TALENT) {
     if (JA_TEMOS[col]) continue;
     const achado = porChave.get(chave(col));
-    if (achado) { exatas.set(col, achado); usados.add(achado.nome); }
+    if (achado && !usados.has(achado.nome)) {
+      escolhido.set(col, { campo: achado, forca: 'exata' });
+      usados.add(achado.nome);
+    }
   }
+
+  // Os parciais entram pelo melhor primeiro, e nao na ordem das colunas: se
+  // `salary` serve a duas, vai para aquela em que cobre mais.
+  const candidatos = COLUNAS_TALENT
+    .filter((col) => !JA_TEMOS[col] && !escolhido.has(col))
+    .flatMap((coluna) => campos.map((campo) => ({
+      coluna: coluna as string, campo, forca: forcaDoCasamento(coluna, campo.nome),
+    })))
+    .filter((c) => c.forca >= 0.5)
+    .sort((a, b) => b.forca - a.forca);
+
+  for (const c of candidatos) {
+    if (escolhido.has(c.coluna) || usados.has(c.campo.nome)) continue;
+    escolhido.set(c.coluna, { campo: c.campo, forca: 'parcial' });
+    usados.add(c.campo.nome);
+  }
+
   return COLUNAS_TALENT.map((coluna) => {
     if (JA_TEMOS[coluna]) return { coluna, jaTemos: JA_TEMOS[coluna] };
-    const exata = exatas.get(coluna);
-    if (exata) return { coluna, campo: exata, forca: 'exata' as const };
-    const k = chave(coluna);
-    const parcial = campos.find(
-      (c) => !usados.has(c.nome) && (chave(c.nome).includes(k) || k.includes(chave(c.nome))),
-    );
-    return parcial ? { coluna, campo: parcial, forca: 'parcial' as const } : { coluna };
+    const e = escolhido.get(coluna);
+    return e ? { coluna, campo: e.campo, forca: e.forca } : { coluna };
   });
 }
 

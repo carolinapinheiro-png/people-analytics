@@ -72,33 +72,35 @@ export const mapearCamposTalent = createServerFn({ method: 'POST' })
         linha.amostra = amostra.length;
 
         const vistos = new Map<string, { origem: CampoVisto['origem']; n: number; vals: Set<string> }>();
+        // Uma pessoa conta UMA vez por campo. O mesmo nome aparece na listagem
+        // e no detalhe, e somar os dois laços imprimiu "name 16/8" -- numerador
+        // maior que denominador, que além de errado faz duvidar do resto do
+        // quadro. É o mesmo erro que a sonda de escritório já tinha cometido.
+        const contadaNestaPessoa = new Set<string>();
         const anotar = (nome: string, origem: CampoVisto['origem'], texto: string | null) => {
           const atual = vistos.get(nome) ?? { origem, n: 0, vals: new Set<string>() };
-          if (texto) {
+          if (texto && !contadaNestaPessoa.has(nome)) {
+            contadaNestaPessoa.add(nome);
             atual.n++;
             if (!valorEhSensivel(nome) && atual.vals.size < 6) atual.vals.add(texto.slice(0, 40));
           }
           vistos.set(nome, atual);
         };
 
+        // Um laço só por pessoa, cobrindo listagem e detalhe juntos. Em dois
+        // laços separados o `contadaNestaPessoa` zeraria entre eles e o campo
+        // que aparece nos dois voltaria a contar duas vezes.
         for (const p of amostra) {
+          contadaNestaPessoa.clear();
           for (const [k, v] of Object.entries(p)) anotar(k, 'listagem', legivel(v));
-        }
 
-        for (const p of amostra) {
           const env = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(String(p.id)));
           const det = (env?.data ?? env) as Record<string, unknown>;
           for (const [k, v] of Object.entries(det)) {
             if (k === 'custom_fields') continue;
             anotar(k, 'detalhe', legivel(v));
           }
-          // Um campo pode vir repetido no mesmo cadastro. Contando ocorrências,
-          // a sonda de escritório imprimiu "Level 10/8" -- numerador maior que
-          // denominador, que além de errado faz duvidar do resto do quadro.
-          const nestaPessoa = new Set<string>();
           for (const c of lerCustomFields(det.custom_fields)) {
-            if (nestaPessoa.has(c.nome)) continue;
-            nestaPessoa.add(c.nome);
             anotar(c.nome, 'personalizado', c.valor || null);
           }
         }

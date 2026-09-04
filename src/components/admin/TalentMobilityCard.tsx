@@ -50,7 +50,18 @@ export function TalentMobilityCard() {
 
           {erro && <p className="mt-3 text-sm" style={{ color: COLORS.danger }}>{erro}</p>}
 
-          {dados?.map((d) => {
+          {/* Depois da unificação existe uma base só, e as outras fontes leem
+              zero. Imprimir "29 colunas sem fonte" cinco vezes não é notícia --
+              é ruído com cara de problema. */}
+          {dados && dados.filter((d) => d.amostra === 0 && !d.erro).length > 0 && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              Sem cadastro para ler:{' '}
+              {dados.filter((d) => d.amostra === 0 && !d.erro).map((d) => d.empresa).join(', ')}
+              {' '}— esperado desde a unificação.
+            </p>
+          )}
+
+          {dados?.filter((d) => d.amostra > 0 || d.erro).map((d) => {
             const orfas = d.mapa.filter((m) => !m.jaTemos && !m.campo);
             const parciais = d.mapa.filter((m) => m.forca === 'parcial');
             return (
@@ -91,12 +102,13 @@ export function TalentMobilityCard() {
                   </div>
                 )}
 
-                {/* Onde mora o que eu não previ. Se `FTE %` está no cadastro com
-                    outro nome, é aqui que ele aparece -- e não na lista de órfãs,
-                    que só sabe dizer que a coluna ficou vazia. */}
+                {/* Aberto por padrão. Na primeira execução real eu escondi esta
+                    lista atrás de um resumo, e ela tinha 68 campos -- os únicos
+                    lugares onde Job Family, Worker Type e FTE podem estar. O que
+                    resolve o problema não fica atrás de um clique. */}
                 {d.sobraram.length > 0 && (
-                  <details className="mt-2">
-                    <summary className="cursor-pointer text-muted-foreground">
+                  <details className="mt-2" open>
+                    <summary className="cursor-pointer font-medium">
                       {d.sobraram.length} campos do cadastro que nenhuma coluna reivindicou
                     </summary>
                     {d.sobraram.map((c) => (
