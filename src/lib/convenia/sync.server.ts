@@ -48,6 +48,14 @@ interface Minimo {
   salary: number | null;
   birth_date: string | null;
   uf: string | null;
+  /** Matrícula (000320, P000212). Employee ID do Talent Mobility. */
+  registration: string | null;
+  /** Nome social. Preferred Name do report. */
+  social_name: string | null;
+  /** O `Time`. Supervisory Organization e os sete níveis da escada. */
+  team: string | null;
+  /** Vínculo cru. Traduzido para CLT/PJ só na hora de gerar o report. */
+  relationship: string | null;
   /** Corporativo. Liga a conta do painel a esta pessoa no organograma. */
   email: string | null;
   /** Ponte com a folha de remuneracao, que nao tem e-mail. */
@@ -82,6 +90,29 @@ export interface ResumoSyncConvenia {
   serieTravada: string | null;
   requisicoes: number;
   avisos: string[];
+}
+
+/**
+ * Texto que veio da API, ou null. Trata "Não informado" como ausência.
+ *
+ * O Convenia escreve esse texto no lugar da célula vazia -- medido no export:
+ * `Career Band` parecia ter 63% de cobertura, e os 37% restantes não
+ * divergiam, estavam com o texto ocupando o lugar do branco. Guardar a string
+ * faria "Não informado" virar uma categoria em todo agrupamento.
+ */
+function textoDe(v: unknown): string | null {
+  if (typeof v === 'number') return String(v);
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s) return null;
+  const k = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return k === 'nao informado' || k === 'n/a' ? null : s;
+}
+
+/** O estado do endereço, que vem aninhado e às vezes ausente. */
+function ufDe(v: unknown): string | null {
+  const end = v as { state?: unknown } | null;
+  return textoDe(end?.state);
 }
 
 /**
@@ -403,6 +434,13 @@ export async function executarSyncConvenia(
             salary: normalizarSalario(sal),
             birth_date: (b.birth_date as string) ?? null,
             uf: end?.state?.trim() || null,
+            // Os quatro que faltavam para o Talent Mobility. Vêm na listagem,
+            // de graça, e antes eram descartados aqui na redução -- o `team`
+            // sozinho responde por oito colunas do report.
+            registration: textoDe(b.registration),
+            social_name: textoDe(b.social_name),
+            team: textoDe(b.team),
+            relationship: textoDe(b.relationship),
           };
         });
 
@@ -429,6 +467,8 @@ export async function executarSyncConvenia(
           id: p.id, hiring_date: p.hiring_date, department: p.department, status: p.status,
           cost_center: p.cost_center ?? null,
           supervisorId: p.supervisorId, salary: p.salary, birth_date: p.birth_date, uf: p.uf,
+          registration: p.registration, social_name: p.social_name,
+          team: p.team, relationship: p.relationship,
           genero: cacheGenero.get(p.id) ?? null,
           raca: cacheRaca.get(p.id) ?? null,
         }));
@@ -602,6 +642,28 @@ export async function executarSyncConvenia(
               cost_center: typeof alvo.cost_center === 'string' ? alvo.cost_center : null,
               hiring_date: alvo.hiring_date || null,
               status: alvo.status ?? null,
+              // ------------------------------------------------------------
+              // OS SETE DO TALENT MOBILITY
+              // ------------------------------------------------------------
+              // O mapa das 51 colunas foi medido contra as 654 pessoas de
+              // julho: 44 colunas já saíam do que estava guardado, e as sete
+              // que faltavam eram todas o mesmo caso -- a redução lia o campo
+              // e o jogava fora. `team` sozinho responde por oito colunas
+              // (Supervisory Organization e os sete níveis da escada).
+              registration: alvo.registration ?? null,
+              social_name: alvo.social_name ?? null,
+              team: alvo.team ?? null,
+              // Vínculo CRU. A tradução para CLT/PJ é do gerador: vínculo novo
+              // que o RH criar sai vazio lá, em vez de virar CLT em silêncio.
+              // O detalhe tem prioridade -- na listagem ele vem como código.
+              relationship: textoDe(det2.relationship) ?? alvo.relationship ?? null,
+              // Estado de RESIDÊNCIA, não do escritório. O detalhe primeiro
+              // porque na listagem o endereço vem vazio para parte das pessoas.
+              uf: ufDe(det2.address) ?? alvo.uf ?? null,
+              // Alargamento consciente: sem eles não há Basic Salary nem Date
+              // of Birth. `birth_month` continua sendo o que o dashboard usa.
+              salary: alvo.salary ?? null,
+              birth_date: alvo.birth_date || null,
               // Marca a PERGUNTA. Com cargo nulo e esta data preenchida, a
               // ausencia passa a ser uma resposta do Convenia -- e so entao
               // alguem pode dizer "nao esta preenchido la".

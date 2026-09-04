@@ -63,6 +63,14 @@ export interface PessoaConvenia {
   birth_date?: string | null;
   /** UF, de `address.state`. */
   uf?: string | null;
+  /** Matrícula (000320, P000212). Employee ID do Talent Mobility -- não o id. */
+  registration?: string | null;
+  /** Nome social. Preferred Name do report. */
+  social_name?: string | null;
+  /** O `Time`. Supervisory Organization e os sete níveis da escada. */
+  team?: string | null;
+  /** Vínculo cru, como o Convenia manda. A tradução CLT/PJ é do gerador. */
+  relationship?: string | null;
   /** 'F' | 'M' | null. Vem do cache, não da listagem. */
   genero?: 'F' | 'M' | null;
   /** Cor/raça, como o Convenia escreve ("Branca", "Parda"). Também do cache. */
