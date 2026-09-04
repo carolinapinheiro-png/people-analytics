@@ -282,7 +282,7 @@ export async function executarSyncConvenia(
     const LOTE_GENERO = 200;
     const { data: pessoasCache } = await db
       .from('convenia_pessoas')
-      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields');
+      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields, detalhe_em');
     const cacheGenero = new Map<string, 'F' | 'M' | null>(
       ((pessoasCache ?? []) as { convenia_id: string; gender: string | null }[])
         .map((r) => [r.convenia_id, (r.gender as 'F' | 'M' | null) ?? null]),
@@ -354,9 +354,15 @@ export async function executarSyncConvenia(
     // `custom_fields is null` e a marca certa AGORA, porque e o campo mais
     // novo. No dia em que entrar outro, o criterio muda de novo -- e vale a
     // pena que mude, em vez de a carga mentir que ja perguntou.
+    // A marca de "li o DETALHE com o código atual". Antes o critério era
+    // `custom_fields != null`, e ele envelheceu: quando a carga passou a
+    // precisar de `relationship` e `uf`, as 200 pessoas que já tinham
+    // custom_fields ficaram fora da fila para sempre, com os campos novos
+    // nascendo nulos. Uma marca sem significado de conteúdo quebra o ciclo --
+    // para reenfileirar todo mundo basta zerá-la.
     const cadastroCompleto = new Set(
-      ((pessoasCache ?? []) as { convenia_id: string; custom_fields: unknown }[])
-        .filter((r) => r.custom_fields != null).map((r) => r.convenia_id),
+      ((pessoasCache ?? []) as { convenia_id: string; detalhe_em: string | null }[])
+        .filter((r) => r.detalhe_em != null).map((r) => r.convenia_id),
     );
     const cargoBuscado = new Set(
       ((pessoasCache ?? []) as { convenia_id: string; job_title_em: string | null }[])
@@ -463,6 +469,38 @@ export async function executarSyncConvenia(
         }
 
         const porId = new Map(pessoas.map((p) => [p.id, p]));
+
+        // ------------------------------------------------------------------
+        // O QUE VEM NA LISTAGEM É GRAVADO PARA TODO MUNDO, TODA CARGA
+        // ------------------------------------------------------------------
+        // Estes campos chegam de graça, para as 806 pessoas, em toda execução.
+        // Estavam sendo gravados lá embaixo, dentro do laço que resolve gênero
+        // e cargo -- que é limitado a 200 por rodada e exclui quem já foi
+        // lido. Resultado da primeira execução depois da migração: sete
+        // colunas novas com ZERO linhas preenchidas, porque quase ninguém
+        // entrou na fila.
+        //
+        // Não há requisição a mais aqui: é a mesma listagem que já foi baixada
+        // no início. Só o detalhe é caro, e só `relationship` e `uf` dependem
+        // dele.
+        const daListagem = pessoas.map((p) => ({
+          convenia_id: p.id,
+          registration: p.registration,
+          social_name: p.social_name,
+          team: p.team,
+          salary: p.salary,
+          birth_date: p.birth_date || null,
+          birth_month: mesDe(p.birth_date ?? null),
+          hiring_date: p.hiring_date || null,
+          cost_center: p.cost_center ?? null,
+          status: p.status ?? null,
+        }));
+        for (let i = 0; i < daListagem.length; i += 500) {
+          const { error } = await db.from('convenia_pessoas')
+            .upsert(daListagem.slice(i, i + 500), { onConflict: 'convenia_id' });
+          if (error) avisos.push(`${f.empresa}: listagem não gravou -- ${error.message}`);
+        }
+
         const registros: PessoaConvenia[] = pessoas.map((p) => ({
           id: p.id, hiring_date: p.hiring_date, department: p.department, status: p.status,
           cost_center: p.cost_center ?? null,
@@ -668,6 +706,7 @@ export async function executarSyncConvenia(
               // ausencia passa a ser uma resposta do Convenia -- e so entao
               // alguem pode dizer "nao esta preenchido la".
               job_title_em: new Date().toISOString(),
+              detalhe_em: new Date().toISOString(),
               birth_month: mesDe(alvo.birth_date ?? null),
             }, { onConflict: 'convenia_id' });
           } catch {
