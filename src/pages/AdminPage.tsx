@@ -22,6 +22,7 @@ import QohCard from '@/components/admin/QohCard';
 import MigracoesCard from '@/components/admin/MigracoesCard';
 import PesquisaCard from '@/components/admin/PesquisaCard';
 import ControladoriaCard from '@/components/admin/ControladoriaCard';
+import TalentMobilityCard from '@/components/admin/TalentMobilityCard';
 
 interface UserPaginationState {
   items: AllowedEmail[];
@@ -257,6 +258,7 @@ export default function AdminPage() {
                     alimentam planilhas que não são nossas.
                   </p>
                   <ControladoriaCard />
+                  <TalentMobilityCard />
                 </TabsContent>
               </Tabs>
             </TabsContent>
