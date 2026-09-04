@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
 import { Link } from '@tanstack/react-router';
 import {
-  Shield, ScrollText, ArrowLeft, Users, Database, Building2, Plug, FileSpreadsheet,
+  Shield, ScrollText, ArrowLeft, Users, Database, Building2, Plug, FileSpreadsheet, KeyRound,
 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { getAllowedEmails, getAccessLogs, getDepartments } from '@/lib/access.functions';
@@ -16,7 +16,10 @@ import DepartmentsSection from '@/components/admin/DepartmentsSection';
 import UsersCsvCard from '@/components/admin/UsersCsvCard';
 import AuditSection, { type AccessLog } from '@/components/admin/AuditSection';
 import InhireSyncCard from '@/components/admin/InhireSyncCard';
-import ConveniaCard from '@/components/admin/ConveniaCard';
+import ConveniaSyncCard from '@/components/admin/convenia/ConveniaSyncCard';
+import ConveniaTokensCard from '@/components/admin/convenia/ConveniaTokensCard';
+import ConveniaSondaCard from '@/components/admin/convenia/ConveniaSondaCard';
+import ConveniaCruzamentoCard from '@/components/admin/convenia/ConveniaCruzamentoCard';
 import VinculoCamadaCard from '@/components/admin/VinculoCamadaCard';
 import QohCard from '@/components/admin/QohCard';
 import MigracoesCard from '@/components/admin/MigracoesCard';
@@ -232,17 +235,39 @@ export default function AdminPage() {
                     <Plug className="h-4 w-4" />
                     Integrações
                   </TabsTrigger>
+                  <TabsTrigger value="convenia" className="gap-2">
+                    <KeyRound className="h-4 w-4" />
+                    Convenia
+                  </TabsTrigger>
                   <TabsTrigger value="reports" className="gap-2">
                     <FileSpreadsheet className="h-4 w-4" />
                     Reports
                   </TabsTrigger>
                 </TabsList>
 
+                {/* ------------------------------------------------------------
+                    O CONVENIA TINHA CINCO ASSUNTOS NUM CARD SÓ
+                    ------------------------------------------------------------
+                    516 linhas empilhando diagnóstico de token, sonda de campos,
+                    cruzamento de listagens, veredito da série e a carga. Quem
+                    vinha rodar a carga do mês atravessava os outros quatro para
+                    achar o botão -- e clicou no errado mais de uma vez, porque
+                    "Mapear os campos" e "Simular sem gravar" ficavam a uma tela
+                    de distância e nenhum dos dois diz no nome o que grava.
+
+                    Aba própria, um card por utilidade, e a carga primeiro: é a
+                    única que se usa por rotina. */}
+                <TabsContent value="convenia" className="space-y-6 mt-0">
+                  <ConveniaSyncCard />
+                  <ConveniaTokensCard />
+                  <ConveniaSondaCard />
+                  <ConveniaCruzamentoCard />
+                </TabsContent>
+
                 <TabsContent value="integracoes" className="space-y-6 mt-0">
                   <InhireSyncCard />
-                  <ConveniaCard />
-                  {/* Logo apos o Convenia: e a sincronizacao dele que produz o
-                      organograma de onde a camada sai. */}
+                  {/* O Convenia tem aba própria: são cinco utilidades, e
+                      empilhá-las aqui é o que tornava esta tela confusa. */}
                   <VinculoCamadaCard />
                   <QohCard />
                   <PesquisaCard />
