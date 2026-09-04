@@ -54,6 +54,17 @@ export const JA_TEMOS: Partial<Record<(typeof COLUNAS_TALENT)[number], string>> 
   'Manager - Level 02': 'organograma, um nível acima',
   'Manager - Level 03': 'organograma, dois níveis acima',
   'Supervisory Organization': 'org_pessoas.department',
+  // Não são campo do Convenia: são o organograma andado para cima, o
+  // department de cada gestor da cadeia. Conferido contra o arquivo de agosto
+  // -- Alba: L2 Facilities (a área dela), L3 Procurament (da gestora), L4
+  // Finance (do gestor da gestora). A contagem começa em 2 na própria pessoa.
+  'Supervisory Org Level 2': 'organograma: department da própria pessoa',
+  'Supervisory Org Level 3': 'organograma: department do gestor',
+  'Supervisory Org Level 4': 'organograma: department, 2 níveis acima',
+  'Supervisory Org Level 5': 'organograma: department, 3 níveis acima',
+  'Supervisory Org Level 6': 'organograma: department, 4 níveis acima',
+  'Supervisory Org Level 7': 'organograma: department, 5 níveis acima',
+  'Supervisory Org Level 8': 'organograma: department, 6 níveis acima',
   'Job Title': 'convenia_pessoas.job_title',
   'Email - Primary Work': 'org_pessoas.email',
   'Hire Date': 'convenia_pessoas.hiring_date',
@@ -66,6 +77,15 @@ export const JA_TEMOS: Partial<Record<(typeof COLUNAS_TALENT)[number], string>> 
   'Company': 'convenia_pessoas.empresa',
   'Cost Center': 'convenia_pessoas.cost_center',
   'Cost Center - ID': 'o código entre parênteses do cost center',
+  // Mesma subida das Supervisory Org, outro atributo -- e a contagem começa em
+  // 1, não em 2. Alcides: CC L1 AI TECH (o dele), CC L2 PRODUCT ENGINEERING
+  // (do gestor). O arquivo de agosto traz `#N/A` onde o PROCV não achou; aqui
+  // sai vazio, que é visível.
+  'Cost centre Hierarchy Level 1': 'organograma: cost center da própria pessoa',
+  'Cost centre Hierarchy Level 2': 'organograma: cost center do gestor',
+  'Cost centre Hierarchy Level 3': 'organograma: cost center, 2 níveis acima',
+  'Cost Centre Hierarchy Level 4': 'organograma: cost center, 3 níveis acima',
+  'Cost Centre Hierarchy Level 5': 'organograma: cost center, 4 níveis acima',
   'Line Manager Email': 'e-mail do gestor, pelo organograma',
   'Leaver Date (exit the organisation)': 'convenia_leavers.dismissal_month',
   'Leaver Reason': 'convenia_leavers.dismissal_type',
@@ -217,4 +237,58 @@ export function casarCampos(
 export function sobraram(campos: readonly CampoVisto[], mapa: readonly Casamento[]): CampoVisto[] {
   const usados = new Set(mapa.map((m) => m.campo?.nome).filter(Boolean));
   return campos.filter((c) => !usados.has(c.nome));
+}
+
+/**
+ * A cadeia de gestores acima de alguém, do mais próximo ao mais distante.
+ *
+ * Alimenta as sete Supervisory Org e as cinco Cost Centre Hierarchy do report
+ * do Sandeep -- que não são campo do Convenia nenhum, e sim o organograma
+ * andado para cima. Só muda o atributo que se lê de cada degrau: `department`
+ * numa família, `cost_center` na outra.
+ *
+ * PARA POR CICLO, E NÃO POR SORTE
+ *
+ * Organograma real tem gestor apontando para si mesmo e par de pessoas
+ * apontando uma para a outra -- vem de cadastro digitado. Sem a trava de
+ * visitados isto é um laço infinito num handler de servidor, e o sintoma seria
+ * a tela pendurada, não um erro. O limite de profundidade sozinho esconderia o
+ * ciclo repetindo a mesma pessoa em sete colunas.
+ *
+ * Devolve os IDs; quem chama decide o que ler de cada um.
+ */
+export function cadeiaAcima(
+  id: string,
+  supervisorDe: ReadonlyMap<string, string | null>,
+  maxNiveis: number,
+): string[] {
+  const cadeia: string[] = [];
+  const visitados = new Set<string>([id]);
+  let atual = id;
+  while (cadeia.length < maxNiveis) {
+    const chefe = supervisorDe.get(atual);
+    if (!chefe || visitados.has(chefe)) break;
+    visitados.add(chefe);
+    cadeia.push(chefe);
+    atual = chefe;
+  }
+  return cadeia;
+}
+
+/**
+ * O degrau `n` da hierarquia: 0 é a própria pessoa, 1 o gestor, e assim acima.
+ *
+ * Vazio quando a cadeia acaba antes. O arquivo de agosto traz `#N/A` e `0`
+ * nesses lugares, resíduo de PROCV que não achou -- vazio é melhor: some do
+ * pivô em vez de virar uma categoria chamada "#N/A".
+ */
+export function degrau(
+  id: string,
+  nivel: number,
+  supervisorDe: ReadonlyMap<string, string | null>,
+  atributoDe: (id: string) => string | null,
+): string {
+  if (nivel === 0) return atributoDe(id) ?? '';
+  const cadeia = cadeiaAcima(id, supervisorDe, nivel);
+  return cadeia.length < nivel ? '' : (atributoDe(cadeia[nivel - 1]) ?? '');
 }

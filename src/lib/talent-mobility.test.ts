@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { casarCampos, sobraram, chave, forcaDoCasamento, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
+import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
 
 const campo = (nome: string, preenchidos = 8): CampoVisto =>
   ({ nome, origem: 'personalizado', preenchidos, valores: [] });
@@ -123,4 +123,55 @@ test('palavra com conteudo ainda casa, mesmo acompanhada de generica', () => {
 test('chave normaliza espaco, simbolo e acento', () => {
   assert.equal(chave('FTE %'), 'fte');
   assert.equal(chave('Funcao'), 'funcao');
+});
+
+// A hierarquia da Alba, como esta no arquivo de agosto:
+// Alba -> Catarine -> Diego -> Ricardo
+const CHEFE = new Map<string, string | null>([
+  ['alba', 'catarine'], ['catarine', 'diego'], ['diego', 'ricardo'], ['ricardo', null],
+]);
+const AREA = new Map([
+  ['alba', 'Facilities'], ['catarine', 'Procurament'],
+  ['diego', 'Finance'], ['ricardo', 'DIRETORIA'],
+]);
+const area = (id: string) => AREA.get(id) ?? null;
+
+test('a subida bate com o arquivo de agosto', () => {
+  // SupOrg L2 = a propria pessoa, L3 = gestora, L4 = gestor da gestora.
+  assert.equal(degrau('alba', 0, CHEFE, area), 'Facilities');
+  assert.equal(degrau('alba', 1, CHEFE, area), 'Procurament');
+  assert.equal(degrau('alba', 2, CHEFE, area), 'Finance');
+  assert.equal(degrau('alba', 3, CHEFE, area), 'DIRETORIA');
+});
+
+test('acima do topo sai vazio, e nao #N/A', () => {
+  // O arquivo de agosto traz `#N/A` e `0` nesses lugares, residuo de PROCV.
+  // Vazio some do pivo; "#N/A" vira uma categoria.
+  assert.equal(degrau('alba', 4, CHEFE, area), '');
+  assert.equal(degrau('alba', 6, CHEFE, area), '');
+});
+
+test('gestor apontando para si mesmo nao vira laco infinito', () => {
+  const ciclo = new Map<string, string | null>([['a', 'a']]);
+  assert.deepEqual(cadeiaAcima('a', ciclo, 8), []);
+});
+
+test('dois gestores apontando um para o outro param', () => {
+  const ciclo = new Map<string, string | null>([['a', 'b'], ['b', 'a']]);
+  assert.deepEqual(cadeiaAcima('a', ciclo, 8), ['b']);
+});
+
+test('ciclo mais longe na cadeia tambem para', () => {
+  const ciclo = new Map<string, string | null>([['a', 'b'], ['b', 'c'], ['c', 'b']]);
+  assert.deepEqual(cadeiaAcima('a', ciclo, 8), ['b', 'c']);
+});
+
+test('respeita o limite de niveis', () => {
+  assert.equal(cadeiaAcima('alba', CHEFE, 2).length, 2);
+});
+
+test('pessoa sem gestor tem cadeia vazia', () => {
+  assert.deepEqual(cadeiaAcima('ricardo', CHEFE, 8), []);
+  assert.equal(degrau('ricardo', 0, CHEFE, area), 'DIRETORIA');
+  assert.equal(degrau('ricardo', 1, CHEFE, area), '');
 });
