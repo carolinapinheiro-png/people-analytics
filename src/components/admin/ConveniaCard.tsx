@@ -7,7 +7,6 @@ import {
   getConveniaDiagnostico, testarCruzamento, syncConvenia, sondarCamposDaPessoa,
   type ConveniaDiagnostico, type Cruzamento, type ResumoSyncConvenia, type SondaCampos,
 } from '@/lib/convenia.functions';
-import { baseControladoria } from '@/lib/controladoria.functions';
 
 /**
  * Estado da integração com o Convenia, empresa por empresa.
@@ -48,46 +47,6 @@ export function ConveniaCard() {
       setErroSonda(e instanceof Error ? e.message : String(e));
     } finally {
       setSondando(false);
-    }
-  };
-
-  // ------------------------------------------------------------------
-  // A BASE DO REPORT DA CONTROLADORIA
-  // ------------------------------------------------------------------
-  // Todo mês: exportar do Convenia, colar na aba `dados`, atualizar o pivô.
-  // Um script na minha mão resolveria agosto; um botão resolve setembro
-  // também, e sem mim.
-  const baixarBase = useServerFn(baseControladoria);
-  const [baixando, setBaixando] = useState(false);
-  const [resumoBase, setResumoBase] = useState<string | null>(null);
-
-  const gerarBase = async () => {
-    setBaixando(true); setResumoBase(null);
-    try {
-      // O mês ANTERIOR: a base de um mês só fecha depois que ele acaba. Rodar
-      // no dia 3 e pegar o mês corrente daria um mês pela metade com cara de
-      // mês inteiro.
-      const hoje = new Date();
-      const d = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
-      const r = await baixarBase({ data: { ano: d.getFullYear(), mes: d.getMonth() + 1 } });
-      const csv = [r.colunas, ...r.linhas]
-        .map((l) => l.map((c) => (/[",\n;]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(','))
-        .join('\n');
-      // BOM: sem ele o Excel abre "José" como "JosÃ©", e alguém corrige 600
-      // nomes à mão antes de descobrir por quê.
-      const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
-      const a = document.createElement('a');
-      a.href = url; a.download = `controladoria-${r.rotulo.replace(/[./]/g, '-')}.csv`;
-      a.click(); URL.revokeObjectURL(url);
-      setResumoBase(
-        `${r.rotulo}: ${r.linhas.length} pessoas.` +
-        (r.semEmpresa ? ` ${r.semEmpresa} sem Company — preencha com PROCV contra o mês anterior antes de mandar.` : ' Company completa.') +
-        (r.naoLidos ? ` ATENÇÃO: ${r.naoLidos} ainda não foram lidas pela carga e vão sair com as colunas de campo personalizado vazias — rode a sync antes.` : ''),
-      );
-    } catch (e) {
-      setResumoBase(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBaixando(false);
     }
   };
 
@@ -407,23 +366,6 @@ export function ConveniaCard() {
               {' '}(<code>convenia</code>), ao lado da congelada e da reconstruída — nada é
               sobrescrito. A comparação entre elas fica no card abaixo.
             </p>
-
-            <div className="mt-4 rounded-lg border border-border p-3">
-              <p className="text-sm font-medium">Base do report da Controladoria</p>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                As 17 colunas da aba <code>dados</code>, do MÊS PASSADO, na ordem em que ela está —
-                pronto para colar. A coluna <strong>Company</strong> sai vazia para quem ainda não
-                tem o campo <code>Empresa</code> no Convenia: vazio é visível, empresa errada não é,
-                e a planilha é cortada por empresa.
-              </p>
-              <Button onClick={gerarBase} disabled={baixando} className="mt-2" variant="outline" size="sm">
-                <RefreshCw className={`mr-2 h-4 w-4 ${baixando ? 'animate-spin' : ''}`} />
-                {baixando ? 'Montando…' : 'Baixar base do mês passado'}
-              </Button>
-              {resumoBase && (
-                <p className="mt-2 text-xs leading-relaxed">{resumoBase}</p>
-              )}
-            </div>
 
             <div className="mt-3 flex gap-2">
               <Button onClick={() => rodarSync(false)} disabled={sincronizando} variant="outline" size="sm">

@@ -3,7 +3,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
 import { Link } from '@tanstack/react-router';
-import { Shield, ScrollText, ArrowLeft, Users, Database, Building2 } from 'lucide-react';
+import {
+  Shield, ScrollText, ArrowLeft, Users, Database, Building2, Plug, FileSpreadsheet,
+} from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { getAllowedEmails, getAccessLogs, getDepartments } from '@/lib/access.functions';
 import UsersAccessSection, {
@@ -19,6 +21,7 @@ import VinculoCamadaCard from '@/components/admin/VinculoCamadaCard';
 import QohCard from '@/components/admin/QohCard';
 import MigracoesCard from '@/components/admin/MigracoesCard';
 import PesquisaCard from '@/components/admin/PesquisaCard';
+import ControladoriaCard from '@/components/admin/ControladoriaCard';
 
 interface UserPaginationState {
   items: AllowedEmail[];
@@ -209,18 +212,53 @@ export default function AdminPage() {
             <AuditSection logs={logs} />
           </TabsContent>
 
+          {/* ------------------------------------------------------------
+              REPORT NAO E INTEGRACAO
+              ------------------------------------------------------------
+              A aba empilhava seis cards de sync, e a base da Controladoria
+              estava enterrada dentro do Convenia -- para baixar a planilha
+              do mes era preciso atravessar diagnostico de token, sonda de
+              campo e cruzamento de listagem.
+
+              Sao duas perguntas diferentes: "a integracao esta de pe?" e
+              "cade a base que eu mando para a Controladoria?". Cada uma na
+              sua sub-aba. */}
           {isAdmin && (
-            <TabsContent value="data" className="space-y-6 mt-0">
-              <InhireSyncCard />
-              <ConveniaCard />
-              {/* Logo apos o Convenia: e a sincronizacao dele que produz o
-                  organograma de onde a camada sai. */}
-              <VinculoCamadaCard />
-              <QohCard />
-              <PesquisaCard />
-              {/* Por ultimo porque nao e rotina: e a pergunta que se faz
-                  quando algo parece quebrado sem motivo. */}
-              <MigracoesCard />
+            <TabsContent value="data" className="mt-0">
+              <Tabs defaultValue="integracoes" className="space-y-6">
+                <TabsList className="h-auto flex-wrap">
+                  <TabsTrigger value="integracoes" className="gap-2">
+                    <Plug className="h-4 w-4" />
+                    Integrações
+                  </TabsTrigger>
+                  <TabsTrigger value="reports" className="gap-2">
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Reports
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="integracoes" className="space-y-6 mt-0">
+                  <InhireSyncCard />
+                  <ConveniaCard />
+                  {/* Logo apos o Convenia: e a sincronizacao dele que produz o
+                      organograma de onde a camada sai. */}
+                  <VinculoCamadaCard />
+                  <QohCard />
+                  <PesquisaCard />
+                  {/* Por ultimo porque nao e rotina: e a pergunta que se faz
+                      quando algo parece quebrado sem motivo. */}
+                  <MigracoesCard />
+                </TabsContent>
+
+                <TabsContent value="reports" className="space-y-6 mt-0">
+                  <p className="text-sm text-muted-foreground">
+                    As bases que saem daqui para outras áreas — prontas para colar, no formato
+                    que quem recebe já usa. O dashboard responde perguntas; estes arquivos
+                    alimentam planilhas que não são nossas.
+                  </p>
+                  <ControladoriaCard />
+                </TabsContent>
+              </Tabs>
             </TabsContent>
           )}
         </Tabs>
