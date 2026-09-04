@@ -112,6 +112,20 @@ export const palavras = (s: string): string[] =>
     .toLowerCase().split(/[^a-z0-9]+/).filter((p) => p.length > 1);
 
 /**
+ * Palavras que sozinhas não significam nada.
+ *
+ * `Preferred Name` e `father_name` compartilham "name", e a primeira execução
+ * real ofereceu o nome do PAI como nome preferido. `Leave Type` e
+ * `salary_type` compartilham "type". Meia dúzia de palavras de ligação casa
+ * com tudo, e um palpite ruim custa mais do que nenhum: ele ocupa o lugar,
+ * gasta o campo e ainda parece resposta.
+ */
+const PALAVRAS_VAGAS = new Set([
+  'name', 'type', 'date', 'id', 'level', 'number', 'code', 'group',
+  'total', 'of', 'the', 'primary', 'work', 'address',
+]);
+
+/**
  * Quanto o nome do campo cobre o nome da coluna, dos dois lados.
  *
  * Contido-em era permissivo demais: `Level` está contido em `Supervisory Org
@@ -123,12 +137,16 @@ export const palavras = (s: string): string[] =>
  * Fração de palavras em comum, pelo pior dos dois lados: `Level` cobre 1 de 4
  * palavras de `Supervisory Org Level 2` e não passa; `salary` cobre 1 de 2 de
  * `Basic Salary` e passa, marcado para conferência.
+ *
+ * E o que sobra tem de ser palavra com conteúdo: `Date of Birth` casa com
+ * `birth_date` porque divide "birth", não porque divide "date".
  */
 export function forcaDoCasamento(coluna: string, campo: string): number {
   const a = palavras(coluna), b = palavras(campo);
   if (!a.length || !b.length) return 0;
-  const comuns = a.filter((p) => b.includes(p)).length;
-  return Math.min(comuns / a.length, comuns / b.length);
+  const comuns = a.filter((p) => b.includes(p));
+  if (!comuns.some((p) => !PALAVRAS_VAGAS.has(p))) return 0;
+  return Math.min(comuns.length / a.length, comuns.length / b.length);
 }
 
 /**

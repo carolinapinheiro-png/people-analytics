@@ -86,7 +86,7 @@ export function TalentMobilityCard() {
           {dados?.filter((d) => d.amostra > 0 || d.erro).map((d) => {
             const orfas = d.mapa.filter((m) => !m.jaTemos && !m.campo);
             return (
-              <div key={d.empresa} className="mt-4 rounded-lg border border-border/60 p-3 text-xs">
+              <div key={d.empresa} className="mt-4 min-w-0 overflow-hidden rounded-lg border border-border/60 p-3 text-xs">
                 <p className="text-sm font-medium">
                   {d.empresa}
                   <span className="font-normal text-muted-foreground">
@@ -112,8 +112,12 @@ export function TalentMobilityCard() {
                   <div key={m.coluna} className="mt-1 border-b border-border/40 py-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{m.coluna}</span>
+                      {/* `max-w-full` e `min-w-0`: sem os dois, uma option com
+                          seis valores de exemplo estica o select, o select
+                          estica a linha e o card inteiro vaza para fora da
+                          tela -- levando junto o resto da aba. */}
                       <select
-                        className="rounded border border-border bg-background px-1 py-0.5 font-mono"
+                        className="min-w-0 max-w-full flex-1 truncate rounded border border-border bg-background px-1 py-0.5 font-mono"
                         disabled={salvando === m.coluna}
                         value={m.forca === 'escolhida' ? m.campo!.nome : ''}
                         onChange={(e) => escolher(m.coluna, d.campos, e.target.value)}
@@ -124,7 +128,7 @@ export function TalentMobilityCard() {
                         {d.campos.map((c) => (
                           <option key={c.nome} value={c.nome}>
                             {c.nome} · {c.preenchidos}/{d.amostra}
-                            {c.valores.length ? ` · ${c.valores.slice(0, 3).join(' | ')}` : ''}
+                            {c.valores.length ? ` · ${c.valores.slice(0, 2).join(' | ').slice(0, 60)}` : ''}
                           </option>
                         ))}
                       </select>

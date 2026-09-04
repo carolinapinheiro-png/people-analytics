@@ -104,6 +104,22 @@ test('escolha para campo que sumiu do cadastro nao quebra', () => {
   assert.equal(m.length, COLUNAS_TALENT.length);
 });
 
+test('palavra generica sozinha nao vale palpite', () => {
+  // A primeira execucao real ofereceu `father_name` para `Preferred Name` --
+  // o nome do PAI como nome preferido -- e `salary_type` para `Leave Type`.
+  // Uma palavra de ligacao casa com tudo.
+  assert.equal(forcaDoCasamento('Preferred Name', 'father_name'), 0);
+  assert.equal(forcaDoCasamento('Leave Type', 'salary_type'), 0);
+  assert.equal(casarCampos([campo('father_name')])
+    .find((x) => x.coluna === 'Preferred Name')?.campo, undefined);
+});
+
+test('palavra com conteudo ainda casa, mesmo acompanhada de generica', () => {
+  // `Date of Birth` x `birth_date` divide "date" (vaga) e "birth" (nao).
+  assert.ok(forcaDoCasamento('Date of Birth', 'birth_date') >= 0.5);
+  assert.ok(forcaDoCasamento('Basic Salary', 'salary') >= 0.5);
+});
+
 test('chave normaliza espaco, simbolo e acento', () => {
   assert.equal(chave('FTE %'), 'fte');
   assert.equal(chave('Funcao'), 'funcao');
