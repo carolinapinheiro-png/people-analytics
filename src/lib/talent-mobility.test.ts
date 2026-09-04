@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
+import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, blocosDe30Dias, tempoDeCasa, tempoDeCasaTexto, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
 
 const campo = (nome: string, preenchidos = 8): CampoVisto =>
   ({ nome, origem: 'personalizado', preenchidos, valores: [] });
@@ -174,4 +174,46 @@ test('pessoa sem gestor tem cadeia vazia', () => {
   assert.deepEqual(cadeiaAcima('ricardo', CHEFE, 8), []);
   assert.equal(degrau('ricardo', 0, CHEFE, area), 'DIRETORIA');
   assert.equal(degrau('ricardo', 1, CHEFE, area), '');
+});
+
+// Linhas reais do arquivo de agosto, medidas contra 2026-08-31. A regra de
+// blocos de 30 bate em 641 de 641; mes de calendario bate em 373.
+test('Length of Service reproduz o arquivo de agosto', () => {
+  assert.equal(blocosDe30Dias('2026-03-16', '2026-08-31'), 5);
+  assert.equal(blocosDe30Dias('2025-11-17', '2026-08-31'), 9);
+  assert.equal(blocosDe30Dias('2026-02-09', '2026-08-31'), 6);
+  assert.equal(blocosDe30Dias('2026-06-15', '2026-08-31'), 2);
+  assert.equal(blocosDe30Dias('2025-09-08', '2026-08-31'), 11);
+});
+
+test('a Alba da 15, e nao os 14 do calendario', () => {
+  // 02/06/2025 a 31/08/2026 sao 455 dias: 15 blocos de 30, 14 meses de
+  // calendario. O arquivo diz 15 -- e a planilha e que manda.
+  assert.equal(blocosDe30Dias('2025-06-02', '2026-08-31'), 15);
+});
+
+test('admissao no futuro e data invalida nao viram numero negativo', () => {
+  assert.equal(blocosDe30Dias('2026-12-01', '2026-08-31'), null);
+  assert.equal(blocosDe30Dias(null, '2026-08-31'), null);
+  assert.equal(blocosDe30Dias('nao e data', '2026-08-31'), null);
+});
+
+test('tempoDeCasa conta calendario de verdade', () => {
+  assert.deepEqual(tempoDeCasa('2024-01-10', '2026-01-10'), { anos: 2, meses: 0, dias: 0 });
+  assert.deepEqual(tempoDeCasa('2025-06-02', '2026-08-31'), { anos: 1, meses: 2, dias: 29 });
+});
+
+test('dia negativo pega os dias do mes anterior ao de referencia', () => {
+  // Admitido em 31/01, medido em 01/03: 29 dias em ano bissexto, 28 no comum.
+  assert.deepEqual(tempoDeCasa('2024-01-31', '2024-03-01'), { anos: 0, meses: 1, dias: 1 });
+  assert.deepEqual(tempoDeCasa('2023-12-31', '2024-03-01'), { anos: 0, meses: 2, dias: 1 });
+});
+
+test('virada de ano nao produz mes negativo', () => {
+  assert.deepEqual(tempoDeCasa('2025-11-20', '2026-02-10'), { anos: 0, meses: 2, dias: 21 });
+});
+
+test('tempoDeCasaTexto sai vazio quando nao da para calcular', () => {
+  assert.equal(tempoDeCasaTexto(null, '2026-08-31'), '');
+  assert.equal(tempoDeCasaTexto('2024-01-10', '2026-01-10'), '2a 0m 0d');
 });

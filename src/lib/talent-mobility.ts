@@ -71,7 +71,8 @@ export const JA_TEMOS: Partial<Record<(typeof COLUNAS_TALENT)[number], string>> 
   'Original Hire Date': 'convenia_pessoas.hiring_date',
   'Employee Type': 'convenia_pessoas.status',
   'End Employment Date': 'convenia_leavers.dismissal_month',
-  'Length of Service': 'meses desde a admissão',
+  'Length of Service': 'blocos de 30 dias desde a admissão, como o arquivo faz',
+  'Continuous Service Date': 'anos, meses e dias desde a admissão',
   'Is Manager': 'tem subordinado no organograma',
   'Location': 'convenia_pessoas.escritorio',
   'Company': 'convenia_pessoas.empresa',
@@ -291,4 +292,88 @@ export function degrau(
   if (nivel === 0) return atributoDe(id) ?? '';
   const cadeia = cadeiaAcima(id, supervisorDe, nivel);
   return cadeia.length < nivel ? '' : (atributoDe(cadeia[nivel - 1]) ?? '');
+}
+
+/**
+ * TEMPO DE CASA: DUAS CONTAS DIFERENTES, DE PROPÓSITO
+ *
+ * `Length of Service` e `Continuous Service Date` medem a mesma coisa e não
+ * são calculados igual. Manter as duas contas é intencional -- ver abaixo.
+ */
+
+/**
+ * `Length of Service`, como o arquivo de agosto faz: blocos de 30 dias.
+ *
+ * NÃO é mês de calendário. Reproduzir a planilha exigiu descobrir isto:
+ * `floor(dias / 30)` contra o último dia do mês bate em 641 de 641 linhas;
+ * mês de calendário bate em 373. A Alba, admitida em 02/06/2025, aparece com
+ * 15 e não 14 -- são 455 dias, 15 blocos de 30.
+ *
+ * A conta drifta: seis anos dão 73 em vez de 72, porque doze blocos de 30 são
+ * 360 dias e não um ano. Fica assim mesmo. O número já foi submetido ao grupo
+ * todo mês, e mudar a régua agora criaria um degrau na série do Sandeep sem
+ * ninguém ter pedido -- um problema pior do que o drift, e mais difícil de
+ * explicar. Se for para corrigir, que seja uma decisão dele, com data.
+ */
+export function blocosDe30Dias(hiring_date: string | null, refISO: string): number | null {
+  const ini = /^(\d{4})-(\d{2})-(\d{2})/.exec((hiring_date ?? '').trim());
+  const fim = /^(\d{4})-(\d{2})-(\d{2})/.exec(refISO.trim());
+  if (!ini || !fim) return null;
+  const a = Date.UTC(+ini[1], +ini[2] - 1, +ini[3]);
+  const b = Date.UTC(+fim[1], +fim[2] - 1, +fim[3]);
+  if (b < a) return null;
+  return Math.floor((b - a) / 86400000 / 30);
+}
+
+/**
+ * `Continuous Service Date`: anos, meses e dias de calendário desde a admissão.
+ *
+ * Vem vazia nas 641 linhas de agosto, então não há formato anterior a
+ * respeitar e nada que eu possa conferir contra. O formato abaixo é escolha
+ * minha, e está num lugar só de propósito: se o Sandeep quiser "1y 2m 15d" ou
+ * uma data, muda aqui.
+ *
+ * Calendário de verdade, e não blocos de 30: aqui o número é lido por pessoa
+ * ("dois anos e três meses"), e alguém que entrou em 10/01/2024 espera ver
+ * dois anos exatos em 10/01/2026. É o oposto do Length of Service, que é
+ * agregado e tem uma série histórica para não quebrar.
+ */
+export function tempoDeCasa(
+  hiring_date: string | null,
+  refISO: string,
+): { anos: number; meses: number; dias: number } | null {
+  const ini = /^(\d{4})-(\d{2})-(\d{2})/.exec((hiring_date ?? '').trim());
+  const fim = /^(\d{4})-(\d{2})-(\d{2})/.exec(refISO.trim());
+  if (!ini || !fim) return null;
+
+  const a = { y: +ini[1], m: +ini[2], d: +ini[3] };
+  const alvo = Date.UTC(+fim[1], +fim[2] - 1, +fim[3]);
+  if (Date.UTC(a.y, a.m - 1, a.d) > alvo) return null;
+
+  /**
+   * Somar meses truncando no fim do mês: 31/01 + 1 mês é 29/02, não 02/03.
+   *
+   * A primeira versão subtraía campo a campo e emprestava os dias do mês
+   * anterior quando o dia ficava negativo. Não fecha: de 31/01 a 01/03 o dia
+   * dá -30, e somar os 29 de fevereiro ainda deixa -1. Emprestar duas vezes
+   * seria remendo; contar quantos meses inteiros cabem é a definição.
+   */
+  const somarMeses = (n: number): number => {
+    const total = (a.m - 1) + n;
+    const y = a.y + Math.floor(total / 12);
+    const m = ((total % 12) + 12) % 12;
+    const ultimoDia = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+    return Date.UTC(y, m, Math.min(a.d, ultimoDia));
+  };
+
+  let meses = 0;
+  while (somarMeses(meses + 1) <= alvo) meses++;
+  const dias = Math.round((alvo - somarMeses(meses)) / 86400000);
+  return { anos: Math.floor(meses / 12), meses: meses % 12, dias };
+}
+
+/** "1a 2m 15d". Vazio quando não dá para calcular -- vazio é visível. */
+export function tempoDeCasaTexto(hiring_date: string | null, refISO: string): string {
+  const t = tempoDeCasa(hiring_date, refISO);
+  return t ? `${t.anos}a ${t.meses}m ${t.dias}d` : '';
 }
