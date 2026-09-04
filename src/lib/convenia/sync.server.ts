@@ -841,13 +841,32 @@ export async function executarSyncConvenia(
       // numero -- nao a cobertura bruta de `Empresa` -- que diz o quanto a
       // serie ja depende da fonte nova.
       const comMarcaDoCadastro = lidos.filter((p) => marcaDeEmpresa(cacheEmpresa.get(p.id))).length;
+      // ------------------------------------------------------------------
+      // O AVISO CONTA O QUE VÊ, EM VEZ DE REPETIR O QUE ERA VERDADE
+      // ------------------------------------------------------------------
+      // Esta frase dizia, fixa: "enquanto Betfair BR e Flutter International
+      // nao aparecerem no campo Empresa de ninguem, a trava continua
+      // recusando a serie". Era verdade em 02/09, quando nenhum dos 389
+      // cadastros lidos mencionava as duas.
+      //
+      // A migração andou. Hoje o campo traz Betfair em 34 pessoas e Flutter
+      // International em 20 -- e o aviso continuava afirmando o contrário em
+      // todo resumo, mandando procurar um problema que já tinha sido
+      // resolvido. Um instrumento que repete a fotografia antiga é pior do
+      // que nenhum: ele tem a autoridade de um número sem ter a atualidade.
+      const porMarcaDoCadastro = new Map<string, number>();
+      for (const p of lidos) {
+        const m = marcaDeEmpresa(cacheEmpresa.get(p.id));
+        if (m) porMarcaDoCadastro.set(m, (porMarcaDoCadastro.get(m) ?? 0) + 1);
+      }
+      const encontradas = [...porMarcaDoCadastro].map(([m, n]) => `${m} (${n})`).join(', ');
       avisos.push(
         `Marca pelo cadastro: ${comMarcaDoCadastro} de ${lidos.length} pessoas ` +
         `(${Math.round((comMarcaDoCadastro / lidos.length) * 100)}%). As demais caem na marca do ` +
-        'token, que e o comportamento anterior. Enquanto Betfair BR e Flutter International nao ' +
-        'aparecerem no campo `Empresa` de ninguem, a trava continua recusando a serie: elas ' +
-        'existem no historico e a carga nao consegue reproduzi-las.',
+        `token, que e o comportamento anterior. Marcas ja identificaveis pelo campo Empresa: ` +
+        `${encontradas || 'nenhuma ainda'}.`,
       );
+
 
       const valoresEmpresa = new Set(lidos.map((p) => cacheEmpresa.get(p.id)).filter(Boolean));
       if (comEmpresa && valoresEmpresa.size === 1) {
