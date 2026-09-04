@@ -93,29 +93,6 @@ export interface ResumoSyncConvenia {
 }
 
 /**
- * Texto que veio da API, ou null. Trata "Não informado" como ausência.
- *
- * O Convenia escreve esse texto no lugar da célula vazia -- medido no export:
- * `Career Band` parecia ter 63% de cobertura, e os 37% restantes não
- * divergiam, estavam com o texto ocupando o lugar do branco. Guardar a string
- * faria "Não informado" virar uma categoria em todo agrupamento.
- */
-function textoDe(v: unknown): string | null {
-  if (typeof v === 'number') return String(v);
-  if (typeof v !== 'string') return null;
-  const s = v.trim();
-  if (!s) return null;
-  const k = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  return k === 'nao informado' || k === 'n/a' ? null : s;
-}
-
-/** O estado do endereço, que vem aninhado e às vezes ausente. */
-function ufDe(v: unknown): string | null {
-  const end = v as { state?: unknown } | null;
-  return textoDe(end?.state);
-}
-
-/**
  * O Convenia devolve salário ora como número, ora como string no formato
  * brasileiro ("3.218,00"). `Number("3.218,00")` é `NaN`, e um NaN entrando na
  * média a transformaria em NaN inteira -- um campo que some do gráfico sem dar
@@ -253,7 +230,7 @@ export async function executarSyncConvenia(
     const { fontesConfiguradas } = await import('./fontes');
     const { ConveniaClient } = await import('./client.server');
     const { EMPLOYEES, EMPLOYEES_DISMISSED, EMPLOYEE_DETAIL } = await import('./paths');
-    const { mesDe, ehVoluntaria, normalizarGenero } = await import('./pessoas');
+    const { mesDe, ehVoluntaria, normalizarGenero, textoDe, ufDe } = await import('./pessoas');
 
     // O cache do que já foi resolvido. Uma pessoa desligada não muda de data
     // de admissão nem de área, então buscar de novo seria expor cadastro

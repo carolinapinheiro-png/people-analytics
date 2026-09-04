@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  mesDe, mesesEntre, ehVoluntaria, areaDe, reconstruirSerie,
+  mesDe, mesesEntre, ehVoluntaria, areaDe, reconstruirSerie, textoDe, ufDe,
   idsDeGestores, faixaTempoDeCasa, faixaEtaria, normalizarGenero, classificarSaida,
   type PessoaConvenia,
 } from './pessoas';
@@ -555,4 +555,34 @@ test('raça em branco não vira grupo próprio', () => {
   const { linhas } = reconstruirSerie(pessoas, 'NSX', '2026-01');
   assert.deepEqual(Object.keys(linhas[0].race_cross), []);
   assert.equal(linhas[0].raca_conhecida, 1);
+});
+
+test('textoDe achata objeto: team e relationship vem como {name}', () => {
+  // O erro real: `team` e `relationship` chegam como objeto, igual a
+  // `department`. A versao que so aceitava string deixou as duas colunas em
+  // 0 de 809 depois de uma carga inteira, enquanto registration, salary e
+  // birth_date -- que sao string -- preencheram normalmente.
+  assert.equal(textoDe({ id: 3, name: 'Customer Support Betnacional' }), 'Customer Support Betnacional');
+  assert.equal(textoDe({ id: 1, title: 'CLT' }), 'CLT');
+  assert.equal(textoDe('CLT'), 'CLT');
+  assert.equal(textoDe(11), '11');
+});
+
+test('textoDe trata "Nao informado" como ausencia, inclusive dentro do objeto', () => {
+  assert.equal(textoDe('Não informado'), null);
+  assert.equal(textoDe({ name: 'Não informado' }), null);
+  assert.equal(textoDe('N/A'), null);
+  assert.equal(textoDe(''), null);
+  assert.equal(textoDe(null), null);
+  assert.equal(textoDe(undefined), null);
+});
+
+test('textoDe nao confunde valor legitimo que contenha a palavra', () => {
+  assert.equal(textoDe('Informado pelo gestor'), 'Informado pelo gestor');
+});
+
+test('ufDe pega o estado do endereco aninhado', () => {
+  assert.equal(ufDe({ state: 'PE', city: 'Recife' }), 'PE');
+  assert.equal(ufDe({ city: 'Recife' }), null);
+  assert.equal(ufDe(null), null);
 });

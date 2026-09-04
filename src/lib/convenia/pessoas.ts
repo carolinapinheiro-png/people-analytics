@@ -654,3 +654,45 @@ export function reconstruirSerie(
     },
   };
 }
+
+/**
+ * Texto que veio da API do Convenia, ou null. Achata `{name}` e trata
+ * "Não informado" como ausência.
+ *
+ * ===========================================================================
+ * O ACHATAMENTO NÃO É DETALHE
+ * ===========================================================================
+ * `team` e `relationship` chegam como objeto, igual a `department` -- e a
+ * primeira versão disto devolvia null para objeto. Resultado: as duas colunas
+ * ficaram em 0 de 809 depois de uma carga inteira, enquanto `registration`,
+ * `salary` e `birth_date`, que são string, preencheram normalmente. Uma
+ * gravou, a outra não, pelo tipo do campo -- e nada no resumo dizia isso.
+ *
+ * O que escondeu o erro foi a sonda de campos: ela achata `{name}` para
+ * exibir. A tela mostrava "team · 8/8 · Customer Support Betnacional" e a
+ * carga gravava nulo. A sonda dizia a verdade sobre o Convenia e mentia sobre
+ * a carga -- que é o pior tipo de instrumento, porque parece confirmação.
+ *
+ * "Não informado" é o texto que o Convenia escreve no lugar da célula vazia.
+ * Medido no export: `Career Band` parecia ter 63% de cobertura, e os 37%
+ * restantes não divergiam, estavam com esse texto ocupando o lugar do branco.
+ * Guardar a string faria disso uma categoria em todo agrupamento.
+ */
+export function textoDe(v: unknown): string | null {
+  if (typeof v === 'number') return String(v);
+  if (v && typeof v === 'object') {
+    const o = v as { name?: unknown; title?: unknown };
+    return textoDe(o.name ?? o.title);
+  }
+  if (typeof v !== 'string') return null;
+  const s = v.trim();
+  if (!s) return null;
+  const k = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  return k === 'nao informado' || k === 'n/a' ? null : s;
+}
+
+/** O estado do endereço, que vem aninhado e às vezes ausente. */
+export function ufDe(v: unknown): string | null {
+  const end = v as { state?: unknown } | null;
+  return textoDe(end?.state);
+}
