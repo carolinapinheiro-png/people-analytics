@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { montarLinhas, COLUNAS, dataBR, rotuloDoMes, semEmpresa, type PessoaDoMes } from './controladoria';
+import { montarLinhas, COLUNAS, dataBR, rotuloDoMes, semEmpresa, fimDoMes, admitidoAte, type PessoaDoMes } from './controladoria';
 
 const base: PessoaDoMes = {
   nome: 'Fulana de Tal', status: 'ativo', department: 'TECHNOLOGY',
@@ -71,4 +71,27 @@ test('Company vazia fica VAZIA, e é contada', () => {
   const linhas = montarLinhas([base, { ...base, empresa: null }], 'ago./2026');
   assert.equal(linhas[1][14], '');
   assert.equal(semEmpresa(linhas), 1);
+});
+
+test('fimDoMes acha o ultimo dia, inclusive em fevereiro bissexto', () => {
+  assert.equal(fimDoMes(2026, 2), '2026-02-28');
+  assert.equal(fimDoMes(2024, 2), '2024-02-29');
+  assert.equal(fimDoMes(2026, 8), '2026-08-31');
+  assert.equal(fimDoMes(2026, 12), '2026-12-31');
+});
+
+test('admitidoAte corta quem entrou depois do fim do mes', () => {
+  // O caso real: rodando em 4 de setembro, a base de agosto nao pode conter
+  // quem foi admitido em 2 de setembro. Antes o mes era so carimbo.
+  assert.equal(admitidoAte('2026-09-02', '2026-08-31'), false);
+  assert.equal(admitidoAte('2026-08-31', '2026-08-31'), true);
+  assert.equal(admitidoAte('2025-01-15', '2026-08-31'), true);
+});
+
+test('sem data de admissao a pessoa fica, e nao some', () => {
+  // Tirar uma pessoa real por falta de um campo e pior do que deixa-la: a
+  // linha fica visivel e alguem confere.
+  assert.equal(admitidoAte(null, '2026-08-31'), true);
+  assert.equal(admitidoAte('', '2026-08-31'), true);
+  assert.equal(admitidoAte('data estranha', '2026-08-31'), true);
 });

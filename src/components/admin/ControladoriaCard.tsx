@@ -20,15 +20,31 @@ export function ControladoriaCard() {
   const [baixando, setBaixando] = useState(false);
   const [resumoBase, setResumoBase] = useState<string | null>(null);
 
+  // Mês passado por padrão: a base de um mês só fecha depois que ele acaba.
+  const anterior = new Date();
+  anterior.setDate(1);
+  anterior.setMonth(anterior.getMonth() - 1);
+  const [alvo, setAlvo] = useState(
+    `${anterior.getFullYear()}-${String(anterior.getMonth() + 1).padStart(2, '0')}`,
+  );
+
+  /**
+   * Os 18 meses até o passado. O mês corrente não entra: ele ainda não fechou,
+   * e um arquivo de setembro baixado no dia 4 tem cara de mês inteiro.
+   */
+  const meses = Array.from({ length: 18 }, (_, i) => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1 - i);
+    const valor = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    return { valor, rotulo: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) };
+  });
+
   const gerarBase = async () => {
     setBaixando(true); setResumoBase(null);
     try {
-      // O mês ANTERIOR: a base de um mês só fecha depois que ele acaba. Rodar
-      // no dia 3 e pegar o mês corrente daria um mês pela metade com cara de
-      // mês inteiro.
-      const hoje = new Date();
-      const d = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
-      const r = await baixarBase({ data: { ano: d.getFullYear(), mes: d.getMonth() + 1 } });
+      const [ano, mes] = alvo.split('-').map(Number);
+      const r = await baixarBase({ data: { ano, mes } });
       const csv = [r.colunas, ...r.linhas]
         .map((l) => l.map((c) => (/[",\n;]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(','))
         .join('\n');
@@ -41,6 +57,10 @@ export function ControladoriaCard() {
       setResumoBase(
         `${r.rotulo}: ${r.linhas.length} pessoas.` +
         (r.semEmpresa ? ` ${r.semEmpresa} sem Company — preencha com PROCV contra o mês anterior antes de mandar.` : ' Company completa.') +
+        (r.admitidosDepois ? ` ${r.admitidosDepois} admitidas depois deste mês ficaram de fora.` : '') +
+        // Este é o número que diz o quanto a base envelhece. Quem saiu não está
+        // mais no cadastro, e `convenia_leavers` não guarda nome para repor.
+        (r.saidosDepois ? ` ATENÇÃO: ${r.saidosDepois} pessoas estavam ativas neste mês e já foram desligadas — não estão nesta base, e não há como repô-las sem foto mensal do cadastro.` : '') +
         (r.naoLidos ? ` ATENÇÃO: ${r.naoLidos} ainda não foram lidas pela carga e vão sair com as colunas de campo personalizado vazias — rode a sync antes.` : ''),
       );
     } catch (e) {
@@ -57,16 +77,33 @@ export function ControladoriaCard() {
         <div className="flex-1">
           <h3 className="text-base font-semibold">Base do report da Controladoria</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            As 17 colunas da aba <code>dados</code>, do MÊS PASSADO, na ordem em que ela está —
-            pronto para colar. A coluna <strong>Company</strong> sai vazia para quem ainda não
+            As 17 colunas da aba <code>dados</code>, na ordem em que ela está — pronto para
+            colar. A coluna <strong>Company</strong> sai vazia para quem ainda não
             tem o campo <code>Empresa</code> no Convenia: vazio é visível, empresa errada não é,
             e a planilha é cortada por empresa.
           </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Meses anteriores são reconstruídos do cadastro de hoje: quem entrou depois fica de
+            fora, mas quem já saiu não volta. O resumo diz quantas pessoas faltam — quanto mais
+            antigo o mês, maior o número.
+          </p>
 
-          <Button onClick={gerarBase} disabled={baixando} className="mt-4" variant="outline">
-            <RefreshCw className={`mr-2 h-4 w-4 ${baixando ? 'animate-spin' : ''}`} />
-            {baixando ? 'Montando…' : 'Baixar base do mês passado'}
-          </Button>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <select
+              className="rounded border border-border bg-background px-2 py-1 text-sm"
+              value={alvo}
+              onChange={(e) => { setAlvo(e.target.value); setResumoBase(null); }}
+              disabled={baixando}
+            >
+              {meses.map((m) => (
+                <option key={m.valor} value={m.valor}>{m.rotulo}</option>
+              ))}
+            </select>
+            <Button onClick={gerarBase} disabled={baixando} variant="outline">
+              <RefreshCw className={`mr-2 h-4 w-4 ${baixando ? 'animate-spin' : ''}`} />
+              {baixando ? 'Montando…' : 'Baixar base'}
+            </Button>
+          </div>
 
           {resumoBase && (
             <p className="mt-3 text-xs leading-relaxed">{resumoBase}</p>

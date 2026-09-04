@@ -33,6 +33,18 @@ export interface BaseDoMes {
   semEmpresa: number;
   /** Quantas ainda não foram lidas com o código atual -- fila da carga. */
   naoLidos: number;
+  /** Admitidos DEPOIS do mês pedido, tirados da base. */
+  admitidosDepois: number;
+  /**
+   * Pessoas que estavam ativas no mês pedido e já saíram desde então.
+   *
+   * Elas DEVERIAM estar nesta base e não estão: a carga lê o cadastro de hoje,
+   * e quem saiu não está mais nele. `convenia_leavers` guarda o desligamento
+   * mas não guarda o nome, então dá para contar e não dá para repor. Quanto
+   * mais antigo o mês, maior este número -- é a medida do que só a foto mensal
+   * do cadastro resolve.
+   */
+  saidosDepois: number;
 }
 
 export const baseControladoria = createServerFn({ method: 'POST' })
@@ -44,7 +56,7 @@ export const baseControladoria = createServerFn({ method: 'POST' })
   .handler(async ({ context, data }): Promise<BaseDoMes> => {
     await authorizeAdmin(context.claims.email as string | undefined);
 
-    const { montarLinhas, rotuloDoMes, semEmpresa, COLUNAS } =
+    const { montarLinhas, rotuloDoMes, semEmpresa, COLUNAS, fimDoMes, admitidoAte } =
       await import('@/lib/controladoria');
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as {
@@ -55,6 +67,8 @@ export const baseControladoria = createServerFn({ method: 'POST' })
       .select('convenia_id, nome, department, supervisor_id');
     const { data: cad } = await db.from('convenia_pessoas')
       .select('convenia_id, empresa, escritorio, cost_center, hiring_date, status, custom_fields, job_title_em');
+    const { data: saidas } = await db.from('convenia_leavers')
+      .select('convenia_id, hiring_month, dismissal_month');
 
     type Org = { convenia_id: string; nome: string | null; department: string | null; supervisor_id: string | null };
     type Cad = {
@@ -69,8 +83,15 @@ export const baseControladoria = createServerFn({ method: 'POST' })
     const nomePorId = new Map(pessoas.map((p) => [p.convenia_id, p.nome]));
 
     const { lerCustomFields } = await import('@/lib/convenia/custom-fields');
+
+    // O mês pedido deixa de ser só carimbo. Quem foi admitido depois do fim do
+    // mês sai da base: rodando setembro, agosto não pode conter quem entrou em
+    // setembro.
+    const fim = fimDoMes(data.ano, data.mes);
+    const noMes = pessoas.filter((p) => admitidoAte(porId.get(p.convenia_id)?.hiring_date ?? null, fim));
+
     const linhas = montarLinhas(
-      pessoas.map((p) => {
+      noMes.map((p) => {
         const c = porId.get(p.convenia_id);
         return {
           nome: p.nome,
@@ -95,6 +116,18 @@ export const baseControladoria = createServerFn({ method: 'POST' })
       // Quem ainda não passou pelo laço de detalhe não tem campo personalizado
       // nenhum, e sairia com metade das colunas vazias. Contar aqui evita que
       // isso pareça "o Convenia não tem o dado".
-      naoLidos: pessoas.filter((p) => !porId.get(p.convenia_id)?.job_title_em).length,
+      naoLidos: noMes.filter((p) => !porId.get(p.convenia_id)?.job_title_em).length,
+      admitidosDepois: pessoas.length - noMes.length,
+      // Estava dentro no mês pedido e já saiu: admitida até o fim do mês e
+      // desligada depois dele. `convenia_leavers` não guarda o nome, então
+      // conta-se e não se repõe.
+      saidosDepois: ((saidas ?? []) as Array<{
+        hiring_month: string | null; dismissal_month: string | null;
+      }>).filter((s) => {
+        const mesPedido = fim.slice(0, 7);
+        const entrou = (s.hiring_month ?? '').slice(0, 7);
+        const saiu = (s.dismissal_month ?? '').slice(0, 7);
+        return saiu > mesPedido && (!entrou || entrou <= mesPedido);
+      }).length,
     };
   });

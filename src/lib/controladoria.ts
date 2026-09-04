@@ -89,6 +89,32 @@ export function rotuloDoMes(ano: number, mes1a12: number): string {
   return `${MESES[mes1a12 - 1]}/${ano}`;
 }
 
+/** O último dia do mês, em ISO. `fimDoMes(2026, 2)` é 2026-02-28. */
+export function fimDoMes(ano: number, mes1a12: number): string {
+  const d = new Date(Date.UTC(ano, mes1a12, 0));
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * A pessoa já tinha sido admitida até o fim do mês pedido?
+ *
+ * Até agora o mês só trocava o RÓTULO: a carga lê o cadastro de hoje e o
+ * carimbo dizia agosto. Rodando no dia 4, quem entrou em setembro aparecia na
+ * base de agosto -- e o pivô da Controladoria contava gente que ainda não
+ * existia no mês fechado.
+ *
+ * Sem data de admissão não dá para afirmar nem que entrou nem que não entrou.
+ * Fica na base, porque tirar uma pessoa real por falta de um campo é pior do
+ * que deixá-la: a linha está visível e alguém confere. A contagem de quem está
+ * sem data sai junto.
+ */
+export function admitidoAte(hiring_date: string | null, fimISO: string): boolean {
+  if (!hiring_date) return true;
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(hiring_date.trim());
+  if (!m) return true;
+  return m[1] <= fimISO;
+}
+
 export function montarLinhas(pessoas: readonly PessoaDoMes[], rotulo: string): string[][] {
   return pessoas.map((p) => [
     rotulo,
