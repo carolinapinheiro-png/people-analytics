@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, blocosDe30Dias, tempoDeCasa, tempoDeCasaTexto, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
+import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, blocosDe30Dias, tempoDeCasa, tempoDeCasaTexto, JA_TEMOS, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
 
 const campo = (nome: string, preenchidos = 8): CampoVisto =>
   ({ nome, origem: 'personalizado', preenchidos, valores: [] });
@@ -216,4 +216,30 @@ test('virada de ano nao produz mes negativo', () => {
 test('tempoDeCasaTexto sai vazio quando nao da para calcular', () => {
   assert.equal(tempoDeCasaTexto(null, '2026-08-31'), '');
   assert.equal(tempoDeCasaTexto('2024-01-10', '2026-01-10'), '2a 0m 0d');
+});
+
+test('Employee ID e a matricula, e nao o UUID', () => {
+  // O arquivo de agosto traz 320 e P000212. O `id` do Convenia e
+  // 795f0df4-9556-4500-... Apontar para o UUID daria 641 linhas com a
+  // matricula errada, e nenhuma pareceria errada.
+  assert.match(JA_TEMOS['Employee ID'] ?? '', /registration/);
+});
+
+test('team e department nao trocam de coluna', () => {
+  // Agosto: Supervisory Organization = "Customer Support Betnacional" (team);
+  // Job Family Group = "OPERATION" (department).
+  assert.match(JA_TEMOS['Supervisory Organization'] ?? '', /team/);
+  assert.match(JA_TEMOS['Job Family Group'] ?? '', /department/);
+  assert.match(JA_TEMOS['Supervisory Org Level 3'] ?? '', /team/);
+});
+
+test('escolha antiga em coluna que virou derivada nao reserva o campo', () => {
+  // Job Family Group foi mapeada para `team` antes de virar derivada. Se a
+  // escolha continuasse valendo, `team` sumiria do seletor das outras.
+  const campos = [campo('team')];
+  const m = casarCampos(campos, [
+    { coluna: 'Job Family Group', campo: 'team', definidoPor: 'carolina@nsx.bet' },
+  ]);
+  assert.ok(m.find((x) => x.coluna === 'Job Family Group')?.jaTemos);
+  assert.deepEqual(sobraram(campos, m).map((c) => c.nome), ['team']);
 });

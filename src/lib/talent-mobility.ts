@@ -48,23 +48,39 @@ export const COLUNAS_TALENT = [
  * `Empresa`, que é de onde ela já vem; `Currency` casaria com qualquer coisa.
  */
 export const JA_TEMOS: Partial<Record<(typeof COLUNAS_TALENT)[number], string>> = {
-  'Employee ID': 'convenia_id',
-  'Full Legal Name': 'org_pessoas.nome',
+  // `registration`, e NÃO o `id`. O `id` do Convenia é UUID
+  // (795f0df4-9556-...); o arquivo de agosto traz 320 e P000212, que é o
+  // `registration` com os zeros à esquerda comidos pelo Excel. Eu tinha
+  // apontado para o UUID -- 641 linhas com a matrícula errada, e nenhuma
+  // pareceria errada.
+  'Employee ID': 'convenia: registration',
+  // O Convenia separa: `name` é "Adriana", `last_name` é o resto.
+  'Full Legal Name': 'convenia: name + last_name',
   "Worker's Manager": 'organograma (supervisor_id)',
   'Manager - Level 02': 'organograma, um nível acima',
   'Manager - Level 03': 'organograma, dois níveis acima',
-  'Supervisory Organization': 'org_pessoas.department',
-  // Não são campo do Convenia: são o organograma andado para cima, o
-  // department de cada gestor da cadeia. Conferido contra o arquivo de agosto
-  // -- Alba: L2 Facilities (a área dela), L3 Procurament (da gestora), L4
-  // Finance (do gestor da gestora). A contagem começa em 2 na própria pessoa.
-  'Supervisory Org Level 2': 'organograma: department da própria pessoa',
-  'Supervisory Org Level 3': 'organograma: department do gestor',
-  'Supervisory Org Level 4': 'organograma: department, 2 níveis acima',
-  'Supervisory Org Level 5': 'organograma: department, 3 níveis acima',
-  'Supervisory Org Level 6': 'organograma: department, 4 níveis acima',
-  'Supervisory Org Level 7': 'organograma: department, 5 níveis acima',
-  'Supervisory Org Level 8': 'organograma: department, 6 níveis acima',
+  // `team`, e não `department`. Agosto: "Customer Support Betnacional",
+  // "Facilities", "AI Tech" -- que é o `team` da listagem. O `department` traz
+  // OPERATION/TECHNOLOGY/FINANCE, e esses são o Job Family Group.
+  'Supervisory Organization': 'convenia: team',
+  'Job Family Group': 'org_pessoas.department (OPERATION, TECHNOLOGY, FINANCE)',
+  // A escada sobe lendo `team` de cada degrau -- o mesmo atributo da
+  // Supervisory Organization, que é o degrau zero. Antes eu dizia
+  // `department`: escada certa, atributo errado.
+  'Supervisory Org Level 2': 'organograma: team da própria pessoa',
+  'Supervisory Org Level 3': 'organograma: team do gestor',
+  'Supervisory Org Level 4': 'organograma: team, 2 níveis acima',
+  'Supervisory Org Level 5': 'organograma: team, 3 níveis acima',
+  'Supervisory Org Level 6': 'organograma: team, 4 níveis acima',
+  'Supervisory Org Level 7': 'organograma: team, 5 níveis acima',
+  'Supervisory Org Level 8': 'organograma: team, 6 níveis acima',
+  // Estado de RESIDÊNCIA, não do escritório: os remotos espalham por RJ, RS,
+  // MG. Vem de `address.state` no DETALHE -- a sync já o extrai como `uf`. Na
+  // listagem o endereço vem vazio, e é por isso que a sonda não o mostrou.
+  'Work Address - Country': 'convenia: address.state (detalhe)',
+  // N-6 Above, N-5, N-3 -- o campo personalizado `WorkDay Level`. O `Level`
+  // (L0/L5/L3) é o Compensation Grade, que é outra coluna.
+  'Compensation Grade Profile': 'personalizado: WorkDay Level',
   'Job Title': 'convenia_pessoas.job_title',
   'Email - Primary Work': 'org_pessoas.email',
   'Hire Date': 'convenia_pessoas.hiring_date',
@@ -196,6 +212,10 @@ export function casarCampos(
   // casamento por nome chegaria lá, e o palpite não tem o direito de desfazer
   // a escolha de quem leu os valores.
   for (const e of salvas) {
+    // Uma coluna pode ter virado derivada DEPOIS de alguém a ter mapeado --
+    // foi o que aconteceu com `Job Family Group`. A escolha antiga não pode
+    // seguir reservando o campo, senão ele some do seletor das outras.
+    if (JA_TEMOS[e.coluna as (typeof COLUNAS_TALENT)[number]]) continue;
     const achado = porChave.get(chave(e.campo));
     if (!achado) continue;
     escolhido.set(e.coluna, { campo: achado, forca: 'escolhida', por: e.definidoPor });
