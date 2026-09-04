@@ -66,6 +66,44 @@ test('forcaDoCasamento pune cobertura parcial dos dois lados', () => {
   assert.ok(forcaDoCasamento('Basic Salary', 'salary') >= 0.5);
 });
 
+test('a escolha gravada ganha do palpite por nome', () => {
+  // `Career Band` casa exato com o campo de mesmo nome. Se alguem gravou outra
+  // coisa, foi por ter olhado o valor -- e o palpite nao desfaz isso.
+  const campos = [campo('Career Band'), campo('Banda')];
+  const m = casarCampos(campos, [
+    { coluna: 'Career Band', campo: 'Banda', definidoPor: 'carolina@nsx.bet' },
+  ]);
+  const c = m.find((x) => x.coluna === 'Career Band');
+  assert.equal(c?.campo?.nome, 'Banda');
+  assert.equal(c?.forca, 'escolhida');
+  assert.equal(c?.definidoPor, 'carolina@nsx.bet');
+});
+
+test('escolha alcanca coluna que nenhum nome alcancaria', () => {
+  // O caso real: `Level` (L0/L5/L3) e o Compensation Grade, e os nomes nao tem
+  // uma letra em comum.
+  const c = casarCampos([campo('Level')], [
+    { coluna: 'Compensation Grade', campo: 'Level', definidoPor: 'carolina@nsx.bet' },
+  ]).find((x) => x.coluna === 'Compensation Grade');
+  assert.equal(c?.campo?.nome, 'Level');
+  assert.equal(c?.forca, 'escolhida');
+});
+
+test('campo gravado nao sobra para o palpite de outra coluna', () => {
+  const m = casarCampos([campo('salary')], [
+    { coluna: 'FTE %', campo: 'salary', definidoPor: 'carolina@nsx.bet' },
+  ]);
+  assert.equal(m.find((x) => x.coluna === 'Basic Salary')?.campo, undefined);
+});
+
+test('escolha para campo que sumiu do cadastro nao quebra', () => {
+  const m = casarCampos([campo('Career Band')], [
+    { coluna: 'FTE %', campo: 'campo que o RH apagou', definidoPor: 'carolina@nsx.bet' },
+  ]);
+  assert.equal(m.find((x) => x.coluna === 'FTE %')?.campo, undefined);
+  assert.equal(m.length, COLUNAS_TALENT.length);
+});
+
 test('chave normaliza espaco, simbolo e acento', () => {
   assert.equal(chave('FTE %'), 'fte');
   assert.equal(chave('Funcao'), 'funcao');

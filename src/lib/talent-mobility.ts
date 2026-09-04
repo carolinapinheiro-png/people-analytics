@@ -85,8 +85,20 @@ export interface Casamento {
   /** Preenchida quando a coluna já sai do que temos, sem campo do Convenia. */
   jaTemos?: string;
   campo?: CampoVisto;
-  /** `exata` casa nome com nome; `parcial` casa por pedaço e pede conferência. */
-  forca?: 'exata' | 'parcial';
+  /**
+   * `escolhida` foi apontada por gente e está gravada; as outras são palpite
+   * meu. Só `escolhida` alimenta o CSV -- ver `casarCampos`.
+   */
+  forca?: 'escolhida' | 'exata' | 'parcial';
+  /** Quem escolheu, quando a força é `escolhida`. */
+  definidoPor?: string;
+}
+
+/** Uma escolha gravada em `talent_mobility_mapa`. */
+export interface EscolhaSalva {
+  coluna: string;
+  campo: string;
+  definidoPor: string;
 }
 
 /** Sem acento, sem caixa, sem pontuação e sem espaço: "FTE %" vira "fte". */
@@ -130,14 +142,29 @@ export function forcaDoCasamento(coluna: string, campo: string): number {
  * E um campo vale por UMA coluna. Sem isso, o melhor palpite vira o palpite de
  * todo mundo.
  */
-export function casarCampos(campos: readonly CampoVisto[]): Casamento[] {
+export function casarCampos(
+  campos: readonly CampoVisto[],
+  salvas: readonly EscolhaSalva[] = [],
+): Casamento[] {
   const usados = new Set<string>();
   const porChave = new Map<string, CampoVisto>();
   for (const c of campos) if (!porChave.has(chave(c.nome))) porChave.set(chave(c.nome), c);
 
-  const escolhido = new Map<string, { campo: CampoVisto; forca: 'exata' | 'parcial' }>();
+  const escolhido = new Map<string, { campo: CampoVisto; forca: Casamento['forca']; por?: string }>();
+
+  // O que foi apontado por gente vem primeiro e não é discutido. `Level` é o
+  // Compensation Grade e os nomes não têm uma letra em comum -- nenhum
+  // casamento por nome chegaria lá, e o palpite não tem o direito de desfazer
+  // a escolha de quem leu os valores.
+  for (const e of salvas) {
+    const achado = porChave.get(chave(e.campo));
+    if (!achado) continue;
+    escolhido.set(e.coluna, { campo: achado, forca: 'escolhida', por: e.definidoPor });
+    usados.add(achado.nome);
+  }
+
   for (const col of COLUNAS_TALENT) {
-    if (JA_TEMOS[col]) continue;
+    if (JA_TEMOS[col] || escolhido.has(col)) continue;
     const achado = porChave.get(chave(col));
     if (achado && !usados.has(achado.nome)) {
       escolhido.set(col, { campo: achado, forca: 'exata' });
@@ -164,7 +191,7 @@ export function casarCampos(campos: readonly CampoVisto[]): Casamento[] {
   return COLUNAS_TALENT.map((coluna) => {
     if (JA_TEMOS[coluna]) return { coluna, jaTemos: JA_TEMOS[coluna] };
     const e = escolhido.get(coluna);
-    return e ? { coluna, campo: e.campo, forca: e.forca } : { coluna };
+    return e ? { coluna, campo: e.campo, forca: e.forca, definidoPor: e.por } : { coluna };
   });
 }
 

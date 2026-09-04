@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
-import type { CampoVisto, Casamento } from '@/lib/talent-mobility';
+import { z } from 'zod';
+import type { CampoVisto, Casamento, EscolhaSalva } from '@/lib/talent-mobility';
 
 /**
  * O mapa: qual campo do Convenia preenche cada coluna do report do Sandeep.
@@ -23,6 +24,8 @@ export interface MapaDeCampos {
   empresa: string;
   amostra: number;
   mapa: Casamento[];
+  /** Todos os campos vistos, para o seletor da tela. */
+  campos: CampoVisto[];
   /** Campos que nenhuma coluna reivindicou -- onde mora o que eu não previ. */
   sobraram: CampoVisto[];
   erro: string | null;
@@ -44,6 +47,18 @@ export const mapearCamposTalent = createServerFn({ method: 'POST' })
     const { lerCustomFields, valorEhSensivel } = await import('@/lib/convenia/custom-fields');
     const { casarCampos, sobraram } = await import('@/lib/talent-mobility');
 
+    // As escolhas gravadas valem para todas as fontes: o mapa é do report, não
+    // da empresa. Lidas uma vez, fora do laço.
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const dbMapa = supabaseAdmin as unknown as {
+      from: (t: string) => { select: (c: string) => PromiseLike<{ data: unknown[] | null }> };
+    };
+    const { data: gravadas } = await dbMapa.from('talent_mobility_mapa')
+      .select('coluna, campo, definido_por');
+    const salvas: EscolhaSalva[] = ((gravadas ?? []) as Array<{
+      coluna: string; campo: string; definido_por: string;
+    }>).map((r) => ({ coluna: r.coluna, campo: r.campo, definidoPor: r.definido_por }));
+
     /** Achata `{name: 'X'}` e trunca. Valor nunca sai inteiro. */
     const legivel = (v: unknown): string | null => {
       if (typeof v === 'string') return v.trim().slice(0, 40) || null;
@@ -59,7 +74,7 @@ export const mapearCamposTalent = createServerFn({ method: 'POST' })
 
     for (const f of fontesConfiguradas()) {
       const linha: MapaDeCampos = {
-        empresa: f.empresa, amostra: 0, mapa: [], sobraram: [], erro: null,
+        empresa: f.empresa, amostra: 0, mapa: [], campos: [], sobraram: [], erro: null,
       };
       try {
         const client = ConveniaClient.paraToken(f.token!);
@@ -108,7 +123,8 @@ export const mapearCamposTalent = createServerFn({ method: 'POST' })
         const campos: CampoVisto[] = [...vistos]
           .map(([nome, d]) => ({ nome, origem: d.origem, preenchidos: d.n, valores: [...d.vals] }))
           .sort((a, b) => a.nome.localeCompare(b.nome));
-        linha.mapa = casarCampos(campos);
+        linha.campos = campos;
+        linha.mapa = casarCampos(campos, salvas);
         linha.sobraram = sobraram(campos, linha.mapa);
       } catch (e) {
         linha.erro = e instanceof Error ? e.message : String(e);
@@ -116,4 +132,55 @@ export const mapearCamposTalent = createServerFn({ method: 'POST' })
       saida.push(linha);
     }
     return saida;
+  });
+
+/**
+ * Grava (ou apaga) a escolha de campo para uma coluna.
+ *
+ * `campo` vazio apaga a linha: desfazer uma escolha errada tem de ser tão fácil
+ * quanto fazê-la, senão o mapa acumula erro que ninguém tem coragem de mexer.
+ *
+ * Guarda quem escolheu. O mapa decide o conteúdo de um arquivo que leva nome,
+ * salário e data de nascimento de 641 pessoas para fora daqui -- quem pode
+ * reescrevê-lo pode redirecionar o que sai, e isso tem dono.
+ */
+export const salvarEscolhaTalent = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({
+    coluna: z.string().min(1).max(120),
+    campo: z.string().max(200),
+    origem: z.enum(['listagem', 'detalhe', 'personalizado']),
+  }).parse(d))
+  .handler(async ({ context, data }): Promise<{ ok: true }> => {
+    const email = context.claims.email as string | undefined;
+    await authorizeAdmin(email);
+
+    const { COLUNAS_TALENT, JA_TEMOS } = await import('@/lib/talent-mobility');
+    // A coluna tem de ser uma das 51, e não pode ser das que já saem do que
+    // temos: mapear `Company` para um campo qualquer trocaria em silêncio uma
+    // coluna que hoje está certa.
+    if (!(COLUNAS_TALENT as readonly string[]).includes(data.coluna)) {
+      throw new Error(`Coluna desconhecida: ${data.coluna}`);
+    }
+    if (JA_TEMOS[data.coluna as (typeof COLUNAS_TALENT)[number]]) {
+      throw new Error(`${data.coluna} já sai do que temos e não se mapeia aqui.`);
+    }
+
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
+    const db = supabaseAdmin as unknown as {
+      from: (t: string) => {
+        upsert: (v: unknown) => PromiseLike<{ error: { message: string } | null }>;
+        delete: () => { eq: (c: string, v: string) => PromiseLike<{ error: { message: string } | null }> };
+      };
+    };
+
+    const { error } = data.campo
+      ? await db.from('talent_mobility_mapa').upsert({
+        coluna: data.coluna, campo: data.campo, origem: data.origem,
+        definido_por: email ?? 'desconhecido', definido_em: new Date().toISOString(),
+      })
+      : await db.from('talent_mobility_mapa').delete().eq('coluna', data.coluna);
+
+    if (error) throw new Error(error.message);
+    return { ok: true };
   });
