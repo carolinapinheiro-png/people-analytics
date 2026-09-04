@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, blocosDe30Dias, tempoDeCasa, tempoDeCasaTexto, JA_TEMOS, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
+import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, blocosDe30Dias, tempoDeCasa, tempoDeCasaTexto, workerType, valorOuVazio, JA_TEMOS, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
 
 const campo = (nome: string, preenchidos = 8): CampoVisto =>
   ({ nome, origem: 'personalizado', preenchidos, valores: [] });
@@ -242,4 +242,40 @@ test('escolha antiga em coluna que virou derivada nao reserva o campo', () => {
   ]);
   assert.ok(m.find((x) => x.coluna === 'Job Family Group')?.jaTemos);
   assert.deepEqual(sobraram(campos, m).map((c) => c.nome), ['team']);
+});
+
+test('Vinculo vira CLT ou PJ como no arquivo de julho', () => {
+  // Medido pessoa a pessoa contra as 654 linhas: os raros aparecem aqui.
+  assert.equal(workerType('CLT'), 'CLT');
+  assert.equal(workerType('Diretor Estatutário'), 'CLT');
+  assert.equal(workerType('Aprendiz'), 'CLT');
+  assert.equal(workerType('Contrato Intermitente'), 'CLT');
+  assert.equal(workerType('Pessoa Jurídica'), 'PJ');
+  assert.equal(workerType('Associado'), 'PJ');
+});
+
+test('vinculo desconhecido sai vazio, e nao chutado para CLT', () => {
+  // CLT e a maioria: um vinculo novo entrando como CLT em silencio nao seria
+  // notado por ninguem.
+  assert.equal(workerType('Estagiario PJ Hibrido'), '');
+  assert.equal(workerType(null), '');
+  assert.equal(workerType(''), '');
+});
+
+test('acento e caixa nao separam o mesmo vinculo', () => {
+  assert.equal(workerType('pessoa juridica'), 'PJ');
+  assert.equal(workerType('DIRETOR ESTATUTARIO'), 'CLT');
+});
+
+test('"Nao informado" do export e ausencia, nao valor', () => {
+  // Era o que derrubava Career Band para 63%. Tratado como vazio: 641 de 641.
+  assert.equal(valorOuVazio('Não informado'), '');
+  assert.equal(valorOuVazio('não informado'), '');
+  assert.equal(valorOuVazio('N/A'), '');
+  assert.equal(valorOuVazio('Career Band A'), 'Career Band A');
+  assert.equal(valorOuVazio(null), '');
+});
+
+test('nao confunde valor legitimo que contenha a palavra', () => {
+  assert.equal(valorOuVazio('Informado pelo gestor'), 'Informado pelo gestor');
 });

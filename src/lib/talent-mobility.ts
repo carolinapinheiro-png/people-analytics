@@ -83,17 +83,26 @@ export const JA_TEMOS: Partial<Record<(typeof COLUNAS_TALENT)[number], string>> 
   'Compensation Grade Profile': 'personalizado: WorkDay Level',
   'Job Title': 'convenia_pessoas.job_title',
   'Email - Primary Work': 'org_pessoas.email',
-  'Hire Date': 'convenia_pessoas.hiring_date',
   'Original Hire Date': 'convenia_pessoas.hiring_date',
-  'Employee Type': 'convenia_pessoas.status',
-  'End Employment Date': 'convenia_leavers.dismissal_month',
+  'Employee Type': 'convenia_pessoas.status (ativo / admissão / desligado)',
+  'End Employment Date': 'convenia_leavers: data de desligamento',
   'Length of Service': 'blocos de 30 dias desde a admissão, como o arquivo faz',
   'Continuous Service Date': 'anos, meses e dias desde a admissão',
-  'Is Manager': 'tem subordinado no organograma',
+  'Is Manager': 'personalizado: Liderança ? (Sim / Não / Não informado)',
   'Location': 'convenia_pessoas.escritorio',
   'Company': 'convenia_pessoas.empresa',
   'Cost Center': 'convenia_pessoas.cost_center',
-  'Cost Center - ID': 'o código entre parênteses do cost center',
+  // VAZIAS nas 654 linhas de julho e nas 641 de agosto. Não é campo faltando:
+  // é assim que o report é entregue. `Currency` eu tinha declarado como "BRL
+  // constante" -- teria inventado uma coluna que ninguém preenche.
+  'Cost Center - ID': '(vazia no report, como julho e agosto)',
+  'Currency': '(vazia no report, como julho e agosto)',
+  'On Leave (e.g. Mat/pat etc)': '(vazia no report, como julho e agosto)',
+  'Leave Type': '(vazia no report, como julho e agosto)',
+  'Scheduled Weekly Hours': '(vazia no report, como julho e agosto)',
+  'Default Weekly Hours': '(vazia no report, como julho e agosto)',
+  'On Secondment': '(vazia no report, como julho e agosto)',
+  'Hire Date': '(vazia no report; a admissão vai em Original Hire Date)',
   // Mesma subida das Supervisory Org, outro atributo -- e a contagem começa em
   // 1, não em 2. Alcides: CC L1 AI TECH (o dele), CC L2 PRODUCT ENGINEERING
   // (do gestor). O arquivo de agosto traz `#N/A` onde o PROCV não achou; aqui
@@ -104,9 +113,8 @@ export const JA_TEMOS: Partial<Record<(typeof COLUNAS_TALENT)[number], string>> 
   'Cost Centre Hierarchy Level 4': 'organograma: cost center, 3 níveis acima',
   'Cost Centre Hierarchy Level 5': 'organograma: cost center, 4 níveis acima',
   'Line Manager Email': 'e-mail do gestor, pelo organograma',
-  'Leaver Date (exit the organisation)': 'convenia_leavers.dismissal_month',
-  'Leaver Reason': 'convenia_leavers.dismissal_type',
-  'Currency': 'constante BRL',
+  'Leaver Date (exit the organisation)': 'convenia_leavers: data de desligamento',
+  'Leaver Reason': 'convenia_leavers: tipo de desligamento',
 };
 
 /** Campo visto no cadastro: nome, de onde veio, cobertura e amostra de valores. */
@@ -396,4 +404,56 @@ export function tempoDeCasa(
 export function tempoDeCasaTexto(hiring_date: string | null, refISO: string): string {
   const t = tempoDeCasa(hiring_date, refISO);
   return t ? `${t.anos}a ${t.meses}m ${t.dias}d` : '';
+}
+
+/**
+ * O `Vínculo` do Convenia vira CLT ou PJ no report.
+ *
+ * Medido cruzando as 654 linhas de julho com o export do Convenia, pessoa a
+ * pessoa. As divergências eram todas o mesmo par -- "Pessoa Jurídica" no
+ * cadastro, "PJ" no report -- e os vínculos raros ficaram visíveis na
+ * contagem: Diretor Estatutário (6), Aprendiz (3) e Contrato Intermitente (2)
+ * saem como CLT; Associado (2) sai como PJ.
+ *
+ * A mesma divisão está escrita na nota do template do WIL: Regular Employee =
+ * CLT, Aprendiz, Contrato Intermitente, Diretor Estatutário; Contractor =
+ * Pessoa Jurídica, Associado. Duas fontes independentes concordando -- a
+ * planilha entregue e a definição do grupo.
+ */
+const VINCULO_CLT = ['clt', 'aprendiz', 'contrato intermitente', 'diretor estatutario'];
+const VINCULO_PJ = ['pessoa juridica', 'associado'];
+
+/**
+ * Vínculo desconhecido sai VAZIO, e não chutado para CLT.
+ *
+ * Um vínculo novo que o RH criar amanhã apareceria como CLT em silêncio -- e
+ * CLT é a maioria, ninguém olharia duas vezes. Vazio aparece na contagem.
+ */
+export function workerType(vinculo: string | null): string {
+  const v = chave(vinculo ?? '');
+  if (!v) return '';
+  if (VINCULO_CLT.some((x) => chave(x) === v)) return 'CLT';
+  if (VINCULO_PJ.some((x) => chave(x) === v)) return 'PJ';
+  return '';
+}
+
+/**
+ * "Não informado" é ausência de dado, e não um valor.
+ *
+ * O export do Convenia escreve isso no lugar da célula em branco, e foi o que
+ * derrubou a medição na primeira passada: `Career Band` batia em 63% das
+ * linhas, e as outras 37% não divergiam -- estavam com o texto no lugar do
+ * vazio. Tratado como ausência, bate em 641 de 641, zero divergências. Julho
+ * tem 69 pessoas assim em Job Family: é exatamente a população que hoje é
+ * puxada do mês anterior na mão.
+ *
+ * O report também usa "Não informado" em algumas colunas (End Employment Date,
+ * Leaver Reason, Is Manager). Isso é convenção DELE, na saída. Aqui é entrada,
+ * e entrada com texto de preenchimento é campo vazio.
+ */
+const PREENCHIMENTO = ['naoinformado', 'na', 'nao aplicavel'].map(chave);
+
+export function valorOuVazio(v: string | null): string {
+  const s = (v ?? '').trim();
+  return PREENCHIMENTO.includes(chave(s)) ? '' : s;
 }
