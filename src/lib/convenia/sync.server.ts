@@ -237,13 +237,19 @@ export async function executarSyncConvenia(
     // pessoal para reconfirmar um dado imutável.
     const { data: jaResolvidos } = await db
       .from('convenia_leavers')
-      .select('convenia_id, hiring_month, department, dismissal_month, marca');
+      .select('convenia_id, hiring_month, department, dismissal_month, marca, dismissal_date');
     const cache = new Map<string, { hiring_month: string | null; department: string | null }>(
       ((jaResolvidos ?? []) as { convenia_id: string; hiring_month: string | null; department: string | null }[])
         .map((r) => [r.convenia_id, { hiring_month: r.hiring_month, department: r.department }]),
     );
     let buscadosAgora = 0;
     let naoResolvidos = 0;
+    /** Data de saída já gravada, para não reescrever o que já está certo. */
+    const dataDeSaidaGravada = new Map<string, string | null>(
+      ((jaResolvidos ?? []) as { convenia_id: string; dismissal_date: string | null }[])
+        .map((r) => [r.convenia_id, r.dismissal_date]),
+    );
+    let datasDeSaidaGravadas = 0;
 
     // ------------------------------------------------------------------
     // GÊNERO, EM LOTES
@@ -452,21 +458,33 @@ export async function executarSyncConvenia(
         // A listagem de desligados já traz `dismissal.date` completa, e ela era
         // reduzida a mês na gravação. `dismissal_month` basta para a série,
         // que agrupa por mês; o Talent Mobility pede o dia, e as colunas
-        // `End Employment Date` e `Leaver Date` saíram em 0 de 639 -- as
-        // pessoas certas, sem data.
+        // `End Employment Date` e `Leaver Date` saíram em 0 de 639.
         //
-        // Aqui, e não no laço de resolução: aquele só roda para desligado
-        // ainda não conhecido, e os 172 já estão todos resolvidos. A coluna
-        // nasceria nula e assim ficaria -- exatamente o que aconteceu com
-        // `detalhe_em` e custou uma carga inteira para aparecer.
-        const datasDeSaida = saidas
-          .filter((s) => s.id && s.data)
-          .map((s) => ({ convenia_id: s.id, dismissal_date: dataISO(s.data) }))
-          .filter((r) => r.dismissal_date);
-        for (let i = 0; i < datasDeSaida.length; i += 500) {
+        // UPDATE, e não upsert. A primeira versão mandava um upsert com duas
+        // colunas -- `convenia_id` e a data. O PostgREST monta isso como
+        // `INSERT ... ON CONFLICT DO UPDATE`, e o Postgres valida os NOT NULL
+        // da linha inserida ANTES de resolver o conflito: com `empresa` e
+        // `marca` obrigatórias e ausentes do payload, o comando inteiro falha,
+        // ainda que na prática fosse só atualizar linhas existentes. A coluna
+        // ficou em 0 de 172 depois de uma carga inteira.
+        //
+        // Incluir empresa e marca no payload resolveria e seria pior:
+        // reescreveria a marca de quem saiu a cada carga, e a marca de
+        // desligado é justamente o que a unificação tornou instável.
+        //
+        // Só quem precisa é tocado. Depois da primeira carga isto é zero.
+        for (const s of saidas) {
+          if (!s.id || !s.data) continue;
+          const iso = dataISO(s.data);
+          if (!iso || dataDeSaidaGravada.get(s.id) === iso) continue;
           const { error } = await db.from('convenia_leavers')
-            .upsert(datasDeSaida.slice(i, i + 500), { onConflict: 'convenia_id' });
-          if (error) avisos.push(`${f.empresa}: datas de desligamento nao gravaram -- ${error.message}`);
+            .update({ dismissal_date: iso }).eq('convenia_id', s.id);
+          if (error) {
+            avisos.push(`${f.empresa}: data de desligamento nao gravou -- ${error.message}`);
+            break;
+          }
+          dataDeSaidaGravada.set(s.id, iso);
+          datasDeSaidaGravadas++;
         }
 
         for (const p of pessoas) {
@@ -812,6 +830,16 @@ export async function executarSyncConvenia(
         `${desligadosResgatados} desligados vieram da tabela guardada, e nao de token: ` +
         'ou o token da empresa deles foi removido, ou a listagem nao os devolveu nesta carga. ' +
         'A serie os mantem de qualquer forma -- quem saiu nao deixa de ter saido.',
+      );
+    }
+
+    // Dito no resumo mesmo quando dá certo. A versão anterior disto falhava em
+    // silêncio -- a coluna ficou em 0 de 172 e só apareceu quando o CSV foi
+    // conferido contra julho, dois downloads depois.
+    if (datasDeSaidaGravadas > 0) {
+      avisos.push(
+        `${datasDeSaidaGravadas} datas de desligamento gravadas nesta carga. ` +
+        'Elas alimentam End Employment Date e Leaver Date no Talent Mobility.',
       );
     }
 
