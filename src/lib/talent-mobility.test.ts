@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, blocosDe30Dias, tempoDeCasa, tempoDeCasaTexto, workerType, valorOuVazio, JA_TEMOS, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
+import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, blocosDe30Dias, tempoDeCasa, tempoDeCasaTexto, workerType, valorOuVazio, noMesDeReferencia, JA_TEMOS, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
 
 const campo = (nome: string, preenchidos = 8): CampoVisto =>
   ({ nome, origem: 'personalizado', preenchidos, valores: [] });
@@ -278,4 +278,27 @@ test('"Nao informado" do export e ausencia, nao valor', () => {
 
 test('nao confunde valor legitimo que contenha a palavra', () => {
   assert.equal(valorOuVazio('Informado pelo gestor'), 'Informado pelo gestor');
+});
+
+test('desligado entra no mes em que saiu, e some depois', () => {
+  // O arquivo de julho tem 654 linhas, 16 desligadas, e as 18 datas de saida
+  // que ele traz sao todas de julho. Filtrar so pela admissao daria 801 para
+  // agosto: os 172 desligados desde 2024 entrariam todos.
+  assert.equal(noMesDeReferencia('2020-01-10', '2026-07', '2026-07-01', '2026-07-31'), true);
+  assert.equal(noMesDeReferencia('2020-01-10', '2026-07', '2026-08-01', '2026-08-31'), false);
+  assert.equal(noMesDeReferencia('2020-01-10', '2024-03', '2026-08-01', '2026-08-31'), false);
+});
+
+test('quem ainda nao tinha entrado fica de fora', () => {
+  assert.equal(noMesDeReferencia('2026-09-02', null, '2026-08-01', '2026-08-31'), false);
+  assert.equal(noMesDeReferencia('2026-08-31', null, '2026-08-01', '2026-08-31'), true);
+});
+
+test('ativo sem data de saida entra sempre', () => {
+  assert.equal(noMesDeReferencia('2013-03-25', null, '2026-08-01', '2026-08-31'), true);
+});
+
+test('sem data de admissao a pessoa fica, e nao some', () => {
+  assert.equal(noMesDeReferencia(null, null, '2026-08-01', '2026-08-31'), true);
+  assert.equal(noMesDeReferencia('data estranha', null, '2026-08-01', '2026-08-31'), true);
 });

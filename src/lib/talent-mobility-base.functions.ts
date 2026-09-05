@@ -48,7 +48,8 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const { montarLinhasTalent, vaziosPorColuna } = await import('@/lib/talent-mobility-base');
-    const { fimDoMes, admitidoAte } = await import('@/lib/controladoria');
+    const { fimDoMes } = await import('@/lib/controladoria');
+    const { noMesDeReferencia } = await import('@/lib/talent-mobility');
 
     const db = supabaseAdmin as unknown as {
       from: (t: string) => {
@@ -97,12 +98,6 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
       };
     });
 
-    // O mês FILTRA, não só rotula: quem entrou depois do fim do mês pedido sai
-    // da base. Mesma regra do report da Controladoria, e pela mesma razão --
-    // rodar no dia 4 e pegar o mês fechado não pode incluir quem chegou depois.
-    const fim = fimDoMes(data.ano, data.mes);
-    const noMes = pessoas.filter((p) => admitidoAte(p.hiring_date, fim));
-
     const saidas = new Map<string, SaidaTalent>(
       ((saidasRaw ?? []) as { convenia_id: string; dismissal_month: string | null; dismissal_type: string | null }[])
         .map((s) => [s.convenia_id, { data: s.dismissal_month, tipo: s.dismissal_type }]),
@@ -111,6 +106,17 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
       ((mapaRaw ?? []) as { coluna: string; campo: string; origem: string }[])
         .map((m) => [m.coluna, { campo: m.campo, origem: m.origem }]),
     );
+
+    // O mês FILTRA, e filtra dos DOIS lados: quem entrou depois do fim do mês
+    // não estava lá, e quem saiu antes do início também não. Conferido contra
+    // julho: 654 linhas, 16 delas desligadas, e as 18 datas de saída do arquivo
+    // são todas daquele mês. Filtrar só pela admissão daria 801 -- os 172
+    // desligados desde 2024 entrariam todos, e o retrato do mês viraria um
+    // cadastro acumulado.
+    const fim = fimDoMes(data.ano, data.mes);
+    const inicio = `${data.ano}-${String(data.mes).padStart(2, '0')}-01`;
+    const noMes = pessoas.filter((p) =>
+      noMesDeReferencia(p.hiring_date, saidas.get(p.id)?.data ?? null, inicio, fim));
 
     const linhas = montarLinhasTalent(noMes, mapa, saidas, fim);
     const rotulo = `${MESES[data.mes - 1]}/${data.ano}`;

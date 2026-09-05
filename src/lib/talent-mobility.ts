@@ -457,3 +457,36 @@ export function valorOuVazio(v: string | null): string {
   const s = (v ?? '').trim();
   return PREENCHIMENTO.includes(chave(s)) ? '' : s;
 }
+
+/**
+ * A pessoa esteve empregada em algum momento do mês de referência?
+ *
+ * ===========================================================================
+ * QUEM ENTRA NO ARQUIVO
+ * ===========================================================================
+ * A primeira versão filtrava só pela admissão, e teria produzido 801 linhas
+ * para agosto: 629 ativos mais os 172 desligados desde 2024. O arquivo de
+ * julho tem 654 -- 621 ativos, 17 em admissão e 16 desligados -- e as 18 datas
+ * de saída que ele traz são todas de julho.
+ *
+ * Ou seja: o desligado entra no mês em que saiu, e some nos meses seguintes.
+ * É o que faz o arquivo ser um retrato do mês, e não um cadastro acumulado.
+ *
+ * Admissão depois do fim do mês: fora. Saída antes do início do mês: fora.
+ * Sem data de admissão a pessoa FICA -- tirar alguém real por falta de um
+ * campo é pior do que deixá-la visível.
+ */
+export function noMesDeReferencia(
+  hiring_date: string | null,
+  dismissal: string | null,
+  inicioISO: string,
+  fimISO: string,
+): boolean {
+  const adm = /^(\d{4}-\d{2}-\d{2})/.exec((hiring_date ?? '').trim())?.[1];
+  if (adm && adm > fimISO) return false;
+  const saida = /^(\d{4}-\d{2})/.exec((dismissal ?? '').trim())?.[1];
+  // Só o mês da saída é guardado, então a comparação é por mês: quem saiu no
+  // mês de referência entra; quem saiu antes, não.
+  if (saida && saida < inicioISO.slice(0, 7)) return false;
+  return true;
+}
