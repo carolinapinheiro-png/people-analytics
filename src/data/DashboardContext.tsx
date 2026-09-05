@@ -330,11 +330,24 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   // "Ciclo de vida > Atricao" para "Quadro" levaria junto o subTab 'atricao',
   // e a barra ofereceria os sete filtros numa aba que aplica um -- de volta ao
   // problema de mostrar controle que nao faz nada.
+  //
+  // SÓ DEPOIS DA RESTAURAÇÃO, e é isso que consertava o "recarreguei e voltei
+  // para a página errada". O efeito de restauração mexe em `lastTab.current`
+  // de forma síncrona, mas `activeTab` só muda na renderização seguinte. No
+  // mesmo ciclo de montagem este efeito comparava o ref já restaurado
+  // ('engagement') com o estado ainda inicial ('overview'), concluía que houve
+  // troca de aba e apagava a sub-aba recém-restaurada -- e ainda devolvia o
+  // ref para 'overview', fazendo a renderização seguinte apagar de novo.
+  //
+  // A aba principal voltava, a sub-aba não. Quem estava em "Ciclo de vida >
+  // Atrição" recarregava e caía na primeira sub-aba do Ciclo de vida, o que se
+  // parece o bastante com "voltou para o lugar errado".
   useEffect(() => {
+    if (!navRestored) return;
     if (lastTab.current === activeTab) return;
     lastTab.current = activeTab;
     setActiveSubTab(null);
-  }, [activeTab]);
+  }, [navRestored, activeTab]);
   const [yearFilter, setYearFilter] = useState<string>('atual');
   const activeYear =
     semFiltro(yearFilter)
