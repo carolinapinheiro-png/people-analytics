@@ -57,7 +57,15 @@ export function TalentMobilityCard() {
         <MapIcon className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
           <h3 className="text-base font-semibold">Reports do Sandeep — de onde sai cada coluna</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
+          {/* Recolhido por padrão. Não é card de uso mensal: mexe-se nele
+              quando o RH renomeia um campo, e o card de download já avisa,
+              pelo nome, quando isso acontece. Aberto o tempo todo, ele empurra
+              para baixo o botão que se usa de fato. */}
+          <details className="mt-1">
+            <summary className="cursor-pointer text-sm text-muted-foreground">
+              O mapa das 51 colunas — abra para conferir ou reapontar um campo
+            </summary>
+            <p className="mt-2 text-sm text-muted-foreground">
             As 51 colunas do Talent Mobility Data Model contra o cadastro do Convenia. Para
             cada coluna, escolha o campo olhando a cobertura e os valores — a escolha fica
             gravada e é ela que o gerador do CSV vai ler. Meus palpites por nome aparecem
@@ -182,6 +190,7 @@ export function TalentMobilityCard() {
               </div>
             );
           })}
+          </details>
         </div>
       </div>
     </div>

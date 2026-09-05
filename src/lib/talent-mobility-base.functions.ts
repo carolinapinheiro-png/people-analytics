@@ -30,6 +30,8 @@ export interface BaseTalent {
   admitidosDepois: number;
   /** Ainda não relidos pela carga: saem sem campo personalizado. */
   semCadastroCompleto: number;
+  /** Escolhas gravadas cujo campo sumiu do cadastro. Ditas pelo nome. */
+  escolhasOrfas: { coluna: string; campo: string; origem: string }[];
 }
 
 const MESES = ['jan.', 'fev.', 'mar.', 'abr.', 'mai.', 'jun.',
@@ -49,7 +51,7 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const { montarLinhasTalent, vaziosPorColuna } = await import('@/lib/talent-mobility-base');
     const { fimDoMes } = await import('@/lib/controladoria');
-    const { noMesDeReferencia } = await import('@/lib/talent-mobility');
+    const { noMesDeReferencia, escolhasOrfas } = await import('@/lib/talent-mobility');
 
     const db = supabaseAdmin as unknown as {
       from: (t: string) => {
@@ -151,6 +153,19 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
     const linhas = montarLinhasTalent(noMes, mapa, saidas, fim);
     const rotulo = `${MESES[data.mes - 1]}/${data.ano}`;
 
+    // O mapa aponta para o NOME do campo, e nome o RH pode mudar. Conferido
+    // contra o cadastro inteiro: escolha que já não encontra o campo dela é
+    // dita pelo nome, não contada. Ver `escolhasOrfas`.
+    const personalizadosVistos = new Set<string>();
+    for (const p of noMes) for (const c of p.personalizados) personalizadosVistos.add(c.nome);
+    const colunasComValor = new Set<string>();
+    for (const p of noMes) {
+      for (const [k, v] of Object.entries(p as unknown as Record<string, unknown>)) {
+        if (v != null && v !== '') colunasComValor.add(k);
+      }
+    }
+    const orfas = escolhasOrfas(mapa, personalizadosVistos, colunasComValor);
+
     // ------------------------------------------------------------------
     // O LOG ANTES DO ARQUIVO
     // ------------------------------------------------------------------
@@ -174,5 +189,6 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
       // Quem a carga ainda não releu sai sem campo personalizado -- Job
       // Family, Career Band, Compensation Grade e FTE vêm de lá.
       semCadastroCompleto: noMes.filter((p) => p.personalizados.length === 0).length,
+      escolhasOrfas: orfas,
     };
   });

@@ -17,6 +17,7 @@ export function TalentMobilityBaseCard() {
   const [baixando, setBaixando] = useState(false);
   const [resumo, setResumo] = useState<string | null>(null);
   const [vazios, setVazios] = useState<{ coluna: string; vazios: number }[]>([]);
+  const [orfas, setOrfas] = useState<{ coluna: string; campo: string }[]>([]);
   const [erro, setErro] = useState<string | null>(null);
 
   const anterior = new Date();
@@ -37,7 +38,7 @@ export function TalentMobilityBaseCard() {
   });
 
   const gerar = async () => {
-    setBaixando(true); setErro(null); setResumo(null); setVazios([]);
+    setBaixando(true); setErro(null); setResumo(null); setVazios([]); setOrfas([]);
     try {
       const [ano, mes] = alvo.split('-').map(Number);
       const r = await baixar({ data: { ano, mes } });
@@ -50,6 +51,10 @@ export function TalentMobilityBaseCard() {
       a.href = url; a.download = `talent-mobility-${r.rotulo.replace(/[./]/g, '-')}.csv`;
       a.click(); URL.revokeObjectURL(url);
       setVazios(r.vazios);
+      // Antes de tudo: escolha que perdeu o campo dela. Dito pelo nome, e no
+      // topo, porque isso não é "faltou dado" -- é o mapa apontando para um
+      // nome que o RH mudou, e a coluna sai vazia sem nenhum outro sinal.
+      setOrfas(r.escolhasOrfas);
       setResumo(
         `${r.rotulo}: ${r.linhas.length} pessoas, ${r.colunas.length} colunas.`
         + (r.admitidosDepois ? ` ${r.admitidosDepois} admitidas depois deste mês ficaram de fora.` : '')
@@ -98,6 +103,22 @@ export function TalentMobilityBaseCard() {
           </div>
 
           {erro && <p className="mt-3 text-sm" style={{ color: COLORS.danger }}>{erro}</p>}
+
+          {orfas.length > 0 && (
+            <div className="mt-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-xs">
+              <p className="font-medium">
+                {orfas.length} {orfas.length === 1 ? 'coluna aponta' : 'colunas apontam'} para um
+                campo que não existe mais no cadastro
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                {orfas.map((o) => `${o.coluna} → ${o.campo}`).join(' · ')}
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Provável renomeação no Convenia. Elas saem VAZIAS neste arquivo até alguém
+                reapontar no mapa abaixo.
+              </p>
+            </div>
+          )}
           {resumo && <p className="mt-3 text-xs leading-relaxed">{resumo}</p>}
 
           {vazios.length > 0 && (

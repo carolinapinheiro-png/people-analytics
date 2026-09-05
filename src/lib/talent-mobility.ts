@@ -529,3 +529,43 @@ export function ultimoValorConhecido(
   }
   return { valor: '', deMesAnterior: false };
 }
+
+/**
+ * Escolhas gravadas que já não encontram o campo delas.
+ *
+ * ===========================================================================
+ * O MAPA APONTA PARA UM NOME, E NOME O RH PODE MUDAR
+ * ===========================================================================
+ * `talent_mobility_mapa` guarda o NOME do campo, não uma referência estável --
+ * é a única coisa que o Convenia oferece. No dia em que alguém renomear
+ * `Força de Trabalho`, a escolha continua gravada, o gerador procura o nome
+ * antigo, não acha, e a coluna FTE % sai vazia.
+ *
+ * O único sinal seria a contagem de vazios no resumo do download, que diz
+ * QUANTOS e não POR QUÊ -- e "96% preenchido" virando "0%" é fácil de não
+ * notar num arquivo de 51 colunas, ainda mais numa coluna que até semana
+ * passada era vazia mesmo.
+ *
+ * Mesmo princípio do de-para de marca: dizer o que não reconheceu, com o nome,
+ * em vez de contar quantos ficaram de fora. Um nome dá para agir; um número,
+ * não.
+ *
+ * Só acusa o que sumiu do CADASTRO INTEIRO. Campo que existe e está vazio para
+ * uma pessoa é ausência de dado, e disso a contagem de vazios já cuida.
+ */
+export function escolhasOrfas(
+  mapa: ReadonlyMap<string, { campo: string; origem: string }>,
+  /** Nomes de campo personalizado vistos em qualquer pessoa. */
+  personalizadosVistos: ReadonlySet<string>,
+  /** Colunas da tabela com valor em pelo menos uma pessoa. */
+  colunasComValor: ReadonlySet<string>,
+): { coluna: string; campo: string; origem: string }[] {
+  const orfas: { coluna: string; campo: string; origem: string }[] = [];
+  for (const [coluna, e] of mapa) {
+    const existe = e.origem === 'personalizado'
+      ? personalizadosVistos.has(e.campo)
+      : colunasComValor.has(e.campo);
+    if (!existe) orfas.push({ coluna, campo: e.campo, origem: e.origem });
+  }
+  return orfas.sort((a, b) => a.coluna.localeCompare(b.coluna));
+}

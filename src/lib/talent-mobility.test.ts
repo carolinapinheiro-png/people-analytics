@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, blocosDe30Dias, tempoDeCasa, tempoDeCasaTexto, workerType, valorOuVazio, noMesDeReferencia, ultimoValorConhecido, JA_TEMOS, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
+import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, blocosDe30Dias, tempoDeCasa, tempoDeCasaTexto, workerType, valorOuVazio, noMesDeReferencia, ultimoValorConhecido, escolhasOrfas, JA_TEMOS, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
 
 const campo = (nome: string, preenchidos = 8): CampoVisto =>
   ({ nome, origem: 'personalizado', preenchidos, valores: [] });
@@ -334,4 +334,38 @@ test('nao carrega valor mais velho que a janela', () => {
   const antigas = [null, null, null, null, null, null, 'L1'];
   assert.equal(ultimoValorConhecido(null, antigas).valor, '');
   assert.equal(ultimoValorConhecido(null, antigas, 7).valor, 'L1');
+});
+
+const MAPA_REAL = new Map([
+  ['FTE %', { campo: 'Força de Trabalho', origem: 'personalizado' }],
+  ['Compensation Grade', { campo: 'Level', origem: 'personalizado' }],
+  ['Basic Salary', { campo: 'salary', origem: 'listagem' }],
+]);
+
+test('escolha que aponta para campo renomeado e acusada pelo nome', () => {
+  // O RH renomeia `Forca de Trabalho` e a coluna FTE % sai vazia. O unico
+  // sinal seria a contagem de vazios, que diz QUANTOS e nao POR QUE.
+  const orfas = escolhasOrfas(MAPA_REAL, new Set(['Level']), new Set(['salary']));
+  assert.deepEqual(orfas.map((o) => o.coluna), ['FTE %']);
+  assert.equal(orfas[0].campo, 'Força de Trabalho');
+});
+
+test('mapa inteiro resolvido nao acusa nada', () => {
+  const orfas = escolhasOrfas(
+    MAPA_REAL, new Set(['Força de Trabalho', 'Level']), new Set(['salary']),
+  );
+  assert.deepEqual(orfas, []);
+});
+
+test('coluna da tabela que ficou toda nula tambem e acusada', () => {
+  // Foi o caso do `cost_center`: existia na tabela e estava em 0 de 639.
+  const orfas = escolhasOrfas(MAPA_REAL, new Set(['Força de Trabalho', 'Level']), new Set());
+  assert.deepEqual(orfas.map((o) => o.coluna), ['Basic Salary']);
+});
+
+test('personalizado e coluna nao se confundem', () => {
+  // `Level` como nome de coluna da tabela nao satisfaz uma escolha que diz
+  // `personalizado`, e vice-versa.
+  const orfas = escolhasOrfas(MAPA_REAL, new Set(), new Set(['Level', 'Força de Trabalho', 'salary']));
+  assert.equal(orfas.length, 2);
 });
