@@ -76,6 +76,8 @@ export interface ConveniaDiagnostico {
   empresas: DiagnosticoEmpresa[];
   /** Secrets ainda por cadastrar, com o nome exato a usar no Lovable. */
   faltamSecrets: { env: string; empresa: string }[];
+  /** Fontes desligadas de propósito, com o motivo. Não são pendência. */
+  aposentadas: { empresa: string; motivo: string }[];
   /** Soma dos ativos das empresas configuradas. */
   totalGeral: number | null;
   veredito: string | null;
@@ -105,13 +107,15 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
   .handler(async ({ context }): Promise<ConveniaDiagnostico> => {
     await authorizeAdmin(context.claims.email as string | undefined);
 
-    const { fontesConfiguradas, fontesFaltando } = await import('@/lib/convenia/fontes');
+    const { fontesConfiguradas, fontesFaltando, fontesAposentadas } = await import('@/lib/convenia/fontes');
     const configuradas = fontesConfiguradas();
     const faltamSecrets = fontesFaltando().map((f) => ({ env: f.env, empresa: f.empresa }));
+    const aposentadas = fontesAposentadas()
+      .map((f) => ({ empresa: f.empresa, motivo: f.aposentada! }));
 
     if (!configuradas.length) {
       return {
-        empresas: [], faltamSecrets, totalGeral: null, veredito: null, avisos: [],
+        empresas: [], faltamSecrets, aposentadas, totalGeral: null, veredito: null, avisos: [],
         erro: 'Nenhum token do Convenia cadastrado ainda.',
       };
     }
@@ -241,7 +245,7 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
       veredito = 'Todas as empresas trazem admissão e departamento na listagem. Dá para reconstruir a série mensal por área e por marca.';
     }
 
-    return { empresas, faltamSecrets, totalGeral, veredito, avisos, erro: null };
+    return { empresas, faltamSecrets, aposentadas, totalGeral, veredito, avisos, erro: null };
   });
 
 // ===========================================================================

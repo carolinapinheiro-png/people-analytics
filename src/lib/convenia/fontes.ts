@@ -54,6 +54,11 @@ export interface FonteConvenia {
   /** Cidade. `null` quando a empresa não é de uma praça só. */
   local: string | null;
   token: string | null;
+  /**
+   * Preenchida quando o token foi removido DE PROPÓSITO, com motivo e data.
+   * Uma fonte aposentada não aparece como pendência -- ver `fontesFaltando`.
+   */
+  aposentada?: string;
 }
 
 /** Tira espaço e aspas que sobram de copiar e colar. */
@@ -80,6 +85,7 @@ export function fontes(): FonteConvenia[] {
       marca: 'NSX',
       local: 'Marechal',
       token: limpar(process.env.CONVENIA_TOKEN_NSX_MARECHAL),
+      aposentada: 'Unificacao de bases, 05/09/2026. Os ativos migraram para NSX Recife e os 7 desligados estao em convenia_leavers.',
     },
     {
       env: 'CONVENIA_TOKEN_NSX_SP',
@@ -87,6 +93,7 @@ export function fontes(): FonteConvenia[] {
       marca: 'NSX',
       local: 'São Paulo',
       token: limpar(process.env.CONVENIA_TOKEN_NSX_SP),
+      aposentada: 'Unificacao de bases, 05/09/2026. Os ativos migraram para NSX Recife e os 21 desligados estao em convenia_leavers.',
     },
     {
       env: 'CONVENIA_TOKEN_BETFAIR',
@@ -94,6 +101,7 @@ export function fontes(): FonteConvenia[] {
       marca: 'Betfair BR',
       local: null,
       token: limpar(process.env.CONVENIA_TOKEN_BETFAIR),
+      aposentada: 'Unificacao de bases, 05/09/2026. Os ativos migraram para NSX Recife e os 7 desligados estao em convenia_leavers.',
     },
     {
       env: 'CONVENIA_TOKEN_INTERNATIONAL',
@@ -101,9 +109,34 @@ export function fontes(): FonteConvenia[] {
       marca: 'Flutter International',
       local: null,
       token: limpar(process.env.CONVENIA_TOKEN_INTERNATIONAL),
+      aposentada: 'Unificacao de bases, 05/09/2026. Os ativos migraram para NSX Recife; esta base nunca devolveu desligado legivel.',
     },
   ];
 }
 
 export const fontesConfiguradas = () => fontes().filter((f) => f.token != null);
-export const fontesFaltando = () => fontes().filter((f) => f.token == null);
+
+/**
+ * Empresa sem token que AINDA PRECISA de um.
+ *
+ * ===========================================================================
+ * AUSÊNCIA DECIDIDA NÃO É PENDÊNCIA
+ * ===========================================================================
+ * Removidos os quatro tokens da unificação, a tela passou a pedir que alguém
+ * criasse os secrets de volta e a avisar que "o headcount somado está
+ * incompleto até elas entrarem". As duas coisas eram falsas: as bases estão
+ * vazias por decisão, os ativos migraram para Recife, e os 35 desligados delas
+ * vivem em `convenia_leavers` -- a carga que veio depois provou isso, mantendo
+ * as três marcas idênticas.
+ *
+ * Um alerta que pede para desfazer o que acabou de ser feito, todo mês, ensina
+ * a ignorar alertas. E o dia em que um token de verdade faltar, esse é o
+ * alerta que ninguém vai ler.
+ *
+ * A fonte aposentada continua listada, com o motivo e a data, para que ela
+ * possa ser reativada se a unificação for revertida.
+ */
+export const fontesFaltando = () => fontes().filter((f) => f.token == null && !f.aposentada);
+
+/** As que foram desligadas de propósito, com o porquê. */
+export const fontesAposentadas = () => fontes().filter((f) => f.token == null && f.aposentada);

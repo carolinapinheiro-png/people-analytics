@@ -23,7 +23,7 @@ export function ConveniaTokensCard() {
       setD(await carregar({}));
     } catch (e) {
       setD({
-        empresas: [], faltamSecrets: [], totalGeral: null, veredito: null, avisos: [],
+        empresas: [], faltamSecrets: [], aposentadas: [], totalGeral: null, veredito: null, avisos: [],
         erro: e instanceof Error ? e.message : String(e),
       });
     } finally {
@@ -121,6 +121,26 @@ export function ConveniaTokensCard() {
               )}
             </div>
           ))}
+
+          {d && d.aposentadas.length > 0 && (
+            <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
+              <div className="font-medium">Bases desligadas de propósito</div>
+              {/* Ausência decidida não é pendência. A tela pedia que alguém
+                  recriasse os secrets removidos e avisava que o headcount
+                  estava incompleto -- as duas coisas falsas. Alerta que pede
+                  para desfazer o que acabou de ser feito ensina a ignorar
+                  alerta, e o dia em que faltar um token de verdade é esse
+                  alerta que ninguém vai ler. */}
+              <ul className="mt-2 space-y-1">
+                {d.aposentadas.map((a) => (
+                  <li key={a.empresa} className="text-xs">
+                    <span className="font-medium">{a.empresa}</span>
+                    <span className="text-muted-foreground"> — {a.motivo}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {d && d.faltamSecrets.length > 0 && (
             <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
