@@ -107,3 +107,83 @@ export function detectarColapso(
 
   return achados.sort((a, b) => a.brand.localeCompare(b.brand));
 }
+
+/**
+ * ===========================================================================
+ * A MARCA NÃO ENCOLHEU: ELA TROCOU DE HISTÓRIA
+ * ===========================================================================
+ * Terceira forma da mesma falha. A trava aprendeu a ver marca que some, depois
+ * marca que encolhe -- e deixou passar esta, que é maior que as duas.
+ *
+ * Execução de 04/09, com a cobertura do campo `Empresa` chegando a 96%:
+ *
+ *   NSX ....................... de 163 meses (2013-03) para 86 (2019-08)
+ *   Flutter International ..... de  12 meses (2025-10) para 163 (2013-03)
+ *
+ * Nenhum headcount despencou no mês comparado, então `detectarColapso` não
+ * disse nada e a carga ofereceu gravar 275 linhas.
+ *
+ * A causa: UMA pessoa. Das 21 com `Empresa = Flutter International`, vinte
+ * foram admitidas em 2025 e 2026 -- o que bate com a marca real. Uma tem
+ * admissão de 25/03/2013, e a reconstrução monta um mês para cada mês desde a
+ * admissão mais antiga da marca. Um registro fabricou 151 meses de história
+ * para uma marca que nasceu em 2025, e tirou os mesmos 77 da NSX.
+ *
+ * Enquanto a marca vinha do token isso era impossível. Vindo do cadastro,
+ * um valor digitado errado numa linha reescreve uma década em duas marcas.
+ *
+ * Por isso a trava passa a olhar também o INÍCIO da série, dos dois lados:
+ * marca que ganha história que não tinha, e marca que perde a que tinha.
+ */
+export interface SaltoDeHistoria {
+  brand: string;
+  /** Mês mais antigo gravado e o desta carga. */
+  gravadoDe: string;
+  novoDe: string;
+  /** Positivo: ganhou história para trás. Negativo: perdeu. */
+  mesesDeDiferenca: number;
+}
+
+/** Um ano. Abaixo disso, um desligado antigo entrando na conta explica. */
+export const SALTO_SUSPEITO_MESES = 12;
+
+const mesesEntreISO = (a: string, b: string): number => {
+  const [ay, am] = a.split('-').map(Number);
+  const [by, bm] = b.split('-').map(Number);
+  return (by - ay) * 12 + (bm - am);
+};
+
+/**
+ * Marcas cujo início de série andou demais entre o gravado e esta carga.
+ *
+ * Como `detectarColapso`, não decide nada: aqui só se mede.
+ */
+export function detectarSaltoDeHistoria(
+  novas: readonly PontoDeSerie[],
+  gravadas: readonly PontoDeSerie[],
+  { salto = SALTO_SUSPEITO_MESES } = {},
+): SaltoDeHistoria[] {
+  const inicio = (pontos: readonly PontoDeSerie[]) => {
+    const m = new Map<string, string>();
+    for (const p of pontos) {
+      const atual = m.get(p.brand);
+      if (!atual || p.month < atual) m.set(p.brand, p.month);
+    }
+    return m;
+  };
+
+  const antes = inicio(gravadas);
+  const depois = inicio(novas);
+  const achados: SaltoDeHistoria[] = [];
+
+  for (const [brand, de] of antes) {
+    const novoDe = depois.get(brand);
+    // Marca que sumiu inteira já é tratada por quem chama.
+    if (!novoDe) continue;
+    const diff = mesesEntreISO(novoDe.slice(0, 7), de.slice(0, 7));
+    if (Math.abs(diff) >= salto) {
+      achados.push({ brand, gravadoDe: de.slice(0, 7), novoDe: novoDe.slice(0, 7), mesesDeDiferenca: diff });
+    }
+  }
+  return achados.sort((a, b) => a.brand.localeCompare(b.brand));
+}

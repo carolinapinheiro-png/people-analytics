@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { detectarColapso } from './colapso';
+import { detectarColapso, detectarSaltoDeHistoria, type PontoDeSerie } from './colapso';
 
 /**
  * O caso real que motivou este arquivo, com os números da execução de 01/09.
@@ -85,6 +85,58 @@ test('a mesma marca vinda de duas empresas soma antes de comparar', () => {
       { brand: 'NSX', month: '2026-08-01', headcount: 278 },
     ],
     gravadas,
+  );
+  assert.equal(achados.length, 0);
+});
+
+// A execucao de 04/09, com Empresa a 96%: uma pessoa admitida em 2013 e
+// marcada como Flutter International levou 151 meses de historia para uma
+// marca que nasceu em 2025, e tirou 77 da NSX. Nenhum headcount despencou no
+// mes comparado, entao detectarColapso ficou calado.
+const GRAVADO_HIST: PontoDeSerie[] = [
+  { brand: 'NSX', month: '2013-03-01', headcount: 40 },
+  { brand: 'NSX', month: '2026-08-01', headcount: 600 },
+  { brand: 'Flutter International', month: '2025-10-01', headcount: 18 },
+  { brand: 'Flutter International', month: '2026-08-01', headcount: 21 },
+];
+
+test('marca que ganha historia que nao tinha e pega', () => {
+  const achados = detectarSaltoDeHistoria([
+    { brand: 'Flutter International', month: '2013-03-01', headcount: 1 },
+    { brand: 'Flutter International', month: '2026-08-01', headcount: 21 },
+  ], GRAVADO_HIST);
+  const f = achados.find((a) => a.brand === 'Flutter International');
+  assert.equal(f?.gravadoDe, '2025-10');
+  assert.equal(f?.novoDe, '2013-03');
+  assert.ok(f!.mesesDeDiferenca > 0, 'ganhar historia para tras e diferenca positiva');
+  assert.equal(f?.mesesDeDiferenca, 151);
+});
+
+test('marca que perde a historia que tinha tambem e pega', () => {
+  const achados = detectarSaltoDeHistoria([
+    { brand: 'NSX', month: '2019-08-01', headcount: 300 },
+    { brand: 'NSX', month: '2026-08-01', headcount: 600 },
+  ], GRAVADO_HIST);
+  assert.equal(achados.find((a) => a.brand === 'NSX')?.novoDe, '2019-08');
+});
+
+test('um desligado antigo entrando nao dispara o alarme', () => {
+  // Tres meses a mais para tras: e o caso normal de um desligado com admissao
+  // anterior entrar na conta. Alarme que toca a toa e alarme desligado.
+  const achados = detectarSaltoDeHistoria([
+    { brand: 'NSX', month: '2012-12-01', headcount: 38 },
+    { brand: 'NSX', month: '2026-08-01', headcount: 600 },
+  ], GRAVADO_HIST);
+  assert.equal(achados.find((a) => a.brand === 'NSX'), undefined);
+});
+
+test('serie identica nao acusa nada', () => {
+  assert.deepEqual(detectarSaltoDeHistoria(GRAVADO_HIST, GRAVADO_HIST), []);
+});
+
+test('marca nova, sem historico gravado, nao acusa', () => {
+  const achados = detectarSaltoDeHistoria(
+    [{ brand: 'Marca Nova', month: '2013-01-01', headcount: 10 }], GRAVADO_HIST,
   );
   assert.equal(achados.length, 0);
 });

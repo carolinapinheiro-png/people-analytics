@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { reconstruirSerie, type LinhaMensal, type PessoaConvenia } from './pessoas';
 import { empresaDe, escritorioDe, lerCustomFields } from './custom-fields';
-import { detectarColapso } from './colapso';
+import { detectarColapso, detectarSaltoDeHistoria } from './colapso';
 import { marcaDeEmpresa, empresasNaoReconhecidas } from './marca';
 
 /**
@@ -1006,6 +1006,38 @@ export async function executarSyncConvenia(
         'da listagem de desligados -- o que zera o headcount dela e recontam as mesmas pessoas ' +
         'dentro da marca que as recebeu. Se a queda for real (encerramento, corte), rode de novo ' +
         'apos confirmar: a trava so olha para o tamanho, nao sabe distinguir os dois.';
+      avisos.push(recado);
+      serieTravada = recado;
+      todasLinhas.length = 0;
+    }
+
+    // ------------------------------------------------------------------
+    // A MARCA NÃO ENCOLHEU: ELA TROCOU DE HISTÓRIA
+    // ------------------------------------------------------------------
+    // Execução de 04/09, com `Empresa` a 96%: a NSX foi de 163 meses (desde
+    // 2013-03) para 86 (desde 2019-08), e a Flutter International fez o
+    // caminho inverso, de 12 meses para 163. Nenhum headcount despencou no mês
+    // comparado, então a trava de cima ficou calada e a carga ofereceu gravar
+    // 275 linhas.
+    //
+    // A causa foi UMA pessoa: das 21 com `Empresa = Flutter International`,
+    // vinte entraram em 2025 e 2026, e uma tem admissão de 2013. Um registro
+    // fabricou 151 meses para uma marca que nasceu em 2025, e tirou os mesmos
+    // 77 da NSX.
+    const saltos = detectarSaltoDeHistoria(
+      todasLinhas.map((l) => ({ brand: l.brand, month: l.month, headcount: l.headcount })),
+      gravadas,
+    );
+    if (saltos.length && !serieTravada) {
+      const lista = saltos
+        .map((s) => `${s.brand} comecava em ${s.gravadoDe} e agora comeca em ${s.novoDe}`)
+        .join('; ');
+      const recado =
+        `Serie NAO gravada: ${lista}. Uma marca mudou o INICIO da propria historia em mais de um ` +
+        'ano. Isso nao vem de gente entrando ou saindo: vem de pessoa trocando de marca. Com a ' +
+        'marca saindo do campo `Empresa` do cadastro, basta UMA admissao antiga classificada na ' +
+        'marca errada para fabricar anos de historia numa e apagar os mesmos anos na outra. ' +
+        'Confira a admissao mais antiga de cada marca antes de gravar.';
       avisos.push(recado);
       serieTravada = recado;
       todasLinhas.length = 0;
