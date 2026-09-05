@@ -18,7 +18,6 @@ import AuditSection, { type AccessLog } from '@/components/admin/AuditSection';
 import InhireSyncCard from '@/components/admin/InhireSyncCard';
 import ConveniaSyncCard from '@/components/admin/convenia/ConveniaSyncCard';
 import ConveniaTokensCard from '@/components/admin/convenia/ConveniaTokensCard';
-import ConveniaSondaCard from '@/components/admin/convenia/ConveniaSondaCard';
 import VinculoCamadaCard from '@/components/admin/VinculoCamadaCard';
 import QohCard from '@/components/admin/QohCard';
 import MigracoesCard from '@/components/admin/MigracoesCard';
@@ -260,7 +259,6 @@ export default function AdminPage() {
                 <TabsContent value="convenia" className="space-y-6 mt-0">
                   <ConveniaSyncCard />
                   <ConveniaTokensCard />
-                  <ConveniaSondaCard />
                 </TabsContent>
 
                 <TabsContent value="integracoes" className="space-y-6 mt-0">

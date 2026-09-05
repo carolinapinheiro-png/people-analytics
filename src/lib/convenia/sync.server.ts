@@ -1188,7 +1188,7 @@ export async function executarSyncConvenia(
         'a serie delas ficaria congelada no banco e as MESMAS pessoas seriam recontadas dentro de ' +
         `${[...marcasVivas].join(', ')} em todos os meses para tras. O total do painel some ou dobra, e continua parecendo normal. ` +
         'O organograma e a camada N foram gravados normalmente. Para destravar: definir de que campo do cadastro sai a marca ' +
-        '(ver sondarCamposDaPessoa no card do Convenia) e passar fontes.ts a ler esse campo em vez do token.';
+        'e passar fontes.ts a ler esse campo em vez do token.';
       avisos.push(recado);
       serieTravada = recado;
       todasLinhas.length = 0;
