@@ -351,6 +351,8 @@ export async function executarSyncConvenia(
 
     const avisos: string[] = [];
     const porMarca = new Map<string, PessoaConvenia[]>();
+    /** Quem já entrou na série nesta carga. Ver o resgate dos desligados. */
+    const idsNaSerie = new Set<string>();
     // Organograma de TODAS as empresas junto: a cadeia de reporte atravessa
     // as fontes (alguem da Betfair pode reportar a alguem da NSX), e calcular
     // empresa por empresa criaria topos falsos.
@@ -721,6 +723,7 @@ export async function executarSyncConvenia(
           const lista = porMarca.get(marca) ?? [];
           lista.push(r);
           porMarca.set(marca, lista);
+          idsNaSerie.add(r.id);
         }
         // Contado DEPOIS do laço de detalhes: antes, as ~164 buscas
         // individuais não entravam na conta e o número parecia baixo demais
@@ -732,6 +735,55 @@ export async function executarSyncConvenia(
       }
 
       empresas.push(linha);
+    }
+
+    // ========================================================================
+    // OS DESLIGADOS SÃO MEMÓRIA, E NÃO ALGO QUE DEPENDE DO TOKEN EXISTIR
+    // ========================================================================
+    // Até aqui, cada desligado entrava na série porque o token da empresa dele
+    // devolvia a listagem de desligados naquela carga. Isso amarrava o
+    // histórico à existência do token.
+    //
+    // Medido hoje: dos 172 desligados guardados, 137 vêm do token de Recife e
+    // 35 vêm dos outros quatro -- São Paulo 21, Marechal 7, Betfair 7, Flutter
+    // 1. Os ativos dessas quatro bases já migraram todos para Recife, e as
+    // listagens de ativos delas devolvem vazio. O único conteúdo que resta
+    // nelas é gente que saiu.
+    //
+    // Removendo um token, esses 35 sumiriam da reconstrução e a atrição de
+    // 2024 a 2026 mudaria sozinha -- sem erro, sem aviso, com a série
+    // continuando plausível. Uma pessoa que saiu não deixa de ter saído porque
+    // a credencial foi revogada.
+    //
+    // `convenia_leavers` já guarda todos, com marca, admissão e mês de saída.
+    // Aqui eles são resgatados: quem está na tabela e não apareceu em nenhuma
+    // fonte desta carga entra na série a partir do que está gravado. O token
+    // passa a ser fonte de ATIVOS; o desligado, uma vez conhecido, é memória.
+    let desligadosResgatados = 0;
+    for (const l of (jaResolvidos ?? []) as Array<{
+      convenia_id: string; hiring_month: string | null; department: string | null;
+      dismissal_month: string | null; marca: string | null;
+    }>) {
+      if (idsNaSerie.has(l.convenia_id) || !l.marca || !l.dismissal_month) continue;
+      const lista = porMarca.get(l.marca) ?? [];
+      lista.push({
+        id: l.convenia_id,
+        hiring_date: l.hiring_month ? `${l.hiring_month}-01` : null,
+        department: l.department ? { name: l.department } : null,
+        dataSaida: `${l.dismissal_month}-01`,
+        genero: cacheGenero.get(l.convenia_id) ?? null,
+        raca: cacheRaca.get(l.convenia_id) ?? null,
+      });
+      porMarca.set(l.marca, lista);
+      idsNaSerie.add(l.convenia_id);
+      desligadosResgatados++;
+    }
+    if (desligadosResgatados > 0) {
+      avisos.push(
+        `${desligadosResgatados} desligados vieram da tabela guardada, e nao de token: ` +
+        'ou o token da empresa deles foi removido, ou a listagem nao os devolveu nesta carga. ' +
+        'A serie os mantem de qualquer forma -- quem saiu nao deixa de ter saido.',
+      );
     }
 
     const hoje = new Date();
