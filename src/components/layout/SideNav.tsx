@@ -14,7 +14,7 @@ import { readNavState, writeNavState } from '@/lib/nav-state';
 
 export default function SideNav() {
   const { activeTab, setActiveTab, activeSubTab, setActiveSubTab } = useDashboard();
-  const { profile, extraTabs, tabs, subTabs, podeVerIndividual } = useAuth();
+  const { profile, extraTabs, tabs, subTabs, podeVerIndividual, loading } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   // Quais seções com sub-abas estão abertas no índice. A seção ativa abre
   // sozinha; as outras a pessoa expande para dar uma olhada sem sair de onde está.
@@ -63,9 +63,26 @@ export default function SideNav() {
 
   const firstAllowed = groups[0]?.items[0]?.id;
 
+  // ------------------------------------------------------------------
+  // NÃO CORRIGIR A ABA ENQUANTO O PERFIL NÃO CHEGOU
+  // ------------------------------------------------------------------
+  // Esta é a razão de a aba não voltar depois do F5, e a restauração não tinha
+  // nada a ver: ela funcionava e era desfeita meio segundo depois.
+  //
+  // Enquanto a autenticação carrega, `profile` é nulo e `perfil` cai no
+  // fallback `dept_leader`, que é o mais restrito. `allowed` sai curto, a aba
+  // restaurada -- Remuneração, digamos -- não está nele, e este efeito a
+  // empurra para a primeira permitida. Quando o perfil real chega, a aba certa
+  // já passou a ser permitida, mas ninguém volta para ela: o estrago é de ida
+  // só.
+  //
+  // O fallback restritivo está certo -- na dúvida, mostrar de menos. O erro é
+  // AGIR sobre ele: negar acesso enquanto se carrega é prudente, redirecionar
+  // é destrutivo.
   useEffect(() => {
+    if (loading) return;
     if (firstAllowed && !allowed.includes(activeTab)) setActiveTab(firstAllowed);
-  }, [activeTab, allowed, firstAllowed, setActiveTab]);
+  }, [loading, activeTab, allowed, firstAllowed, setActiveTab]);
 
   const isOpen = (item: NavItem) =>
     activeTab === item.id ? open[item.id] !== false : open[item.id] === true;
