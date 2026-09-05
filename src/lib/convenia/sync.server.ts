@@ -1261,6 +1261,37 @@ export async function executarSyncConvenia(
       : null;
 
     if (todasLinhas.length) {
+      // ====================================================================
+      // ANTES DO PRIMEIRO DESLIGADO CONHECIDO, A SÉRIE NÃO SABE O QUE PERDEU
+      // ====================================================================
+      // A reconstrução monta o passado a partir de quem CONHECEMOS HOJE: o
+      // cadastro atual mais `convenia_leavers`. Quem entrou em 2021 e saiu em
+      // 2023 não está em nenhum dos dois -- nunca existiu para esta conta.
+      //
+      // O sintoma é inequívoco e estava na tela: NSX com `leavers = 0` em
+      // todos os 17 meses até maio de 2024, e valor a partir de junho, que é
+      // exatamente quando `convenia_leavers` começa. Não é retenção perfeita;
+      // é ausência de dado com a mesma aparência.
+      //
+      // E o dano é duplo: headcount subestimado (falta quem passou e saiu) e
+      // atrição zero. Uma curva de crescimento limpa e artificial.
+      //
+      // Marcadas, não omitidas. `quality_flag` já é o filtro que TODA leitura
+      // aplica -- dashboard, pesquisa, qualidade, MCP --, então marcar remove
+      // de todas de uma vez, e a linha continua consultável para quem for
+      // investigar. Mesmo tratamento de dez/2025 e Porto.
+      const primeiraSaida = ((jaResolvidos ?? []) as Array<{ dismissal_month: string | null }>)
+        .map((l) => l.dismissal_month).filter(Boolean).sort()[0] ?? null;
+      const horizonte = primeiraSaida ? `${primeiraSaida}-01` : null;
+      const antesDoHorizonte = horizonte
+        ? todasLinhas.filter((l) => l.month < horizonte).length : 0;
+      if (antesDoHorizonte > 0) {
+        avisos.push(
+          `${antesDoHorizonte} meses anteriores a ${primeiraSaida} foram gravados MARCADOS: ` +
+          'antes do primeiro desligado conhecido a serie nao sabe quem saiu, entao a atricao ' +
+          'sai zero e o headcount sai subestimado. Nenhuma tela le linha marcada.',
+        );
+      }
       const registros = todasLinhas.map((l) => ({
         month: l.month,
         brand: l.brand,
@@ -1290,7 +1321,15 @@ export async function executarSyncConvenia(
         race_cross: l.race_cross,
         tenure_base: l.tenure_base,
         demographics: l.demographics,
-        quality_flag: marcaQualidade,
+        // As duas razões de marcar convivem: a linha pode ser anterior ao
+        // horizonte E ter desligado sem admissão resolvida. Quem lê a marca
+        // precisa dos dois motivos, não do que o código escreveu por último.
+        quality_flag: [
+          horizonte && l.month < horizonte
+            ? `Anterior ao primeiro desligamento conhecido (${primeiraSaida}): a reconstrucao nao ve quem entrou e saiu antes disso, entao a atricao sai zero e o headcount sai subestimado.`
+            : null,
+          marcaQualidade,
+        ].filter(Boolean).join(' | ') || null,
         // O CONFLITO E EM (month, brand, source), ENTAO TODA CARGA SEMANAL E
         // UPDATE -- e `DEFAULT now()` so vale no INSERT. Sem esta linha e sem
         // trigger, `updated_at` congela na data do primeiro insert e nunca

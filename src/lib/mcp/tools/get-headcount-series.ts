@@ -25,17 +25,20 @@ const SCALAR_COLUMNS =
  * em agosto" -- passou a ter duas linhas de resposta, com números diferentes e
  * sem nada dizendo qual é qual.
  *
- * O padrão é `reconstruido`, que é a série que as telas usam. Trocar o padrão
- * para a mais nova mudaria, em silêncio, o número que todo mundo já viu
- * respondido antes -- e uma ferramenta que responde diferente hoje sem avisar
- * é pior do que uma que responde só uma das séries.
+ * O padrão é `convenia`, que é a série que o dashboard usa
+ * (`sources: ['convenia', 'raw-data.ts']` em DashboardContext). Escolhi
+ * `reconstruido` primeiro, por ter lido só `experience.functions` e
+ * `data-quality.functions` -- os dois consumidores que ainda não migraram --
+ * e concluído dali que era a canônica. Não era. Uma ferramenta que responde
+ * uma série diferente da que a pessoa vê na tela produz a pior espécie de
+ * divergência: as duas certas, e ninguém sabe por que discordam.
  *
  * `source` fica exposto na saída para que a resposta diga de onde veio, e
- * `quality_flag` exclui o que já foi reconhecido como errado: as 272 linhas
- * invalidadas em 05/09/2026 continuam no banco para consulta, e não devem
- * aparecer em resposta nenhuma.
+ * `quality_flag` exclui o que já foi reconhecido como errado -- inclusive os
+ * meses anteriores ao primeiro desligado conhecido, em que a atrição sai zero
+ * por ausência de dado.
  */
-const FONTE_PADRAO = "reconstruido";
+const FONTE_PADRAO = "convenia";
 
 export default defineTool({
   name: "get_headcount_series",
