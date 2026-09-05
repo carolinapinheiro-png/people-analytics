@@ -964,10 +964,23 @@ export async function executarSyncConvenia(
     // O organograma (camada N) continua gravando -- ele e por pessoa, nao por
     // marca, e nao sofre com a unificacao.
     const marcasVivas = new Set(todasLinhas.map((l) => l.brand));
+    // ------------------------------------------------------------------
+    // BASELINE COM DEFEITO CONHECIDO NÃO SERVE DE REFERÊNCIA
+    // ------------------------------------------------------------------
+    // A trava compara a carga com o que está gravado. Em 04/09 ela ficou
+    // calada diante de sete anos de história trocando de marca -- porque a
+    // troca JÁ ESTAVA gravada por uma execução anterior. O gravado e o novo
+    // batiam, e a trava concluiu que estava tudo bem.
+    //
+    // Uma série marcada com `quality_flag` é uma série que alguém já
+    // reconheceu como errada. Usá-la como referência faz a trava proteger
+    // exatamente o que deveria acusar, e pior: bloquearia a CORREÇÃO, porque
+    // é ela que difere do gravado.
     const { data: marcasNoBanco } = await db
       .from('monthly_metrics')
       .select('brand, month, headcount')
-      .eq('source', 'convenia');
+      .eq('source', 'convenia')
+      .is('quality_flag', null);
     const gravadas = ((marcasNoBanco ?? []) as Array<{
       brand: string; month: string; headcount: number | null;
     }>).map((r) => ({ brand: r.brand, month: r.month, headcount: r.headcount ?? 0 }));
