@@ -987,13 +987,13 @@ export async function executarSyncConvenia(
       const comEscritorio = lidos.filter((p) => cacheEscritorio.get(p.id)).length;
       const naFila = orgTodos.length - lidos.length;
       const pct = (n: number) => Math.round((n / lidos.length) * 100);
+      // Um aviso só. Eram dois -- "Censo de custom_fields" e "Marca pelo
+      // cadastro" -- e os dois abriam com o mesmo par de números (614 de 637,
+      // 96%). Dois avisos dizendo o mesmo fazem o leitor pular os dois.
       avisos.push(
-        `Censo de custom_fields: de ${lidos.length} cadastros ja lidos, ` +
-        `Empresa preenchida em ${comEmpresa} (${pct(comEmpresa)}%) e ` +
-        `Escritorio em ${comEscritorio} (${pct(comEscritorio)}%).` +
-        (naFila > 0 ? ` Faltam ${naFila} na fila -- rode de novo.` : '') +
-        ' A marca so deve passar a sair do cadastro quando Empresa estiver perto de 100%:' +
-        ' com cobertura parcial, quem estiver sem o campo cai numa marca nula.',
+        `Cadastro: de ${lidos.length} pessoas lidas, Empresa preenchida em ${comEmpresa} ` +
+        `(${pct(comEmpresa)}%) e Escritorio em ${comEscritorio} (${pct(comEscritorio)}%).` +
+        (naFila > 0 ? ` Faltam ${naFila} na fila -- rode de novo.` : ''),
       );
       // ------------------------------------------------------------------
       // O DE-PARA TEM QUE DIZER O QUE NAO RECONHECEU, POR NOME
@@ -1037,9 +1037,8 @@ export async function executarSyncConvenia(
       const encontradas = [...porMarcaDoCadastro].map(([m, n]) => `${m} (${n})`).join(', ');
       avisos.push(
         `Marca pelo cadastro: ${comMarcaDoCadastro} de ${lidos.length} pessoas ` +
-        `(${Math.round((comMarcaDoCadastro / lidos.length) * 100)}%). As demais caem na marca do ` +
-        `token, que e o comportamento anterior. Marcas ja identificaveis pelo campo Empresa: ` +
-        `${encontradas || 'nenhuma ainda'}.`,
+        `(${Math.round((comMarcaDoCadastro / lidos.length) * 100)}%), o resto pela marca do ` +
+        `token. Identificaveis pelo campo Empresa: ${encontradas || 'nenhuma ainda'}.`,
       );
 
 

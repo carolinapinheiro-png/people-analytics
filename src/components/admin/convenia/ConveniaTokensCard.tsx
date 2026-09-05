@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { AlertTriangle, CheckCircle2, KeyRound, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -31,7 +31,11 @@ export function ConveniaTokensCard() {
     }
   };
 
-  useEffect(() => { void rodar(); }, []);
+  // Sem `useEffect`: isto chamava a API do Convenia toda vez que a aba abria.
+  // Fazia sentido quando eram cinco tokens e a pergunta "o que cada um
+  // entrega?" era diária. Com um token só e a unificação decidida, virou uma
+  // chamada externa para confirmar o que não muda -- e a aba do Convenia é
+  // aberta para rodar a carga, não para conferir token.
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">

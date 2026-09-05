@@ -19,7 +19,6 @@ import InhireSyncCard from '@/components/admin/InhireSyncCard';
 import ConveniaSyncCard from '@/components/admin/convenia/ConveniaSyncCard';
 import ConveniaTokensCard from '@/components/admin/convenia/ConveniaTokensCard';
 import ConveniaSondaCard from '@/components/admin/convenia/ConveniaSondaCard';
-import ConveniaCruzamentoCard from '@/components/admin/convenia/ConveniaCruzamentoCard';
 import VinculoCamadaCard from '@/components/admin/VinculoCamadaCard';
 import QohCard from '@/components/admin/QohCard';
 import MigracoesCard from '@/components/admin/MigracoesCard';
@@ -262,7 +261,6 @@ export default function AdminPage() {
                   <ConveniaSyncCard />
                   <ConveniaTokensCard />
                   <ConveniaSondaCard />
-                  <ConveniaCruzamentoCard />
                 </TabsContent>
 
                 <TabsContent value="integracoes" className="space-y-6 mt-0">
