@@ -50,6 +50,27 @@ export interface SaidaTalent {
 /** Onde cada coluna escolhida busca o valor. Vem de `talent_mobility_mapa`. */
 export type MapaEscolhido = Map<string, { campo: string; origem: string }>;
 
+/**
+ * O `Employee Type` no vocabulário do arquivo entregue.
+ *
+ * O cadastro devolve `Ativo` e `Em férias`; julho traz `ativo`, `admissão` e
+ * `desligado`, minúsculo, e não tem nenhuma linha de férias entre as 654 --
+ * quem está de férias aparece como ativo, o que faz sentido: férias não é um
+ * tipo de vínculo, é um estado dentro dele.
+ *
+ * Desligado ganha o rótulo próprio. Sem isso as 10 pessoas que saíram em agosto
+ * saíam com a coluna VAZIA, porque o cadastro já não guarda status para quem
+ * não está mais lá -- e vazio ali se lê como "não sei", quando na verdade se
+ * sabe muito bem.
+ */
+export function employeeType(status: string | null, temSaida: boolean): string {
+  if (temSaida) return 'desligado';
+  const s = (status ?? '').trim().toLowerCase();
+  if (!s) return '';
+  if (s.startsWith('em férias') || s.startsWith('em ferias')) return 'ativo';
+  return s;
+}
+
 /** dd/mm/aaaa, que é como o arquivo entregue escreve data. */
 export function dataBR(iso: string | null): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec((iso ?? '').trim());
@@ -119,7 +140,11 @@ export function montarLinhasTalent(
       'Job Family Group': p.department ?? '',
       'Email - Primary Work': p.email ?? '',
       'Original Hire Date': dataBR(p.hiring_date),
-      'Employee Type': p.status ?? '',
+      'Employee Type': employeeType(p.status, Boolean(saida?.data)),
+      // A data de nascimento vem do MAPA, e o mapa devolve o valor cru. Sem
+      // isto ela saía como 1992-02-21 na mesma linha em que a admissão saía
+      // como 07/07/2025 -- duas datas, dois formatos, no mesmo arquivo.
+      'Date of Birth': dataBR(escolhido(p, mapa, 'Date of Birth') || p.birth_date),
       'End Employment Date': dataBR(saida?.data ?? null),
       'Length of Service': String(blocosDe30Dias(p.hiring_date, refISO) ?? ''),
       'Continuous Service Date': tempoDeCasaTexto(p.hiring_date, refISO),
