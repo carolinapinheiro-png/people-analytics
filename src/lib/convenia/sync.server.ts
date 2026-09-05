@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { reconstruirSerie, type LinhaMensal, type PessoaConvenia } from './pessoas';
 import { empresaDe, escritorioDe, lerCustomFields } from './custom-fields';
 import { detectarColapso, detectarSaltoDeHistoria } from './colapso';
-import { marcaDeEmpresa, empresasNaoReconhecidas } from './marca';
+import { marcaDeEmpresa, empresasNaoReconhecidas, MARCAS_DO_PAINEL, type MarcaDoPainel } from './marca';
 
 /**
  * Carga do Convenia: cinco empresas, uma série mensal por marca.
@@ -807,12 +807,29 @@ export async function executarSyncConvenia(
     // fonte desta carga entra na série a partir do que está gravado. O token
     // passa a ser fonte de ATIVOS; o desligado, uma vez conhecido, é memória.
     let desligadosResgatados = 0;
+    /** Marca gravada que o de-para não conhece. Some da série, então avisa. */
+    const marcasDeDesligadoNaoReconhecidas = new Set<string>();
     for (const l of (jaResolvidos ?? []) as Array<{
       convenia_id: string; hiring_month: string | null; department: string | null;
       dismissal_month: string | null; marca: string | null;
     }>) {
       if (idsNaSerie.has(l.convenia_id) || !l.marca || !l.dismissal_month) continue;
-      const lista = porMarca.get(l.marca) ?? [];
+      // A marca gravada pode estar velha. Os 7 desligados da Betfair estão
+      // como `Betfair`, e a série usa `Betfair BR` -- o upsert de desligado só
+      // roda para quem ainda não é conhecido, então o valor nunca foi
+      // reescrito. Empurrar pela marca crua criaria uma marca fantasma com 7
+      // pessoas e tiraria as mesmas 7 da Betfair BR, em silêncio.
+      //
+      // O mesmo de-para que traduz o campo `Empresa` do cadastro serve aqui:
+      // ele conhece os apelidos e devolve o nome canônico.
+      const marcaCanonica = marcaDeEmpresa(l.marca) ?? (
+        MARCAS_DO_PAINEL.includes(l.marca as MarcaDoPainel) ? (l.marca as MarcaDoPainel) : null
+      );
+      if (!marcaCanonica) {
+        marcasDeDesligadoNaoReconhecidas.add(l.marca);
+        continue;
+      }
+      const lista = porMarca.get(marcaCanonica) ?? [];
       lista.push({
         id: l.convenia_id,
         hiring_date: l.hiring_month ? `${l.hiring_month}-01` : null,
@@ -821,7 +838,7 @@ export async function executarSyncConvenia(
         genero: cacheGenero.get(l.convenia_id) ?? null,
         raca: cacheRaca.get(l.convenia_id) ?? null,
       });
-      porMarca.set(l.marca, lista);
+      porMarca.set(marcaCanonica, lista);
       idsNaSerie.add(l.convenia_id);
       desligadosResgatados++;
     }
@@ -830,6 +847,15 @@ export async function executarSyncConvenia(
         `${desligadosResgatados} desligados vieram da tabela guardada, e nao de token: ` +
         'ou o token da empresa deles foi removido, ou a listagem nao os devolveu nesta carga. ' +
         'A serie os mantem de qualquer forma -- quem saiu nao deixa de ter saido.',
+      );
+    }
+
+    if (marcasDeDesligadoNaoReconhecidas.size > 0) {
+      avisos.push(
+        `Desligados com marca desconhecida ficaram FORA da serie: ` +
+        `${[...marcasDeDesligadoNaoReconhecidas].join(', ')}. ` +
+        'A marca gravada nao corresponde a nenhuma do painel nem ao de-para. ' +
+        'Acrescente o apelido em marca.ts ou corrija a linha em convenia_leavers.',
       );
     }
 

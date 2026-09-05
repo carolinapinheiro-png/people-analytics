@@ -48,6 +48,17 @@
 
 export type MarcaDoPainel = 'NSX' | 'Betfair BR' | 'Flutter International';
 
+/**
+ * As três marcas que a série conhece, nesta grafia exata.
+ *
+ * Existe para validar valor que vem do BANCO, não da API: os 7 desligados da
+ * Betfair estão gravados como `Betfair`, de uma versão anterior, porque a
+ * linha de um desligado nunca é reescrita. Aceitar a marca crua criaria uma
+ * marca fantasma na série.
+ */
+export const MARCAS_DO_PAINEL: readonly MarcaDoPainel[] =
+  ['NSX', 'Betfair BR', 'Flutter International'];
+
 /** Sem acento, sem pontuação dupla, minúscula. "São Paulo" == "sao paulo". */
 export const normalizar = (s: string): string =>
   s.normalize('NFD').replace(/[̀-ͯ]/g, '')
