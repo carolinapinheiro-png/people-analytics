@@ -53,7 +53,11 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
 
     const db = supabaseAdmin as unknown as {
       from: (t: string) => {
-        select: (c: string) => PromiseLike<{ data: unknown[] | null }>;
+        select: (c: string) => PromiseLike<{ data: unknown[] | null }> & {
+          lt: (col: string, v: string) => {
+            order: (col: string, o: { ascending: boolean }) => PromiseLike<{ data: unknown[] | null }>;
+          };
+        };
         insert: (v: unknown) => PromiseLike<{ error: { message: string } | null }>;
       };
     };
@@ -67,6 +71,23 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
       db.from('convenia_leavers').select('convenia_id, dismissal_month, dismissal_date, dismissal_type'),
       db.from('talent_mobility_mapa').select('coluna, campo, origem'),
     ]);
+
+    // As fotos dos meses ANTERIORES ao pedido, da mais recente para a mais
+    // antiga. É delas que sai o carry-forward dos campos personalizados --
+    // hoje feito na mão, e responsável por Compensation Grade sair em 73%.
+    const { data: fotosRaw } = await db.from('convenia_cadastro_mensal')
+      .select('mes, convenia_id, dados')
+      .lt('mes', `${data.ano}-${String(data.mes).padStart(2, '0')}`)
+      .order('mes', { ascending: false });
+    const fotosPorPessoa = new Map<string, { nome: string; valor: string }[][]>();
+    for (const f of (fotosRaw ?? []) as Array<{ convenia_id: string; dados: { custom_fields?: unknown } }>) {
+      const cf = Array.isArray(f.dados?.custom_fields)
+        ? (f.dados.custom_fields as { nome: string; valor: string }[])
+        : [];
+      const lista = fotosPorPessoa.get(f.convenia_id) ?? [];
+      lista.push(cf);
+      fotosPorPessoa.set(f.convenia_id, lista);
+    }
 
     type LinhaCad = {
       convenia_id: string; job_title: string | null; empresa: string | null;
@@ -95,6 +116,7 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
         personalizados: Array.isArray(c.custom_fields)
           ? (c.custom_fields as { nome: string; valor: string }[])
           : [],
+        personalizadosAnteriores: fotosPorPessoa.get(c.convenia_id) ?? [],
       };
     });
 

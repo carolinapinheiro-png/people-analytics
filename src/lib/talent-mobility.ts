@@ -490,3 +490,42 @@ export function noMesDeReferencia(
   if (saida && saida < inicioISO.slice(0, 7)) return false;
   return true;
 }
+
+/**
+ * O último valor conhecido de um campo, olhando para trás nas fotos mensais.
+ *
+ * ===========================================================================
+ * O CARRY-FORWARD QUE HOJE É FEITO NA MÃO
+ * ===========================================================================
+ * A nota de agosto do arquivo entregue diz, com todas as letras: Job Type
+ * Family, Career Band e WorkDay Level vieram em branco para 120 colegas e
+ * foram puxadas do último mês em que cada um teve valor.
+ *
+ * Medido em agosto de 2026: `Compensation Grade` sai em 73% e `Job Family` em
+ * 89% -- é a mesma população. O campo está vazio no cadastro de hoje, e o
+ * valor existia mês passado.
+ *
+ * As fotos vêm da mais recente para a mais antiga, e a primeira que tiver
+ * valor ganha. Não interpola nem inventa: se nenhuma foto tem, sai vazio, e a
+ * contagem de vazios continua dizendo quantos.
+ *
+ * A janela é limitada de propósito. Um Career Band de dezoito meses atrás não
+ * descreve mais ninguém -- carregar valor velho para sempre é a forma de fazer
+ * um campo parecer preenchido enquanto ele apodrece.
+ */
+export const MESES_DE_CARRY_FORWARD = 6;
+
+export function ultimoValorConhecido(
+  atual: string | null | undefined,
+  /** Fotos anteriores, da mais recente para a mais antiga. */
+  anteriores: readonly (string | null | undefined)[],
+  limite = MESES_DE_CARRY_FORWARD,
+): { valor: string; deMesAnterior: boolean } {
+  const agora = valorOuVazio(atual ?? null);
+  if (agora) return { valor: agora, deMesAnterior: false };
+  for (const v of anteriores.slice(0, limite)) {
+    const achado = valorOuVazio(v ?? null);
+    if (achado) return { valor: achado, deMesAnterior: true };
+  }
+  return { valor: '', deMesAnterior: false };
+}

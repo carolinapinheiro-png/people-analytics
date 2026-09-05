@@ -1,6 +1,6 @@
 import {
   COLUNAS_TALENT, JA_TEMOS, degrau, blocosDe30Dias, tempoDeCasaTexto,
-  workerType, valorOuVazio,
+  workerType, valorOuVazio, ultimoValorConhecido,
 } from './talent-mobility';
 
 /**
@@ -40,6 +40,11 @@ export interface PessoaTalent {
   birth_date: string | null;
   /** `custom_fields` como a carga guardou: lista de {nome, valor}. */
   personalizados: { nome: string; valor: string }[];
+  /**
+   * Os mesmos campos nas fotos dos meses anteriores, do mais recente para o
+   * mais antigo. Alimenta o carry-forward -- ver `ultimoValorConhecido`.
+   */
+  personalizadosAnteriores?: { nome: string; valor: string }[][];
 }
 
 export interface SaidaTalent {
@@ -92,13 +97,25 @@ export function dataBR(iso: string | null): string {
  * Coluna sem escolha gravada sai VAZIA. Não há palpite aqui: o palpite mora na
  * tela de mapeamento, onde alguém olha antes de aceitar.
  */
+/**
+ * O valor de um campo personalizado, caindo para as fotos anteriores quando o
+ * de hoje está vazio.
+ *
+ * É o carry-forward que a nota de agosto descreve como feito na mão: "vieram
+ * em branco para 120 colegas e foram puxadas do último mês em que cada colega
+ * teve valor".
+ */
+function personalizadoComHistorico(p: PessoaTalent, nome: string): string {
+  const hoje = p.personalizados.find((c) => c.nome === nome)?.valor ?? null;
+  const antes = (p.personalizadosAnteriores ?? [])
+    .map((fs) => fs.find((c) => c.nome === nome)?.valor ?? null);
+  return ultimoValorConhecido(hoje, antes).valor;
+}
+
 function escolhido(p: PessoaTalent, mapa: MapaEscolhido, coluna: string): string {
   const e = mapa.get(coluna);
   if (!e) return '';
-  if (e.origem === 'personalizado') {
-    const c = p.personalizados.find((x) => x.nome === e.campo);
-    return valorOuVazio(c?.valor ?? null);
-  }
+  if (e.origem === 'personalizado') return personalizadoComHistorico(p, e.campo);
   const direto = (p as unknown as Record<string, unknown>)[e.campo];
   if (direto == null) return '';
   return valorOuVazio(typeof direto === 'number' ? String(direto) : String(direto));
@@ -151,13 +168,13 @@ export function montarLinhasTalent(
       'End Employment Date': dataBR(saida?.data ?? null),
       'Length of Service': String(blocosDe30Dias(p.hiring_date, refISO) ?? ''),
       'Continuous Service Date': tempoDeCasaTexto(p.hiring_date, refISO),
-      'Is Manager': p.personalizados.find((c) => c.nome === 'Liderança ?')?.valor ?? '',
+      'Is Manager': personalizadoComHistorico(p, 'Liderança ?'),
       'Location': p.escritorio ?? '',
       'Work Address - Country': p.uf ?? '',
       'Company': p.empresa ?? '',
       'Cost Center': p.cost_center ?? '',
       'Line Manager Email': gestor?.email ?? '',
-      'Compensation Grade Profile': p.personalizados.find((c) => c.nome === 'WorkDay Level')?.valor ?? '',
+      'Compensation Grade Profile': personalizadoComHistorico(p, 'WorkDay Level'),
       'Leaver Date (exit the organisation)': dataBR(saida?.data ?? null),
       'Leaver Reason': saida?.tipo ?? '',
     };

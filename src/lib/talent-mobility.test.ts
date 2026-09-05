@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, blocosDe30Dias, tempoDeCasa, tempoDeCasaTexto, workerType, valorOuVazio, noMesDeReferencia, JA_TEMOS, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
+import { casarCampos, sobraram, chave, forcaDoCasamento, cadeiaAcima, degrau, blocosDe30Dias, tempoDeCasa, tempoDeCasaTexto, workerType, valorOuVazio, noMesDeReferencia, ultimoValorConhecido, JA_TEMOS, COLUNAS_TALENT, type CampoVisto } from './talent-mobility';
 
 const campo = (nome: string, preenchidos = 8): CampoVisto =>
   ({ nome, origem: 'personalizado', preenchidos, valores: [] });
@@ -301,4 +301,37 @@ test('ativo sem data de saida entra sempre', () => {
 test('sem data de admissao a pessoa fica, e nao some', () => {
   assert.equal(noMesDeReferencia(null, null, '2026-08-01', '2026-08-31'), true);
   assert.equal(noMesDeReferencia('data estranha', null, '2026-08-01', '2026-08-31'), true);
+});
+
+test('o valor de hoje ganha de qualquer foto anterior', () => {
+  const r = ultimoValorConhecido('L4', ['L3', 'L2']);
+  assert.equal(r.valor, 'L4');
+  assert.equal(r.deMesAnterior, false);
+});
+
+test('campo vazio hoje puxa a foto mais recente que tiver valor', () => {
+  // A nota de agosto do arquivo entregue: Job Type Family, Career Band e
+  // WorkDay Level em branco para 120 colegas, puxados do ultimo mes com valor.
+  const r = ultimoValorConhecido(null, [null, 'L3', 'L2']);
+  assert.equal(r.valor, 'L3');
+  assert.equal(r.deMesAnterior, true);
+});
+
+test('"Nao informado" na foto antiga tambem e vazio', () => {
+  assert.equal(ultimoValorConhecido(null, ['Não informado', 'L2']).valor, 'L2');
+  assert.equal(ultimoValorConhecido('Não informado', ['L2']).valor, 'L2');
+});
+
+test('sem nenhuma foto com valor, sai vazio em vez de inventar', () => {
+  const r = ultimoValorConhecido(null, [null, null]);
+  assert.equal(r.valor, '');
+  assert.equal(r.deMesAnterior, false);
+});
+
+test('nao carrega valor mais velho que a janela', () => {
+  // Um Career Band de dezoito meses atras nao descreve mais ninguem. Carregar
+  // valor velho para sempre faz o campo parecer preenchido enquanto apodrece.
+  const antigas = [null, null, null, null, null, null, 'L1'];
+  assert.equal(ultimoValorConhecido(null, antigas).valor, '');
+  assert.equal(ultimoValorConhecido(null, antigas, 7).valor, 'L1');
 });

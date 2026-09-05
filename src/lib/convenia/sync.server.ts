@@ -846,6 +846,46 @@ export async function executarSyncConvenia(
     const hoje = new Date();
     const ateMes = `${hoje.getUTCFullYear()}-${String(hoje.getUTCMonth() + 1).padStart(2, '0')}`;
 
+    // ========================================================================
+    // A FOTO MENSAL DO CADASTRO
+    // ========================================================================
+    // Reescreve a linha do MÊS CORRENTE a cada carga: a foto é do estado no fim
+    // do mês, e o mês só acaba quando acaba. Os meses anteriores nunca são
+    // tocados -- é isso que faz deles história.
+    //
+    // Guarda o registro inteiro, sem escolher campo. Cinco das últimas seis
+    // correções foram um campo que a API entregava e a carga descartava; aqui
+    // a redução acontece na leitura, e uma coluna nova no report do mês que vem
+    // não exige migration nenhuma.
+    let fotoGravada = 0;
+    try {
+      const { data: cadAtual } = await db.from('convenia_pessoas').select('*');
+      const { data: orgAtual } = await db.from('org_pessoas').select('*');
+      const porOrg = new Map(
+        ((orgAtual ?? []) as Array<{ convenia_id: string }>).map((o) => [o.convenia_id, o]),
+      );
+      const foto = ((cadAtual ?? []) as Array<{ convenia_id: string }>).map((c) => ({
+        mes: ateMes,
+        convenia_id: c.convenia_id,
+        dados: { ...c, org: porOrg.get(c.convenia_id) ?? null },
+        capturado_em: new Date().toISOString(),
+      }));
+      for (let i = 0; i < foto.length; i += 300) {
+        const { error } = await db.from('convenia_cadastro_mensal')
+          .upsert(foto.slice(i, i + 300), { onConflict: 'mes,convenia_id' });
+        if (error) throw new Error(error.message);
+        fotoGravada += foto.slice(i, i + 300).length;
+      }
+      avisos.push(
+        `Foto do cadastro de ${ateMes}: ${fotoGravada} pessoas guardadas. ` +
+        'E dela que sai o carry-forward de Compensation Grade e Job Family, ' +
+        'e a possibilidade de re-rodar um mes passado com o cadastro daquele mes.',
+      );
+    } catch (e) {
+      // A foto falhar não pode derrubar a carga: ela é para o mês que vem.
+      avisos.push(`Foto do cadastro NAO gravada: ${e instanceof Error ? e.message : String(e)}`);
+    }
+
     const todasLinhas: LinhaMensal[] = [];
     const linhasPorMarca: ResumoSyncConvenia['linhasPorMarca'] = [];
 
