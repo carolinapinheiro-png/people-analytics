@@ -382,7 +382,13 @@ export async function executarSyncConvenia(
             id: String(b.id ?? ''),
             hiring_date: (b.hiring_date as string) ?? null,
             // Ja vem na listagem, de graca. "GERALL" e o valor nao-migrado.
-            cost_center: typeof b.cost_center === 'string' ? b.cost_center : null,
+            // `textoDe`, e nao `typeof === 'string'`: o cost_center vem como
+            // objeto `{name}`, igual a `team`, `relationship` e `department`.
+            // O teste de tipo o transformava em null silenciosamente -- a
+            // coluna ficou em 0 de 639 enquanto a sonda exibia valores, porque
+            // ela achata `{name}` para mostrar e a carga nao achatava para
+            // gravar. Terceira vez que este mesmo engano aparece.
+            cost_center: textoDe(b.cost_center),
             department: (b.department as { name: string | null }) ?? null,
             status: (b.status as string) ?? null,
             supervisorId: sup?.id ? String(sup.id) : null,
@@ -656,7 +662,7 @@ export async function executarSyncConvenia(
               // Estes tres vem da LISTAGEM, nao do detalhe -- sao de graca e
               // chegam para todo mundo em toda carga. Ficam aqui so porque e
               // aqui que a linha da pessoa e gravada.
-              cost_center: typeof alvo.cost_center === 'string' ? alvo.cost_center : null,
+              cost_center: alvo.cost_center ?? null,
               hiring_date: alvo.hiring_date || null,
               status: alvo.status ?? null,
               // ------------------------------------------------------------
