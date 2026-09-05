@@ -230,7 +230,7 @@ export async function executarSyncConvenia(
     const { fontesConfiguradas } = await import('./fontes');
     const { ConveniaClient } = await import('./client.server');
     const { EMPLOYEES, EMPLOYEES_DISMISSED, EMPLOYEE_DETAIL } = await import('./paths');
-    const { mesDe, ehVoluntaria, normalizarGenero, textoDe, ufDe } = await import('./pessoas');
+    const { mesDe, ehVoluntaria, normalizarGenero, textoDe, ufDe, dataISO } = await import('./pessoas');
 
     // O cache do que já foi resolvido. Uma pessoa desligada não muda de data
     // de admissão nem de área, então buscar de novo seria expor cadastro
@@ -445,6 +445,29 @@ export async function executarSyncConvenia(
 
         linha.ativos = pessoas.length;
         linha.desligados = saidas.length;
+
+        // ------------------------------------------------------------------
+        // A DATA INTEIRA DO DESLIGAMENTO, PARA TODO MUNDO, TODA CARGA
+        // ------------------------------------------------------------------
+        // A listagem de desligados já traz `dismissal.date` completa, e ela era
+        // reduzida a mês na gravação. `dismissal_month` basta para a série,
+        // que agrupa por mês; o Talent Mobility pede o dia, e as colunas
+        // `End Employment Date` e `Leaver Date` saíram em 0 de 639 -- as
+        // pessoas certas, sem data.
+        //
+        // Aqui, e não no laço de resolução: aquele só roda para desligado
+        // ainda não conhecido, e os 172 já estão todos resolvidos. A coluna
+        // nasceria nula e assim ficaria -- exatamente o que aconteceu com
+        // `detalhe_em` e custou uma carga inteira para aparecer.
+        const datasDeSaida = saidas
+          .filter((s) => s.id && s.data)
+          .map((s) => ({ convenia_id: s.id, dismissal_date: dataISO(s.data) }))
+          .filter((r) => r.dismissal_date);
+        for (let i = 0; i < datasDeSaida.length; i += 500) {
+          const { error } = await db.from('convenia_leavers')
+            .upsert(datasDeSaida.slice(i, i + 500), { onConflict: 'convenia_id' });
+          if (error) avisos.push(`${f.empresa}: datas de desligamento nao gravaram -- ${error.message}`);
+        }
 
         for (const p of pessoas) {
           orgTodos.push({

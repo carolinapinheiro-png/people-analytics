@@ -43,7 +43,10 @@ export interface PessoaTalent {
 }
 
 export interface SaidaTalent {
+  /** Data inteira, para as colunas que pedem dia. Pode faltar. */
   data: string | null;
+  /** Mês do desligamento. É ele que decide se a pessoa entra no arquivo. */
+  mes: string | null;
   tipo: string | null;
 }
 
@@ -140,7 +143,7 @@ export function montarLinhasTalent(
       'Job Family Group': p.department ?? '',
       'Email - Primary Work': p.email ?? '',
       'Original Hire Date': dataBR(p.hiring_date),
-      'Employee Type': employeeType(p.status, Boolean(saida?.data)),
+      'Employee Type': employeeType(p.status, Boolean(saida?.mes)),
       // A data de nascimento vem do MAPA, e o mapa devolve o valor cru. Sem
       // isto ela saía como 1992-02-21 na mesma linha em que a admissão saía
       // como 07/07/2025 -- duas datas, dois formatos, no mesmo arquivo.

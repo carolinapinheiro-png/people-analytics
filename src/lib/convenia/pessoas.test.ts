@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  mesDe, mesesEntre, ehVoluntaria, areaDe, reconstruirSerie, textoDe, ufDe,
+  mesDe, mesesEntre, ehVoluntaria, areaDe, reconstruirSerie, textoDe, ufDe, dataISO,
   idsDeGestores, faixaTempoDeCasa, faixaEtaria, normalizarGenero, classificarSaida,
   type PessoaConvenia,
 } from './pessoas';
@@ -585,4 +585,17 @@ test('ufDe pega o estado do endereco aninhado', () => {
   assert.equal(ufDe({ state: 'PE', city: 'Recife' }), 'PE');
   assert.equal(ufDe({ city: 'Recife' }), null);
   assert.equal(ufDe(null), null);
+});
+
+test('dataISO aceita os dois formatos que o Convenia manda', () => {
+  assert.equal(dataISO('2026-08-22'), '2026-08-22');
+  assert.equal(dataISO('22/08/2026'), '2026-08-22');
+});
+
+test('dataISO recusa o que nao entende, em vez de arriscar dia trocado', () => {
+  // 03/07 e 07/03 sao ambos plausiveis e ninguem conferiria.
+  assert.equal(dataISO('2026-08'), null);
+  assert.equal(dataISO('agosto de 2026'), null);
+  assert.equal(dataISO(null), null);
+  assert.equal(dataISO(''), null);
 });

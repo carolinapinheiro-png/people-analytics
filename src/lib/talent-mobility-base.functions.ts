@@ -64,7 +64,7 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
         + ' custom_fields, registration, social_name, team, relationship, uf, salary, birth_date',
       ),
       db.from('org_pessoas').select('convenia_id, nome, email, supervisor_id, department'),
-      db.from('convenia_leavers').select('convenia_id, dismissal_month, dismissal_type'),
+      db.from('convenia_leavers').select('convenia_id, dismissal_month, dismissal_date, dismissal_type'),
       db.from('talent_mobility_mapa').select('coluna, campo, origem'),
     ]);
 
@@ -99,8 +99,16 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
     });
 
     const saidas = new Map<string, SaidaTalent>(
-      ((saidasRaw ?? []) as { convenia_id: string; dismissal_month: string | null; dismissal_type: string | null }[])
-        .map((s) => [s.convenia_id, { data: s.dismissal_month, tipo: s.dismissal_type }]),
+      ((saidasRaw ?? []) as {
+        convenia_id: string; dismissal_month: string | null;
+        dismissal_date: string | null; dismissal_type: string | null;
+      }[])
+        // `data` é a data inteira, para as colunas que pedem dia; `mes` é o que
+        // decide se a pessoa entra no arquivo do mês. Antes as duas eram o mês,
+        // e `dataBR` recusava YYYY-MM -- daí End Employment Date em 0 de 639.
+        .map((s) => [s.convenia_id, {
+          data: s.dismissal_date, mes: s.dismissal_month, tipo: s.dismissal_type,
+        }]),
     );
     const mapa = new Map(
       ((mapaRaw ?? []) as { coluna: string; campo: string; origem: string }[])
@@ -116,7 +124,7 @@ export const baseTalentMobility = createServerFn({ method: 'POST' })
     const fim = fimDoMes(data.ano, data.mes);
     const inicio = `${data.ano}-${String(data.mes).padStart(2, '0')}-01`;
     const noMes = pessoas.filter((p) =>
-      noMesDeReferencia(p.hiring_date, saidas.get(p.id)?.data ?? null, inicio, fim));
+      noMesDeReferencia(p.hiring_date, saidas.get(p.id)?.mes ?? null, inicio, fim));
 
     const linhas = montarLinhasTalent(noMes, mapa, saidas, fim);
     const rotulo = `${MESES[data.mes - 1]}/${data.ano}`;

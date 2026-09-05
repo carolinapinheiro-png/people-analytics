@@ -696,3 +696,20 @@ export function ufDe(v: unknown): string | null {
   const end = v as { state?: unknown } | null;
   return textoDe(end?.state);
 }
+
+/**
+ * Data em ISO (`AAAA-MM-DD`), venha ela como ISO ou como `dd/mm/aaaa`.
+ *
+ * O Convenia manda as duas formas dependendo do endpoint -- `mesDe` já
+ * convivia com isso. Devolve null no que não entender, em vez de arriscar
+ * uma data trocada: 03/07 e 07/03 são ambos plausíveis, e ninguém conferiria.
+ */
+export function dataISO(v: string | null | undefined): string | null {
+  const s = (v ?? '').trim();
+  if (!s) return null;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const br = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(s);
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+  return null;
+}
