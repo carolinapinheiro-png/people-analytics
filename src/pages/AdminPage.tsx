@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { lerAba, gravarAba } from '@/lib/nav-state';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
@@ -38,6 +39,44 @@ interface UserPaginationState {
 
 export default function AdminPage() {
   const { user, loading, isAdmin } = useAuth();
+
+  // ------------------------------------------------------------------
+  // A ABA SOBREVIVE AO F5
+  // ------------------------------------------------------------------
+  // Eram `defaultValue`, ou seja, estado não controlado do Radix: vive dentro
+  // do componente e morre no recarregamento. Quem estava em "Dados > Convenia"
+  // apertava F5 e voltava para Usuários / Integrações, toda vez.
+  //
+  // Pesa mais aqui do que no dashboard: a aba de Dados é onde se roda carga e
+  // se confere resultado, e cada conferência é um recarregamento.
+  //
+  // A restauração é feita em efeito, e não no init do `useState`, porque no
+  // SSR não existe `localStorage` -- ler ali faria o HTML do servidor divergir
+  // do cliente, que é o mesmo cuidado que o dashboard já tomava.
+  const [aba, setAba] = useState('access');
+  const [subAba, setSubAba] = useState('integracoes');
+  const [abaRestaurada, setAbaRestaurada] = useState(false);
+
+  useEffect(() => {
+    const s = lerAba('admin');
+    if (s?.tab) setAba(s.tab);
+    if (s?.sub) setSubAba(s.sub);
+    setAbaRestaurada(true);
+  }, []);
+
+  useEffect(() => {
+    if (abaRestaurada) gravarAba('admin', { tab: aba, sub: subAba });
+  }, [abaRestaurada, aba, subAba]);
+
+  // "Dados" só existe para admin. Sem esta guarda, um admin que deixasse a
+  // tela nessa aba e depois perdesse o perfil -- ou alguém usando o mesmo
+  // navegador -- abriria o Admin numa aba sem gatilho: o Radix não seleciona
+  // nada e o conteúdo some, sem erro e sem explicação. `loading` é esperado
+  // porque `isAdmin` chega depois da autenticação, e corrigir antes disso
+  // jogaria todo admin para fora da aba a cada abertura.
+  useEffect(() => {
+    if (!loading && !isAdmin && aba === 'data') setAba('access');
+  }, [loading, isAdmin, aba]);
   const [pagination, setPagination] = useState<UserPaginationState>({
     items: [],
     count: 0,
@@ -157,7 +196,7 @@ export default function AdminPage() {
           </Link>
         </div>
 
-        <Tabs defaultValue="access" className="space-y-6">
+        <Tabs value={aba} onValueChange={setAba} className="space-y-6">
           <TabsList className="h-auto flex-wrap">
             <TabsTrigger value="access" className="gap-2">
               <Users className="h-4 w-4" />
@@ -228,7 +267,7 @@ export default function AdminPage() {
               sua sub-aba. */}
           {isAdmin && (
             <TabsContent value="data" className="mt-0">
-              <Tabs defaultValue="integracoes" className="space-y-6">
+              <Tabs value={subAba} onValueChange={setSubAba} className="space-y-6">
                 <TabsList className="h-auto flex-wrap">
                   <TabsTrigger value="integracoes" className="gap-2">
                     <Plug className="h-4 w-4" />
