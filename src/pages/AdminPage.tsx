@@ -25,6 +25,7 @@ import MigracoesCard from '@/components/admin/MigracoesCard';
 import PesquisaCard from '@/components/admin/PesquisaCard';
 import ControladoriaCard from '@/components/admin/ControladoriaCard';
 import TalentMobilityBaseCard from '@/components/admin/TalentMobilityBaseCard';
+import WilLocationCard from '@/components/admin/WilLocationCard';
 import TalentMobilityCard from '@/components/admin/TalentMobilityCard';
 
 interface UserPaginationState {
@@ -320,6 +321,7 @@ export default function AdminPage() {
                   </p>
                   <ControladoriaCard />
                   <TalentMobilityBaseCard />
+                  <WilLocationCard />
                   <TalentMobilityCard />
                 </TabsContent>
               </Tabs>
