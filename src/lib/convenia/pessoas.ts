@@ -713,3 +713,40 @@ export function dataISO(v: string | null | undefined): string | null {
   if (br) return `${br[3]}-${br[2]}-${br[1]}`;
   return null;
 }
+
+/**
+ * As chaves que NÃO se guarda, nem no cru.
+ *
+ * Documento e dado bancário: nenhum report pede, e guardar "porque um dia pode
+ * servir" é exatamente como se acumula dado que ninguém sabe que tem. A lista
+ * fica aqui, versionada, onde dá para discutir o que entra -- e não num filtro
+ * por regex que ninguém revisa.
+ */
+export const CHAVES_SENSIVEIS = [
+  'cpf', 'rg', 'ctps', 'documents', 'bank_account', 'bank_accounts',
+  'electoral_card', 'driver_license', 'reservist', 'emergency_contacts',
+  'payroll', 'aso', 'benefits',
+];
+
+/**
+ * O cadastro cru sem as chaves acima, para guardar em `convenia_pessoas.bruto`.
+ *
+ * Existe para acabar com o ciclo: `team`, `relationship`, `cost_center`, os
+ * sete do Talent Mobility, a data de desligamento, `nationalities` e
+ * `disability` -- seis vezes o mesmo caso, um campo que a API entregava e a
+ * redução descartava. Guardar o que veio e reduzir na leitura tira a próxima
+ * pergunta do caminho da migration.
+ *
+ * Não achata nem normaliza: é a resposta como ela é. Achatar aqui repetiria o
+ * erro noutro lugar -- foi achatando para EXIBIR que a sonda mostrou
+ * `nationalities` vazio quando ela é uma lista.
+ */
+export function semSensiveis(v: unknown): Record<string, unknown> | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const saida: Record<string, unknown> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+    if (CHAVES_SENSIVEIS.includes(k)) continue;
+    saida[k] = val;
+  }
+  return saida;
+}

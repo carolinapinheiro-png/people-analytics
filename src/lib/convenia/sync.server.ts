@@ -230,7 +230,7 @@ export async function executarSyncConvenia(
     const { fontesConfiguradas } = await import('./fontes');
     const { ConveniaClient } = await import('./client.server');
     const { EMPLOYEES, EMPLOYEES_DISMISSED, EMPLOYEE_DETAIL } = await import('./paths');
-    const { mesDe, ehVoluntaria, normalizarGenero, textoDe, ufDe, dataISO } = await import('./pessoas');
+    const { mesDe, ehVoluntaria, normalizarGenero, textoDe, ufDe, dataISO, semSensiveis } = await import('./pessoas');
 
     // O cache do que já foi resolvido. Uma pessoa desligada não muda de data
     // de admissão nem de área, então buscar de novo seria expor cadastro
@@ -728,6 +728,10 @@ export async function executarSyncConvenia(
               // of Birth. `birth_month` continua sendo o que o dashboard usa.
               salary: alvo.salary ?? null,
               birth_date: alvo.birth_date || null,
+              // O cadastro cru, menos documentos e conta bancária. Rede para a
+              // próxima pergunta: `nationalities` (lista) e `disability`
+              // (objeto) já estão aqui sem terem precisado de coluna própria.
+              bruto: semSensiveis({ ...det2, listagem: semSensiveis(alvo) }),
               // Marca a PERGUNTA. Com cargo nulo e esta data preenchida, a
               // ausencia passa a ser uma resposta do Convenia -- e so entao
               // alguem pode dizer "nao esta preenchido la".

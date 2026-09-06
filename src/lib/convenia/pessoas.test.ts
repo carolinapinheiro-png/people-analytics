@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  mesDe, mesesEntre, ehVoluntaria, areaDe, reconstruirSerie, textoDe, ufDe, dataISO,
+  mesDe, mesesEntre, ehVoluntaria, areaDe, reconstruirSerie, textoDe, ufDe, dataISO, semSensiveis,
   idsDeGestores, faixaTempoDeCasa, faixaEtaria, normalizarGenero, classificarSaida,
   type PessoaConvenia,
 } from './pessoas';
@@ -598,4 +598,28 @@ test('dataISO recusa o que nao entende, em vez de arriscar dia trocado', () => {
   assert.equal(dataISO('agosto de 2026'), null);
   assert.equal(dataISO(null), null);
   assert.equal(dataISO(''), null);
+});
+
+test('semSensiveis tira documento e conta bancaria', () => {
+  const cru = { name: 'Fulana', cpf: '000', rg: '1', bank_accounts: [{}], nationalities: ['Brasil'] };
+  const r = semSensiveis(cru)!;
+  assert.equal(r.cpf, undefined);
+  assert.equal(r.rg, undefined);
+  assert.equal(r.bank_accounts, undefined);
+  assert.deepEqual(r.nationalities, ['Brasil']);
+  assert.equal(r.name, 'Fulana');
+});
+
+test('semSensiveis nao achata nem normaliza', () => {
+  // Achatar aqui repetiria o erro noutro lugar: foi achatando para EXIBIR que
+  // a sonda mostrou `nationalities` vazio, quando ela e uma lista.
+  const r = semSensiveis({ team: { id: 3, name: 'AI Tech' }, disability: { tipo: 'fisica' } })!;
+  assert.deepEqual(r.team, { id: 3, name: 'AI Tech' });
+  assert.deepEqual(r.disability, { tipo: 'fisica' });
+});
+
+test('semSensiveis recusa o que nao e objeto', () => {
+  assert.equal(semSensiveis(null), null);
+  assert.equal(semSensiveis('texto'), null);
+  assert.equal(semSensiveis(['a']), null);
 });
