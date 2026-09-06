@@ -93,6 +93,22 @@ export interface ResumoSyncConvenia {
 }
 
 /**
+ * A versão do código que lê o DETALHE de cada pessoa.
+ *
+ * SUBA ESTE NÚMERO sempre que a leitura do detalhe passar a guardar um campo
+ * novo. A carga reenfileira quem tiver versão menor, e o campo novo preenche
+ * sozinho na rodada seguinte.
+ *
+ * Sem isto, coluna nova nasce vazia e assim fica: quem já foi lido nunca
+ * voltava para a fila. Aconteceu três vezes -- `custom_fields`, depois
+ * `relationship` e `uf`, depois `bruto` -- e nas duas primeiras a correção foi
+ * zerar a marca na mão, o que só funciona se alguém lembrar.
+ *
+ * 2: passou a guardar `bruto`, o cadastro cru sem documentos.
+ */
+const VERSAO_DETALHE = 2;
+
+/**
  * O Convenia devolve salário ora como número, ora como string no formato
  * brasileiro ("3.218,00"). `Number("3.218,00")` é `NaN`, e um NaN entrando na
  * média a transformaria em NaN inteira -- um campo que some do gráfico sem dar
@@ -265,7 +281,7 @@ export async function executarSyncConvenia(
     const LOTE_GENERO = 200;
     const { data: pessoasCache } = await db
       .from('convenia_pessoas')
-      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields, detalhe_em');
+      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields, detalhe_em, detalhe_versao');
     const cacheGenero = new Map<string, 'F' | 'M' | null>(
       ((pessoasCache ?? []) as { convenia_id: string; gender: string | null }[])
         .map((r) => [r.convenia_id, (r.gender as 'F' | 'M' | null) ?? null]),
@@ -329,23 +345,23 @@ export async function executarSyncConvenia(
     // guardar `custom_fields`, `cost_center` e `hiring_date`, que nenhuma
     // delas tem.
     //
-    // Com o criterio antigo, ninguem seria relido: a carga acharia que ja
-    // perguntou, os campos novos ficariam nulos para sempre, e a unica pista
-    // seria o report da Controladoria saindo com metade das colunas vazias --
-    // que se leria como "o Convenia nao tem", pela terceira vez esta semana.
+    // ------------------------------------------------------------------
+    // A FILA SE REENFILEIRA SOZINHA QUANDO O CÓDIGO MUDA
+    // ------------------------------------------------------------------
+    // Terceira vez que uma coluna nova nasce vazia pelo mesmo motivo: o
+    // critério dizia "já li o detalhe desta pessoa", e quem já tinha sido lido
+    // nunca voltava -- mesmo que o código de leitura tivesse passado a guardar
+    // mais coisa. Foi assim com `custom_fields`, depois com `relationship` e
+    // `uf`, agora com `bruto`.
     //
-    // `custom_fields is null` e a marca certa AGORA, porque e o campo mais
-    // novo. No dia em que entrar outro, o criterio muda de novo -- e vale a
-    // pena que mude, em vez de a carga mentir que ja perguntou.
-    // A marca de "li o DETALHE com o código atual". Antes o critério era
-    // `custom_fields != null`, e ele envelheceu: quando a carga passou a
-    // precisar de `relationship` e `uf`, as 200 pessoas que já tinham
-    // custom_fields ficaram fora da fila para sempre, com os campos novos
-    // nascendo nulos. Uma marca sem significado de conteúdo quebra o ciclo --
-    // para reenfileirar todo mundo basta zerá-la.
+    // As duas primeiras vezes eu consertei zerando a marca na mão, o que só
+    // funciona se alguém lembrar. A marca agora carrega a VERSÃO do código que
+    // a escreveu: subir `VERSAO_DETALHE` reenfileira todo mundo, e esquecer de
+    // subir é um erro que aparece na revisão do diff, não três cargas depois.
     const cadastroCompleto = new Set(
-      ((pessoasCache ?? []) as { convenia_id: string; detalhe_em: string | null }[])
-        .filter((r) => r.detalhe_em != null).map((r) => r.convenia_id),
+      ((pessoasCache ?? []) as { convenia_id: string; detalhe_em: string | null; detalhe_versao: number | null }[])
+        .filter((r) => r.detalhe_em != null && (r.detalhe_versao ?? 0) >= VERSAO_DETALHE)
+        .map((r) => r.convenia_id),
     );
     const cargoBuscado = new Set(
       ((pessoasCache ?? []) as { convenia_id: string; job_title_em: string | null }[])
@@ -737,6 +753,7 @@ export async function executarSyncConvenia(
               // alguem pode dizer "nao esta preenchido la".
               job_title_em: new Date().toISOString(),
               detalhe_em: new Date().toISOString(),
+              detalhe_versao: VERSAO_DETALHE,
               birth_month: mesDe(alvo.birth_date ?? null),
             }, { onConflict: 'convenia_id' });
           } catch {
