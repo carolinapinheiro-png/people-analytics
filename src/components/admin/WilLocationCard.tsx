@@ -5,18 +5,6 @@ import { Button } from '@/components/ui/button';
 import { COLORS } from '@/lib/colors';
 import { baseWIL } from '@/lib/wil-location.functions';
 
-/** As dezesseis colunas do template, na ordem em que ele as espera. */
-const CABECALHO = [
-  'LOCATION', 'JOB Family', 'Headcount at month end', 'Number of females at month end',
-  'Number of contingent workers month end', 'number of FTE month end',
-  'average headcount past 12 months', 'Total leavers past 12 months',
-  'Total Female leavers past 12 months', 'Number of voluntary leavers past 12 months',
-  'Female voluntary leavers past 12 months', 'Total hires past 12 months',
-  'Female hires past 12 months', 'Total Leavers this month', 'Total Hires this month',
-  'Total open roles', 'Number of Backfill open roles', 'Number of New open roles',
-  'FlutterBR Notes',
-];
-
 export function WilLocationCard() {
   const gerar = useServerFn(baseWIL);
   const [baixando, setBaixando] = useState(false);
@@ -45,22 +33,14 @@ export function WilLocationCard() {
       const [ano, mes] = alvo.split('-').map(Number);
       const r = await gerar({ data: { ano, mes } });
 
-      // As três colunas de vaga aberta saem VAZIAS, e a nota do bloco vai na
-      // última: as duas coisas são como o arquivo entregue faz.
-      const linhas = r.linhas.map((l) => [
-        'BRAZIL', l.familia, l.headcount, l.mulheres, 0, l.fte, l.mediaHeadcount12m,
-        l.saidas12m, l.saidasMulheres12m, l.saidasVoluntarias12m,
-        l.saidasVoluntariasMulheres12m, l.entradas12m, l.entradasMulheres12m,
-        l.saidasNoMes, l.entradasNoMes, '', '', '',
-        l.tipo === 'Regular' ? 'Regular Employee' : 'Contractor',
-      ].map(String));
-
-      const csv = [CABECALHO, ...linhas]
-        .map((l) => l.map((c) => (/[",\n;]/.test(c) ? `"${c.replace(/"/g, '""')}"` : c)).join(','))
-        .join('\n');
-      const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }));
+      // O servidor devolve a planilha inteira em base64: as abas saem com os
+      // nomes exatos do template, e não há colagem de CSV em aba nenhuma.
+      const bytes = Uint8Array.from(atob(r.xlsxBase64), (c) => c.charCodeAt(0));
+      const url = URL.createObjectURL(new Blob([bytes], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      }));
       const a = document.createElement('a');
-      a.href = url; a.download = `wil-location-${r.rotulo.replace(/[./]/g, '-')}.csv`;
+      a.href = url; a.download = `wil-${r.rotulo.replace(/[./]/g, '-')}.xlsx`;
       a.click(); URL.revokeObjectURL(url);
 
       const reg = r.linhas.filter((l) => l.tipo === 'Regular');
@@ -72,6 +52,7 @@ export function WilLocationCard() {
         + (r.semFamilia
           ? ` ATENÇÃO: ${r.semFamilia} pessoas da NSX sem Job Type Family ficaram de fora de todas as linhas — é a mesma população do carry-forward.`
           : '')
+        + ` N-4: ${r.n4.reduce((t, l) => t + l.homensEmpregados + l.homensContractors + l.mulheresEmpregadas + l.mulheresContractors + l.semGenero, 0)} pessoas nas camadas N a N-4; ${r.abaixoDeN4} abaixo de N-4 não entram nessa aba.`
         + (r.familiasDesconhecidas.length
           ? ` Famílias não reconhecidas pelo de-para: ${r.familiasDesconhecidas.join(', ')}.`
           : ''),
@@ -88,16 +69,17 @@ export function WilLocationCard() {
       <div className="flex items-start gap-3">
         <Globe className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
-          <h3 className="text-base font-semibold">WIL/GPA — aba Template - Location</h3>
+          <h3 className="text-base font-semibold">WIL/GPA — planilha do mês</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            As dez famílias de cargo em dois blocos, Regular e Contractor, na ordem do
-            template. Só NSX — as três entidades; Betfair e Flutter International ficam de
-            fora, e o resumo diz quantos.
+            Um <code>.xlsx</code> com as abas <strong>Template - Location</strong> e{' '}
+            <strong>N-4</strong> já preenchidas, com os nomes de aba do template. Só NSX — as
+            três entidades; Betfair e Flutter International ficam de fora, e o resumo diz
+            quantos.
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
             <strong>Total open roles</strong>, <strong>Backfill</strong> e <strong>New</strong>{' '}
-            saem vazias: vêm da sua planilha, não do Convenia. As abas DEI Metrics e N-4 ainda
-            não são geradas aqui.
+            saem vazias: vêm da sua planilha, não do Convenia. A aba <strong>DEI Metrics</strong>{' '}
+            ainda não é gerada — depende de nacionalidade e PCD, que a carga está preenchendo.
           </p>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -111,7 +93,7 @@ export function WilLocationCard() {
             </select>
             <Button onClick={baixar} disabled={baixando} variant="outline">
               <RefreshCw className={`mr-2 h-4 w-4 ${baixando ? 'animate-spin' : ''}`} />
-              {baixando ? 'Montando…' : 'Baixar aba Location'}
+              {baixando ? 'Montando…' : 'Baixar planilha do WIL'}
             </Button>
           </div>
 
