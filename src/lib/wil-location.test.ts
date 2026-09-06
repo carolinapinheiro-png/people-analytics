@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  familiaWIL, janela12, montarLocation, semFamilia, FAMILIAS_WIL, type PessoaWIL,
+  familiaWIL, janela12, montarLocation, semFamilia, foraDoRecorte, ehNSX, FAMILIAS_WIL, type PessoaWIL,
 } from './wil-location';
 
 const p = (o: Partial<PessoaWIL>): PessoaWIL => ({
-  familia: 'Finance', tipo: 'CLT', genero: null, fte: null,
+  familia: 'Finance', empresa: 'NSX Brasil Recife', tipo: 'CLT', genero: null, fte: null,
   admissao: '2020-01-10', saida: null, voluntaria: null, ...o,
 });
 
@@ -108,4 +108,40 @@ test('sem familia fica de fora das linhas e e contado a parte', () => {
   const linhas = montarLocation(pessoas, '2026-08');
   assert.equal(linhas.reduce((s, l) => s + l.headcount, 0), 1);
   assert.equal(semFamilia(pessoas), 2);
+});
+
+test('as tres entidades NSX entram, Betfair e Flutter nao', () => {
+  assert.equal(ehNSX('NSX Brasil Recife'), true);
+  assert.equal(ehNSX('NSX Brasil Sao Paulo'), true);
+  assert.equal(ehNSX('NSX Brasil Marechal'), true);
+  assert.equal(ehNSX('Betfair'), false);
+  assert.equal(ehNSX('Flutter International'), false);
+});
+
+test('Empresa em branco conta como NSX', () => {
+  // Sobrou um token, o de Recife: quem nao tem o campo veio dele. Excluir
+  // tiraria 23 pessoas reais por causa de campo que o RH ainda preenche.
+  assert.equal(ehNSX(null), true);
+  assert.equal(ehNSX(''), true);
+});
+
+test('quem nao e NSX fica fora das linhas e e contado a parte', () => {
+  const pessoas = [
+    p({}), p({ empresa: 'Betfair' }), p({ empresa: 'Flutter International' }),
+  ];
+  const linhas = montarLocation(pessoas, '2026-08');
+  assert.equal(linhas.reduce((s, l) => s + l.headcount, 0), 1);
+  assert.equal(foraDoRecorte(pessoas), 2);
+});
+
+test('nao-NSX tambem nao conta nas colunas de doze meses', () => {
+  // Filtrar so o headcount e esquecer as saidas daria atricao de gente que
+  // nem esta no denominador.
+  const linhas = montarLocation([p({ empresa: 'Betfair', saida: '2026-03' })], '2026-08');
+  assert.equal(linhas.find((l) => l.familia === 'Finance')!.saidas12m, 0);
+});
+
+test('semFamilia conta so dentro do recorte', () => {
+  const pessoas = [p({ familia: null }), p({ familia: null, empresa: 'Betfair' })];
+  assert.equal(semFamilia(pessoas), 1);
 });

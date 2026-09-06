@@ -47,6 +47,11 @@ export function familiaWIL(valor: string | null | undefined): string | null {
 
 export interface PessoaWIL {
   familia: string | null;
+  /**
+   * O campo `Empresa` do cadastro, cru. O recorte NSX é feito aqui dentro,
+   * com o mesmo de-para das marcas -- ver `ehNSX`.
+   */
+  empresa: string | null;
   /** 'CLT' ou 'PJ', já traduzido do vínculo. Ver `workerType`. */
   tipo: string;
   /** 'F', 'M' ou null. Percentual sobre gênero desconhecido não é afirmação. */
@@ -78,6 +83,33 @@ export interface LinhaWIL {
 
 const mes = (iso: string | null | undefined) =>
   /^(\d{4}-\d{2})/.exec((iso ?? '').trim())?.[1] ?? null;
+
+/**
+ * A pessoa entra no recorte deste report?
+ *
+ * ===========================================================================
+ * SÓ NSX -- AS TRÊS ENTIDADES
+ * ===========================================================================
+ * Recife, São Paulo e Marechal. Betfair BR e Flutter International ficam de
+ * fora: o report do WIL Brasil é da NSX.
+ *
+ * `Empresa` em branco conta como NSX. Não é chute: sobrou um token, o de
+ * Recife, e quem não tem o campo preenchido veio dele -- é exatamente o
+ * comportamento que a carga já tem, caindo na marca do token quando o cadastro
+ * não diz. Excluir essas pessoas tiraria 23 gente real do report por causa de
+ * um campo que o RH ainda está preenchendo.
+ *
+ * Vale registrar o que a conferência mostrou: o arquivo entregue em setembro
+ * traz 352 Regular, e o total de TODAS as empresas dá 353. Só a NSX dá 304. As
+ * entregas anteriores, ao que tudo indica, incluíam Betfair e Flutter junto --
+ * então aplicar este recorte derruba o subtotal em quase 50 pessoas, e isso é
+ * mudança visível numa série que o grupo acompanha.
+ */
+export function ehNSX(empresa: string | null | undefined): boolean {
+  const v = (empresa ?? '').trim().toLowerCase();
+  if (!v) return true;
+  return v.startsWith('nsx');
+}
 
 /** Os doze meses que terminam em `ate`, inclusive. */
 export function janela12(ate: string): string[] {
@@ -114,9 +146,12 @@ export function montarLocation(
 ): LinhaWIL[] {
   const meses = janela12(ref);
   const linhas: LinhaWIL[] = [];
+  // O recorte é aplicado UMA vez, aqui, e não em cada contagem. Filtrar por
+  // marca dentro de cada coluna é como se esquece o filtro numa delas.
+  const daNSX = pessoas.filter((p) => ehNSX(p.empresa));
 
   for (const tipo of ['Regular', 'Contractor'] as const) {
-    const doTipo = pessoas.filter((p) => (tipo === 'Regular' ? p.tipo === 'CLT' : p.tipo === 'PJ'));
+    const doTipo = daNSX.filter((p) => (tipo === 'Regular' ? p.tipo === 'CLT' : p.tipo === 'PJ'));
     for (const familia of FAMILIAS_WIL) {
       const g = doTipo.filter((p) => p.familia === familia);
       const dentro = g.filter((p) => dentroEm(p, ref));
@@ -155,7 +190,12 @@ export function montarLocation(
   return linhas;
 }
 
-/** Quem ficou de fora por não ter família reconhecida. */
+/** Quem ficou de fora por não ter família reconhecida, já dentro do recorte. */
 export function semFamilia(pessoas: readonly PessoaWIL[]): number {
-  return pessoas.filter((p) => !p.familia).length;
+  return pessoas.filter((p) => ehNSX(p.empresa) && !p.familia).length;
+}
+
+/** Quem ficou de fora por não ser NSX. Dito no resumo, não escondido. */
+export function foraDoRecorte(pessoas: readonly PessoaWIL[]): number {
+  return pessoas.filter((p) => !ehNSX(p.empresa)).length;
 }
