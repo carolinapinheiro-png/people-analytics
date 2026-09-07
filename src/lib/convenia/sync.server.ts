@@ -56,6 +56,8 @@ interface Minimo {
   team: string | null;
   /** Vínculo cru. Traduzido para CLT/PJ só na hora de gerar o report. */
   relationship: string | null;
+  /** A listagem como veio, menos documentos. Ver `semSensiveis`. */
+  bruto: Record<string, unknown> | null;
   /** Corporativo. Liga a conta do painel a esta pessoa no organograma. */
   email: string | null;
   /** Ponte com a folha de remuneracao, que nao tem e-mail. */
@@ -104,9 +106,12 @@ export interface ResumoSyncConvenia {
  * `relationship` e `uf`, depois `bruto` -- e nas duas primeiras a correção foi
  * zerar a marca na mão, o que só funciona se alguém lembrar.
  *
- * 2: passou a guardar `bruto`, o cadastro cru sem documentos.
+ * 2: passou a guardar `bruto`.
+ * 3: `bruto` passou a guardar a listagem CRUA, e nao a reducao dela -- a
+ *    versao 2 gravava 42 chaves em vez das 123, e `nationalities` era uma
+ *    das que ficavam de fora.
  */
-const VERSAO_DETALHE = 2;
+const VERSAO_DETALHE = 3;
 
 /**
  * O Convenia devolve salário ora como número, ora como string no formato
@@ -402,6 +407,19 @@ export async function executarSyncConvenia(
           const sal = b.salary;
           return {
             id: String(b.id ?? ''),
+            // A LISTAGEM CRUA, e não a redução dela.
+            //
+            // A primeira versão disto gravava `listagem: semSensiveis(alvo)`,
+            // e `alvo` é o registro já reduzido -- guardei a redução chamando
+            // de cru. O `bruto` ficou com 42 chaves em vez das 123 que a
+            // listagem devolve, e `nationalities`, que é uma delas, nunca
+            // chegou lá. Passei a suspeitar da permissão do token, que estava
+            // certa desde o início.
+            //
+            // A rede contra o ciclo de "mais uma coluna" só funciona se
+            // guardar o que veio. Guardar o que já foi filtrado é o mesmo
+            // problema com outro nome.
+            bruto: semSensiveis(b),
             hiring_date: (b.hiring_date as string) ?? null,
             // Ja vem na listagem, de graca. "GERALL" e o valor nao-migrado.
             // `textoDe`, e nao `typeof === 'string'`: o cost_center vem como
@@ -536,6 +554,7 @@ export async function executarSyncConvenia(
           hiring_date: p.hiring_date || null,
           cost_center: p.cost_center ?? null,
           status: p.status ?? null,
+          bruto: p.bruto,
         }));
         for (let i = 0; i < daListagem.length; i += 500) {
           const { error } = await db.from('convenia_pessoas')
@@ -548,7 +567,7 @@ export async function executarSyncConvenia(
           cost_center: p.cost_center ?? null,
           supervisorId: p.supervisorId, salary: p.salary, birth_date: p.birth_date, uf: p.uf,
           registration: p.registration, social_name: p.social_name,
-          team: p.team, relationship: p.relationship,
+          team: p.team, relationship: p.relationship, bruto: p.bruto,
           genero: cacheGenero.get(p.id) ?? null,
           raca: cacheRaca.get(p.id) ?? null,
         }));
@@ -747,7 +766,7 @@ export async function executarSyncConvenia(
               // O cadastro cru, menos documentos e conta bancária. Rede para a
               // próxima pergunta: `nationalities` (lista) e `disability`
               // (objeto) já estão aqui sem terem precisado de coluna própria.
-              bruto: semSensiveis({ ...det2, listagem: semSensiveis(alvo) }),
+              bruto: { ...(alvo.bruto ?? {}), ...(semSensiveis(det2) ?? {}) },
               // Marca a PERGUNTA. Com cargo nulo e esta data preenchida, a
               // ausencia passa a ser uma resposta do Convenia -- e so entao
               // alguem pode dizer "nao esta preenchido la".

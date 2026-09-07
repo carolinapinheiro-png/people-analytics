@@ -71,6 +71,11 @@ export interface PessoaConvenia {
   team?: string | null;
   /** Vínculo cru, como o Convenia manda. A tradução CLT/PJ é do gerador. */
   relationship?: string | null;
+  /**
+   * A listagem como veio, menos documentos. É a rede contra o ciclo de "mais
+   * uma coluna": campo novo já está guardado antes de alguém precisar dele.
+   */
+  bruto?: Record<string, unknown> | null;
   /** 'F' | 'M' | null. Vem do cache, não da listagem. */
   genero?: 'F' | 'M' | null;
   /** Cor/raça, como o Convenia escreve ("Branca", "Parda"). Também do cache. */
