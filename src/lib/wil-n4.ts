@@ -1,80 +1,71 @@
 import { ehNSX, type PessoaWIL } from './wil-location';
 
 /**
- * A aba "N-4" do WIL: Women in Leadership, das camadas N a N-4.
+ * A aba "N-4" do report do WIL: Women in Leadership, de N a N-4.
  *
  * ===========================================================================
- * SÓ ATÉ N-4, E É O NOME DA ABA
+ * SEIS LINHAS, SEMPRE
  * ===========================================================================
- * O organograma vai até N-9 -- 210 pessoas em N-7, 12 em N-8. A aba pede N a
- * N-4, e somar as camadas de baixo transformaria "mulheres na liderança" em
- * "mulheres na empresa", que é outra medida e daria outro número.
+ * O arquivo entregue traz N e N-1 zerados, com a nota "Brazil has no N or N-1
+ * population (group roles)" -- são papéis do grupo, não do Brasil. As linhas
+ * existem mesmo assim: o template é colado inteiro, e linha faltando desalinha
+ * as de baixo.
  *
- * `N` e `N-1` saem zerados, e o arquivo entregue explica por quê: "Brazil has
- * no N or N-1 population (group roles)" -- são cargos do grupo, fora do Brasil.
- * As linhas existem mesmo assim, porque o template as espera e linha faltando
- * desalinha a colagem.
+ * `EXCO EA` são assistentes executivos que sentam nessa camada. O organograma
+ * não os distingue, e o arquivo entregue traz zero com a nota "No EAs/PAs" --
+ * então sai zero, e não um palpite.
  *
- * `EXCO EA` também sai zerado: assistentes executivos, que a definição manda
- * contar à parte da liderança. O Brasil não tem.
+ * Camadas abaixo de N-4 ficam de fora por definição: o report é de liderança.
+ * As 588 pessoas de N-5 para baixo não são omissão.
  */
-export const CAMADAS_WIL = ['N', 'N-1', 'N-2', 'N-3', 'N-4', 'EXCO EA'] as const;
-
-export interface PessoaN4 extends PessoaWIL {
-  /** A camada do organograma: 'N-2', 'N-3'... Null para quem está fora dele. */
-  camada: string | null;
-}
+export const CAMADAS_N4 = ['N', 'N-1', 'N-2', 'N-3', 'N-4', 'EXCO EA'] as const;
 
 export interface LinhaN4 {
   camada: string;
-  homensEmpregados: number;
-  homensContractors: number;
-  mulheresEmpregadas: number;
-  mulheresContractors: number;
-  /**
-   * Gênero em branco tem coluna PRÓPRIA no template, e não some nem vira
-   * homem. Percentual de mulheres sobre denominador que inclui desconhecido é
-   * afirmação sobre quem ninguém perguntou.
-   */
+  homensEmpregado: number;
+  homensContractor: number;
+  mulheresEmpregado: number;
+  mulheresContractor: number;
   semGenero: number;
 }
 
-/** Estava dentro no fim do mês de referência? Mesma regra da aba Location. */
-const dentro = (p: PessoaN4, ref: string) => {
-  const adm = /^(\d{4}-\d{2})/.exec((p.admissao ?? '').trim())?.[1] ?? null;
-  if (adm && adm > ref) return false;
-  if (p.saida && p.saida < ref) return false;
-  return true;
-};
+/** A pessoa, com a camada do organograma. */
+export type PessoaN4 = PessoaWIL & { camada: string | null };
 
 export function montarN4(pessoas: readonly PessoaN4[], ref: string): LinhaN4[] {
-  const elegiveis = pessoas.filter((p) => ehNSX(p.empresa) && dentro(p, ref));
+  const dentro = pessoas.filter((p) => {
+    if (!ehNSX(p.empresa)) return false;
+    const adm = /^(\d{4}-\d{2})/.exec((p.admissao ?? '').trim())?.[1] ?? null;
+    if (adm && adm > ref) return false;
+    if (p.saida && p.saida < ref) return false;
+    return true;
+  });
 
-  return CAMADAS_WIL.map((camada) => {
-    // `N`, `N-1` e `EXCO EA` não existem no organograma brasileiro: as linhas
-    // saem zeradas por construção, e não por acaso de filtro.
-    const g = elegiveis.filter((p) => p.camada === camada);
-    const pj = (p: PessoaN4) => p.tipo === 'PJ';
+  return CAMADAS_N4.map((camada) => {
+    // `EXCO EA` não é camada do organograma: é um recorte que não sabemos
+    // fazer. Sai zero em vez de receber gente de N-4 por engano.
+    const g = camada === 'EXCO EA' ? [] : dentro.filter((p) => p.camada === camada);
     return {
       camada,
-      homensEmpregados: g.filter((p) => p.genero === 'M' && !pj(p)).length,
-      homensContractors: g.filter((p) => p.genero === 'M' && pj(p)).length,
-      mulheresEmpregadas: g.filter((p) => p.genero === 'F' && !pj(p)).length,
-      mulheresContractors: g.filter((p) => p.genero === 'F' && pj(p)).length,
+      homensEmpregado: g.filter((p) => p.genero === 'M' && p.tipo === 'CLT').length,
+      homensContractor: g.filter((p) => p.genero === 'M' && p.tipo === 'PJ').length,
+      mulheresEmpregado: g.filter((p) => p.genero === 'F' && p.tipo === 'CLT').length,
+      mulheresContractor: g.filter((p) => p.genero === 'F' && p.tipo === 'PJ').length,
+      // Gênero desconhecido tem coluna própria no template, e é assim que se
+      // evita que "não sei" vire "homem" na conta de mulheres em liderança.
       semGenero: g.filter((p) => p.genero !== 'M' && p.genero !== 'F').length,
     };
   });
 }
 
 /**
- * Pessoas em camada mais funda que N-4, que a aba não conta.
+ * Quantas pessoas ficaram abaixo de N-4.
  *
- * Dito no resumo porque é a maior exclusão do report -- 588 das 637 -- e um
- * total de 49 na aba, sem explicação, parece erro de carga.
+ * Dito no resumo para que o número pequeno da aba -- umas cinquenta pessoas --
+ * não se leia como perda de dado. O report é de liderança: as outras 588 estão
+ * fora por definição, e não por falha.
  */
-export function abaixoDeN4(pessoas: readonly PessoaN4[], ref: string): number {
-  return pessoas.filter(
-    (p) => ehNSX(p.empresa) && dentro(p, ref)
-      && p.camada != null && !(CAMADAS_WIL as readonly string[]).includes(p.camada),
-  ).length;
+export function abaixoDeN4(pessoas: readonly PessoaN4[]): number {
+  const fundas = ['N-5', 'N-6', 'N-7', 'N-8', 'N-9'];
+  return pessoas.filter((p) => ehNSX(p.empresa) && p.camada && fundas.includes(p.camada)).length;
 }

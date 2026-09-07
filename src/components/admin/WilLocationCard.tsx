@@ -52,7 +52,7 @@ export function WilLocationCard() {
         + (r.semFamilia
           ? ` ATENÇÃO: ${r.semFamilia} pessoas da NSX sem Job Type Family ficaram de fora de todas as linhas — é a mesma população do carry-forward.`
           : '')
-        + ` N-4: ${r.n4.reduce((t, l) => t + l.homensEmpregados + l.homensContractors + l.mulheresEmpregadas + l.mulheresContractors + l.semGenero, 0)} pessoas nas camadas N a N-4; ${r.abaixoDeN4} abaixo de N-4 não entram nessa aba.`
+        + ` N-4: ${r.n4.reduce((t, l) => t + l.homensEmpregado + l.homensContractor + l.mulheresEmpregado + l.mulheresContractor + l.semGenero, 0)} pessoas nas camadas N a N-4 — as de N-5 para baixo não entram nessa aba, por definição.`
         + (r.familiasDesconhecidas.length
           ? ` Famílias não reconhecidas pelo de-para: ${r.familiasDesconhecidas.join(', ')}.`
           : ''),

@@ -17,11 +17,12 @@ import type { LinhaN4 } from '@/lib/wil-n4';
 export interface BaseWIL {
   rotulo: string;
   linhas: LinhaWIL[];
+  /** A aba N-4: seis camadas cruzadas com gênero e vínculo. */
+  n4: LinhaN4[];
   foraDoRecorte: number;
   semFamilia: number;
   /** Ativos cuja família não é reconhecida pelo de-para, com o valor visto. */
   familiasDesconhecidas: string[];
-  n4: LinhaN4[];
   /** Pessoas em camada mais funda que N-4. A aba não as conta. */
   abaixoDeN4: number;
   /** A planilha inteira, em base64, para o navegador salvar como .xlsx. */
@@ -85,10 +86,11 @@ export const baseWIL = createServerFn({ method: 'POST' })
       from: (t: string) => { select: (c: string) => PromiseLike<{ data: unknown[] | null }> };
     };
 
-    const [{ data: cad }, { data: saidasRaw }] = await Promise.all([
+    const [{ data: cad }, { data: saidasRaw }, { data: orgRaw }] = await Promise.all([
       db.from('convenia_pessoas')
         .select('convenia_id, hiring_date, relationship, gender, custom_fields'),
       db.from('convenia_leavers').select('convenia_id, dismissal_month, voluntary'),
+      db.from('org_pessoas').select('convenia_id, camada'),
     ]);
 
     const saidas = new Map(
@@ -124,6 +126,11 @@ export const baseWIL = createServerFn({ method: 'POST' })
     }));
 
     const ref = `${data.ano}-${String(data.mes).padStart(2, '0')}`;
+    const camadas = new Map(
+      ((orgRaw ?? []) as Array<{ convenia_id: string; camada: string | null }>)
+        .map((o) => [o.convenia_id, o.camada]),
+    );
+    const ids = ((cad ?? []) as Array<{ convenia_id: string }>).map((c) => c.convenia_id);
     const linhas = montarLocation(pessoas, ref);
 
     // A camada vem do organograma, e nem todo mundo está nele.
@@ -162,8 +169,8 @@ export const baseWIL = createServerFn({ method: 'POST' })
     XLSX.utils.book_append_sheet(
       wb,
       XLSX.utils.aoa_to_sheet([CABECALHO_N4, ...n4.map((l) => [
-        l.camada, l.homensEmpregados, l.homensContractors,
-        l.mulheresEmpregadas, l.mulheresContractors, l.semGenero,
+        l.camada, l.homensEmpregado, l.homensContractor,
+        l.mulheresEmpregado, l.mulheresContractor, l.semGenero,
       ])]),
       'N-4',
     );
@@ -176,7 +183,7 @@ export const baseWIL = createServerFn({ method: 'POST' })
       semFamilia: semFamilia(pessoas),
       familiasDesconhecidas: [...desconhecidas].sort(),
       n4,
-      abaixoDeN4: abaixoDeN4(comCamada, ref),
+      abaixoDeN4: abaixoDeN4(comCamada),
       xlsxBase64,
     };
   });
