@@ -1,5 +1,6 @@
 import type { Filters } from '@/data/DashboardContext';
 import { RECORTES_EXCLUSIVOS, PERFIS_EXCLUSIVOS, type FilterKey } from '@/lib/tab-filters';
+import { perfisIncompativeis } from '@/lib/recorte-ativo';
 import { SEM_FILTRO, semFiltro } from '@/lib/filtro-sentinela';
 
 /**
@@ -64,7 +65,25 @@ export function aplicarFiltro(
   };
 
   zerar(RECORTES_EXCLUSIVOS);
-  if (aba === 'engagement') zerar(PERFIS_EXCLUSIVOS);
+  if (aba === 'engagement') {
+    zerar(PERFIS_EXCLUSIVOS);
+    // ------------------------------------------------------------------
+    // O QUE A PESQUISA GRAVOU DECIDE O QUE PODE SER COMBINADO
+    // ------------------------------------------------------------------
+    // Marca de produto não cruza com tempo de casa nem com modelo: só
+    // 'marca' e 'area+marca' existem. Deixar os três ligados montaria
+    // 'area+marca+tempo', que não é gravado -- e zero linha chega à tela
+    // como "este grupo não respondeu", não como "esta combinação não
+    // existe". A diferença é a mesma que este painel passou a semana
+    // aprendendo a não confundir.
+    //
+    // A lista de quem sai não é escrita aqui: sai de CUTS_PADRAO, via
+    // `perfisIncompativeis`. Ver recorte-ativo.ts.
+    for (const outro of perfisIncompativeis(proximo, chave)) {
+      proximo[outro as keyof Filters] = SEM_FILTRO;
+      limpos.push(outro as FilterKey);
+    }
+  }
 
   return { filtros: proximo, limpos: [...new Set(limpos)] };
 }

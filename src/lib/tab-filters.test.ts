@@ -19,9 +19,11 @@ import { filtersForTab, unavailableFilters } from './tab-filters';
 // AS SUB-ABAS DE EXPERIÊNCIA
 // ---------------------------------------------------------------------------
 
-test('Engajamento aceita os três recortes', () => {
+test('Engajamento aceita os quatro recortes', () => {
+  // Marca de produto entrou depois: o cruzamento 'area+marca' já era gravado
+  // em toda onda e a barra não oferecia. Ver recorte-ativo.ts.
   assert.deepEqual(filtersForTab('engagement', 'engajamento'),
-    ['departamento', 'tempoCasa', 'modeloTrabalho']);
+    ['departamento', 'tempoCasa', 'modeloTrabalho', 'marcaProduto']);
 });
 
 test('Onboarding aceita só área', () => {
@@ -40,7 +42,7 @@ test('Inclusão não aceita filtro nenhum', () => {
 test('o que a sub-aba não honra aparece esmaecido COM motivo', () => {
   const inc = unavailableFilters('engagement', 'inclusao');
   assert.deepEqual(inc.map((i) => i.key).sort(),
-    ['departamento', 'modeloTrabalho', 'tempoCasa']);
+    ['departamento', 'marcaProduto', 'modeloTrabalho', 'tempoCasa']);
   for (const i of inc) assert.ok(i.reason.length > 20, `${i.key} sem motivo`);
 });
 
@@ -49,11 +51,12 @@ test('em Onboarding, área NÃO entra na lista de indisponíveis', () => {
   assert.ok(!chaves.includes('departamento'), 'área funciona em Onboarding');
   assert.ok(chaves.includes('tempoCasa'));
   assert.ok(chaves.includes('modeloTrabalho'));
+  assert.ok(chaves.includes('marcaProduto'), 'marca não recorta o onboarding');
 });
 
 test('sem sub-aba, a aba manda e nada é marcado por este caminho', () => {
   assert.deepEqual(filtersForTab('engagement', null),
-    ['departamento', 'tempoCasa', 'modeloTrabalho']);
+    ['departamento', 'tempoCasa', 'modeloTrabalho', 'marcaProduto']);
   assert.deepEqual(unavailableFilters('engagement', null), []);
 });
 

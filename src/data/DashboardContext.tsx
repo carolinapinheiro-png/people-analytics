@@ -27,6 +27,15 @@ export interface Filters {
   level: string;
   /** Presencial / Híbrido / Remoto. Só a aba de Engajamento aplica. */
   modeloTrabalho: string;
+  /**
+   * Betnacional / Betfair / Cross Brand. Só a aba de Engajamento aplica.
+   *
+   * NÃO é `brand` acima. `brand` é a ENTIDADE (NSX, Betfair BR, Flutter
+   * International), que vem da razão social no headcount; esta é a MARCA DE
+   * PRODUTO que a pesquisa pergunta. "NSX BETFAIR BRASIL S.A." é entidade NSX
+   * e atende a marca Betfair -- os nomes se parecem e não coincidem.
+   */
+  marcaProduto: string;
 }
 
 interface DashboardState {
@@ -277,6 +286,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     tipoDesligamento: SEM_FILTRO,
     level: SEM_FILTRO,
     modeloTrabalho: SEM_FILTRO,
+    marcaProduto: SEM_FILTRO,
   });
 
   // Perfil com escopo (HRBP / Department Leader) nunca ve o consolidado:

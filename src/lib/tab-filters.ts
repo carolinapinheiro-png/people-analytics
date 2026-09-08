@@ -32,7 +32,8 @@ export type FilterKey =
   | 'faixaSalarial'
   | 'tipoDesligamento'
   | 'level'
-  | 'modeloTrabalho';
+  | 'modeloTrabalho'
+  | 'marcaProduto';
 
 /** Rótulo curto para a etiqueta de filtro ativo. */
 export const FILTER_LABELS: Record<FilterKey, string> = {
@@ -44,6 +45,7 @@ export const FILTER_LABELS: Record<FilterKey, string> = {
   tipoDesligamento: 'Tipo de desligamento',
   level: 'Level',
   modeloTrabalho: 'Modelo de trabalho',
+  marcaProduto: 'Marca de produto',
 };
 
 const TODOS: FilterKey[] = [
@@ -86,7 +88,10 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   //
   // A Anna pediu os dois recortes. Com a consulta corrigida, eles funcionam
   // de verdade aqui, que é a condição para aparecerem nesta lista.
-  engagement: ['departamento', 'tempoCasa', 'modeloTrabalho'],
+  // `marcaProduto` é a marca que a PESQUISA pergunta (Betnacional, Betfair,
+  // Cross Brand), e não a entidade do seletor do topo. O cruzamento
+  // 'area+marca' já era gravado em toda onda; faltava a barra oferecer.
+  engagement: ['departamento', 'tempoCasa', 'modeloTrabalho', 'marcaProduto'],
   recruitment: ['departamento'],
   // Única que lê pessoa a pessoa com todas as dimensões.
   attrition: TODOS,
@@ -131,7 +136,7 @@ const FILTERS_BY_SUBTAB: Record<string, FilterKey[]> = {
   //                  recorte -- é distribuição da empresa inteira, e o
   //                  servidor não a filtra por nada. O seletor de área
   //                  aparecia e não fazia efeito algum.
-  engajamento: ['departamento', 'tempoCasa', 'modeloTrabalho'],
+  engajamento: ['departamento', 'tempoCasa', 'modeloTrabalho', 'marcaProduto'],
   onboarding: ['departamento'],
   inclusao: [],
 };

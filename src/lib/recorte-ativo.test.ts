@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { recorteAtivo } from '@/lib/recorte-ativo';
+import { recorteAtivo, combinacaoGravada, perfisIncompativeis } from '@/lib/recorte-ativo';
 
 test('sem filtro de perfil, não há recorte', () => {
   assert.equal(recorteAtivo({}, null), null);
@@ -52,4 +52,72 @@ test('só modelo, sem tempo, não vira cruzamento', () => {
   const r = recorteAtivo({ modeloTrabalho: 'Remoto' }, null)!;
   assert.equal(r.cutType, 'modelo');
   assert.equal(r.valor, 'Remoto');
+});
+
+// ===========================================================================
+// MARCA DE PRODUTO
+// ===========================================================================
+// O pedido que a Thais e a Marilia fizeram, cada uma do seu jeito. O seletor
+// do topo é ENTIDADE e não pode responder; marca de produto é o que a
+// pesquisa pergunta, e o cruzamento com área já estava gravado.
+
+test('marca de produto sozinha é o recorte simples', () => {
+  const r = recorteAtivo({ marcaProduto: 'Betfair' }, null)!;
+  assert.equal(r.cutType, 'marca');
+  assert.equal(r.valor, 'Betfair');
+  assert.equal(r.rotulo, 'Marca de produto');
+});
+
+test('marca de produto com área vira area+marca -- o que a Thais pediu', () => {
+  const r = recorteAtivo({ marcaProduto: 'Betfair' }, 'Product')!;
+  assert.equal(r.cutType, 'area+marca');
+  assert.equal(r.valor, 'Product || Betfair');
+  assert.equal(r.cruzado, true);
+});
+
+test('marca NÃO cruza com tempo nem com modelo: essas chaves não existem', () => {
+  // Se um dia passarem a ser gravadas, este teste falha e manda soltar a
+  // exclusão -- em vez de a restrição sobreviver à razão dela, como já
+  // aconteceu com tempo × modelo.
+  assert.equal(combinacaoGravada(['marca']), true);
+  assert.equal(combinacaoGravada(['tempo', 'modelo']), true);
+  assert.equal(combinacaoGravada(['tempo', 'marca']), false);
+  assert.equal(combinacaoGravada(['modelo', 'marca']), false);
+  assert.equal(combinacaoGravada(['tempo', 'modelo', 'marca']), false);
+});
+
+test('escolher marca com tempo ligado apaga o tempo, e diz qual apagou', () => {
+  const fora = perfisIncompativeis(
+    { tempoCasa: '24+ meses', marcaProduto: 'Betfair' }, 'marcaProduto',
+  );
+  assert.deepEqual(fora, ['tempoCasa']);
+});
+
+test('escolher tempo com marca ligada apaga a marca -- quem escolheu por último fica', () => {
+  const fora = perfisIncompativeis(
+    { tempoCasa: '24+ meses', marcaProduto: 'Betfair' }, 'tempoCasa',
+  );
+  assert.deepEqual(fora, ['marcaProduto']);
+});
+
+test('tempo e modelo continuam convivendo: a combinação existe', () => {
+  const fora = perfisIncompativeis(
+    { tempoCasa: '24+ meses', modeloTrabalho: 'Remoto' }, 'modeloTrabalho',
+  );
+  assert.deepEqual(fora, []);
+});
+
+test('marca escolhida com os dois ligados derruba os dois', () => {
+  const fora = perfisIncompativeis(
+    { tempoCasa: '24+ meses', modeloTrabalho: 'Remoto', marcaProduto: 'Betnacional' },
+    'marcaProduto',
+  );
+  assert.deepEqual(fora.sort(), ['modeloTrabalho', 'tempoCasa']);
+});
+
+test('desligar um filtro não desaloja ninguém', () => {
+  const fora = perfisIncompativeis(
+    { tempoCasa: '24+ meses', marcaProduto: 'Todos' }, 'marcaProduto',
+  );
+  assert.deepEqual(fora, []);
 });

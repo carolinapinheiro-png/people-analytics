@@ -4,7 +4,7 @@ import { COLORS } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { SCOPE_TO_DEPT } from "@/lib/engagement-context";
-import { TEMPO_ORDEM } from "@/lib/aggregator/polly-survey";
+import { TEMPO_ORDEM, CROSS_BRAND } from "@/lib/aggregator/polly-survey";
 import { isGlobalProfile, normalizeDept } from "@/lib/permissions";
 import { aplicarFiltro } from "@/lib/aplicar-filtro";
 import {
@@ -66,6 +66,28 @@ const BRAND_COLORS: Record<string, string> = {
  */
 const AREAS_DA_PESQUISA = [...new Set(Object.values(SCOPE_TO_DEPT))].sort();
 
+/**
+ * As marcas DA PESQUISA, que não são as do seletor do topo.
+ *
+ * ------------------------------------------------------------------
+ * ENTIDADE E MARCA DE PRODUTO SÃO EIXOS DIFERENTES
+ * ------------------------------------------------------------------
+ * O seletor do topo tem NSX, Betfair BR e Flutter International: são
+ * ENTIDADES, tiradas da razão social no headcount. A pesquisa é anônima e não
+ * pergunta entidade -- ela pergunta qual MARCA a pessoa atende, e as respostas
+ * são Betnacional, Betfair e "Ambas / Função cross-brand".
+ *
+ * Pôr os nomes do topo aqui daria um seletor onde escolher "NSX" não encontra
+ * linha nenhuma, e vazio na tela se lê como "ninguém desta marca respondeu".
+ * "NSX BETFAIR BRASIL S.A." é o lembrete de que os dois vocabulários se
+ * parecem o bastante para alguém tentar mapear um no outro.
+ *
+ * `CROSS_BRAND` vem do agregador, e não escrito à mão: foi renomeado uma vez
+ * ("Ambas" -> "Cross Brand", pedido da Marilia) e uma cópia aqui teria ficado
+ * para trás.
+ */
+const MARCAS_DA_PESQUISA = ["Todos", "Betnacional", "Betfair", CROSS_BRAND];
+
 const filterOptions: Record<FilterKey, string[]> = {
   departamento: ["Todos", ...AREAS_DA_PESQUISA],
   jobFamily: [
@@ -92,6 +114,7 @@ const filterOptions: Record<FilterKey, string[]> = {
   ],
   level: ["Todos", "L0", "L1", "L2", "L3", "L4", "L5", "L6", "L8"],
   modeloTrabalho: ["Todos", "Presencial", "Híbrido", "Remoto"],
+  marcaProduto: MARCAS_DA_PESQUISA,
 };
 
 /**
@@ -113,6 +136,7 @@ const filterOptions: Record<FilterKey, string[]> = {
 const TEMPO_DA_PESQUISA = ["Todos", ...TEMPO_ORDEM];
 
 const VAZIO: Filters = {
+  marcaProduto: "Todos",
   jobFamily: "Todos",
   departamento: "Todos",
   tempoCasa: "Todos",

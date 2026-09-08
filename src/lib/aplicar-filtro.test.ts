@@ -7,6 +7,7 @@ const VAZIO: Filters = {
   jobFamily: 'Todos', departamento: 'Todos', tempoCasa: 'Todos', centroCusto: 'Todos',
   tipoContrato: 'Todos', faixaSalarial: 'Todos', tipoDesligamento: 'Todos', level: 'Todos',
   modeloTrabalho: 'Todos',
+  marcaProduto: 'Todos',
 };
 
 test('departamento NÃO limpa tempo de casa nem modelo', () => {

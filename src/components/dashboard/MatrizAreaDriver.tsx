@@ -111,7 +111,7 @@ export default function MatrizAreaDriver({
       ajuda="areaPorTema"
       subtitle={`${m.drivers.length} temas × ${m.areas.length} ${
         m.areas.length === 1 ? 'área' : 'áreas'
-      }${ondaLabel ? ` · ${ondaLabel}` : ''} · distância da empresa, em pontos de % que concorda`}
+      }${ondaLabel ? ` · ${ondaLabel}` : ''} · distância da Flutter Brazil na mesma onda, em pontos de % que concorda`}
       icon={Grid3x3}
     >
       <div className="overflow-x-auto">
@@ -179,23 +179,58 @@ export default function MatrizAreaDriver({
           <div className="font-medium">
             {celula.area} · {celula.driver}
           </div>
+          {/* ------------------------------------------------------------------
+              "NA EMPRESA" NÃO DIZIA QUAL EMPRESA NEM DE QUANDO
+              ------------------------------------------------------------------
+              A Nicolle leu "-8 pontos ... contra 75,7% na empresa" e perguntou:
+              "esses -8 é comparando com a Flutter Brazil ou com o último
+              survey?". As duas leituras cabem na frase, e a diferença entre
+              elas é enorme -- uma é posição, a outra é evolução.
+
+              Quem escreve a frase sabe que a régua é a onda atual, então a
+              ambiguidade é invisível de dentro. Só aparece quando alguém de
+              fora lê. */}
           <div className="text-muted-foreground">
             <strong className="text-foreground tabular-nums">{celula.favoravel}%</strong> concordam,
-            contra {celula.favoravelEmpresa}% na empresa —{' '}
+            contra <span className="tabular-nums">{celula.favoravelEmpresa}%</span> em toda a{' '}
+            <strong className="text-foreground">Flutter Brazil</strong>
+            {ondaLabel ? ` nesta mesma onda (${ondaLabel})` : ' nesta mesma onda'} —{' '}
             <strong style={{ color: celula.gap! < 0 ? COLORS.danger : COLORS.success }}>
               {sinal(celula.gap!)} pontos
             </strong>
-            . Média de {celula.perguntas} pergunta{celula.perguntas === 1 ? '' : 's'}, a menor com{' '}
-            {celula.nMinimo} respostas.
+            . Não é comparação com a pesquisa anterior. Média de {celula.perguntas} pergunta
+            {celula.perguntas === 1 ? '' : 's'}, a menor com {celula.nMinimo} respostas.
           </div>
           {/* A média do tema esconde a pergunta ruim -- é a mesma advertência de
               "Tema por tema, e o que a média esconde", e aqui ela pesa mais, porque na
               grade nem o intervalo aparece. */}
+          {/* ------------------------------------------------------------------
+              "A QUE MAIS PESA" NÃO QUER DIZER NADA SOZINHO
+              ------------------------------------------------------------------
+              A Thais leu um tema em +2 contendo uma pergunta em -2 e disse, com
+              todas as letras, que não conseguiu entender a relação. Está certa:
+              "a que mais pesa" sugere PESO -- como se a pergunta contasse mais
+              na média -- quando o que ela é, de fato, é a pergunta que fica
+              mais abaixo da Flutter Brazil dentro do tema.
+
+              E a relação que faltava é a que explica o sinal trocado: o tema é
+              a média das perguntas dele. Uma delas pode estar abaixo enquanto
+              as outras compensam. Sem essa frase, os dois números parecem
+              contradizer um ao outro. */}
           {celula.pior && (
             <div className="text-muted-foreground pt-1 border-t border-border/60">
-              A que mais pesa: &quot;{celula.pior.question}&quot; —{' '}
-              <span className="tabular-nums">{celula.pior.favoravel}%</span> (
-              {sinal(celula.pior.gap!)} contra a empresa).
+              <strong className="text-foreground">A pergunta mais fraca do tema:</strong>{' '}
+              &quot;{celula.pior.question}&quot; —{' '}
+              <span className="tabular-nums">{celula.pior.favoravel}%</span>,{' '}
+              {sinal(celula.pior.gap!)} contra a Flutter Brazil.
+              {celula.perguntas > 1 && (
+                <>
+                  {' '}O tema acima é a média das {celula.perguntas} perguntas, então esta pode
+                  estar abaixo{celula.gap != null && celula.gap > 0
+                    ? ' mesmo quando o tema está acima'
+                    : ''} — as outras compensam.
+                </>
+              )}
             </div>
           )}
         </div>
@@ -219,9 +254,10 @@ export default function MatrizAreaDriver({
         )}
 
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          <strong>Como ler:</strong> cada célula é a distância daquela área para a empresa, em
-          pontos de % que concorda. Vermelho é abaixo, verde é acima; o tom forte começa em{' '}
-          {FORTE} pontos. Clique numa célula para ver a pergunta que mais pesa nela.
+          <strong>Como ler:</strong> cada célula é a distância daquela área para a{' '}
+          <strong>Flutter Brazil inteira, na mesma onda</strong> — não para a pesquisa anterior. É
+          posição, não evolução. Vermelho é abaixo, verde é acima; o tom forte começa em{' '}
+          {FORTE} pontos. Clique numa célula para ver a pergunta mais fraca do tema.
           {/* A ordem das linhas é a amplitude ENTRE áreas. Com uma área só na
               tela não há amplitude nenhuma -- a ordem vira arbitrária, e
               anunciá-la como "os temas que mais separam as áreas" seria

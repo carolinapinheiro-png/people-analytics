@@ -1,4 +1,4 @@
-import { comporCruzamento } from '@/lib/aggregator/polly-survey';
+import { comporCruzamento, CUTS_PADRAO } from '@/lib/aggregator/polly-survey';
 import { semFiltro, valorFiltro } from '@/lib/filtro-sentinela';
 
 /**
@@ -44,10 +44,96 @@ export interface RecorteAtivo {
 const PERFIS = [
   { chave: 'tempoCasa', tipo: 'tempo', rotulo: 'Tempo de casa' },
   { chave: 'modeloTrabalho', tipo: 'modelo', rotulo: 'Modelo de trabalho' },
+  // ------------------------------------------------------------------
+  // MARCA DE PRODUTO, QUE NÃO É A MARCA DO SELETOR DO TOPO
+  // ------------------------------------------------------------------
+  // O seletor do topo separa ENTIDADE -- NSX, Betfair BR, Flutter
+  // International -- que vem da razão social no headcount. A pesquisa é
+  // anônima e não coleta entidade; ela coleta MARCA DE PRODUTO: Betnacional,
+  // Betfair e Cross Brand. São eixos diferentes, e "NSX BETFAIR BRASIL S.A."
+  // é o lembrete de que os nomes se parecem e não coincidem.
+  //
+  // A confusão entre os dois já chegou duas vezes, de duas pessoas: a Marilia
+  // na revisão ("se eu coloco BF ou se eu coloco NSX, ele não faz a troca") e
+  // a Thais depois ("o filtro NSX/Betfair/Flutter Int não parece funcionar").
+  // As duas queriam a mesma coisa, e a resposta que a tela dava era só por
+  // que o seletor NÃO se aplica -- correta e inútil, porque não dizia onde
+  // está o que responde.
+  //
+  // `area+marca` já era calculado e gravado em toda onda desde sempre. O que
+  // faltava era a tela oferecer.
+  { chave: 'marcaProduto', tipo: 'marca', rotulo: 'Marca de produto' },
 ] as const;
 
+/**
+ * Esta combinação de perfis existe no banco?
+ *
+ * ------------------------------------------------------------------
+ * DERIVADO DE CUTS_PADRAO, E NÃO UMA LISTA À MÃO
+ * ------------------------------------------------------------------
+ * Marca não cruza com tempo de casa nem com modelo: 'marca+tempo' não é
+ * gravado, e pedir por ele devolveria zero linhas -- que a tela leria como
+ * "este grupo não respondeu", que é falso. Tempo e modelo, ao contrário,
+ * cruzam entre si e com área.
+ *
+ * A regra podia ser uma lista de pares proibidos. Seria uma segunda cópia do
+ * que `CUTS_PADRAO` já diz, e a cópia envelheceria na primeira vez que o
+ * agregador passasse a gravar um cruzamento novo -- do mesmo jeito que a
+ * exclusão entre tempo e modelo sobreviveu meses depois de deixar de valer.
+ *
+ * Exige as DUAS formas, com e sem área: a pessoa pode acrescentar um
+ * departamento depois de escolher os perfis, e a combinação não pode deixar
+ * de existir no meio do caminho.
+ */
+export function combinacaoGravada(tipos: readonly string[]): boolean {
+  if (!tipos.length) return true;
+  const lista = CUTS_PADRAO as readonly string[];
+  return lista.includes(tipos.join('+')) && lista.includes(['area', ...tipos].join('+'));
+}
+
+/** As chaves de perfil, na ordem em que entram no nome do recorte. */
+export const CHAVES_DE_PERFIL = PERFIS.map((p) => p.chave);
+
+/**
+ * Quais outros perfis precisam sair para `chave` poder entrar.
+ *
+ * Devolve as chaves a limpar, e não um booleano, porque quem chama precisa
+ * DIZER o que apagou -- apagar uma seleção em silêncio é como a barra chegou
+ * a "os filtros não estão se cruzando".
+ */
+export function perfisIncompativeis(
+  filtros: { tempoCasa?: string | null; modeloTrabalho?: string | null; marcaProduto?: string | null },
+  chave: string,
+): string[] {
+  const ativos = PERFIS.filter((p) => !semFiltro(filtros[p.chave]));
+  const meu = ativos.find((p) => p.chave === chave);
+  // Quem não está ativo não desaloja ninguém -- inclusive quando o valor que
+  // chegou é o sentinela "Todos", que é DESLIGAR o filtro.
+  if (!meu) return [];
+
+  // O recém-escolhido fica sempre: ele é a intenção mais recente. Os outros
+  // entram por cima, na ordem em que compõem o nome do recorte, enquanto a
+  // combinação continuar existindo no banco.
+  const mantidos = [meu.tipo as string];
+  const fora: string[] = [];
+  for (const p of PERFIS) {
+    if (p.chave === chave) continue;
+    if (!ativos.some((a) => a.chave === p.chave)) continue;
+    const tentativa = PERFIS
+      .filter((x) => mantidos.includes(x.tipo) || x.tipo === p.tipo)
+      .map((x) => x.tipo as string);
+    if (combinacaoGravada(tentativa)) mantidos.push(p.tipo);
+    else fora.push(p.chave);
+  }
+  return fora;
+}
+
 export function recorteAtivo(
-  filtros: { tempoCasa?: string | null; modeloTrabalho?: string | null },
+  filtros: {
+    tempoCasa?: string | null;
+    modeloTrabalho?: string | null;
+    marcaProduto?: string | null;
+  },
   /**
    * A área selecionada, com o nome COMO ESTÁ GRAVADO -- "Marketing", não
    * "MARKETING". O filtro guarda em caixa alta e o banco não; montar a chave

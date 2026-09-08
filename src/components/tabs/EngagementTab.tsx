@@ -1295,7 +1295,20 @@ export default function EngagementTab() {
     return () => {
       cancelled = true;
     };
-  }, [fetchSurvey, filters.departamento, filters.tempoCasa, filters.modeloTrabalho]);
+    // ------------------------------------------------------------------
+    // TODO PERFIL QUE ENTRA NO RECORTE ENTRA TAMBÉM AQUI
+    // ------------------------------------------------------------------
+    // Esta lista é escrita à mão e `recorteAtivo` lê os perfis de PERFIS.
+    // Esquecer um aqui não dá erro: a consulta simplesmente não refaz, a tela
+    // fica com o dado do recorte anterior, e o sintoma é "mudei o filtro e os
+    // números não mudaram" -- indistinguível de um filtro que não funciona.
+  }, [
+    fetchSurvey,
+    filters.departamento,
+    filters.tempoCasa,
+    filters.modeloTrabalho,
+    filters.marcaProduto,
+  ]);
 
   if (error)
     return (
@@ -1353,14 +1366,35 @@ export default function EngagementTab() {
           aplica, e a apontar o recorte que responde a pergunta parecida. Um
           controle visível que não faz nada é pior que um controle ausente --
           quem troca e não vê mudança conclui que os números são iguais. */}
+      {/* ------------------------------------------------------------------
+          O AVISO EXPLICAVA O NÃO E NÃO DAVA O SIM
+          ------------------------------------------------------------------
+          Ele foi escrito depois de a Marilia levantar o assunto na revisão, e
+          a mesma queixa voltou pela Thais semanas depois -- com o aviso na
+          tela. Duas pessoas diferentes, mesma pergunta: sinal de que o texto
+          não estava resolvendo.
+
+          Relendo, o motivo fica claro. Ele respondia "por que este seletor não
+          se aplica" e mandava a pessoa procurar "os blocos por marca abaixo",
+          que é uma indicação vaga de leitura passiva. Quem chegou ali queria
+          FILTRAR Product por Betfair, e a resposta era um parágrafo dizendo
+          que não dava.
+
+          Agora dá: 'area+marca' sempre esteve gravado, e o filtro de marca de
+          produto passou a existir na barra. O aviso vira um encaminhamento --
+          o controle certo, pelo nome, com os valores que ele aceita. */}
       {brand !== "combined" && (
         <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
           O seletor <strong className="text-foreground">{brand}</strong> não muda os números desta
-          aba: a pesquisa é anônima e não pergunta a entidade da pessoa — os campos que ela coleta
-          são área, tempo de casa, função, modelo de trabalho e marca. Tudo aqui é da{' '}
-          <strong className="text-foreground">Flutter Brazil inteira</strong>. O recorte que mais se
-          aproxima é por <strong className="text-foreground">marca de produto</strong>, nos blocos
-          por marca e na série de marca abaixo — e ele não é a mesma coisa que a entidade.
+          aba, e não é defeito: ele separa <strong className="text-foreground">entidade</strong>,
+          que vem da razão social no headcount, e a pesquisa é anônima — ela não pergunta a
+          entidade da pessoa. Tudo abaixo é da{' '}
+          <strong className="text-foreground">Flutter Brazil inteira</strong>.
+          {' '}Para recortar por marca, use o filtro{' '}
+          <strong className="text-foreground">Marca de produto</strong> na barra acima
+          {' '}(Betnacional, Betfair, Cross Brand) — é o que a pesquisa pergunta, e ele funciona
+          junto com o filtro de área. Marca de produto e entidade não são a mesma coisa: &quot;NSX
+          Betfair Brasil S.A.&quot; é entidade NSX e atende a marca Betfair.
         </p>
       )}
 
