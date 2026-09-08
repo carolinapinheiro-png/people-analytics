@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { montarDEI, ehSenior, ehNivelInicial, ehTecnico, type PessoaDEI } from './wil-dei';
 
 const p = (o: Partial<PessoaDEI>): PessoaDEI => ({
+  id: 'p1',
   familia: 'Finance', empresa: 'NSX Brasil Recife', tipo: 'CLT', genero: 'M', fte: null,
   admissao: '2020-01-10', saida: null, voluntaria: null,
   role: 'NO TECH', careerBand: 'B - Entry level specialist', nacionalidades: ['Brasil'],
@@ -100,4 +101,20 @@ test('quem nao e NSX fica de fora', () => {
 test('PCD conta quem tem deficiencia declarada', () => {
   const l = montarDEI([p({ pcd: true }), p({ pcd: false })], '2026-08');
   assert.equal(l[0].pcd, 1);
+});
+
+test('promocao senior conta so quem esta no conjunto de promovidos', () => {
+  const l = montarDEI([
+    p({ id: 'a', careerBand: 'F - Senior', genero: 'F' }),
+    p({ id: 'b', careerBand: 'F - Senior', genero: 'M' }),
+    p({ id: 'c', careerBand: 'B - Entry', genero: 'F' }),
+  ], '2026-08', new Set(['a', 'c']));
+  // 'c' foi promovida mas nao e senior: nao entra na coluna de lideranca.
+  assert.equal(l[0].promocoesSenior, 1);
+  assert.equal(l[0].promocoesSeniorMulheres, 1);
+});
+
+test('sem historico lido, promocoes saem zero', () => {
+  const l = montarDEI([p({ id: 'a', careerBand: 'F - Senior' })], '2026-08');
+  assert.equal(l[0].promocoesSenior, 0);
 });

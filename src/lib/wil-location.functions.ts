@@ -24,6 +24,8 @@ export interface BaseWIL {
   dei: LinhaDEI[];
   /** Pessoas sem nacionalidade no cadastro. A coluna conta valores distintos. */
   semNacionalidade: number;
+  /** Quantas pessoas de liderança sênior tiveram o histórico lido. */
+  historicosLidos: number;
   foraDoRecorte: number;
   semFamilia: number;
   /** Ativos cuja família não é reconhecida pelo de-para, com o valor visto. */
@@ -84,7 +86,11 @@ export const baseWIL = createServerFn({ method: 'POST' })
     const { montarLocation, semFamilia, foraDoRecorte, familiaWIL }
       = await import('@/lib/wil-location');
     const { montarN4, abaixoDeN4 } = await import('@/lib/wil-n4');
-    const { montarDEI } = await import('@/lib/wil-dei');
+    const { montarDEI, ehSenior } = await import('@/lib/wil-dei');
+    const { promovidosNoMes } = await import('@/lib/wil-promocoes');
+    const { fontesConfiguradas } = await import('@/lib/convenia/fontes');
+    const { ConveniaClient } = await import('@/lib/convenia/client.server');
+    const { SALARIO_HISTORICO } = await import('@/lib/convenia/paths');
     const XLSX = await import('xlsx');
     const { workerType } = await import('@/lib/talent-mobility');
 
@@ -144,6 +150,7 @@ export const baseWIL = createServerFn({ method: 'POST' })
       convenia_id: string; hiring_date: string | null; relationship: string | null;
       gender: string | null; custom_fields: unknown; bruto: Record<string, unknown> | null;
     }>).map((c) => ({
+      id: c.convenia_id,
       familia: familiaWIL(campo(c.custom_fields, 'Job Type Family')),
       empresa: campo(c.custom_fields, 'Empresa'),
       tipo: workerType(c.relationship),
@@ -210,10 +217,48 @@ export const baseWIL = createServerFn({ method: 'POST' })
       ])]),
       'N-4',
     );
-    // As duas colunas de promoção saem VAZIAS: dependem do histórico salarial,
-    // que é outro endpoint e ainda não está na lista de caminhos permitidos.
-    // Vazio nomeado é melhor que zero, que se lê como "nenhuma promoção".
-    const dei = montarDEI(pessoas, ref);
+    // ------------------------------------------------------------------
+    // AS PROMOÇÕES, LIDAS SÓ DE QUEM O REPORT PERGUNTA
+    // ------------------------------------------------------------------
+    // O histórico salarial traz cargo e salário de uma pessoa nomeada. O
+    // report pergunta sobre promoções em LIDERANÇA SÊNIOR -- Career Band F, G
+    // ou H. Ler as 809 seria dezesseis minutos de requisição para responder
+    // sobre cinquenta, e exporia o histórico de todo mundo para isso.
+    //
+    // Nada do histórico é gravado. O que sobrevive é um conjunto de ids
+    // promovidos no mês, e ele morre quando a resposta é montada.
+    const senioresIds = ((cad ?? []) as Array<{ convenia_id: string; custom_fields: unknown }>)
+      .filter((c) => ehSenior(campo(c.custom_fields, 'Career Band')))
+      .map((c) => c.convenia_id);
+
+    let promovidos = new Set<string>();
+    let historicosLidos = 0;
+    const fonte = fontesConfiguradas()[0];
+    if (fonte?.token && senioresIds.length) {
+      const client = ConveniaClient.paraToken(fonte.token);
+      const registros: { pessoaId: string; motivo: string | null; vigenciaDe: string | null }[] = [];
+      for (const id of senioresIds) {
+        try {
+          const corpo = await client.get<Record<string, unknown>>(SALARIO_HISTORICO(id));
+          const dados = (corpo?.data ?? corpo) as unknown;
+          for (const h of Array.isArray(dados) ? dados : []) {
+            const r = h as { motive?: { name?: string } | string; date_from?: string };
+            registros.push({
+              pessoaId: id,
+              motivo: typeof r.motive === 'string' ? r.motive : (r.motive?.name ?? null),
+              vigenciaDe: r.date_from ?? null,
+            });
+          }
+          historicosLidos++;
+        } catch {
+          // Uma pessoa que falha não derruba o report. O resumo diz quantos
+          // históricos foram lidos, e o número menor que o esperado é o aviso.
+        }
+      }
+      promovidos = promovidosNoMes(registros, ref);
+    }
+
+    const dei = montarDEI(pessoas, ref, promovidos);
     XLSX.utils.book_append_sheet(
       wb,
       XLSX.utils.aoa_to_sheet([[
@@ -228,7 +273,7 @@ export const baseWIL = createServerFn({ method: 'POST' })
       ], ...dei.map((l) => [
         l.bloco, l.cargosTecnicos, l.mulheresEmTecnicos, l.nacionalidadesUnicas, l.pcd, '',
         l.liderancaSenior, l.mulheresLiderancaSenior, l.saidasSenior, l.saidasSeniorMulheres,
-        l.entradasSenior, l.entradasSeniorMulheres, '', '',
+        l.entradasSenior, l.entradasSeniorMulheres, l.promocoesSenior, l.promocoesSeniorMulheres,
         l.entradasNivelInicial, l.entradasNivelInicialMulheres,
       ])]),
       'DEI Metrics',
@@ -244,6 +289,7 @@ export const baseWIL = createServerFn({ method: 'POST' })
       n4,
       dei,
       semNacionalidade: pessoas.filter((pe) => pe.nacionalidades.length === 0).length,
+      historicosLidos,
       abaixoDeN4: abaixoDeN4(comCamada),
       xlsxBase64,
     };

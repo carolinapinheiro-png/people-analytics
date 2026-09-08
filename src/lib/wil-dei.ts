@@ -8,6 +8,8 @@ import { ehNSX, type PessoaWIL } from './wil-location';
  * salarial: um endpoint que a lista de caminhos permitidos ainda não inclui.
  */
 export interface PessoaDEI extends PessoaWIL {
+  /** Id no Convenia. Cruza com o conjunto de promovidos. */
+  id: string;
   /** Campo `Role`: 'TECHNICAL ROLE' ou 'NO TECH'. */
   role: string | null;
   /** Campo `Career Band`: 'A - Entry level...', 'F - ...'. */
@@ -32,6 +34,8 @@ export interface LinhaDEI {
   entradasSeniorMulheres: number;
   entradasNivelInicial: number;
   entradasNivelInicialMulheres: number;
+  promocoesSenior: number;
+  promocoesSeniorMulheres: number;
 }
 
 /**
@@ -59,7 +63,12 @@ export function ehTecnico(role: string | null | undefined): boolean {
 const mes = (iso: string | null | undefined) =>
   /^(\d{4}-\d{2})/.exec((iso ?? '').trim())?.[1] ?? null;
 
-export function montarDEI(pessoas: readonly PessoaDEI[], ref: string): LinhaDEI[] {
+export function montarDEI(
+  pessoas: readonly PessoaDEI[],
+  ref: string,
+  /** Ids promovidos no mês, do histórico salarial. Vazio quando não foi lido. */
+  promovidos: ReadonlySet<string> = new Set(),
+): LinhaDEI[] {
   const daNSX = pessoas.filter((p) => ehNSX(p.empresa));
 
   return (['Regular', 'Contractors'] as const).map((bloco) => {
@@ -97,6 +106,12 @@ export function montarDEI(pessoas: readonly PessoaDEI[], ref: string): LinhaDEI[
       entradasNivelInicial: entrouNoMes.filter((p) => ehNivelInicial(p.careerBand)).length,
       entradasNivelInicialMulheres:
         entrouNoMes.filter((p) => ehNivelInicial(p.careerBand) && p.genero === 'F').length,
+      // Promovido E sênior E dentro no mês. Alguém promovido PARA sênior conta
+      // aqui, porque o Career Band já é o de depois da promoção -- que é o que
+      // o report quer saber.
+      promocoesSenior: senior.filter((p) => promovidos.has(p.id)).length,
+      promocoesSeniorMulheres:
+        senior.filter((p) => promovidos.has(p.id) && p.genero === 'F').length,
     };
   });
 }

@@ -53,34 +53,22 @@ export const EMPLOYEE_DETAIL = (id: string) => `/employees/${id}`;
 /**
  * O histórico salarial de UMA pessoa -- de onde saem as promoções.
  *
- * ===========================================================================
- * POR QUE SÃO CANDIDATAS, E NÃO UM CAMINHO
- * ===========================================================================
- * A permissão existe no token e se chama `employees.get.salariesHistoric`,
- * "Histórico salarial de um colaborador". O recurso está liberado; o que falta
- * é a grafia da rota, que a documentação traz numa página que não consegui ler
- * inteira -- quatro tentativas, sempre truncando antes da seção.
+ * Confirmado em 07/09/2026 testando cinco grafias contra a API: esta responde,
+ * as outras quatro dão 404. A permissão no token se chama
+ * `employees.get.salariesHistoric` (camelCase), e a rota é `salaries-historic`
+ * (hifenizada) -- as duas não combinam, e foi por isso que não deu para
+ * deduzir uma da outra.
  *
- * O padrão das outras é claro (`employees.get.dependents` é
- * `/employees/{id}/dependents`), mas `salariesHistoric` é camelCase enquanto as
- * permissões de escrita do mesmo recurso são `salary-historic`. Entre as duas
- * grafias não há como decidir de fora.
+ * Devolve um registro por alteração, com `motive` já classificado pela
+ * Convenia: Promoção, Dissídio, Mérito/Reajuste, Admissão e mais oito. É o
+ * `motive` que separa progressão de carreira de aumento -- ver
+ * `wil-promocoes.ts`.
  *
- * Então em vez de eu escolher uma e o painel chamá-la 50 vezes por mês, ele
- * TESTA: uma pessoa, uma requisição por candidata, e reporta qual respondeu.
- * A confirmada vira o caminho fixo e esta lista sai.
- *
- * As cinco são GET, sobre uma pessoa, sob o mesmo `/employees/{uuid}/` que já
- * é permitido. Nenhuma amplia o alcance do token -- ampliam o que este código
- * pode PEDIR, e é por isso que estão aqui, na lista que se revisa, e não
- * escondidas numa string no meio da carga.
+ * Traz `salary` e o histórico de cargos de uma pessoa nomeada. É chamado
+ * apenas para quem está em liderança sênior, apenas na geração do report do
+ * WIL, e nada dele é gravado além do fato de ter havido promoção no mês.
  */
-export const CANDIDATOS_HISTORICO_SALARIAL = [
-  'salaries-historic', 'salary-historic', 'salaries-historics',
-  'salary-history', 'salaries',
-] as const;
-
-export const SALARIO_HISTORICO = (id: string, sub: string) => `/employees/${id}/${sub}`;
+export const SALARIO_HISTORICO = (id: string) => `/employees/${id}/salaries-historic`;
 
 const PERMITIDOS: readonly string[] = [
   TOKEN_PERMISSIONS,
@@ -96,15 +84,13 @@ const PERMITIDOS: readonly string[] = [
 const DETALHE = /^\/employees\/[A-Za-z0-9-]{8,}$/;
 
 /**
- * `/employees/{uuid}/{sub}`, com `sub` restrito às candidatas do histórico.
+ * `/employees/{uuid}/salaries-historic` -- o único sub-recurso permitido.
  *
  * A regex do detalhe termina em `$` de propósito, para que `/employees/../x`
- * não vire caminho livre. Esta é a mesma ideia com um sufixo fechado: o `sub`
- * tem que estar na lista, e a lista tem cinco itens que alguém escolheu.
+ * não vire caminho livre. Esta mantém a ideia com um sufixo literal: uma rota,
+ * escrita por extenso, e não um curinga.
  */
-const SUB_RECURSO = new RegExp(
-  `^/employees/[A-Za-z0-9-]{8,}/(${CANDIDATOS_HISTORICO_SALARIAL.join('|')})$`,
-);
+const SUB_RECURSO = /^\/employees\/[A-Za-z0-9-]{8,}\/salaries-historic$/;
 
 /**
  * Um caminho é permitido se estiver na lista fixa OU for o detalhe de uma
