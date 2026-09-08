@@ -3,6 +3,7 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import { z } from 'zod';
 import type { LinhaWIL, PessoaWIL } from '@/lib/wil-location';
 import type { LinhaN4 } from '@/lib/wil-n4';
+import type { LinhaDEI, PessoaDEI } from '@/lib/wil-dei';
 
 /**
  * A aba "Template - Location" do report do WIL/GPA, pronta para colar.
@@ -19,6 +20,10 @@ export interface BaseWIL {
   linhas: LinhaWIL[];
   /** A aba N-4: seis camadas cruzadas com gênero e vínculo. */
   n4: LinhaN4[];
+  /** A aba DEI Metrics: Regular e Contractors. */
+  dei: LinhaDEI[];
+  /** Pessoas sem nacionalidade no cadastro. A coluna conta valores distintos. */
+  semNacionalidade: number;
   foraDoRecorte: number;
   semFamilia: number;
   /** Ativos cuja família não é reconhecida pelo de-para, com o valor visto. */
@@ -79,6 +84,7 @@ export const baseWIL = createServerFn({ method: 'POST' })
     const { montarLocation, semFamilia, foraDoRecorte, familiaWIL }
       = await import('@/lib/wil-location');
     const { montarN4, abaixoDeN4 } = await import('@/lib/wil-n4');
+    const { montarDEI } = await import('@/lib/wil-dei');
     const XLSX = await import('xlsx');
     const { workerType } = await import('@/lib/talent-mobility');
 
@@ -88,7 +94,7 @@ export const baseWIL = createServerFn({ method: 'POST' })
 
     const [{ data: cad }, { data: saidasRaw }, { data: orgRaw }] = await Promise.all([
       db.from('convenia_pessoas')
-        .select('convenia_id, hiring_date, relationship, gender, custom_fields'),
+        .select('convenia_id, hiring_date, relationship, gender, custom_fields, bruto'),
       db.from('convenia_leavers').select('convenia_id, dismissal_month, voluntary'),
       db.from('org_pessoas').select('convenia_id, camada'),
     ]);
@@ -104,6 +110,29 @@ export const baseWIL = createServerFn({ method: 'POST' })
       const c = (cf as { nome?: string; valor?: string }[]).find((x) => x.nome === nome);
       return c?.valor?.trim() || null;
     };
+    /**
+     * Nomes de uma lista de `{name}` do Convenia. `nationalities` vem assim.
+     * Lista ausente ou vazia é "não declarado", e não erro.
+     */
+    const nomesDe = (v: unknown): string[] => {
+      if (!Array.isArray(v)) return [];
+      return v.map((x) => {
+        if (typeof x === 'string') return x.trim();
+        const o = x as { name?: unknown } | null;
+        return typeof o?.name === 'string' ? o.name.trim() : '';
+      }).filter(Boolean);
+    };
+
+    /**
+     * `disability` vem como LISTA VAZIA para quem não tem e como OBJETO para
+     * quem tem -- medido: 5 objetos em 200 cadastros lidos, e o arquivo
+     * entregue traz 5. Testar só `!= null` contaria os 195 com lista vazia.
+     */
+    const temDeficiencia = (v: unknown): boolean => {
+      if (Array.isArray(v)) return v.length > 0;
+      return v != null && typeof v === 'object';
+    };
+
     /** "0,9" chega com vírgula: `Number("0,9")` é NaN, e NaN somado apaga a coluna. */
     const fteDe = (v: string | null): number | null => {
       if (!v) return null;
@@ -111,9 +140,9 @@ export const baseWIL = createServerFn({ method: 'POST' })
       return Number.isFinite(n) && n > 0 ? n : null;
     };
 
-    const pessoas: PessoaWIL[] = ((cad ?? []) as Array<{
+    const pessoas: PessoaDEI[] = ((cad ?? []) as Array<{
       convenia_id: string; hiring_date: string | null; relationship: string | null;
-      gender: string | null; custom_fields: unknown;
+      gender: string | null; custom_fields: unknown; bruto: Record<string, unknown> | null;
     }>).map((c) => ({
       familia: familiaWIL(campo(c.custom_fields, 'Job Type Family')),
       empresa: campo(c.custom_fields, 'Empresa'),
@@ -123,6 +152,13 @@ export const baseWIL = createServerFn({ method: 'POST' })
       admissao: c.hiring_date,
       saida: saidas.get(c.convenia_id)?.dismissal_month ?? null,
       voluntaria: saidas.get(c.convenia_id)?.voluntary ?? null,
+      role: campo(c.custom_fields, 'Role'),
+      careerBand: campo(c.custom_fields, 'Career Band'),
+      // Nacionalidade e deficiência vêm do cadastro CRU. Nenhuma das duas tem
+      // coluna própria, e é para isso que o `bruto` existe: campo novo sem
+      // migration. Lista vazia e objeto ausente são "não declarado".
+      nacionalidades: nomesDe(c.bruto?.nationalities),
+      pcd: temDeficiencia(c.bruto?.disability),
     }));
 
     const ref = `${data.ano}-${String(data.mes).padStart(2, '0')}`;
@@ -174,6 +210,29 @@ export const baseWIL = createServerFn({ method: 'POST' })
       ])]),
       'N-4',
     );
+    // As duas colunas de promoção saem VAZIAS: dependem do histórico salarial,
+    // que é outro endpoint e ainda não está na lista de caminhos permitidos.
+    // Vazio nomeado é melhor que zero, que se lê como "nenhuma promoção".
+    const dei = montarDEI(pessoas, ref);
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.aoa_to_sheet([[
+        '', 'Number of colleagues in technical roles', 'Number of females in technical roles',
+        'Volume of unique nationalities', 'Number of colleagues with a disability',
+        'Number of colleagues by ethnicity', 'Number of senior leadership roles',
+        'Number of females in senior leadership', 'Senior leavers this month',
+        'Female senior leavers this month', 'Senior hires this month',
+        'Female senior hires this month', 'Senior promotions this month',
+        'Female senior promotions this month', 'Entry level hires this month',
+        'Female entry level hires this month',
+      ], ...dei.map((l) => [
+        l.bloco, l.cargosTecnicos, l.mulheresEmTecnicos, l.nacionalidadesUnicas, l.pcd, '',
+        l.liderancaSenior, l.mulheresLiderancaSenior, l.saidasSenior, l.saidasSeniorMulheres,
+        l.entradasSenior, l.entradasSeniorMulheres, '', '',
+        l.entradasNivelInicial, l.entradasNivelInicialMulheres,
+      ])]),
+      'DEI Metrics',
+    );
     const xlsxBase64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' }) as string;
 
     return {
@@ -183,6 +242,8 @@ export const baseWIL = createServerFn({ method: 'POST' })
       semFamilia: semFamilia(pessoas),
       familiasDesconhecidas: [...desconhecidas].sort(),
       n4,
+      dei,
+      semNacionalidade: pessoas.filter((pe) => pe.nacionalidades.length === 0).length,
       abaixoDeN4: abaixoDeN4(comCamada),
       xlsxBase64,
     };
