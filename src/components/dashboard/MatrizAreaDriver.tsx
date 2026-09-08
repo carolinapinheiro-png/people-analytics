@@ -89,12 +89,17 @@ const NOME_DO_TEMA = 'whitespace-nowrap';
 export default function MatrizAreaDriver({
   linhas,
   ondaLabel,
+  anteriores = [],
+  ondaAnteriorLabel,
 }: {
   linhas: DriverPorRecorte[];
   ondaLabel?: string;
+  /** Os mesmos recortes na onda anterior, para a coluna de evolução. */
+  anteriores?: DriverPorRecorte[];
+  ondaAnteriorLabel?: string | null;
 }) {
   const [celula, setCelula] = useState<CelulaAreaDriver | null>(null);
-  const m = useMemo(() => matrizAreaDriver(linhas), [linhas]);
+  const m = useMemo(() => matrizAreaDriver(linhas, 5, anteriores), [linhas, anteriores]);
   const uniformes = useMemo(() => perfilUniforme(m), [m]);
 
   if (!m.areas.length || !m.drivers.length) return null;
@@ -190,16 +195,67 @@ export default function MatrizAreaDriver({
               Quem escreve a frase sabe que a régua é a onda atual, então a
               ambiguidade é invisível de dentro. Só aparece quando alguém de
               fora lê. */}
+          {/* ------------------------------------------------------------------
+              OS QUATRO NÚMEROS, EM VEZ DE UM SÓ
+              ------------------------------------------------------------------
+              A Thais pediu exatamente isto: "poderia mostrar os dados -- última
+              pesquisa área, pesquisa atual área, pesquisa atual empresa,
+              diferença atual área x empresa". E a razão dela é boa: "nem sempre
+              a diferença vai mostrar se o resultado é bom ou ruim".
+
+              Uma diferença de -2 pode ser 96% contra 98% ou 41% contra 43%. A
+              grade precisa do delta para caber numa célula, mas o detalhe não
+              tem essa desculpa. */}
+          <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 tabular-nums">
+            {celula.favoravelAnterior != null && (
+              <>
+                <span className="text-muted-foreground">
+                  {ondaAnteriorLabel ?? 'onda anterior'} · área
+                </span>
+                <span>{celula.favoravelAnterior}%</span>
+              </>
+            )}
+            <span className="text-muted-foreground">{ondaLabel ?? 'esta onda'} · área</span>
+            <span>
+              <strong className="text-foreground">{celula.favoravel}%</strong>
+              {celula.evolucao != null && (
+                <span
+                  className="ml-2"
+                  style={{ color: celula.evolucao < 0 ? COLORS.danger : COLORS.success }}
+                >
+                  {sinal(celula.evolucao)} desde {ondaAnteriorLabel ?? 'a onda anterior'}
+                </span>
+              )}
+            </span>
+            <span className="text-muted-foreground">
+              {ondaLabel ?? 'esta onda'} · Flutter Brazil
+            </span>
+            <span>{celula.favoravelEmpresa}%</span>
+            <span className="text-muted-foreground">diferença área × Flutter Brazil</span>
+            <span style={{ color: celula.gap! < 0 ? COLORS.danger : COLORS.success }}>
+              <strong>{sinal(celula.gap!)} pontos</strong>
+            </span>
+          </div>
           <div className="text-muted-foreground">
-            <strong className="text-foreground tabular-nums">{celula.favoravel}%</strong> concordam,
-            contra <span className="tabular-nums">{celula.favoravelEmpresa}%</span> em toda a{' '}
-            <strong className="text-foreground">Flutter Brazil</strong>
-            {ondaLabel ? ` nesta mesma onda (${ondaLabel})` : ' nesta mesma onda'} —{' '}
-            <strong style={{ color: celula.gap! < 0 ? COLORS.danger : COLORS.success }}>
-              {sinal(celula.gap!)} pontos
-            </strong>
-            . Não é comparação com a pesquisa anterior. Média de {celula.perguntas} pergunta
-            {celula.perguntas === 1 ? '' : 's'}, a menor com {celula.nMinimo} respostas.
+            Média de {celula.perguntas} pergunta{celula.perguntas === 1 ? '' : 's'}, a menor com{' '}
+            {celula.nMinimo} respostas.
+            {/* A evolução é medida só sobre as perguntas que existem nas duas
+                ondas. Quando esse conjunto é menor que o do tema, os dois
+                números de cima não são a média que aparece na célula -- e quem
+                lê precisa saber, senão soma dois deltas incompatíveis. */}
+            {celula.favoravelAnterior != null
+              && celula.perguntasComparaveis < celula.perguntas && (
+              <>
+                {' '}A evolução compara só as {celula.perguntasComparaveis} pergunta
+                {celula.perguntasComparaveis === 1 ? '' : 's'} que existem nas duas ondas — as
+                outras entraram ou saíram do questionário.
+              </>
+            )}
+            {celula.favoravelAnterior == null && ondaAnteriorLabel && (
+              <>
+                {' '}Sem evolução a mostrar: nenhuma pergunta deste tema existe nas duas ondas.
+              </>
+            )}
           </div>
           {/* A média do tema esconde a pergunta ruim -- é a mesma advertência de
               "Tema por tema, e o que a média esconde", e aqui ela pesa mais, porque na

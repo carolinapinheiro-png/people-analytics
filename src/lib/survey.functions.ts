@@ -242,6 +242,17 @@ export interface SurveyWaveData {
    * na linha do tempo.
    */
   driversPorArea: DriverPorRecorte[];
+  /**
+   * Os mesmos recortes na onda ANTERIOR -- só 'company' e 'area'.
+   *
+   * Serve para a grade mostrar movimento e não só posição: "as vezes parece
+   * baixo mas já teve uma evolução comparando com o survey anterior". Vem
+   * vazio quando esta é a primeira onda, e a tela precisa dizer isso em vez de
+   * desenhar uma coluna em branco.
+   */
+  driversAnteriores: DriverPorRecorte[];
+  /** O rótulo da onda anterior, para a tela nomear contra o que compara. */
+  ondaAnteriorLabel: string | null;
   /** Quantos recortes tiveram a nota escondida para este perfil. */
   suprimidos: number;
   minimoExibicao: number;
@@ -410,7 +421,20 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       : (waves ?? [])[0];
     if (!wave) return null;
 
-    const [cutRes, impRes, drvRes, hcRes, cruzRes] = await Promise.all([
+    // ------------------------------------------------------------------
+    // A ONDA ANTERIOR, PARA A GRADE PODER MOSTRAR MOVIMENTO
+    // ------------------------------------------------------------------
+    // `waves` já vem ordenada da mais recente para a mais antiga, então a
+    // anterior é a seguinte na lista -- e não "a de julho", que seria uma data
+    // escrita à mão para envelhecer na próxima carga.
+    //
+    // Só 'company' e 'area': a evolução que a tela mostra é da área contra ela
+    // mesma. Pedir os outros recortes dobraria o payload por um número que
+    // ninguém desenha.
+    const idxAtual = (waves ?? []).findIndex((w: { wave: string }) => w.wave === wave.wave);
+    const ondaAnterior = idxAtual >= 0 ? (waves ?? [])[idxAtual + 1] : undefined;
+
+    const [cutRes, impRes, drvRes, hcRes, cruzRes, antRes] = await Promise.all([
       db.from('survey_cut_scores').select('*').eq('wave', wave.wave),
       db.from('survey_driver_importance').select('*').eq('wave', wave.wave).order('r', { ascending: false }),
       // ------------------------------------------------------------------
@@ -468,6 +492,13 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
             .eq('wave', wave.wave)
             .eq('cut_type', cruzadoPedido.tipo)
             .eq('cut_value', cruzadoPedido.valor)
+        : Promise.resolve({ data: [], error: null }),
+      ondaAnterior
+        ? db.from('survey_driver_scores')
+            .select('driver, question, cut_type, cut_value, n, score, favoravel')
+            .eq('wave', ondaAnterior.wave)
+            .in('cut_type', ['company', 'area'])
+            .limit(5000)
         : Promise.resolve({ data: [], error: null }),
     ]);
     if (cutRes.error) throw new Error(`Falha ao carregar recortes: ${cutRes.error.message}`);
@@ -632,6 +663,24 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       driversNoEscopo, podeVerTudo, ['score', 'favoravel'],
     ) as DriverPorRecorte[];
 
+    // A onda anterior passa pelas MESMAS duas portas -- escopo e supressão --
+    // e não por uma segunda implementação delas. Dado velho não é dado
+    // público: quem não pode ver a área hoje não pode vê-la em julho.
+    const driversAnteriores = applySuppression(
+      ((antRes.error ? [] : antRes.data ?? []) as Array<Record<string, unknown>>)
+        .filter((d) => podeVerORecorte(String(d.cut_type), String(d.cut_value)))
+        .map((d) => ({
+          driver: String(d.driver),
+          question: String(d.question),
+          cutType: String(d.cut_type),
+          cutValue: String(d.cut_value),
+          n: Number(d.n),
+          score: d.score == null ? null : Number(d.score),
+          favoravel: d.favoravel == null ? null : Number(d.favoravel),
+        })),
+      podeVerTudo, ['score', 'favoravel'],
+    ) as DriverPorRecorte[];
+
     return {
       wave: String(wave.wave),
       label: String(wave.label),
@@ -657,6 +706,8 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
         n: Number(i.n),
       })),
       driversPorArea,
+      driversAnteriores,
+      ondaAnteriorLabel: ondaAnterior ? String(ondaAnterior.label) : null,
       elegiveisPorArea,
       suprimidos: cuts.filter((c) => c.suprimido).length,
       minimoExibicao: N_MINIMO_EXIBICAO,

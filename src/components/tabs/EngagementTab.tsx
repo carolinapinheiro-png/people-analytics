@@ -547,7 +547,12 @@ function EngagementSection({
           ninguém verificou tem o mesmo efeito das outras deste painel --
           congela uma escolha e depois é lida como razão. */}
       {survey && temQuebraPorArea(survey.driversPorArea) && (
-        <MatrizAreaDriver linhas={survey.driversPorArea} ondaLabel={survey.label} />
+        <MatrizAreaDriver
+          linhas={survey.driversPorArea}
+          ondaLabel={survey.label}
+          anteriores={survey.driversAnteriores}
+          ondaAnteriorLabel={survey.ondaAnteriorLabel}
+        />
       )}
 
       {/* Duas ondas: slope, que responde "o que mudou desde a última pesquisa".

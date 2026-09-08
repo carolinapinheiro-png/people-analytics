@@ -221,3 +221,77 @@ test("área sem quebra nenhuma esvazia a lista, em vez de cair na empresa", () =
   assert.equal(r.linhas.length, 0);
   assert.equal(r.suprimidas, 3);
 });
+
+// ===========================================================================
+// A ONDA ANTERIOR
+// ===========================================================================
+// Pedido da Nicolle: "as vezes parece baixo mas já teve uma evolução
+// comparando com o survey anterior". O risco não é a conta -- é comparar
+// médias sobre conjuntos de perguntas diferentes e chamar isso de evolução.
+
+/** MARKETING/Gestão em jul: g1=70, g2=40 (média 55). Hoje é 65. */
+const ANTES: DriverPorRecorte[] = [
+  l("company", "Flutter Brazil", "Gestão", "g1", 85),
+  l("area", "MARKETING", "Gestão", "g1", 70),
+  l("area", "MARKETING", "Gestão", "g2", 40),
+  l("area", "MARKETING", "Remuneração", "r1", 55),
+];
+
+test("a evolução sai da onda anterior, na mesma área", () => {
+  const c = matrizAreaDriver(BASE, 5, ANTES).mapa.get("MARKETING||Gestão")!;
+  assert.equal(c.favoravel, 65, "hoje: média de 80 e 50");
+  assert.equal(c.favoravelAnterior, 55, "antes: média de 70 e 40");
+  assert.equal(c.evolucao, 10);
+  assert.equal(c.perguntasComparaveis, 2);
+});
+
+test("pergunta que só existe hoje NÃO entra na evolução", () => {
+  // O questionário muda entre ondas. Comparar a média de duas perguntas com a
+  // de uma outra devolveria um delta plausível e sem sentido -- e ninguém
+  // desconfia de um delta.
+  const soG1 = ANTES.filter((x) => x.question !== "g2");
+  const c = matrizAreaDriver(BASE, 5, soG1).mapa.get("MARKETING||Gestão")!;
+  assert.equal(c.perguntasComparaveis, 1, "só g1 existe nas duas");
+  assert.equal(c.favoravelAnterior, 70, "g1 em julho");
+  // E o "hoje" da comparação é g1 sozinho (80), não a média do tema (65):
+  // 80 - 70 = 10. Se usasse a média do tema daria 65 - 70 = -5, um sinal
+  // trocado que a tela mostraria como piora.
+  assert.equal(c.evolucao, 10);
+  assert.notEqual(c.evolucao, -5);
+});
+
+test("tema sem nenhuma pergunta em comum não inventa evolução", () => {
+  const outras = [l("area", "MARKETING", "Gestão", "g9", 10)];
+  const c = matrizAreaDriver(BASE, 5, outras).mapa.get("MARKETING||Gestão")!;
+  assert.equal(c.favoravelAnterior, null);
+  assert.equal(c.evolucao, null);
+  assert.equal(c.perguntasComparaveis, 0);
+});
+
+test("sem onda anterior, a evolução é nula e não zero", () => {
+  // Zero se lê como "não mudou". Nulo é "não dá para dizer", e é a verdade
+  // na primeira onda.
+  const c = matrizAreaDriver(BASE).mapa.get("MARKETING||Gestão")!;
+  assert.equal(c.favoravelAnterior, null);
+  assert.equal(c.evolucao, null);
+});
+
+test("a evolução é da área contra ela mesma, não contra a empresa", () => {
+  // A linha de 'company' na onda anterior existe em ANTES e não pode
+  // contaminar a célula da área.
+  const c = matrizAreaDriver(BASE, 5, ANTES).mapa.get("MARKETING||Gestão")!;
+  assert.equal(c.favoravelAnterior, 55);
+  assert.notEqual(c.favoravelAnterior, 85);
+});
+
+test("célula suprimida por n baixo não ganha evolução", () => {
+  // Se a nota de hoje não pode ser publicada, a de julho ao lado dela
+  // reconstruiria a informação que a supressão esconde.
+  const pequeno = BASE.map((x) =>
+    x.cutType === "area" && x.cutValue === "MARKETING" && x.driver === "Gestão"
+      ? { ...x, n: 3 } : x);
+  const c = matrizAreaDriver(pequeno, 5, ANTES).mapa.get("MARKETING||Gestão")!;
+  assert.equal(c.favoravel, null);
+  assert.equal(c.favoravelAnterior, null);
+  assert.equal(c.evolucao, null);
+});

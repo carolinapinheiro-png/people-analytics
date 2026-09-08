@@ -178,6 +178,30 @@ export interface CelulaAreaDriver {
   nMinimo: number;
   /** A pergunta mais abaixo da empresa dentro da célula. */
   pior: { question: string; favoravel: number | null; gap: number | null } | null;
+  // ------------------------------------------------------------------
+  // A ONDA ANTERIOR, E POR QUE ELA NÃO É SÓ MAIS UM NÚMERO
+  // ------------------------------------------------------------------
+  // "As vezes parece baixo mas já teve uma evolução comparando com o survey
+  // anterior" -- Nicolle Zilli, e ela tem razão: a grade mostrava só posição,
+  // e posição sem movimento faz uma área que subiu oito pontos parecer igual a
+  // uma que está parada no mesmo lugar.
+  //
+  // O cuidado está em COMPARAR A MESMA COISA. O questionário muda entre ondas:
+  // pergunta entra, pergunta sai, pergunta é reescrita. A média de um tema
+  // sobre cinco perguntas contra a média do mesmo tema sobre quatro outras não
+  // é evolução, é troca de régua com cara de evolução -- e ninguém desconfia
+  // de um delta.
+  //
+  // Por isso `favoravelAnterior` é calculado SÓ sobre as perguntas presentes
+  // nas duas ondas, e `perguntasComparaveis` diz sobre quantas. Quando dá
+  // zero, não há evolução a mostrar, e a tela precisa dizer isso em vez de
+  // omitir a linha.
+  /** Média do tema na onda anterior, restrita às perguntas comuns às duas. */
+  favoravelAnterior: number | null;
+  /** Pontos percentuais desde a onda anterior, nas perguntas comuns. */
+  evolucao: number | null;
+  /** Quantas perguntas existem nas duas ondas. Zero = nada a comparar. */
+  perguntasComparaveis: number;
 }
 
 export interface MatrizAreaDriver {
@@ -202,8 +226,21 @@ const media = (v: number[]): number | null =>
 export function matrizAreaDriver(
   linhas: readonly DriverPorRecorte[],
   nMinimo = 5,
+  /**
+   * As mesmas linhas da onda ANTERIOR, quando ela existe. Só 'area' é usada:
+   * a evolução é da área contra ela mesma, não contra a empresa.
+   */
+  anteriores: readonly DriverPorRecorte[] = [],
 ): MatrizAreaDriver {
   const regua = reguaEmpresa(linhas);
+
+  // A onda anterior indexada por área||driver||pergunta -- a chave inclui a
+  // PERGUNTA de propósito: é o que permite comparar só o que existe nas duas.
+  const antes = new Map<string, DriverPorRecorte>();
+  for (const l of anteriores) {
+    if (l.cutType !== 'area' || l.favoravel == null) continue;
+    antes.set(`${l.cutValue}||${l.driver}||${l.question}`, l);
+  }
 
   // Empresa: um % por driver, média das perguntas dele.
   const porDriverEmpresa = new Map<string, number[]>();
@@ -245,11 +282,35 @@ export function matrizAreaDriver(
       .filter((x) => x.gap != null)
       .sort((a, b) => a.gap! - b.gap!);
 
+    // ------------------------------------------------------------------
+    // A EVOLUÇÃO SÓ VALE SOBRE AS PERGUNTAS QUE EXISTEM NAS DUAS ONDAS
+    // ------------------------------------------------------------------
+    // Comparar a média de hoje sobre cinco perguntas com a de ontem sobre
+    // quatro outras devolveria um delta plausível e sem sentido. Aqui as duas
+    // médias saem do MESMO conjunto: as perguntas comuns.
+    //
+    // Consequência a assumir: quando o questionário mudou muito, os dois
+    // números desta linha não são a média do tema que aparece acima. Por isso
+    // `perguntasComparaveis` vai junto -- quem lê precisa saber sobre quantas
+    // perguntas a evolução foi medida.
+    const paresComuns = validas
+      .map((l) => ({ hoje: l, ontem: antes.get(`${area}||${driver}||${l.question}`) }))
+      .filter((p) => p.ontem != null) as Array<{ hoje: DriverPorRecorte; ontem: DriverPorRecorte }>;
+    const antesMedia = fav == null || !paresComuns.length
+      ? null
+      : media(paresComuns.map((p) => p.ontem.favoravel!));
+    const hojeNoComum = fav == null || !paresComuns.length
+      ? null
+      : media(paresComuns.map((p) => p.hoje.favoravel!));
+
     celulas.push({
       area, driver,
       favoravel: fav,
       favoravelEmpresa: emp,
       gap: dif(fav, emp),
+      favoravelAnterior: antesMedia,
+      evolucao: dif(hojeNoComum, antesMedia),
+      perguntasComparaveis: paresComuns.length,
       perguntas: validas.length,
       nMinimo: Number.isFinite(nMin) ? nMin : 0,
       pior: fav == null ? null : (comGap[0] ?? null),
