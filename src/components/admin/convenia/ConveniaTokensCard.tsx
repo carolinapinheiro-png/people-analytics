@@ -88,6 +88,27 @@ export function ConveniaTokensCard() {
                     {e.permissoesEscrita > 0 && ` (${e.permissoesEscrita} de escrita)`}
                   </div>
 
+                  {/* Os NOMES das permissões, e não só a contagem.
+                      Identificador de recurso não é dado pessoal, e esconder
+                      isso não protegeu ninguém: para ligar o histórico
+                      salarial eu precisava saber se o recurso está liberado e
+                      como ele se chama, e a resposta já vinha nesta chamada. */}
+                  {e.permissoes.length > 0 && (
+                    <details className="mt-1">
+                      <summary className="cursor-pointer text-xs text-muted-foreground">
+                        ver os {e.permissoes.length} nomes de permissão
+                      </summary>
+                      <div className="mt-1 space-y-0.5">
+                        {e.permissoes.map((p) => (
+                          <div key={p.nome} className="flex flex-wrap gap-x-2 text-[10px]">
+                            <code className="font-mono">{p.nome}</code>
+                            <span className="text-muted-foreground">{p.traduzido}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+
                   {e.sondas.map((s) => (
                     <div key={s.recurso} className="mt-2">
                       <div className="text-xs">

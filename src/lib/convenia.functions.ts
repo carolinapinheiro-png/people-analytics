@@ -59,6 +59,18 @@ export interface DiagnosticoEmpresa {
   nomeDoToken: string | null;
   qtdPermissoes: number;
   permissoesEscrita: number;
+  /**
+   * Nome tecnico e traduzido de cada permissao do token.
+   *
+   * Vinha na resposta e era descartado -- so a contagem sobrevivia. Isso
+   * custou caro: para ligar o historico salarial eu precisava saber se o
+   * recurso esta liberado e como ele se chama, e a resposta estava aqui o
+   * tempo todo, dentro de uma chamada que o painel ja fazia.
+   *
+   * Identificador do recurso nao e dado pessoal. Esconde-lo nao protegeu
+   * ninguem; so obrigou a perguntar de novo o que ja tinha sido respondido.
+   */
+  permissoes: { nome: string; traduzido: string }[];
   sondas: Sonda[];
   temTipoDesligamento: boolean | null;
   /**
@@ -133,7 +145,7 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
     for (const f of configuradas) {
       const base: DiagnosticoEmpresa = {
         empresa: f.empresa, marca: f.marca, local: f.local, env: f.env,
-        nomeDoToken: null, qtdPermissoes: 0, permissoesEscrita: 0,
+        nomeDoToken: null, qtdPermissoes: 0, permissoesEscrita: 0, permissoes: [],
         sondas: [], temTipoDesligamento: null, statusDosAtivos: [], faltando: [], erro: null,
       };
 
@@ -146,6 +158,10 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
         const perms = corpo?.data?.permissions ?? [];
         base.nomeDoToken = corpo?.data?.name ?? null;
         base.qtdPermissoes = perms.length;
+        base.permissoes = perms
+          .map((p) => ({ nome: p.name ?? '', traduzido: p.translated_name ?? '' }))
+          .filter((p) => p.nome || p.traduzido)
+          .sort((a, b) => a.nome.localeCompare(b.nome));
         base.permissoesEscrita = perms.filter((p) =>
           ESCRITA.some((v) => semAcento(p.translated_name || p.name || '').startsWith(v)),
         ).length;
