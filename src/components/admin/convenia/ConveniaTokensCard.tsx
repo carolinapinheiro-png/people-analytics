@@ -3,7 +3,7 @@ import { useServerFn } from '@tanstack/react-start';
 import { AlertTriangle, CheckCircle2, KeyRound, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { COLORS } from '@/lib/colors';
-import { getConveniaDiagnostico, type ConveniaDiagnostico } from '@/lib/convenia.functions';
+import { getConveniaDiagnostico, descobrirHistoricoSalarial, type ConveniaDiagnostico, type TesteHistorico } from '@/lib/convenia.functions';
 
 /**
  * O que cada token enxerga, antes de qualquer carga.
@@ -16,6 +16,20 @@ export function ConveniaTokensCard() {
   const carregar = useServerFn(getConveniaDiagnostico);
   const [d, setD] = useState<ConveniaDiagnostico | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const testar = useServerFn(descobrirHistoricoSalarial);
+  const [testes, setTestes] = useState<TesteHistorico[] | null>(null);
+  const [descobrindo, setDescobrindo] = useState(false);
+
+  const descobrir = async () => {
+    setDescobrindo(true);
+    try {
+      setTestes(await testar({}));
+    } catch (e) {
+      setTestes([{ caminho: '—', status: null, campos: [], erro: e instanceof Error ? e.message : String(e) }]);
+    } finally {
+      setDescobrindo(false);
+    }
+  };
 
   const rodar = async () => {
     setCarregando(true);
@@ -198,6 +212,39 @@ export function ConveniaTokensCard() {
           <p className="mt-3 text-xs text-muted-foreground">
             O diagnóstico devolve só nomes de campo — nenhum valor de cadastro sai daqui.
           </p>
+
+          {/* Andaime, não estrutura. Descobre a grafia da rota do histórico
+              salarial testando cinco candidatas numa pessoa só. Quando a
+              confirmada virar caminho fixo, este bloco sai junto com a lista. */}
+          <div className="mt-4 rounded-lg border border-border/60 p-3">
+            <p className="text-sm font-medium">Endpoint do histórico salarial</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              A permissão <code>employees.get.salariesHistoric</code> está no token, mas a grafia
+              da rota não. Testa cinco candidatas em uma pessoa e diz qual responde — é de lá
+              que saem as promoções do report do WIL.
+            </p>
+            <Button onClick={descobrir} disabled={descobrindo} className="mt-2" variant="outline" size="sm">
+              <RefreshCw className={`mr-2 h-4 w-4 ${descobrindo ? 'animate-spin' : ''}`} />
+              {descobrindo ? 'Testando…' : 'Descobrir endpoint'}
+            </Button>
+            {testes?.map((t) => (
+              <div key={t.caminho} className="mt-1 text-xs">
+                <code className="font-mono">{t.caminho}</code>{' '}
+                {t.status === 200 ? (
+                  <span style={{ color: COLORS.success }}>
+                    respondeu · campos: {t.campos.join(', ') || '(vazio)'}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">{t.status ?? ''} {t.erro}</span>
+                )}
+              </div>
+            ))}
+            {testes?.length === 0 && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Nenhuma pessoa na listagem para testar.
+              </p>
+            )}
+          </div>
         </div>
       </div>
     </div>

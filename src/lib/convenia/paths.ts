@@ -50,6 +50,38 @@ export const DISMISSAL_TYPES = '/dismissal-types';
  */
 export const EMPLOYEE_DETAIL = (id: string) => `/employees/${id}`;
 
+/**
+ * O histórico salarial de UMA pessoa -- de onde saem as promoções.
+ *
+ * ===========================================================================
+ * POR QUE SÃO CANDIDATAS, E NÃO UM CAMINHO
+ * ===========================================================================
+ * A permissão existe no token e se chama `employees.get.salariesHistoric`,
+ * "Histórico salarial de um colaborador". O recurso está liberado; o que falta
+ * é a grafia da rota, que a documentação traz numa página que não consegui ler
+ * inteira -- quatro tentativas, sempre truncando antes da seção.
+ *
+ * O padrão das outras é claro (`employees.get.dependents` é
+ * `/employees/{id}/dependents`), mas `salariesHistoric` é camelCase enquanto as
+ * permissões de escrita do mesmo recurso são `salary-historic`. Entre as duas
+ * grafias não há como decidir de fora.
+ *
+ * Então em vez de eu escolher uma e o painel chamá-la 50 vezes por mês, ele
+ * TESTA: uma pessoa, uma requisição por candidata, e reporta qual respondeu.
+ * A confirmada vira o caminho fixo e esta lista sai.
+ *
+ * As cinco são GET, sobre uma pessoa, sob o mesmo `/employees/{uuid}/` que já
+ * é permitido. Nenhuma amplia o alcance do token -- ampliam o que este código
+ * pode PEDIR, e é por isso que estão aqui, na lista que se revisa, e não
+ * escondidas numa string no meio da carga.
+ */
+export const CANDIDATOS_HISTORICO_SALARIAL = [
+  'salaries-historic', 'salary-historic', 'salaries-historics',
+  'salary-history', 'salaries',
+] as const;
+
+export const SALARIO_HISTORICO = (id: string, sub: string) => `/employees/${id}/${sub}`;
+
 const PERMITIDOS: readonly string[] = [
   TOKEN_PERMISSIONS,
   EMPLOYEES,
@@ -64,6 +96,17 @@ const PERMITIDOS: readonly string[] = [
 const DETALHE = /^\/employees\/[A-Za-z0-9-]{8,}$/;
 
 /**
+ * `/employees/{uuid}/{sub}`, com `sub` restrito às candidatas do histórico.
+ *
+ * A regex do detalhe termina em `$` de propósito, para que `/employees/../x`
+ * não vire caminho livre. Esta é a mesma ideia com um sufixo fechado: o `sub`
+ * tem que estar na lista, e a lista tem cinco itens que alguém escolheu.
+ */
+const SUB_RECURSO = new RegExp(
+  `^/employees/[A-Za-z0-9-]{8,}/(${CANDIDATOS_HISTORICO_SALARIAL.join('|')})$`,
+);
+
+/**
  * Um caminho é permitido se estiver na lista fixa OU for o detalhe de uma
  * pessoa. Query string não conta -- a comparação é sobre o recurso, não sobre
  * os filtros.
@@ -74,7 +117,7 @@ const DETALHE = /^\/employees\/[A-Za-z0-9-]{8,}$/;
  */
 export function isPathPermitido(path: string): boolean {
   const semQuery = path.split('?')[0].replace(/\/+$/, '') || '/';
-  return PERMITIDOS.includes(semQuery) || DETALHE.test(semQuery);
+  return PERMITIDOS.includes(semQuery) || DETALHE.test(semQuery) || SUB_RECURSO.test(semQuery);
 }
 
 /**
