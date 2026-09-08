@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,6 +23,8 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  Lock,
   Eye,
 } from 'lucide-react';
 import MultiSelect from '@/components/admin/MultiSelect';
@@ -34,6 +36,7 @@ import {
   updateAllowedEmailUser,
   bulkUpdateAllowedEmails,
   sugerirEscopoPorEmail,
+  listarPerfisDeAcesso,
 } from '@/lib/access.functions';
 import {
   isScopedProfileValue,
@@ -47,6 +50,7 @@ import {
   JOB_LEVEL_PRESETS,
   RESPONSIBILITY_PRESETS,
   canSeeIndividualData,
+  ALL_TABS,
   visibleTabs,
   isExtraTab,
   sugerirAbas,
@@ -202,6 +206,25 @@ export interface DepartmentOption {
 
 interface UserFormState {
   profile: AccessProfile;
+  /**
+   * O perfil de acesso escolhido. `null` = cadastro avulso, com as chaves e
+   * abas próprias -- o comportamento anterior aos perfis, que continua válido.
+   */
+  profileId: string | null;
+  /**
+   * Nome, cargo e camada VÊM DO CONVENIA e não se digitam.
+   *
+   * Eram três campos editáveis, e a edição não servia para nada: o cadastro
+   * de acesso não é a fonte desses dados. Um campo que aceita digitação
+   * convida a corrigir ali o que só se corrige no Convenia -- e a correção
+   * some na próxima carga, sem aviso.
+   *
+   * `conveniaEncontrado` distingue "ainda não busquei" (null) de "busquei e
+   * esta pessoa não está lá" (false). Sem isso, a tela mostraria três campos
+   * vazios nos dois casos, que são coisas diferentes.
+   */
+  nome: string;
+  conveniaEncontrado: boolean | null;
   departments: string[];
   jobFamilies: string[];
   jobTitle: string;
@@ -235,6 +258,9 @@ interface UserFormState {
 
 const EMPTY_FORM: UserFormState = {
   profile: 'dept_leader',
+  profileId: null,
+  nome: '',
+  conveniaEncontrado: null,
   // O padrão é o mais restrito das três: escopado, não administra, não vê
   // individual. Um cadastro salvo sem pensar concede o mínimo.
   global: false,
@@ -427,6 +453,26 @@ export default function UsersAccessSection({
 }) {
   const [newEmail, setNewEmail] = useState('');
   const [orgAviso, setOrgAviso] = useState('');
+  // ------------------------------------------------------------------
+  // OS PERFIS, CARREGADOS UMA VEZ
+  // ------------------------------------------------------------------
+  // Lista vazia não quer dizer "não há perfis": pode ser que a migração ainda
+  // não tenha rodado. `perfisMigrado` guarda a diferença, e a tela diz qual
+  // dos dois casos é -- em vez de oferecer um seletor vazio sem explicação.
+  const listarPerfisFn = useServerFn(listarPerfisDeAcesso);
+  const [perfis, setPerfis] = useState<PerfilOpcao[]>([]);
+  const [perfisMigrado, setPerfisMigrado] = useState(true);
+  useEffect(() => {
+    let vivo = true;
+    listarPerfisFn({})
+      .then((r) => {
+        if (!vivo) return;
+        setPerfis(r.perfis as PerfilOpcao[]);
+        setPerfisMigrado(r.migrado);
+      })
+      .catch(() => { if (vivo) setPerfis([]); });
+    return () => { vivo = false; };
+  }, [listarPerfisFn]);
   const sugerirFn = useServerFn(sugerirEscopoPorEmail);
 
   /**
@@ -447,14 +493,23 @@ export default function UsersAccessSection({
     try {
       const r = await sugerirFn({ data: { email } });
       setOrgAviso(r.motivo ?? '');
-      if (!r.encontrado) return;
+      if (!r.encontrado) {
+        setAddForm((f) => ({ ...f, conveniaEncontrado: false, nome: '', jobTitle: '', jobLevel: '' }));
+        return;
+      }
       // `f.x || sugestao` em todos: a sugestão preenche o que está VAZIO e
       // nunca sobrescreve o que já foi digitado. Quem corrigiu um cargo à mão
       // não pode perdê-lo por trocar uma letra do e-mail.
+      // Nome, cargo e camada passaram a vir SEMPRE do Convenia -- deixaram de
+      // ser campos editáveis, então não há edição manual a preservar. O
+      // comentário acima sobre "não sobrescrever o que foi digitado" continua
+      // valendo para DEPARTAMENTOS, que seguem sendo escolha de quem cadastra.
       setAddForm((f) => ({
         ...f,
-        jobLevel: f.jobLevel || (r.camada ?? ''),
-        jobTitle: f.jobTitle || (r.cargo ?? ''),
+        nome: r.nome ?? '',
+        conveniaEncontrado: true,
+        jobLevel: r.camada ?? '',
+        jobTitle: r.cargo ?? '',
         departments: f.departments.length ? f.departments : (r.departamento ? [r.departamento.toUpperCase()] : []),
       }));
     } catch {
@@ -604,6 +659,12 @@ export default function UsersAccessSection({
     setEditingId(item.id);
     setEditForm({
       profile: item.profile,
+      profileId: (item as { profile_id?: string | null }).profile_id ?? null,
+      // O cadastro guarda cargo e camada; o nome mora no organograma e é
+      // buscado ao abrir. Até chegar, `conveniaEncontrado` fica em null --
+      // "ainda não perguntei" -- e a tela diz isso em vez de afirmar ausência.
+      nome: '',
+      conveniaEncontrado: null,
       departments: item.departments ?? [],
       jobFamilies: item.job_families ?? [],
       jobTitle: item.job_title ?? '',
@@ -677,11 +738,12 @@ export default function UsersAccessSection({
                 className="max-w-md"
               />
               <p className="text-[11px] text-muted-foreground">
-                Ao sair do campo, cargo, camada N e departamento vêm do organograma do Convenia.
+                Ao sair do campo, nome, cargo, camada e departamento vêm do Convenia.
               </p>
-              {orgAviso && (
-                <p className="text-[11px] text-amber-600 dark:text-amber-500 max-w-md">{orgAviso}</p>
-              )}
+              {/* O aviso do Convenia MUDOU DE LUGAR, não foi duplicado: ele
+                  agora mora dentro do bloco em leitura, ao lado dos três campos
+                  de que ele fala. Aqui em cima ele descrevia campos que estão a
+                  meia tela de distância. */}
             </div>
 
             <UserAccessFormFields
@@ -696,6 +758,8 @@ export default function UsersAccessSection({
               validationError={addValidationError}
               showError={addTouched}
               emailPreview={newEmail}
+              perfis={perfis}
+              avisoDoConvenia={orgAviso}
             />
 
             {/* Acao no FIM do formulario, com o motivo do bloqueio do lado.
@@ -1143,6 +1207,7 @@ export default function UsersAccessSection({
             alcancePorArea={alcancePorArea}
             validationError={editValidationError}
             emailPreview={editingUser?.email}
+            perfis={perfis}
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingId(null)}>
@@ -1158,6 +1223,139 @@ export default function UsersAccessSection({
   );
 }
 
+/** Um perfil de acesso, como a tela precisa dele. Espelha `listarPerfisDeAcesso`. */
+export interface PerfilOpcao {
+  id: string;
+  nome: string;
+  descricao: string | null;
+  veEmpresaToda: boolean;
+  administraUsuarios: boolean;
+  veIndividual: boolean;
+  tabs: string[];
+  subTabs: string[];
+  quantos: number;
+}
+
+/**
+ * O que esta pessoa verá. UM lugar, e só um.
+ *
+ * ===========================================================================
+ * POR QUE ESTE PAINEL EXISTE SEPARADO
+ * ===========================================================================
+ * A tela anterior descrevia o resultado em DOIS lugares: um aviso dentro da
+ * caixa de escopo ("a pessoa ainda não vê nada") e uma fila de chips dentro da
+ * caixa de abas ("o que esta pessoa vai ver: Overview, Meu Time, DEI...").
+ *
+ * As duas frases estavam tecnicamente certas -- uma falava de escopo, a outra
+ * de abas -- e apareciam ao mesmo tempo, dizendo o oposto uma da outra. Quem
+ * lia as duas juntas não ficava sabendo de nada.
+ *
+ * Dois lugares descrevendo o mesmo resultado divergem sempre, em algum estado
+ * que ninguém previu. A defesa não é sincronizá-los: é ter um só.
+ */
+function PainelDoQueVaiVer({
+  form, perfil, emailPreview,
+}: {
+  form: UserFormState;
+  perfil: PerfilOpcao | null;
+  emailPreview?: string;
+}) {
+  const podeIndividual = canSeeIndividualData(form.profile, form.canSeeIndividual);
+  const abas = visibleTabs(form.profile, form.extraTabs, form.tabs, podeIndividual);
+  const semEscopo = !form.global && !form.departments.length && !form.jobFamilies.length;
+  const quem = form.nome || emailPreview || 'Esta pessoa';
+
+  const fora = ALL_TABS.filter((t: DashboardTab) => !abas.includes(t));
+  const abasVisiveis = new Set(abas);
+  const subForaDeAbaVisivel = SUB_ABAS
+    .filter((sb) => abasVisiveis.has(sb.aba))
+    .filter((sb) => form.subTabs.length > 0 && !form.subTabs.includes(sb.id));
+
+  return (
+    <div className="rounded-lg border border-border p-3 space-y-3 lg:sticky lg:top-4">
+      <p className="text-xs text-muted-foreground">
+        {quem === 'Esta pessoa' ? 'Esta pessoa verá' : `${quem.split(' ')[0]} verá`}
+      </p>
+
+      {/* ------------------------------------------------------------------
+          SEM ESCOPO, A LISTA DE ABAS SERIA UMA PROMESSA FALSA
+          ------------------------------------------------------------------
+          Antes, este era o estado em que a tela se contradizia: as abas
+          apareciam alegres enquanto um aviso ao lado dizia que a pessoa não
+          via nada. Quem tem aba e não tem escopo abre o painel em branco.
+          Então aqui a ausência de escopo VENCE, e as abas ficam para depois. */}
+      {semEscopo ? (
+        <p className="text-xs">
+          <ShieldAlert className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5 text-amber-600 dark:text-amber-500" />
+          Nada, por enquanto: sem departamento, a pessoa entra e abre o painel em branco. As abas
+          abaixo só passam a valer depois que houver ao menos um.
+        </p>
+      ) : abas.length === 0 ? (
+        <p className="text-xs">
+          <ShieldAlert className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5 text-amber-600 dark:text-amber-500" />
+          Nenhuma aba. A pessoa consegue entrar e não encontra nada para abrir.
+        </p>
+      ) : null}
+
+      <div className="flex flex-wrap gap-1">
+        {abas.map((t: DashboardTab) => (
+          <span
+            key={t}
+            className={`rounded px-1.5 py-0.5 text-[11px] ${
+              semEscopo
+                ? 'bg-muted text-muted-foreground/60'
+                : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+            }`}
+          >
+            {TAB_LABELS[t]}
+          </span>
+        ))}
+      </div>
+
+      {!semEscopo && (
+        <p className="text-xs text-muted-foreground border-t border-border pt-2.5">
+          {form.global ? (
+            <>Da <span className="text-foreground">empresa inteira</span>.</>
+          ) : (
+            <>
+              Só de{' '}
+              <span className="text-foreground">
+                {[...form.departments, ...form.jobFamilies].join(', ')}
+              </span>
+              .
+            </>
+          )}{' '}
+          {podeIndividual ? 'Com nome e salário pessoa a pessoa.' : 'Em números agregados.'}
+        </p>
+      )}
+
+      {/* O que NÃO verá, que é metade da conferência e não estava em lugar
+          nenhum: a tela antiga só listava o que a pessoa alcança. */}
+      <div className="space-y-1 text-[11px] text-muted-foreground border-t border-border pt-2.5">
+        {fora.length > 0 && (
+          <p>Sem {fora.map((t: DashboardTab) => TAB_LABELS[t]).join(', ')}.</p>
+        )}
+        {subForaDeAbaVisivel.length > 0 && (
+          <p>Sem {subForaDeAbaVisivel.map((sb) => sb.rotulo).join(', ')}.</p>
+        )}
+        {form.jobFamilies.length > 0 && (
+          <p className="text-foreground/70">
+            Alcança também por job family: {form.jobFamilies.join(', ')}. Departamento{' '}
+            <strong>ou</strong> família — os dois somam, não restringem.
+          </p>
+        )}
+        <p>{form.expiresAt ? `Expira em ${form.expiresAt}.` : 'Sem prazo de validade.'}</p>
+        {perfil && (
+          <p>
+            Herdado do perfil <strong className="text-foreground">{perfil.nome}</strong>
+            {perfil.quantos > 1 ? `, que ${perfil.quantos} pessoas usam` : ''}.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function UserAccessFormFields({
   idSuffix,
   value,
@@ -1165,12 +1363,14 @@ function UserAccessFormFields({
   departmentOptions,
   alcancePorArea,
   validationError,
-  /** Erro so aparece depois que a pessoa mexeu: o form nasce em dept_leader
-   *  (perfil que exige escopo), entao antes a tela abria ja em vermelho,
-   *  culpando o usuario por nao ter feito nada ainda. */
+  /** Erro so aparece depois que a pessoa mexeu. */
   showError = true,
   /** Email digitado, so para o resumo falar "fulano ve X" em vez de "A pessoa". */
   emailPreview,
+  /** Os perfis cadastrados. Vazio = a migração ainda não rodou. */
+  perfis = [],
+  /** O que o Convenia respondeu sobre este e-mail, para a tela não inventar. */
+  avisoDoConvenia,
 }: {
   idSuffix: string;
   value: UserFormState;
@@ -1180,205 +1380,197 @@ function UserAccessFormFields({
   validationError: string | null;
   showError?: boolean;
   emailPreview?: string;
+  perfis?: PerfilOpcao[];
+  avisoDoConvenia?: string;
 }) {
+  const [excecoesAbertas, setExcecoesAbertas] = useState(false);
   const patch = (partial: Partial<UserFormState>) => onChange({ ...value, ...partial });
+
+  const perfilAtual = perfis.find((p) => p.id === value.profileId) ?? null;
 
   /**
    * Mexer numa chave recalcula o `profile` e o `canSeeIndividual`.
-   *
-   * Os dois são DERIVADOS -- ninguém os edita direto. Recalcular aqui, e não
-   * na hora de salvar, faz a prévia de abas e os avisos reagirem na mesma
-   * hora: quem liga "vê a empresa toda" vê o chip de Dados aparecer.
+   * Os dois são DERIVADOS -- ninguém os edita direto.
    */
   const patchChave = (partial: Partial<Pick<UserFormState, 'global' | 'admin' | 'individual'>>) => {
     const pedido = {
       global: value.global, admin: value.admin, individual: value.individual, ...partial,
     };
-    // ADMIN IMPLICA ALCANCE TOTAL, e o código faz o que o aviso diz.
-    //
-    // Sem isto, "administra usuários" ligado com alcance por área produzia
-    // `perfilDeChaves` -> 'dept_leader', ou seja, o interruptor de admin
-    // ficava ligado na tela e sumia ao salvar. Um controle que se desfaz
-    // sozinho é pior que um controle ausente.
-    //
-    // Quem administra o cadastro consegue se dar qualquer acesso de qualquer
-    // forma; fingir que existe um admin de uma área só seria teatro.
+    // ADMIN IMPLICA ALCANCE TOTAL, e o código faz o que o aviso diz. Sem isto,
+    // o interruptor ficava ligado na tela e sumia ao salvar.
     const chaves = pedido.admin ? { ...pedido, global: true } : pedido;
     onChange({
-      ...value,
-      ...chaves,
+      ...value, ...chaves,
       profile: perfilDeChaves(chaves),
       canSeeIndividual: chaves.individual,
     });
   };
 
-  const CHAVES: Array<{
-    campo: 'global' | 'admin' | 'individual';
-    titulo: string;
-    sim: string;
-    nao: string;
-  }> = [
-    {
-      campo: 'global',
-      titulo: 'Alcance',
-      sim: 'A empresa toda',
-      nao: 'Só as áreas atribuídas',
-    },
-    {
-      campo: 'individual',
-      titulo: 'Nome e salário individuais',
-      sim: 'Vê pessoa a pessoa',
-      nao: 'Só números agregados',
-    },
-    {
-      campo: 'admin',
-      titulo: 'Administra usuários',
-      sim: 'Pode cadastrar e remover acessos',
-      nao: 'Não administra',
-    },
-  ];
-  const levelListId = `job-levels-${idSuffix}`;
-  // Salarios so aparece por concessao individual desde 14/08/2026 -- e quando
-  // aparece, o Level deixa de ser decorativo e passa a decidir o recorte.
-  // `value.tabs` entra: sem ele, o aviso da camada N seguiria o preset do
-  // perfil e mentiria para quem tem lista própria -- nos dois sentidos.
+  /** Trocar de perfil traz as chaves e as abas dele -- é o que "perfil" quer dizer. */
+  const escolherPerfil = (id: string) => {
+    const p = perfis.find((x) => x.id === id) ?? null;
+    if (!p) {
+      patch({ profileId: null });
+      return;
+    }
+    const chaves = {
+      global: p.veEmpresaToda, admin: p.administraUsuarios, individual: p.veIndividual,
+    };
+    onChange({
+      ...value,
+      profileId: p.id,
+      ...chaves,
+      profile: perfilDeChaves(chaves),
+      canSeeIndividual: chaves.individual,
+      // As listas do perfil entram como as da pessoa. Quem quiser divergir usa
+      // a caixa de exceções, e aí a divergência fica visível -- em vez de o
+      // perfil e a lista brigarem em silêncio.
+      tabs: p.tabs,
+      subTabs: p.subTabs,
+      extraTabs: [],
+    });
+  };
+
   const podeIndividual = canSeeIndividualData(value.profile, value.canSeeIndividual);
   const isCompVisivel = visibleTabs(
     value.profile, value.extraTabs, value.tabs, podeIndividual,
   ).includes('comp');
 
+  const CHAVES: Array<{ campo: 'global' | 'admin' | 'individual'; pergunta: string }> = [
+    { campo: 'global', pergunta: 'Vê a empresa inteira?' },
+    { campo: 'individual', pergunta: 'Vê nome e salário de cada pessoa?' },
+    { campo: 'admin', pergunta: 'Administra usuários?' },
+  ];
+
+  const temExcecao = !!perfilAtual && (
+    value.expiresAt !== ''
+    || value.individual !== perfilAtual.veIndividual
+    || value.tabs.join('|') !== perfilAtual.tabs.join('|')
+    || value.subTabs.join('|') !== perfilAtual.subTabs.join('|')
+  );
+
   return (
-    <div className="space-y-4">
-      {/* ==================================================================
-          A ORDEM DA TELA É A ORDEM DAS DECISÕES
-          ==================================================================
-          O perfil vinha espremido numa grade de três colunas, com a descrição
-          quebrando em quatro linhas num espaço estreito -- e ele é a PRIMEIRA
-          decisão, a que muda todo o resto do formulário.
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-4 items-start">
+      <div className="space-y-4">
+        {/* ==================================================================
+            NOME, CARGO E CAMADA NÃO SE DIGITAM
+            ==================================================================
+            Eram três campos de texto, e a edição não servia para nada: o
+            cadastro de acesso não é a fonte deles. Um campo editável convida a
+            corrigir ali o que só se corrige no Convenia -- e a correção some na
+            próxima carga, calada.
 
-          Pior: o escopo (departamentos) ficava no fim, DEPOIS de tudo, e a
-          mensagem de erro que exige o escopo aparecia lá embaixo. Quem
-          preenchia de cima para baixo terminava o formulário para então
-          descobrir que faltava o campo obrigatório.
-
-          Agora: quem é (cargo e camada, que vêm sozinhos do e-mail) -> quem
-          é no painel (as três chaves) -> o que alcança (escopo) -> o que vê
-          (abas).
-
-          Cargo e camada tinham DESCIDO nesta ordem, com o argumento de que não
-          são a primeira pergunta. O argumento envelheceu no dia em que eles
-          passaram a se preencher sozinhos ao sair do campo de e-mail: um campo
-          que se preenche a dois terços de rolagem do gesto que o preencheu não
-          é lido como automático, é lido como não tendo acontecido. Subiram de
-          volta, agora por um motivo melhor -- o efeito ao alcance da vista da
-          causa.
-      ================================================================== */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground">Cargo</Label>
-          <Input
-            placeholder="Ex.: HRBP, Tech Lead"
-            value={value.jobTitle}
-            maxLength={80}
-            onChange={(e) => patch({ jobTitle: e.target.value })}
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-xs text-muted-foreground" htmlFor={levelListId}>Camada N</Label>
-          {/* ------------------------------------------------------------------
-              LISTA FECHADA, E NAO MAIS TEXTO LIVRE
-              ------------------------------------------------------------------
-              Este campo era decorativo -- ninguem lia. Desde 14/08/2026 ele
-              decide, na aba de Salarios, ate que degrau a pessoa enxerga
-              remuneracao.
-              Com texto livre, "Diretor" em vez de "Director" nao daria erro
-              nenhum: o nivel simplesmente nao seria reconhecido, e a pessoa
-              abriria a aba sem ver ninguem. O suporte diria "esta sem dado".
-          ------------------------------------------------------------------ */}
-          <select
-            id={levelListId}
-            value={value.jobLevel}
-            onChange={(e) => patch({ jobLevel: e.target.value })}
-            className="w-full rounded border border-border bg-secondary px-2 py-1.5 text-sm"
-          >
-            <option value="">— não definida —</option>
-            {JOB_LEVEL_PRESETS.map((l) => (
-              <option key={l} value={l}>{l}</option>
-            ))}
-          </select>
+            A camada NÃO é decorativa: é ela que decide, na aba de Salários, até
+            que degrau a pessoa enxerga remuneração. Por isso, quando falta, a
+            tela diz o que isso custa em vez de mostrar um traço.
+        ================================================================== */}
+        <div className="rounded-lg bg-muted/40 p-3 space-y-2">
+          <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+            <Lock className="h-3 w-3" /> do Convenia, não editável
+          </p>
+          {value.conveniaEncontrado === false ? (
+            <p className="text-xs text-amber-600 dark:text-amber-500">
+              Este e-mail não está no Convenia. Pode ser terceiro, conta de serviço ou alguém ainda
+              não cadastrado no RH — o acesso funciona, mas sem cargo e sem camada.
+            </p>
+          ) : value.conveniaEncontrado === null ? (
+            <p className="text-xs text-muted-foreground">
+              Informe o e-mail para buscar nome, cargo e camada.
+            </p>
+          ) : (
+            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
+              <dt className="text-muted-foreground">Nome</dt>
+              <dd>{value.nome || <span className="text-muted-foreground">—</span>}</dd>
+              <dt className="text-muted-foreground">Cargo</dt>
+              <dd>{value.jobTitle || <span className="text-muted-foreground">não informado</span>}</dd>
+              <dt className="text-muted-foreground">Camada</dt>
+              <dd>{value.jobLevel || <span className="text-muted-foreground">não informada</span>}</dd>
+            </dl>
+          )}
+          {avisoDoConvenia && (
+            <p className="text-[11px] text-amber-600 dark:text-amber-500">{avisoDoConvenia}</p>
+          )}
           {isCompVisivel && !value.jobLevel && (
             <p className="text-[11px] text-amber-600 dark:text-amber-500">
-              Sem a camada N, esta pessoa abre a aba de Salários e não vê ninguém.
+              Sem camada, esta pessoa abre a aba de Salários e não vê ninguém.
             </p>
           )}
         </div>
-      </div>
 
-      {/* ==================================================================
-          TRÊS PERGUNTAS NO LUGAR DE UM SELETOR DE PERFIL
-          ==================================================================
-          Os cinco perfis, postos lado a lado, codificavam exatamente estas
-          três respostas mais uma lista de abas -- ver `perfil-derivado.ts`.
-          Admin e HR Leader diferiam só em "administra usuários"; HRBP e
-          Department Leader, só em "vê dado individual".
+        {/* ==================================================================
+            O PERFIL É A PRIMEIRA DECISÃO
+            ==================================================================
+            Ele responde as três chaves e a lista de abas de uma vez. Sem perfil
+            o cadastro continua funcionando avulso -- é o que os nove cadastros
+            de hoje são -- e aí as três perguntas aparecem aqui embaixo.
+        ================================================================== */}
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground" htmlFor={`perfil-${idSuffix}`}>
+            Perfil de acesso
+          </Label>
+          <select
+            id={`perfil-${idSuffix}`}
+            value={value.profileId ?? ''}
+            onChange={(e) => escolherPerfil(e.target.value)}
+            className="w-full rounded border border-border bg-secondary px-2 py-1.5 text-sm"
+          >
+            <option value="">— sem perfil, definir à mão —</option>
+            {perfis.map((p) => (
+              <option key={p.id} value={p.id}>{p.nome}</option>
+            ))}
+          </select>
+          {perfilAtual ? (
+            <p className="text-[11px] text-muted-foreground">
+              {perfilAtual.tabs.length} abas ·{' '}
+              {perfilAtual.veEmpresaToda ? 'a empresa toda' : 'só as áreas atribuídas'} ·{' '}
+              {perfilAtual.veIndividual ? 'com dado individual' : 'sem dado individual'}
+            </p>
+          ) : perfis.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground">
+              Nenhum perfil cadastrado ainda — as três perguntas abaixo definem o acesso.
+            </p>
+          ) : null}
+        </div>
 
-          Então escolher um perfil e depois ajustar os campos ao lado era
-          responder a mesma pergunta duas vezes, em dois lugares, com o
-          segundo vencendo em silêncio. Agora as perguntas são as perguntas.
-      ================================================================== */}
-      <div className="space-y-2">
-        {CHAVES.map((c) => (
-          <div key={c.campo} className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <Label className="text-xs">{c.titulo}</Label>
-              <p className="text-[11px] text-muted-foreground">
-                {value[c.campo] ? c.sim : c.nao}
+        {/* Sem perfil, as três perguntas são a decisão. Com perfil, elas vêm
+            dele e mudá-las é exceção -- então descem para a caixa de exceções. */}
+        {!perfilAtual && (
+          <div className="space-y-2">
+            {CHAVES.map((c) => (
+              <div key={c.campo} className="flex items-center justify-between gap-3 flex-wrap">
+                <Label className="text-xs font-normal">{c.pergunta}</Label>
+                <div className="flex gap-1 rounded-md bg-muted p-0.5">
+                  {[false, true].map((v) => (
+                    <button
+                      key={String(v)}
+                      type="button"
+                      onClick={() => patchChave({ [c.campo]: v })}
+                      className={`rounded px-2.5 py-1 text-[12px] ${
+                        value[c.campo] === v
+                          ? 'bg-background shadow-sm font-medium'
+                          : 'text-muted-foreground'
+                      }`}
+                    >
+                      {v ? 'Sim' : 'Não'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
+            {value.admin && !value.global && (
+              <p className="text-[11px] text-amber-600 dark:text-amber-500">
+                Quem administra usuários alcança todo mundo pelo cadastro de qualquer forma — por
+                isso ligar isto também liga o alcance à empresa toda.
               </p>
-            </div>
-            <div className="flex gap-1 rounded-md bg-muted p-0.5">
-              {[false, true].map((v) => (
-                <button
-                  key={String(v)}
-                  type="button"
-                  onClick={() => patchChave({ [c.campo]: v })}
-                  className={`rounded px-2.5 py-1 text-[12px] ${
-                    value[c.campo] === v
-                      ? 'bg-background shadow-sm font-medium'
-                      : 'text-muted-foreground'
-                  }`}
-                >
-                  {v ? 'Sim' : 'Não'}
-                </button>
-              ))}
-            </div>
+            )}
           </div>
-        ))}
-        {value.admin && !value.global && (
-          <p className="text-[11px] text-amber-600 dark:text-amber-500">
-            Quem administra usuários alcança todo mundo pelo cadastro de qualquer forma — por isso
-            ligar isto também liga o alcance à empresa toda.
-          </p>
         )}
-      </div>
 
-      {isScopedProfileValue(value.profile) && (
-        <div className="space-y-3 rounded-lg border border-border p-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* ------------------------------------------------------------------
-                O NOME DA ÁREA NÃO DIZ SE ELA ALCANÇA ALGUÉM
-                ------------------------------------------------------------------
-                Três áreas ativas do catálogo -- CW GROUP, PORTO e TECHNOLOGY
-                GROUP -- não batem com uma pessoa sequer. Escolher uma delas
-                salva sem erro e entrega um painel vazio, e quem cadastrou
-                conclui que a área está sem dado.
-
-                O número entra no rótulo de cada opção, e um aviso aparece
-                quando o que ficou marcado alcança zero. Nada é removido da
-                lista: uma área pode estar vazia hoje e receber gente amanhã.
-            ------------------------------------------------------------------ */}
+        {!value.global && (
+          <div className="space-y-1.5">
             <MultiSelect
               id={`dept-${idSuffix}`}
-              label="Departamentos atendidos"
+              label="Departamentos que atende"
               options={departmentOptions}
               labels={Object.fromEntries(departmentOptions.map((d) => {
                 const a = alcancePorArea.get(d);
@@ -1386,8 +1578,6 @@ function UserAccessFormFields({
                 const f = a.folha ?? 0;
                 const h = a.headcount ?? 0;
                 if (!f && !h) return [d, `${d} · ninguém em nenhuma das duas bases`];
-                // Os dois números quando divergem: são populações diferentes,
-                // e a diferença diz em QUE abas a área alcança gente.
                 if (f && h && f !== h) return [d, `${d} · ${h} no headcount, ${f} na folha`];
                 if (!f) return [d, `${d} · ${h} no headcount, ninguém na folha`];
                 if (!h) return [d, `${d} · ${f} na folha, ninguém no headcount`];
@@ -1398,260 +1588,154 @@ function UserAccessFormFields({
               placeholder="Selecionar departamentos"
               searchPlaceholder="Buscar departamento..."
             />
-            <MultiSelect
-              id={`fam-${idSuffix}`}
-              label="Job type families atendidas"
-              options={JOB_TYPE_FAMILIES}
-              value={value.jobFamilies}
-              onChange={(jobFamilies) => patch({ jobFamilies })}
-              placeholder="Selecionar famílias"
-              searchPlaceholder="Buscar família..."
-            />
-          </div>
-
-          {/* Resumo do efeito. Fica SEMPRE visivel -- antes a explicacao da
-              uniao era trocada pela mensagem de erro, ou seja, sumia justo
-              quando a pessoa mais precisava dela. */}
-          <div className="rounded-md bg-muted/50 p-2.5 space-y-1">
-            <p className="text-xs">
-              <Eye className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5 text-muted-foreground" />
-              {accessSummary(value, emailPreview ?? '')}
-            </p>
-            <p className="text-[11px] text-muted-foreground">
-              Departamento <strong>ou</strong> família: quem bate em qualquer um dos dois entra no
-              escopo. Marcar os dois <em>amplia</em> o acesso, não restringe.
-            </p>
-          </div>
-
-          {(() => {
-            // Só acende quando a área não alcança ninguém em NENHUMA das duas
-            // bases. Zero na folha e 18 no headcount é o caso do PORTO, e
-            // dizer "não alcança ninguém" ali seria falso.
-            const vazias = value.departments.filter((d) => {
-              const a = alcancePorArea.get(d);
-              return a && (a.folha ?? 0) === 0 && (a.headcount ?? 0) === 0;
-            });
-            if (!vazias.length) return null;
-            return (
-              <p className="text-[11px] text-amber-600 dark:text-amber-500">
-                <strong>{vazias.join(', ')}</strong>{' '}
-                {vazias.length === 1 ? 'não alcança' : 'não alcançam'} ninguém na base hoje. O
-                cadastro salva assim mesmo, mas{' '}
-                {value.jobFamilies.length
-                  ? 'quem entrar vai ver só o que vier pelas job families.'
-                  : 'quem entrar vai abrir o painel em branco — e vai parecer falta de dado, não de escopo.'}
+            {(() => {
+              // Só acende quando a área não alcança ninguém em NENHUMA das duas
+              // bases. Zero na folha e 18 no headcount é o caso do PORTO, e
+              // dizer "não alcança ninguém" ali seria falso.
+              const vazias = value.departments.filter((d) => {
+                const a = alcancePorArea.get(d);
+                return a && (a.folha ?? 0) === 0 && (a.headcount ?? 0) === 0;
+              });
+              if (!vazias.length) return null;
+              return (
+                <p className="text-[11px] text-amber-600 dark:text-amber-500">
+                  <strong>{vazias.join(', ')}</strong>{' '}
+                  {vazias.length === 1 ? 'não alcança' : 'não alcançam'} ninguém na base hoje. O
+                  cadastro salva assim mesmo, mas quem entrar vai abrir o painel em branco — e vai
+                  parecer falta de dado, não de escopo.
+                </p>
+              );
+            })()}
+            {showError && validationError && (
+              <p className="text-[11px] text-destructive flex items-center gap-1.5">
+                <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+                {validationError}
               </p>
-            );
-          })()}
-
-          {showError && validationError && (
-            <p className="text-[11px] text-destructive flex items-center gap-1.5">
-              <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
-              {validationError}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* ==================================================================
-          "RESPONSABILIDADES" ERA A LISTA DE ABAS COM OUTRO NOME
-          ==================================================================
-          Eram dois seletores na mesma tela: oito "responsabilidades" e nove
-          abas. Chegou como "esses dois são a mesma coisa, não?" -- e eram.
-
-          Só que a simetria era falsa, e essa é a parte ruim:
-          `responsibilities` é gravado no banco e NÃO decide nada. Nenhum ponto
-          do produto consulta o campo. Ele alimentava um botão só -- "sugerir
-          pelas responsabilidades" -- que copiava abas para a lista ao lado.
-          Marcar "Comp & Ben" e não clicar no botão não liberava Salários, mas
-          a tela deixava supor que sim.
-
-          É o mesmo defeito dos cinco perfis que saíram daqui: duas perguntas
-          para a mesma decisão, uma delas parecendo mandar sem mandar.
-
-          O atalho era útil e ficou -- virou botão dentro da caixa de abas, que
-          é onde a decisão mora. Soma ao que já está marcado, nunca substitui,
-          e não aplica sozinho. A coluna do banco continua: o formulário
-          devolve o valor que leu, então quem já tem responsabilidades gravadas
-          não perde nada.
-      ================================================================== */}
-      <div className="space-y-3 rounded-lg border border-border p-3">
-        <Label className="text-xs">O que esta pessoa vai ver</Label>
-
-        <PreviaDeAbas form={value} />
+            )}
+          </div>
+        )}
 
         {/* ==================================================================
-            UMA PERGUNTA, UM CONTROLE
+            EXCEÇÕES: RECOLHIDAS QUANDO NÃO HÁ, ABERTAS QUANDO HÁ
             ==================================================================
-            Aqui havia TRÊS seletores -- "abas desta pessoa", "abas concedidas
-            além do perfil" e "sub-abas" --, todos respondendo à mesma
-            pergunta: o que essa pessoa vê. Cada um com o seu texto de apoio
-            explicando como interagia com os outros.
-
-            Chegou como "não consigo escolher o perfil e entender essa tela", e
-            estava certo: a regra por baixo é "uma lista manda por vez", e a
-            tela mostrava as duas listas ao mesmo tempo pedindo que a pessoa
-            fizesse a conta.
-
-            Agora é uma escolha (seguir o perfil ou não) e uma lista. As abas
-            concedidas saíram da tela: ninguém as usa, elas continuam
-            funcionando para quem já tiver, e o mesmo efeito se obtém marcando
-            a aba na lista.
+            Uma gaveta que fica fechada mesmo tendo conteúdo esconde justamente
+            a resposta de quem abriu a tela para entender por que alguém vê algo
+            estranho. Havendo exceção, ela nasce aberta e diz quantas são.
         ================================================================== */}
-        <div className="flex gap-1 rounded-md bg-muted p-0.5 w-fit">
-          {([
-            ['perfil', 'Segue o perfil'],
-            ['proprias', 'Escolher abas'],
-          ] as const).map(([modo, rotulo]) => {
-            const ativo = modo === 'proprias' ? value.tabs.length > 0 : value.tabs.length === 0;
-            return (
-              <button
-                key={modo}
-                type="button"
-                onClick={() => patch({
-                  // Ao personalizar, começa do preset do perfil em vez de
-                  // vazio: quem clica quer AJUSTAR, não recomeçar. Lista
-                  // vazia significaria "segue o perfil" e o botão pareceria
-                  // não funcionar.
-                  tabs: modo === 'proprias'
-                    ? visibleTabs(value.profile, value.extraTabs, null, podeIndividual)
-                    : [],
-                  subTabs: modo === 'proprias' ? value.subTabs : [],
-                })}
-                className={`rounded px-2.5 py-1 text-[12px] ${
-                  ativo ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground'
-                }`}
-              >
-                {rotulo}
-              </button>
-            );
-          })}
-        </div>
+        <div className="rounded-lg border border-border">
+          <button
+            type="button"
+            onClick={() => setExcecoesAbertas((v) => !v)}
+            className="w-full flex items-center gap-2 p-2.5 text-xs text-muted-foreground"
+          >
+            {excecoesAbertas || temExcecao ? (
+              <ChevronDown className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5" />
+            )}
+            Exceções {perfilAtual ? 'ao perfil' : 'e prazo'}
+            <span className="ml-auto text-[11px]">
+              {temExcecao ? 'esta pessoa diverge do perfil' : 'nenhuma'}
+            </span>
+          </button>
 
-        {/* Os atalhos só existem no modo em que há lista para atalhar. Em
-            "Segue o perfil" eles não teriam onde escrever. */}
-        {value.tabs.length > 0 && (
-          <div className="flex flex-wrap items-center gap-1">
-            <span className="text-[11px] text-muted-foreground mr-0.5">Atalhos:</span>
-            {RESPONSIBILITY_PRESETS.map((r) => {
-              const sugeridas = sugerirAbas([r])
-                .filter((t) => podeIndividual || t !== 'individual');
-              const jaTem = sugeridas.every((t) => value.tabs.includes(t));
-              return (
-                <button
-                  key={r}
-                  type="button"
-                  disabled={jaTem || !sugeridas.length}
-                  // Soma, nunca substitui: quem clica quer acrescentar um
-                  // pedaço, não recomeçar a lista que acabou de ajustar.
-                  onClick={() => patch({
-                    tabs: [...new Set([...value.tabs, ...sugeridas])],
-                    // O atalho é conveniência de quem cadastra, mas também é a
-                    // melhor descrição do PAPEL da pessoa que a tela tem.
-                    // Gravar mantém a coluna viva e o histórico legível.
-                    responsibilities: [...new Set([...value.responsibilities, r])],
-                  })}
-                  title={sugeridas.length
-                    ? `Acrescenta: ${sugeridas.map((t) => TAB_LABELS[t]).join(', ')}`
-                    : 'Nada a acrescentar com as chaves atuais'}
-                  className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                    jaTem
-                      ? 'border-border/50 text-muted-foreground/50'
-                      : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
-                  }`}
-                >
-                  {r}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {value.tabs.length > 0 && (
-          <MultiSelect
-            id={`tabs-proprias-${idSuffix}`}
-            label="Abas"
-            // Oferecer `individual` a quem está marcado como "só números
-            // agregados" é pedir uma decisão que o produto vai ignorar.
-            options={Object.keys(TAB_LABELS).filter((t) => podeIndividual || t !== 'individual')}
-            labels={TAB_LABELS}
-            value={value.tabs}
-            onChange={(tabs) => patch({ tabs })}
-            placeholder="Nenhuma — a pessoa entra e não vê nada"
-            searchPlaceholder="Buscar aba..."
-          />
-        )}
-
-        {/* ------------------------------------------------------------------
-            SUB-ABAS
-            ------------------------------------------------------------------
-            Só das abas que a pessoa realmente vê: oferecer "Onboarding" a quem
-            não tem Experiência é pedir uma decisão que não existe. */}
-        {(() => {
-          const abasVisiveis = visibleTabs(
-            value.profile, value.extraTabs, value.tabs, podeIndividual,
-          );
-          const disponiveis = SUB_ABAS.filter((sb) => abasVisiveis.includes(sb.aba));
-          if (!disponiveis.length) return null;
-          const parPartido = disponiveis.filter(
-            (sb) => SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id]
-              && value.subTabs.includes(sb.id)
-              && !value.subTabs.includes(
-                disponiveis.find((x) => x.rotulo === SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id])?.id ?? '',
-              ),
-          );
-          return (
-            <>
-              <MultiSelect
-                id={`subtabs-${idSuffix}`}
-                label="Sub-abas (opcional)"
-                options={disponiveis.map((sb) => sb.id)}
-                labels={SUB_ABA_LABEL}
-                value={value.subTabs}
-                onChange={(subTabs) => patch({ subTabs })}
-                placeholder="Vazio = todas"
-                searchPlaceholder="Buscar sub-aba..."
-              />
-              {parPartido.length > 0 && (
-                <p className="text-[11px] text-amber-600 dark:text-amber-500">
-                  <strong>Atenção:</strong>{' '}
-                  {parPartido.map((sb) => sb.rotulo).join(' e ')} e{' '}
-                  {parPartido.map((sb) => SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id]).join(' e ')} leem a
-                  MESMA lista de pessoas. Marcar uma sem a outra tira do menu, mas não protege.
-                </p>
+          {(excecoesAbertas || temExcecao) && (
+            <div className="border-t border-border p-3 space-y-3">
+              {perfilAtual && (
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <Label className="text-xs font-normal">Vê nome e salário de cada pessoa?</Label>
+                  <div className="flex gap-1 rounded-md bg-muted p-0.5">
+                    {[false, true].map((v) => (
+                      <button
+                        key={String(v)}
+                        type="button"
+                        onClick={() => patchChave({ individual: v })}
+                        className={`rounded px-2.5 py-1 text-[12px] ${
+                          value.individual === v
+                            ? 'bg-background shadow-sm font-medium'
+                            : 'text-muted-foreground'
+                        }`}
+                      >
+                        {v ? 'Sim' : 'Não'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
-            </>
-          );
-        })()}
 
-        {value.extraTabs.includes('data') && !isGlobalProfile(value.profile) && (
-          <p className="text-[11px] text-amber-600 dark:text-amber-500">
-            A aba <strong>Dados</strong> é da empresa inteira e não tem recorte por área —
-            concedê-la a um perfil com escopo mostra números de todos os departamentos.
-          </p>
-        )}
+              <MultiSelect
+                id={`tabs-proprias-${idSuffix}`}
+                label="Abas desta pessoa"
+                // Oferecer `individual` a quem está marcado como "só números
+                // agregados" é pedir uma decisão que o produto vai ignorar.
+                options={Object.keys(TAB_LABELS).filter((t) => podeIndividual || t !== 'individual')}
+                labels={TAB_LABELS}
+                value={value.tabs}
+                onChange={(tabs) => patch({ tabs })}
+                placeholder={perfilAtual ? 'Vazio = as do perfil' : 'Vazio = as do preset'}
+                searchPlaceholder="Buscar aba..."
+              />
 
-        {/* "Nome e salário individuais" saiu daqui: virou a segunda das três
-            chaves, no topo. Eram o mesmo campo em dois lugares, e o de baixo
-            tinha três estados ("conforme o perfil") que deixaram de existir
-            quando o perfil deixou de ser escolhido. */}
-        <div className="space-y-1 sm:max-w-xs">
-          <Label htmlFor={`exp-${idSuffix}`} className="text-xs">Acesso válido até</Label>
-          <Input
-            id={`exp-${idSuffix}`}
-            type="date"
-            value={value.expiresAt}
-            onChange={(e) => patch({ expiresAt: e.target.value })}
-          />
-          <p className="text-[11px] text-muted-foreground">
-            {value.expiresAt
-              ? 'Depois desta data a pessoa deixa de entrar, sem precisar de ninguém.'
-              : 'Em branco = sem prazo.'}
-          </p>
+              {(() => {
+                const abasVisiveis = visibleTabs(
+                  value.profile, value.extraTabs, value.tabs, podeIndividual,
+                );
+                const disponiveis = SUB_ABAS.filter((sb) => abasVisiveis.includes(sb.aba));
+                if (!disponiveis.length) return null;
+                const parPartido = disponiveis.filter(
+                  (sb) => SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id]
+                    && value.subTabs.includes(sb.id)
+                    && !value.subTabs.includes(
+                      disponiveis.find(
+                        (x) => x.rotulo === SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id],
+                      )?.id ?? '',
+                    ),
+                );
+                return (
+                  <>
+                    <MultiSelect
+                      id={`subtabs-${idSuffix}`}
+                      label="Sub-abas"
+                      options={disponiveis.map((sb) => sb.id)}
+                      labels={SUB_ABA_LABEL}
+                      value={value.subTabs}
+                      onChange={(subTabs) => patch({ subTabs })}
+                      placeholder="Vazio = todas as das abas acima"
+                      searchPlaceholder="Buscar sub-aba..."
+                    />
+                    {parPartido.length > 0 && (
+                      <p className="text-[11px] text-amber-600 dark:text-amber-500">
+                        <strong>Atenção:</strong>{' '}
+                        {parPartido.map((sb) => sb.rotulo).join(' e ')} e{' '}
+                        {parPartido.map((sb) => SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id]).join(' e ')}{' '}
+                        leem a MESMA lista de pessoas. Marcar uma sem a outra tira do menu, mas não
+                        protege.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
+
+              <div className="space-y-1 sm:max-w-xs">
+                <Label htmlFor={`exp-${idSuffix}`} className="text-xs">Acesso válido até</Label>
+                <Input
+                  id={`exp-${idSuffix}`}
+                  type="date"
+                  value={value.expiresAt}
+                  onChange={(e) => patch({ expiresAt: e.target.value })}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  {value.expiresAt
+                    ? 'Depois desta data a pessoa deixa de entrar, sem precisar de ninguém.'
+                    : 'Em branco = sem prazo.'}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-
+      <PainelDoQueVaiVer form={value} perfil={perfilAtual} emailPreview={emailPreview} />
     </div>
   );
 }

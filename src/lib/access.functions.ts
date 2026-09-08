@@ -373,6 +373,9 @@ export const addAllowedEmail = createServerFn({ method: 'POST' })
       departments: scoped ? data.departments : [],
       job_families: scoped ? data.jobFamilies : [],
       job_title: data.jobTitle || null,
+      // `as never`: a coluna é nova e os tipos gerados do Supabase ainda são de
+      // antes da migração. Some na próxima geração.
+      profile_id: (data.profileId ?? null) as unknown as never,
       job_level: data.jobLevel || null,
       responsibilities: data.responsibilities,
       extra_tabs: data.extraTabs,
@@ -428,6 +431,7 @@ export const updateAllowedEmailUser = createServerFn({ method: 'POST' })
         departments: scoped ? data.departments : [],
         job_families: scoped ? data.jobFamilies : [],
         job_title: data.jobTitle || null,
+        profile_id: (data.profileId ?? null) as unknown as never,
         job_level: data.jobLevel || null,
         responsibilities: data.responsibilities,
         extra_tabs: data.extraTabs,
@@ -793,6 +797,8 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
     const email = data.email.trim().toLowerCase();
     const vazio = {
       encontrado: false,
+      /** Nome como está no Convenia. A tela mostra em leitura, não em campo. */
+      nome: null as string | null,
       camada: null as string | null,
       departamento: null as string | null,
       /** Cargo, do Convenia. Ver `cargoDe` em convenia/sync.server.ts. */
@@ -807,6 +813,7 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
           ilike: (c: string, v: string) => {
             maybeSingle: () => PromiseLike<{
               data: {
+                nome: string | null;
                 camada: string | null;
                 department: string | null;
                 job_title: string | null;
@@ -819,7 +826,7 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
       };
     })
       .from('org_pessoas')
-      .select('camada, department, job_title, convenia_id')
+      .select('nome, camada, department, job_title, convenia_id')
       .ilike('email', email)
       .maybeSingle();
 
@@ -875,6 +882,7 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
       return {
         ...vazio,
         encontrado: true,
+        nome: linha.nome ?? null,
         departamento: linha.department ?? null,
         // O cargo vem MESMO sem camada: são dados independentes, e devolver
         // menos por causa de outro campo faria a pessoa digitar à mão algo
@@ -885,6 +893,7 @@ export const sugerirEscopoPorEmail = createServerFn({ method: 'POST' })
     }
     return {
       encontrado: true,
+      nome: linha.nome ?? null,
       camada: linha.camada,
       departamento: linha.department ?? null,
       cargo: linha.job_title ?? null,
@@ -1017,4 +1026,71 @@ export const setDepartmentActive = createServerFn({ method: 'POST' })
 
     if (error) throw new Error(error.message);
     return { success: true };
+  });
+
+/**
+ * Os perfis de acesso cadastrados, para a tela oferecer no seletor.
+ *
+ * ---------------------------------------------------------------------------
+ * DEVOLVE A LISTA CRUA, E NÃO UM RESUMO PRONTO
+ * ---------------------------------------------------------------------------
+ * A tela precisa das abas de cada perfil para desenhar "o que esta pessoa vai
+ * ver" ANTES de salvar. Mandar só nome e id obrigaria uma segunda consulta a
+ * cada troca no seletor -- ou, pior, a tela adivinharia as abas a partir do
+ * nome, que é como um rótulo volta a fingir ser uma decisão.
+ *
+ * `quantos` vem junto porque editar um perfil muda o acesso de todo mundo que
+ * está nele: quem edita precisa ver o tamanho do que está mexendo.
+ */
+export const listarPerfisDeAcesso = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
+
+    const db = supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (c: string) => PromiseLike<{
+          data: Array<Record<string, unknown>> | null;
+          error: { message: string } | null;
+        }> & { order: (c: string) => PromiseLike<{
+          data: Array<Record<string, unknown>> | null;
+          error: { message: string } | null;
+        }> };
+      };
+    };
+
+    const { data, error } = await db
+      .from('access_profiles')
+      .select('id, nome, descricao, ve_empresa_toda, administra_usuarios, ve_individual, tabs, sub_tabs')
+      .order('nome');
+    // Tabela ainda não migrada não é erro de permissão nem lista vazia de
+    // verdade: a tela precisa saber a diferença para não dizer "não há perfis"
+    // quando o que houve foi um deploy antes da migração.
+    if (error) {
+      if (/access_profiles/i.test(error.message)) return { migrado: false, perfis: [] };
+      throw new Error(`Falha ao carregar perfis: ${error.message}`);
+    }
+
+    const { data: usos } = await db.from('allowed_emails').select('profile_id');
+    const quantos = new Map<string, number>();
+    for (const u of (usos ?? []) as Array<{ profile_id?: string | null }>) {
+      if (!u.profile_id) continue;
+      quantos.set(u.profile_id, (quantos.get(u.profile_id) ?? 0) + 1);
+    }
+
+    return {
+      migrado: true,
+      perfis: ((data ?? []) as Array<Record<string, unknown>>).map((p) => ({
+        id: String(p.id),
+        nome: String(p.nome),
+        descricao: (p.descricao as string | null) ?? null,
+        veEmpresaToda: !!p.ve_empresa_toda,
+        administraUsuarios: !!p.administra_usuarios,
+        veIndividual: !!p.ve_individual,
+        tabs: (p.tabs as string[] | null) ?? [],
+        subTabs: (p.sub_tabs as string[] | null) ?? [],
+        quantos: quantos.get(String(p.id)) ?? 0,
+      })),
+    };
   });

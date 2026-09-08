@@ -160,9 +160,13 @@ export const ExpiresAtSchema = z
   .default(null)
   .transform((v) => (v && v.length ? v : null));
 
+/** O perfil de acesso. `null` = cadastro avulso, o comportamento anterior. */
+export const ProfileIdSchema = z.string().uuid().nullish();
+
 export const AddAllowedEmailSchema = z.object({
   email: z.string().trim().email().max(255),
   profile: ProfileSchema,
+  profileId: ProfileIdSchema,
   departments: DepartmentsSchema,
   jobFamilies: JobFamiliesSchema,
   jobTitle: JobTitleSchema,
@@ -178,6 +182,7 @@ export const AddAllowedEmailSchema = z.object({
 export const UpdateAllowedEmailUserSchema = z.object({
   id: z.string().uuid(),
   profile: ProfileSchema,
+  profileId: ProfileIdSchema,
   departments: DepartmentsSchema,
   jobFamilies: JobFamiliesSchema,
   jobTitle: JobTitleSchema,
