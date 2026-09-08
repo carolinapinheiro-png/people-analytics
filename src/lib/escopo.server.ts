@@ -34,16 +34,129 @@ import { canSeeTab, type DashboardTab } from '@/lib/permissions';
  */
 export type EscopoEfetivo = EscopoResolvido;
 
+/** As colunas de sempre. `profile_id` entra por cima, quando existe. */
+const COLUNAS =
+  'role, profile, departments, job_families, extra_tabs, tabs, sub_tabs, can_see_individual, expires_at, job_level';
+
 async function buscarLinha(email: string): Promise<LinhaAcesso | null> {
-  const { data, error } = await supabaseAdmin
+  // ------------------------------------------------------------------
+  // ORDEM DE DEPLOY NÃO PODE TRANCAR O PAINEL
+  // ------------------------------------------------------------------
+  // Esta consulta é a porta de entrada de TODA requisição. Pedindo
+  // `profile_id` numa base onde a migração ainda não rodou, o PostgREST
+  // devolve erro, o erro vira `Access check failed`, e ninguém entra -- nem a
+  // pessoa que ia rodar a migração.
+  //
+  // Subir código antes de migrar é errado e acontece. Então a coluna nova é
+  // pedida de forma otimista, e a ausência dela cai no comportamento anterior
+  // em vez de derrubar todo mundo. Some quando os tipos gerados incluírem a
+  // coluna.
+  let data: Record<string, unknown> | null = null;
+  const comPerfil = await supabaseAdmin
     .from('allowed_emails')
-    .select('role, profile, departments, job_families, extra_tabs, tabs, sub_tabs, can_see_individual, expires_at, job_level')
+    .select(`${COLUNAS}, profile_id`)
     .ilike('email', email)
     .maybeSingle();
-  // Falha de consulta NÃO é negação: um erro transitório de banco não pode se
-  // disfarçar de "não autorizado" e derrubar uma sessão válida.
-  if (error) throw new Error(`Access check failed: ${error.message}`);
-  return (data as LinhaAcesso | null) ?? null;
+  if (comPerfil.error) {
+    const semColuna = /profile_id/i.test(comPerfil.error.message);
+    if (!semColuna) throw new Error(`Access check failed: ${comPerfil.error.message}`);
+    console.warn(
+      'access_profiles ainda não migrado: seguindo sem perfil. Rode 20260908120000_perfis_de_acesso.sql.',
+    );
+    const semPerfil = await supabaseAdmin
+      .from('allowed_emails').select(COLUNAS).ilike('email', email).maybeSingle();
+    // Falha de consulta NÃO é negação: um erro transitório de banco não pode
+    // se disfarçar de "não autorizado" e derrubar uma sessão válida.
+    if (semPerfil.error) throw new Error(`Access check failed: ${semPerfil.error.message}`);
+    data = semPerfil.data as Record<string, unknown> | null;
+  } else {
+    data = comPerfil.data as Record<string, unknown> | null;
+  }
+  const linha = (data as unknown as (LinhaAcesso & { profile_id?: string | null }) | null) ?? null;
+  if (!linha?.profile_id) return linha;
+
+  // ------------------------------------------------------------------
+  // O PERFIL É RESOLVIDO AQUI, NA ÚNICA PORTA
+  // ------------------------------------------------------------------
+  // `buscarLinha` é o único lugar que lê a linha de acesso, e `regras.ts` é
+  // uma função pura sobre o que ela devolve. Resolvendo o perfil aqui, a
+  // decisão de permissão continua num lugar só e nada a jusante muda.
+  //
+  // A alternativa seria ensinar `regras.ts` a conhecer perfis -- e aí a regra
+  // passaria a depender de uma segunda consulta, que é como uma decisão de
+  // acesso vira duas implementações que discordam.
+  // O cast existe porque `access_profiles` é recém-criada e os tipos gerados
+  // do Supabase ainda são de antes da migração. Some na próxima geração --
+  // mesmo caso do `registrar()` abaixo.
+  const semTipos = supabaseAdmin as unknown as {
+    from: (t: string) => {
+      select: (c: string) => {
+        eq: (col: string, v: string) => {
+          maybeSingle: () => PromiseLike<{
+            data: Record<string, unknown> | null;
+            error: { message: string } | null;
+          }>;
+        };
+      };
+    };
+  };
+  const { data: perfil, error: erroPerfil } = await semTipos
+    .from('access_profiles')
+    .select('id, nome, ve_empresa_toda, administra_usuarios, ve_individual, tabs, sub_tabs')
+    .eq('id', linha.profile_id)
+    .maybeSingle();
+  if (erroPerfil) throw new Error(`Access check failed: ${erroPerfil.message}`);
+  // Perfil apagado debaixo de um cadastro não devolve a pessoa ao preset em
+  // silêncio -- isso ampliaria o acesso dela. `on delete restrict` impede no
+  // banco; aqui a defesa é falhar fechado se algo escapar.
+  if (!perfil) throw new Error('Access check failed: perfil de acesso não encontrado');
+
+  const p = perfil as unknown as {
+    id: string; nome: string;
+    ve_empresa_toda: boolean; administra_usuarios: boolean; ve_individual: boolean;
+    tabs: string[] | null; sub_tabs: string[] | null;
+  };
+  const { resolverAcesso } = await import('@/lib/acesso-resolvido');
+  const a = resolverAcesso(
+    {
+      profileId: linha.profile_id,
+      profile: (linha.profile ?? null) as never,
+      // ------------------------------------------------------------------
+      // ESTAS DUAS NÃO TÊM EXCEÇÃO POR PESSOA -- AINDA
+      // ------------------------------------------------------------------
+      // `allowed_emails` nunca teve coluna para "vê a empresa toda" nem para
+      // "administra usuários": as duas viviam DENTRO do enum `profile`, que
+      // agora vem do perfil. Então, para quem está num perfil, elas são do
+      // perfil e ponto.
+      //
+      // Isso é defensável -- quem precisa de outro alcance pertence a outro
+      // perfil, que é para isso que perfil serve -- mas é uma limitação real,
+      // e não uma decisão tomada. `resolverAcesso` já sabe tratar exceção nas
+      // duas; falta só a coluna. Quando faltar de verdade, são duas colunas e
+      // uma linha aqui.
+      veEmpresaToda: null,
+      administraUsuarios: null,
+      veIndividual: linha.can_see_individual ?? null,
+      tabs: linha.tabs,
+      subTabs: linha.sub_tabs,
+      extraTabs: linha.extra_tabs,
+    },
+    {
+      id: p.id, nome: p.nome,
+      veEmpresaToda: p.ve_empresa_toda,
+      administraUsuarios: p.administra_usuarios,
+      veIndividual: p.ve_individual,
+      tabs: p.tabs, subTabs: p.sub_tabs,
+    },
+  );
+  return {
+    ...linha,
+    profile: a.profile,
+    tabs: a.tabs,
+    sub_tabs: a.subTabs,
+    extra_tabs: a.extraTabs,
+    can_see_individual: a.chaves.individual,
+  };
 }
 
 /** Lê o alvo pedido no cabeçalho. Só um pedido -- a decisão vem depois. */
