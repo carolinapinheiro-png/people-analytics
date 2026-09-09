@@ -384,6 +384,16 @@ export async function executarSyncConvenia(
      * podem entrar no denominador da cobertura, ou "faltam N" nunca zera.
      */
     const idsAlcancaveis = new Set<string>();
+
+    /**
+     * Quantos ESTÃO na fila E a carga alcança.
+     *
+     * Função, e não constante, porque `idsAlcancaveis` só termina de encher
+     * depois do laço das empresas. Um número calculado cedo demais aqui
+     * contaria a base inteira -- que é o engano de sempre.
+     */
+    const naFilaDoDetalhe = (): number =>
+      [...atrasadosNoDetalhe].filter((id) => idsAlcancaveis.has(id)).length;
     let historicoBuscadosAgora = 0;
     const historicoFalhas: string[] = [];
     /** Marcadas quando o relógio interrompeu uma das filas -- viram aviso. */
@@ -561,14 +571,27 @@ export async function executarSyncConvenia(
         .map((r) => r.convenia_id),
     );
     /**
-     * A FILA DO DETALHE, uma vez só.
+     * Quem está atrasado no detalhe, por id.
      *
-     * É esta que o veredito consulta e é esta que a carga reenfileira. Ter uma
-     * segunda contagem em outro lugar foi o que fez a tela anunciar "pronto"
-     * com 546 pessoas em aberto.
+     * A CONTAGEM não sai daqui: `convenia_pessoas` guarda 809 pessoas, e o
+     * laço do detalhe só percorre a LISTAGEM DE ATIVOS. Os desligados
+     * guardados nunca entram na fila -- então contá-los como pendentes produz
+     * um número que jamais zera.
+     *
+     * Foi o que aconteceu: a tela travou em "falta detalhe de 35 pessoa(s)"
+     * com zero buscas por execução, e 35 é exatamente o número de desligados
+     * que vêm da tabela guardada. A pessoa clica "Simular" de novo para
+     * sempre, e nada muda.
+     *
+     * Terceira vez hoje que o mesmo engano aparece -- comp-ratio sobre 809, a
+     * cobertura do histórico sobre 809, e agora esta. O denominador tem de ser
+     * a população que a carga ALCANÇA.
      */
-    const naFilaDoDetalhe = ((pessoasCache ?? []) as Array<{ convenia_id: string; detalhe_versao: number | null }>)
-      .filter((r) => (r.detalhe_versao ?? 0) < VERSAO_DETALHE).length;
+    const atrasadosNoDetalhe = new Set(
+      ((pessoasCache ?? []) as Array<{ convenia_id: string; detalhe_versao: number | null }>)
+        .filter((r) => (r.detalhe_versao ?? 0) < VERSAO_DETALHE)
+        .map((r) => r.convenia_id),
+    );
 
     const cargoBuscado = new Set(
       ((pessoasCache ?? []) as { convenia_id: string; job_title_em: string | null }[])
@@ -1574,8 +1597,8 @@ export async function executarSyncConvenia(
       // fila -- exatamente o erro que eu disse que seria meu para caçar, e que
       // é pior que o problema original: agora a tela mente com confiança.
       //
-      // A fila do veredito é calculada UMA vez, em `naFilaDoDetalhe`, junto de
-      // onde `pessoasCache` é lido. Aqui fica só o texto.
+      // A fila do veredito é `naFilaDoDetalhe()`, que cruza os atrasados com
+      // quem a carga alcança. Aqui fica só o texto.
       if (naFila > 0) {
         avisos.push(
           `Marca antiga de cargo: ${naFila} pessoa(s) sem \`job_title_em\`. Não é a fila do `
@@ -1952,7 +1975,7 @@ export async function executarSyncConvenia(
       // para corrigir um dado que está certo.
       // A MESMA contagem do veredito. Recontar aqui foi o que produziu 0 num
       // lugar e 546 no outro, na mesma execucao.
-      const naFila = naFilaDoDetalhe;
+      const naFila = naFilaDoDetalhe();
 
       // ------------------------------------------------------------------
       // QUANDO A BUSCA FALHA, MOSTRE OS NOMES QUE EXISTEM
@@ -2029,12 +2052,12 @@ export async function executarSyncConvenia(
       // O veredito consulta as filas E o relógio: se a carga parou por tempo,
       // ela SABE que ficou incompleta, e dizer "pronto" nesse caso seria a
       // mesma mentira com outra fonte.
-      pronto: filasPendentes.length === 0 && naFilaDoDetalhe === 0
+      pronto: filasPendentes.length === 0 && naFilaDoDetalhe() === 0
         && !detalheSemTempo && !historicoSemTempo && !serieTravada,
       oQueFalta: [
         ...(serieTravada ? ['a serie esta travada (ver o aviso acima)'] : []),
-        ...(naFilaDoDetalhe > 0
-          ? [`detalhe de ${naFilaDoDetalhe} pessoa(s) -- afeta empresa, escritorio, level, origem e cotas`]
+        ...(naFilaDoDetalhe() > 0
+          ? [`detalhe de ${naFilaDoDetalhe()} pessoa(s) -- afeta empresa, escritorio, level, origem e cotas`]
           : []),
         ...filasPendentes,
         ...(detalheSemTempo || historicoSemTempo
