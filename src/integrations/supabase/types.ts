@@ -47,6 +47,45 @@ export type Database = {
         }
         Relationships: []
       }
+      access_profiles: {
+        Row: {
+          administra_usuarios: boolean
+          created_at: string
+          descricao: string | null
+          id: string
+          nome: string
+          sub_tabs: string[] | null
+          tabs: string[] | null
+          updated_at: string
+          ve_empresa_toda: boolean
+          ve_individual: boolean
+        }
+        Insert: {
+          administra_usuarios?: boolean
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome: string
+          sub_tabs?: string[] | null
+          tabs?: string[] | null
+          updated_at?: string
+          ve_empresa_toda?: boolean
+          ve_individual?: boolean
+        }
+        Update: {
+          administra_usuarios?: boolean
+          created_at?: string
+          descricao?: string | null
+          id?: string
+          nome?: string
+          sub_tabs?: string[] | null
+          tabs?: string[] | null
+          updated_at?: string
+          ve_empresa_toda?: boolean
+          ve_individual?: boolean
+        }
+        Relationships: []
+      }
       allowed_emails: {
         Row: {
           can_see_individual: boolean | null
@@ -61,8 +100,11 @@ export type Database = {
           job_title: string | null
           last_login_at: string | null
           profile: Database["public"]["Enums"]["access_profile"]
+          profile_id: string | null
           responsibilities: string[]
           role: string
+          sub_tabs: string[] | null
+          tabs: string[] | null
           updated_at: string
         }
         Insert: {
@@ -78,8 +120,11 @@ export type Database = {
           job_title?: string | null
           last_login_at?: string | null
           profile?: Database["public"]["Enums"]["access_profile"]
+          profile_id?: string | null
           responsibilities?: string[]
           role?: string
+          sub_tabs?: string[] | null
+          tabs?: string[] | null
           updated_at?: string
         }
         Update: {
@@ -95,18 +140,33 @@ export type Database = {
           job_title?: string | null
           last_login_at?: string | null
           profile?: Database["public"]["Enums"]["access_profile"]
+          profile_id?: string | null
           responsibilities?: string[]
           role?: string
+          sub_tabs?: string[] | null
+          tabs?: string[] | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "allowed_emails_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "access_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       comp_ratio: {
         Row: {
           area: string | null
+          atualizado_em: string | null
+          band_family: string | null
+          band_midpoint: number | null
           comp_ratio: number | null
           company: string | null
           contract: string | null
+          convenia_id: string | null
           created_at: string | null
           hire: string | null
           id: string
@@ -115,18 +175,25 @@ export type Database = {
           is_people_manager: boolean
           job_title: string | null
           job_type_family: string | null
+          job_type_family_convenia: string | null
           last_promotion: string | null
           level: string | null
+          n_layer: string | null
           name: string
           quartile: string | null
           salary: number | null
+          sem_banda: string | null
           team: string | null
         }
         Insert: {
           area?: string | null
+          atualizado_em?: string | null
+          band_family?: string | null
+          band_midpoint?: number | null
           comp_ratio?: number | null
           company?: string | null
           contract?: string | null
+          convenia_id?: string | null
           created_at?: string | null
           hire?: string | null
           id?: string
@@ -135,18 +202,25 @@ export type Database = {
           is_people_manager?: boolean
           job_title?: string | null
           job_type_family?: string | null
+          job_type_family_convenia?: string | null
           last_promotion?: string | null
           level?: string | null
+          n_layer?: string | null
           name: string
           quartile?: string | null
           salary?: number | null
+          sem_banda?: string | null
           team?: string | null
         }
         Update: {
           area?: string | null
+          atualizado_em?: string | null
+          band_family?: string | null
+          band_midpoint?: number | null
           comp_ratio?: number | null
           company?: string | null
           contract?: string | null
+          convenia_id?: string | null
           created_at?: string | null
           hire?: string | null
           id?: string
@@ -155,11 +229,14 @@ export type Database = {
           is_people_manager?: boolean
           job_title?: string | null
           job_type_family?: string | null
+          job_type_family_convenia?: string | null
           last_promotion?: string | null
           level?: string | null
+          n_layer?: string | null
           name?: string
           quartile?: string | null
           salary?: number | null
+          sem_banda?: string | null
           team?: string | null
         }
         Relationships: []
@@ -242,10 +319,32 @@ export type Database = {
         }
         Relationships: []
       }
+      convenia_cadastro_mensal: {
+        Row: {
+          capturado_em: string
+          convenia_id: string
+          dados: Json
+          mes: string
+        }
+        Insert: {
+          capturado_em?: string
+          convenia_id: string
+          dados: Json
+          mes: string
+        }
+        Update: {
+          capturado_em?: string
+          convenia_id?: string
+          dados?: Json
+          mes?: string
+        }
+        Relationships: []
+      }
       convenia_leavers: {
         Row: {
           convenia_id: string
           department: string | null
+          dismissal_date: string | null
           dismissal_month: string | null
           dismissal_type: string | null
           empresa: string
@@ -258,6 +357,7 @@ export type Database = {
         Insert: {
           convenia_id: string
           department?: string | null
+          dismissal_date?: string | null
           dismissal_month?: string | null
           dismissal_type?: string | null
           empresa: string
@@ -270,6 +370,7 @@ export type Database = {
         Update: {
           convenia_id?: string
           department?: string | null
+          dismissal_date?: string | null
           dismissal_month?: string | null
           dismissal_type?: string | null
           empresa?: string
@@ -283,25 +384,79 @@ export type Database = {
       }
       convenia_pessoas: {
         Row: {
+          birth_date: string | null
           birth_month: string | null
+          bruto: Json | null
           convenia_id: string
+          cost_center: string | null
+          custom_fields: Json | null
+          detalhe_em: string | null
+          detalhe_versao: number | null
+          empresa: string | null
+          escritorio: string | null
           fetched_at: string
           gender: string | null
+          hiring_date: string | null
+          job_title: string | null
+          job_title_em: string | null
           race: string | null
+          registration: string | null
+          relationship: string | null
+          salary: number | null
+          social_name: string | null
+          status: string | null
+          team: string | null
+          uf: string | null
         }
         Insert: {
+          birth_date?: string | null
           birth_month?: string | null
+          bruto?: Json | null
           convenia_id: string
+          cost_center?: string | null
+          custom_fields?: Json | null
+          detalhe_em?: string | null
+          detalhe_versao?: number | null
+          empresa?: string | null
+          escritorio?: string | null
           fetched_at?: string
           gender?: string | null
+          hiring_date?: string | null
+          job_title?: string | null
+          job_title_em?: string | null
           race?: string | null
+          registration?: string | null
+          relationship?: string | null
+          salary?: number | null
+          social_name?: string | null
+          status?: string | null
+          team?: string | null
+          uf?: string | null
         }
         Update: {
+          birth_date?: string | null
           birth_month?: string | null
+          bruto?: Json | null
           convenia_id?: string
+          cost_center?: string | null
+          custom_fields?: Json | null
+          detalhe_em?: string | null
+          detalhe_versao?: number | null
+          empresa?: string | null
+          escritorio?: string | null
           fetched_at?: string
           gender?: string | null
+          hiring_date?: string | null
+          job_title?: string | null
+          job_title_em?: string | null
           race?: string | null
+          registration?: string | null
+          relationship?: string | null
+          salary?: number | null
+          social_name?: string | null
+          status?: string | null
+          team?: string | null
+          uf?: string | null
         }
         Relationships: []
       }
@@ -857,11 +1012,13 @@ export type Database = {
           avg_salary_non_leaders: number | null
           brand: string
           business_unit: Database["public"]["Enums"]["business_unit"] | null
+          contract_base: Json
           created_at: string | null
           demographics: Json
           dept_breakdown: Json | null
           dept_data: Json
           exit_survey: Json | null
+          family_base: Json
           gender_female: number | null
           gender_female_pct: number | null
           gender_male: number | null
@@ -894,11 +1051,13 @@ export type Database = {
           avg_salary_non_leaders?: number | null
           brand: string
           business_unit?: Database["public"]["Enums"]["business_unit"] | null
+          contract_base?: Json
           created_at?: string | null
           demographics?: Json
           dept_breakdown?: Json | null
           dept_data?: Json
           exit_survey?: Json | null
+          family_base?: Json
           gender_female?: number | null
           gender_female_pct?: number | null
           gender_male?: number | null
@@ -931,11 +1090,13 @@ export type Database = {
           avg_salary_non_leaders?: number | null
           brand?: string
           business_unit?: Database["public"]["Enums"]["business_unit"] | null
+          contract_base?: Json
           created_at?: string | null
           demographics?: Json
           dept_breakdown?: Json | null
           dept_data?: Json
           exit_survey?: Json | null
+          family_base?: Json
           gender_female?: number | null
           gender_female_pct?: number | null
           gender_male?: number | null
@@ -1077,6 +1238,42 @@ export type Database = {
           slice_type?: string
           slice_value?: string
           survey_stage?: string
+        }
+        Relationships: []
+      }
+      org_pessoas: {
+        Row: {
+          atualizado_em: string
+          camada: string | null
+          convenia_id: string
+          department: string | null
+          email: string | null
+          job_title: string | null
+          nome: string | null
+          profundidade: number | null
+          supervisor_id: string | null
+        }
+        Insert: {
+          atualizado_em?: string
+          camada?: string | null
+          convenia_id: string
+          department?: string | null
+          email?: string | null
+          job_title?: string | null
+          nome?: string | null
+          profundidade?: number | null
+          supervisor_id?: string | null
+        }
+        Update: {
+          atualizado_em?: string
+          camada?: string | null
+          convenia_id?: string
+          department?: string | null
+          email?: string | null
+          job_title?: string | null
+          nome?: string | null
+          profundidade?: number | null
+          supervisor_id?: string | null
         }
         Relationships: []
       }
@@ -1318,6 +1515,8 @@ export type Database = {
       }
       survey_driver_importance: {
         Row: {
+          cut_type: string
+          cut_value: string
           driver: string
           favoravel: number | null
           n: number
@@ -1327,6 +1526,8 @@ export type Database = {
           wave: string
         }
         Insert: {
+          cut_type?: string
+          cut_value?: string
           driver: string
           favoravel?: number | null
           n: number
@@ -1336,6 +1537,8 @@ export type Database = {
           wave: string
         }
         Update: {
+          cut_type?: string
+          cut_value?: string
           driver?: string
           favoravel?: number | null
           n?: number
@@ -1482,6 +1685,57 @@ export type Database = {
         }
         Relationships: []
       }
+      talent_mobility_download_log: {
+        Row: {
+          baixado_em: string
+          baixado_por: string
+          campos_sensiveis: string[]
+          id: number
+          linhas: number
+          mes_alvo: string
+        }
+        Insert: {
+          baixado_em?: string
+          baixado_por: string
+          campos_sensiveis?: string[]
+          id?: number
+          linhas: number
+          mes_alvo: string
+        }
+        Update: {
+          baixado_em?: string
+          baixado_por?: string
+          campos_sensiveis?: string[]
+          id?: number
+          linhas?: number
+          mes_alvo?: string
+        }
+        Relationships: []
+      }
+      talent_mobility_mapa: {
+        Row: {
+          campo: string
+          coluna: string
+          definido_em: string
+          definido_por: string
+          origem: string
+        }
+        Insert: {
+          campo: string
+          coluna: string
+          definido_em?: string
+          definido_por: string
+          origem: string
+        }
+        Update: {
+          campo?: string
+          coluna?: string
+          definido_em?: string
+          definido_por?: string
+          origem?: string
+        }
+        Relationships: []
+      }
       work_model_snapshot: {
         Row: {
           id: string
@@ -1517,7 +1771,89 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_catalogo_colunas: {
+        Row: {
+          coluna: unknown
+          tabela: unknown
+        }
+        Relationships: []
+      }
+      v_catalogo_enums: {
+        Row: {
+          tipo: unknown
+          valor: unknown
+        }
+        Relationships: []
+      }
+      v_catalogo_funcoes: {
+        Row: {
+          nome: unknown
+        }
+        Relationships: []
+      }
+      v_catalogo_indices: {
+        Row: {
+          nome: unknown
+        }
+        Relationships: []
+      }
+      v_catalogo_tabelas: {
+        Row: {
+          nome: unknown
+        }
+        Relationships: []
+      }
+      v_chave_comp: {
+        Row: {
+          area: string | null
+          hire: string | null
+          id: string | null
+          is_people_manager: boolean | null
+          k: string | null
+          last_promotion: string | null
+          level: string | null
+          name: string | null
+        }
+        Insert: {
+          area?: string | null
+          hire?: string | null
+          id?: string | null
+          is_people_manager?: boolean | null
+          k?: never
+          last_promotion?: string | null
+          level?: string | null
+          name?: string | null
+        }
+        Update: {
+          area?: string | null
+          hire?: string | null
+          id?: string | null
+          is_people_manager?: boolean | null
+          k?: never
+          last_promotion?: string | null
+          level?: string | null
+          name?: string | null
+        }
+        Relationships: []
+      }
+      v_chave_org: {
+        Row: {
+          convenia_id: string | null
+          department: string | null
+          k: string | null
+        }
+        Insert: {
+          convenia_id?: string | null
+          department?: string | null
+          k?: never
+        }
+        Update: {
+          convenia_id?: string | null
+          department?: string | null
+          k?: never
+        }
+        Relationships: []
+      }
     }
     Functions: {
       import_reconstruido: {
@@ -1554,12 +1890,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1583,11 +1919,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1608,11 +1944,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1633,11 +1969,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1650,11 +1986,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
