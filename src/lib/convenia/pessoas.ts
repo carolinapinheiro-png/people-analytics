@@ -40,6 +40,25 @@ export interface DeptBreakdownPorArea {
   leader_female: number;
   level_base: Record<string, number>;
   tenure_base: Record<string, number>;
+  /**
+   * Contagem por Job Type Family e por vínculo, mês a mês.
+   *
+   * ===========================================================================
+   * POR QUE ESTAS DUAS PASSARAM A SER GRAVADAS
+   * ===========================================================================
+   * A barra oferecia "Job family" e "Contrato" esmaecidos nas abas de série,
+   * com o motivo "a série guarda apenas a quebra por departamento". Era
+   * verdade -- e era uma escolha da carga, não um limite do dado: as duas
+   * dimensões estão no cadastro de cada pessoa, e o laço que já conta tempo de
+   * casa por mês podia contá-las no mesmo passo.
+   *
+   * São CONTAGEM por faixa, como `tenure_base`: dizem quantas pessoas eram
+   * CLT em cada mês, não o gênero nem o salário das CLT. É o suficiente para
+   * headcount, saídas e atrição sob o recorte -- e `applySeriesFilter` suprime
+   * o resto em vez de ratear. Ratear seria fabricar.
+   */
+  family_base: Record<string, number>;
+  contract_base: Record<string, number>;
   demographics: {
     age: Record<string, number>;
     race: Record<string, number>;
@@ -71,6 +90,16 @@ export interface PessoaConvenia {
   team?: string | null;
   /** Vínculo cru, como o Convenia manda. A tradução CLT/PJ é do gerador. */
   relationship?: string | null;
+  /**
+   * `Job Type Family` do cadastro ("Customer Operations", "Data & Analytics").
+   *
+   * ATRIBUTO ATUAL aplicado a toda a série, igual ao vínculo e ao nível: o
+   * Convenia não guarda o histórico de família, então quem mudou de família
+   * aparece na de hoje também nos meses passados. É o mesmo limite que a
+   * reconstrução já assume nas outras dimensões, e está aqui escrito para não
+   * ser descoberto como surpresa.
+   */
+  jobFamily?: string | null;
   /**
    * A listagem como veio, menos documentos. É a rede contra o ciclo de "mais
    * uma coluna": campo novo já está guardado antes de alguém precisar dele.
