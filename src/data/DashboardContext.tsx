@@ -179,6 +179,8 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
     leaders_pct: deptInfo.hc ? Math.round((db.leaders / deptInfo.hc) * 1000) / 10 : 0,
     level_base: db.level_base,
     tenure_base: db.tenure_base,
+    family_base: db.family_base,
+    contract_base: db.contract_base,
     demographics: db.demographics,
     race_cross: db.race_cross,
     leader_dept: { [deptName]: { leaders: db.leaders, female: db.leader_female } },

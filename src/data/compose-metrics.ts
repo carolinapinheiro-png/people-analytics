@@ -78,6 +78,12 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
       r.leader_dept && Object.keys(r.leader_dept).length > 0 ? r.leader_dept : undefined,
     tenure_base:
       r.tenure_base && Object.keys(r.tenure_base).length > 0 ? r.tenure_base : undefined,
+    // Vazio vira `undefined`, e nao `{}`: e assim que `applySeriesFilter`
+    // distingue "esta serie nao guarda esta quebra" de "guarda e deu zero".
+    family_base:
+      r.family_base && Object.keys(r.family_base).length > 0 ? r.family_base : undefined,
+    contract_base:
+      r.contract_base && Object.keys(r.contract_base).length > 0 ? r.contract_base : undefined,
     demographics:
       r.demographics && Object.keys(r.demographics).length > 0 ? r.demographics : undefined,
     race_cross:

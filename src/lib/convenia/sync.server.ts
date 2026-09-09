@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { reconstruirSerie, type LinhaMensal, type PessoaConvenia } from './pessoas';
-import { empresaDe, escritorioDe, lerCustomFields } from './custom-fields';
+import { empresaDe, escritorioDe, lerCustomFields, valorDe as valorDeCampo } from './custom-fields';
 import { detectarColapso, detectarSaltoDeHistoria } from './colapso';
 import { marcaDeEmpresa, empresasNaoReconhecidas, MARCAS_DO_PAINEL, type MarcaDoPainel } from './marca';
 
@@ -347,6 +347,17 @@ export async function executarSyncConvenia(
       ((pessoasCache ?? []) as { convenia_id: string; escritorio: string | null }[])
         .map((r) => [r.convenia_id, r.escritorio ?? null]),
     );
+    // A Job Type Family sai do mesmo `custom_fields` que já veio nesta
+    // consulta -- nenhuma requisição a mais. É o que permite a série mensal
+    // guardar a quebra por família, e com isso o filtro "Job family" deixar de
+    // ser um seletor esmaecido nas abas de série.
+    const familiaPorId = new Map<string, string | null>(
+      ((pessoasCache ?? []) as { convenia_id: string; custom_fields: unknown }[])
+        .map((r) => [
+          r.convenia_id,
+          valorDeCampo(lerCustomFields(r.custom_fields), ['job type family']),
+        ]),
+    );
     // ------------------------------------------------------------------
     // "JA LIDO" MUDA DE SIGNIFICADO A CADA CAMPO NOVO
     // ------------------------------------------------------------------
@@ -586,6 +597,11 @@ export async function executarSyncConvenia(
           supervisorId: p.supervisorId, salary: p.salary, birth_date: p.birth_date, uf: p.uf,
           registration: p.registration, social_name: p.social_name,
           team: p.team, relationship: p.relationship, bruto: p.bruto,
+          // A família vem do cadastro já lido (`custom_fields`), e não de uma
+          // requisição a mais: `pessoasCache` traz a coluna para todo mundo.
+          // Quem ainda não teve o detalhe lido fica sem, e a série a conta como
+          // "Não informado" -- visível, em vez de sumir do headcount.
+          jobFamily: familiaPorId.get(p.id) ?? null,
           genero: cacheGenero.get(p.id) ?? null,
           raca: cacheRaca.get(p.id) ?? null,
         }));
@@ -1548,6 +1564,11 @@ export async function executarSyncConvenia(
         // `race_cross` em pessoas.ts: a tela do DEI depende dele para existir.
         race_cross: l.race_cross,
         tenure_base: l.tenure_base,
+        // As duas quebras novas. Sem elas gravadas, `applySeriesFilter` não
+        // tem denominador e os filtros de família e de vínculo continuariam
+        // esmaecidos nas abas de série -- que era a situação até 09/09.
+        family_base: l.family_base,
+        contract_base: l.contract_base,
         demographics: l.demographics,
         // As duas razões de marcar convivem: a linha pode ser anterior ao
         // horizonte E ter desligado sem admissão resolvida. Quem lê a marca

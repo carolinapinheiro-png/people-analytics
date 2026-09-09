@@ -607,6 +607,24 @@ export function reconstruirSerie(
         tenure_base[faixa] = (tenure_base[faixa] ?? 0) + 1;
         A.tenure_base[faixa] = (A.tenure_base[faixa] ?? 0) + 1;
 
+        // ------------------------------------------------------------
+        // FAMÍLIA E VÍNCULO: SEM VALOR NÃO É UMA CATEGORIA VAZIA
+        // ------------------------------------------------------------
+        // "Não informado" entra como faixa própria, e não some da conta: a
+        // soma de `family_base` tem de bater com o headcount, senão o recorte
+        // por família mostra menos gente do que existe e ninguém percebe. É a
+        // mesma regra do tempo de casa, que nunca deixa pessoa de fora.
+        const familia = (x.p.jobFamily ?? '').trim() || 'Não informado';
+        family_base[familia] = (family_base[familia] ?? 0) + 1;
+        A.family_base[familia] = (A.family_base[familia] ?? 0) + 1;
+
+        // Vínculo CRU, como o Convenia escreve. A tradução para CLT/PJ é de
+        // quem casa com a banda salarial, não daqui: vínculo novo que o RH
+        // criar aparece com o próprio nome, em vez de virar "CLT" em silêncio.
+        const vinculo = (x.p.relationship ?? '').trim() || 'Não informado';
+        contract_base[vinculo] = (contract_base[vinculo] ?? 0) + 1;
+        A.contract_base[vinculo] = (A.contract_base[vinculo] ?? 0) + 1;
+
         const idade = faixaEtaria(x.p.birth_date, mes);
         if (idade) {
           porIdade[idade] = (porIdade[idade] ?? 0) + 1;
@@ -657,6 +675,8 @@ export function reconstruirSerie(
       avg_salary_non_leaders: media(salDemais),
       state_mix,
       tenure_base,
+      family_base,
+      contract_base,
       demographics: { age: porIdade, race: porRacaDemo },
       gender_female: gF,
       gender_male: gM,

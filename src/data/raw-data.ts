@@ -46,6 +46,11 @@ export interface MonthRecord {
   leader_dept?: Record<string, { leaders: number; female: number }>;
   /** Distribuicao por tempo de casa ({ "0-3m": n, ..., "5a+": n }). */
   tenure_base?: Record<string, number>;
+  /** Contagem por Job Type Family ({ "Data & Analytics": n, ... }). So a serie
+   *  do Convenia preenche; a congelada nao tem e fica indefinida. */
+  family_base?: Record<string, number>;
+  /** Contagem por vinculo, com o nome cru do Convenia ({ "CLT": n, ... }). */
+  contract_base?: Record<string, number>;
   /** Demograficos ({ age, race, marital, origin }). */
   demographics?: {
     age?: Record<string, number>;
