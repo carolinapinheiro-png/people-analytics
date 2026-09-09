@@ -943,9 +943,28 @@ export const getDepartments = createServerFn({ method: 'GET' })
       id: string; name: string; aliases: string[] | null; active: boolean;
     }>;
 
+    // ------------------------------------------------------------------
+    // AS CONTAGENS PRECISAM DE UM CLIENTE QUE ENXERGUE AS DUAS TABELAS
+    // ------------------------------------------------------------------
+    // O catálogo é leitura para qualquer autenticado, e por isso tudo aqui
+    // saía por `context.supabase` -- o cliente DA PESSOA, sujeito ao RLS.
+    // `comp_ratio` é a folha: o RLS dela é restrito, e para quem não pode ler
+    // ela devolve lista vazia sem erro. Daí as áreas todas em zero.
+    //
+    // A contagem passa a sair pelo cliente admin, e SÓ para quem administra
+    // usuários -- que é quem vê esta tela. Para os demais fica `null`, ou
+    // seja, "não medido", e nenhuma afirmação é feita. Usar o cliente admin
+    // para todo mundo consertaria o número e abriria a contagem da folha por
+    // área para qualquer autenticado, que é uma troca ruim.
+    const { supabaseAdmin, ehAdmin } = await import('./access-rules.server');
+    const podeContar = await ehAdmin(context.claims.email as string | undefined);
+    const fonte = podeContar ? supabaseAdmin : null;
+
     // Se a contagem falhar, o catálogo continua saindo SEM ela. Um número
     // ausente vira "—" na tela; um catálogo ausente trava o cadastro.
-    const { data: pessoas } = await context.supabase.from('comp_ratio').select('area');
+    const { data: pessoas } = fonte
+      ? await fonte.from('comp_ratio').select('area')
+      : { data: null };
     const naFolha = new Map<string, number>();
     for (const r of (pessoas ?? []) as Array<{ area: string | null }>) {
       const k = (r.area ?? '').trim().toUpperCase();
@@ -967,12 +986,14 @@ export const getDepartments = createServerFn({ method: 'GET' })
     //
     // Foi o mesmo erro de sempre, cometido por mim ontem: medir uma fonte e
     // afirmar sobre o mundo.
-    const { data: ultimo } = await context.supabase
-      .from('monthly_metrics')
-      .select('month, dept_data')
-      .eq('source', 'convenia')
-      .order('month', { ascending: false })
-      .limit(6);
+    const { data: ultimo } = fonte
+      ? await fonte
+        .from('monthly_metrics')
+        .select('month, dept_data')
+        .eq('source', 'convenia')
+        .order('month', { ascending: false })
+        .limit(6)
+      : { data: null };
     const linhas = (ultimo ?? []) as Array<{ month: string; dept_data: Record<string, { hc?: number }> | null }>;
     const mesMaisNovo = linhas[0]?.month ?? null;
     const noHeadcount = new Map<string, number>();
@@ -984,14 +1005,33 @@ export const getDepartments = createServerFn({ method: 'GET' })
       }
     }
 
+    // ------------------------------------------------------------------
+    // TABELA INTEIRA VAZIA NÃO É "ZERO EM CADA ÁREA"
+    // ------------------------------------------------------------------
+    // A guarda era `pessoas ? ... : null` -- ela cobre a consulta que FALHA,
+    // e não a que volta vazia. E vazia é o que o RLS devolve quando barra a
+    // leitura: `data: []`, `error: null`.
+    //
+    // O efeito na tela: todas as áreas do catálogo apareciam como "ninguém em
+    // nenhuma das duas bases", MARKETING e OPERATION inclusive. Uma afirmação
+    // sobre a empresa inteira montada sobre uma leitura que não aconteceu --
+    // e a frase é convincente porque traz duas fontes, como se tivesse
+    // conferido as duas.
+    //
+    // Se a fonte não trouxe UMA linha sequer, ela não diz nada sobre nenhuma
+    // área: o certo é `null`, que a tela já sabe mostrar como ausência de
+    // medida em vez de ausência de gente. A contagem de uma área específica
+    // continua podendo ser zero -- isso sim é resposta.
+    const folhaMedida = naFolha.size > 0;
+    const headcountMedido = noHeadcount.size > 0;
     return deps.map((d) => {
       const k = d.name.trim().toUpperCase();
       return {
         ...d,
         /** Na folha de remuneração (`comp_ratio`). `null` = não medido. */
-        pessoas: pessoas ? (naFolha.get(k) ?? 0) : null,
+        pessoas: folhaMedida ? (naFolha.get(k) ?? 0) : null,
         /** No headcount do mês mais novo (`dept_data`). `null` = não medido. */
-        pessoasHeadcount: ultimo ? (noHeadcount.get(k) ?? 0) : null,
+        pessoasHeadcount: headcountMedido ? (noHeadcount.get(k) ?? 0) : null,
       };
     });
   });

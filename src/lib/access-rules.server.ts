@@ -48,3 +48,25 @@ export async function requireAdmin(userEmail: string | undefined): Promise<void>
   if (error) throw new Error(`Access check failed: ${error.message}`);
   if (data?.profile !== 'admin') throw new Error('Forbidden');
 }
+
+/**
+ * Administra usuários? Sem lançar.
+ *
+ * `requireAdmin` lança, e lançar é certo quando a ação exige o poder. Aqui a
+ * pergunta é outra: um enfeite da tela de admin -- a contagem de pessoas por
+ * área no seletor -- que para quem não é admin simplesmente não aparece.
+ *
+ * Falha de lookup devolve `false`, não exceção: o catálogo de departamentos
+ * precisa sair de qualquer jeito. Sem ele o cadastro trava; sem a contagem a
+ * tela só mostra menos.
+ */
+export async function ehAdmin(userEmail: string | undefined): Promise<boolean> {
+  if (!userEmail) return false;
+  const { data, error } = await supabaseAdmin
+    .from('allowed_emails')
+    .select('profile')
+    .ilike('email', userEmail)
+    .maybeSingle();
+  if (error) return false;
+  return data?.profile === 'admin';
+}
