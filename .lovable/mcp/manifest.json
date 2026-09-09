@@ -74,6 +74,15 @@
               "minLength": 1,
               "description": "Filter by brand (exact match)."
             },
+            "source": {
+              "type": "string",
+              "enum": [
+                "reconstruido",
+                "convenia",
+                "raw-data.ts"
+              ],
+              "description": "Which series to read. Defaults to 'reconstruido', the series the dashboard uses. 'convenia' is recalculated from hiring and dismissal dates on every load; 'raw-data.ts' is the frozen original. Never mix them in one comparison."
+            },
             "limit": {
               "type": "integer",
               "minimum": 1,
