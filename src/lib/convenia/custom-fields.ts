@@ -93,8 +93,15 @@ export function lerCustomFields(bruto: unknown): CampoPersonalizado[] {
   };
 
   const doObjeto = (o: Record<string, unknown>): CampoPersonalizado[] => {
-    const nome = o.name ?? o.label ?? o.field ?? o.title ?? o.key;
-    const valor = o.value ?? o.content ?? o.data ?? o.text;
+    // `nome`/`valor` são a forma que ESTA função devolve, e que a carga grava
+    // em `convenia_pessoas.custom_fields`. Sem eles na lista de apelidos, ler
+    // de volta o que gravamos cai nas formas 2/3 e produz DOIS campos por
+    // linha, chamados "nome" e "valor" -- a lista fica cheia, nenhuma busca
+    // por nome de campo acha nada, e o resultado se lê como "o RH não
+    // preencheu". Foi o que fez o comp-ratio dizer "628 sem level" com o campo
+    // `Level` preenchido em 7 de 8 na sonda.
+    const nome = o.name ?? o.label ?? o.field ?? o.title ?? o.key ?? o.nome;
+    const valor = o.value ?? o.content ?? o.data ?? o.text ?? o.valor;
     // Forma 1: tem par explícito.
     if (nome !== undefined || valor !== undefined) {
       const p = par(nome, valor);
@@ -126,6 +133,19 @@ export const chave = (s: string): string =>
  * A busca é por nome de campo, e não por posição, porque a ordem de
  * `custom_fields` não é contrato: basta o RH criar um campo novo antes para a
  * leitura por índice passar a devolver outra coisa, calada.
+ *
+ * ===========================================================================
+ * NOME EXATO ANTES DE PEDAÇO DE NOME
+ * ===========================================================================
+ * O cadastro tem `Level` (L0..L9) E `WorkDay Level` (N-5, N-6 Above). Os dois
+ * casam com a procura "level" -- um por igualdade, o outro por conter --, e a
+ * versão anterior devolvia o PRIMEIRO da lista. Qual vinha primeiro era a
+ * ordem da resposta da API, que não é contrato: no dia em que ela mudasse, o
+ * comp-ratio inteiro passaria a dividir salário pela banda de "N-6 Above" sem
+ * nada dar erro.
+ *
+ * Duas passadas: exato primeiro, pedaço depois. `includes` continua existindo
+ * porque é o que acha "Escritório (novo)" quando o RH renomeia.
  */
 export function valorDe(
   campos: readonly CampoPersonalizado[],
@@ -133,8 +153,11 @@ export function valorDe(
 ): string | null {
   const alvos = procurados.map(chave);
   for (const c of campos) {
+    if (alvos.includes(chave(c.nome))) return c.valor;
+  }
+  for (const c of campos) {
     const k = chave(c.nome);
-    if (alvos.some((a) => k === a || k.includes(a))) return c.valor;
+    if (alvos.some((a) => k.includes(a))) return c.valor;
   }
   return null;
 }

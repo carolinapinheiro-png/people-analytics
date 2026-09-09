@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   lerCustomFields, valorDe, escritorioDe, empresaDe, valorEhSensivel,
-  NOMES_DE_ESCRITORIO,
+  NOMES_DE_ESCRITORIO, NOMES_DE_EMPRESA,
 } from './custom-fields';
 
 /**
@@ -170,4 +170,36 @@ test('e os campos que interessam continuam exibíveis', () => {
 
 test('a lista de escritório não pega "Empresa" por engano', () => {
   assert.equal(valorDe(lerCustomFields(RECIFE.custom_fields), NOMES_DE_ESCRITORIO), 'Recife - Boa Viagem');
+});
+
+test('ler de volta o que a carga gravou devolve os campos, nao "nome" e "valor"', () => {
+  // A carga normaliza e grava `[{nome, valor}]` em `convenia_pessoas`. Quem lê
+  // essa coluna chama `lerCustomFields` de novo -- e sem `nome`/`valor` na
+  // lista de apelidos isso caía na forma "as chaves sao os nomes", produzindo
+  // dois campos chamados "nome" e "valor" por linha.
+  //
+  // O efeito medido: comp-ratio dizendo "628 de 642 sem level" com `Level`
+  // preenchido em 7 de 8 na sonda. A lista estava cheia; os nomes eram lixo.
+  const gravado = [
+    { nome: 'Empresa', valor: 'NSX Brasil Recife' },
+    { nome: 'Level', valor: 'L5' },
+    { nome: 'Job Type Family', valor: 'Product & Technology' },
+  ];
+  const lido = lerCustomFields(gravado);
+  assert.deepEqual(lido, gravado);
+  assert.equal(valorDe(lido, ['level']), 'L5');
+  assert.equal(valorDe(lido, NOMES_DE_EMPRESA), 'NSX Brasil Recife');
+});
+
+test('`Level` vence `WorkDay Level`, em qualquer ordem da resposta', () => {
+  // Os dois casam com "level": um por igualdade, o outro por conter. Antes
+  // ganhava o primeiro da lista, e a ordem da resposta da API nao e contrato --
+  // no dia em que ela mudasse, o comp-ratio dividiria salario pela banda de
+  // "N-6 Above" sem nada dar erro.
+  const level = { nome: 'Level', valor: 'L5' };
+  const workday = { nome: 'WorkDay Level', valor: 'N-6 Above' };
+  assert.equal(valorDe([workday, level], ['level']), 'L5');
+  assert.equal(valorDe([level, workday], ['level']), 'L5');
+  // E procurar o outro de proposito continua achando o outro.
+  assert.equal(valorDe([level, workday], ['workday level']), 'N-6 Above');
 });
