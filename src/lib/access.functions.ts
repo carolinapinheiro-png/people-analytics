@@ -1094,3 +1094,98 @@ export const listarPerfisDeAcesso = createServerFn({ method: 'GET' })
       })),
     };
   });
+
+const PerfilSchema = z.object({
+  id: z.string().uuid().nullish(),
+  nome: z.string().trim().min(2).max(60),
+  descricao: z.string().trim().max(400).nullish(),
+  veEmpresaToda: z.boolean(),
+  administraUsuarios: z.boolean(),
+  veIndividual: z.boolean(),
+  tabs: z.array(z.string().trim().max(40)).max(30),
+  subTabs: z.array(z.string().trim().max(40)).max(30),
+});
+
+/**
+ * Cria ou atualiza um perfil de acesso.
+ *
+ * ---------------------------------------------------------------------------
+ * QUEM EDITA PERFIL EDITA O ACESSO DE TODO MUNDO QUE ESTÁ NELE
+ * ---------------------------------------------------------------------------
+ * É o que faz o perfil valer a pena e é o que o torna perigoso. Por isso duas
+ * defesas aqui, além do `requireAdmin`:
+ *
+ *   - devolve `atingidos`, quantas pessoas herdam deste perfil, para a tela
+ *     poder dizer o tamanho do que acabou de mudar;
+ *   - `administra_usuarios` implica `ve_empresa_toda`, como no cadastro de
+ *     pessoa. Um "admin de uma área só" não existe: quem administra o cadastro
+ *     se dá qualquer acesso pelo próprio cadastro.
+ */
+export const salvarPerfilDeAcesso = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => PerfilSchema.parse(data))
+  .handler(async ({ context, data }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
+
+    const linha = {
+      nome: data.nome,
+      descricao: data.descricao || null,
+      ve_empresa_toda: data.administraUsuarios ? true : data.veEmpresaToda,
+      administra_usuarios: data.administraUsuarios,
+      ve_individual: data.veIndividual,
+      tabs: data.tabs,
+      sub_tabs: data.subTabs,
+      updated_at: new Date().toISOString(),
+    };
+
+    const db = supabaseAdmin as unknown as {
+      from: (t: string) => {
+        insert: (v: unknown) => PromiseLike<{ error: { message: string } | null }>;
+        update: (v: unknown) => { eq: (c: string, x: string) => PromiseLike<{ error: { message: string } | null }> };
+        select: (c: string) => { eq: (c: string, x: string) => PromiseLike<{ data: unknown[] | null }> };
+      };
+    };
+
+    const { error } = data.id
+      ? await db.from('access_profiles').update(linha).eq('id', data.id)
+      : await db.from('access_profiles').insert(linha);
+    if (error) throw new Error(`Falha ao salvar o perfil: ${error.message}`);
+
+    const { data: usos } = data.id
+      ? await db.from('allowed_emails').select('id').eq('profile_id', data.id)
+      : { data: [] };
+    return { atingidos: (usos ?? []).length };
+  });
+
+/**
+ * Apaga um perfil que não tem ninguém dentro.
+ *
+ * O banco já recusa com `on delete restrict`. A checagem aqui existe para a
+ * mensagem: "violates foreign key constraint" não diz a quem perguntar. E
+ * apagar com gente dentro devolveria essas pessoas ao preset em silêncio, o
+ * que AMPLIA o acesso delas -- a falha tem de ser fechada.
+ */
+export const removerPerfilDeAcesso = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data) => z.object({ id: z.string().uuid() }).parse(data))
+  .handler(async ({ context, data }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
+
+    const db = supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (c: string) => { eq: (c: string, x: string) => PromiseLike<{ data: unknown[] | null }> };
+        delete: () => { eq: (c: string, x: string) => PromiseLike<{ error: { message: string } | null }> };
+      };
+    };
+    const { data: usos } = await db.from('allowed_emails').select('id').eq('profile_id', data.id);
+    if ((usos ?? []).length) {
+      throw new Error(
+        `Este perfil ainda tem ${(usos ?? []).length} pessoa(s). Mova essas pessoas para outro perfil antes de apagar — apagar aqui devolveria todas elas ao preset, o que amplia o acesso delas.`,
+      );
+    }
+    const { error } = await db.from('access_profiles').delete().eq('id', data.id);
+    if (error) throw new Error(`Falha ao apagar o perfil: ${error.message}`);
+    return { ok: true };
+  });
