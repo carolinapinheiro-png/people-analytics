@@ -340,6 +340,30 @@ export type Database = {
         }
         Relationships: []
       }
+      convenia_historico_salarial: {
+        Row: {
+          convenia_id: string
+          lido_em: string
+          motivo: string
+          salario: number | null
+          vigencia: string
+        }
+        Insert: {
+          convenia_id: string
+          lido_em?: string
+          motivo: string
+          salario?: number | null
+          vigencia: string
+        }
+        Update: {
+          convenia_id?: string
+          lido_em?: string
+          motivo?: string
+          salario?: number | null
+          vigencia?: string
+        }
+        Relationships: []
+      }
       convenia_leavers: {
         Row: {
           convenia_id: string
@@ -397,6 +421,8 @@ export type Database = {
           fetched_at: string
           gender: string | null
           hiring_date: string | null
+          historico_em: string | null
+          historico_versao: number | null
           job_title: string | null
           job_title_em: string | null
           race: string | null
@@ -422,6 +448,8 @@ export type Database = {
           fetched_at?: string
           gender?: string | null
           hiring_date?: string | null
+          historico_em?: string | null
+          historico_versao?: number | null
           job_title?: string | null
           job_title_em?: string | null
           race?: string | null
@@ -447,6 +475,8 @@ export type Database = {
           fetched_at?: string
           gender?: string | null
           hiring_date?: string | null
+          historico_em?: string | null
+          historico_versao?: number | null
           job_title?: string | null
           job_title_em?: string | null
           race?: string | null
