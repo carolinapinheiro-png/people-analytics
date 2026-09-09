@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -6,8 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useServerFn } from '@tanstack/react-start';
-import { Building2, Plus } from 'lucide-react';
-import { addDepartment, setDepartmentActive } from '@/lib/access.functions';
+import { Building2, Plus, Inbox } from 'lucide-react';
+import {
+  addDepartment, setDepartmentActive, departamentosPendentes,
+} from '@/lib/access.functions';
 import type { AllowedEmail, DepartmentOption } from './UsersAccessSection';
 
 export default function DepartmentsSection({
@@ -25,6 +27,37 @@ export default function DepartmentsSection({
 
   const addDepartmentFn = useServerFn(addDepartment);
   const setDepartmentActiveFn = useServerFn(setDepartmentActive);
+
+  // ------------------------------------------------------------------
+  // O QUE O CONVENIA TEM E O CATÁLOGO NÃO CONHECE
+  // ------------------------------------------------------------------
+  // A lista de departamentos era escrita à mão, e uma área criada no Convenia
+  // simplesmente não existia para o escopo de acesso até alguém lembrar de
+  // cadastrá-la. A ausência era invisível.
+  //
+  // Aqui ela vira uma lista com nome e número de pessoas. Continua sem entrar
+  // no seletor até ser aprovada -- decisão da Carolina, 09/09: área nova não
+  // pode virar escopo de acesso por omissão.
+  const pendentesFn = useServerFn(departamentosPendentes);
+  const [pendentes, setPendentes] = useState<Array<{ nome: string; pessoas: number }>>([]);
+  const [pendentesMedido, setPendentesMedido] = useState(true);
+  const carregarPendentes = () => {
+    pendentesFn({})
+      .then((r) => { setPendentes(r.pendentes); setPendentesMedido(r.medido); })
+      .catch(() => { setPendentes([]); });
+  };
+  useEffect(carregarPendentes, []);
+
+  const aprovar = async (nome: string) => {
+    try {
+      await addDepartmentFn({ data: { name: nome.toUpperCase(), aliases: [] } });
+      toast.success(`${nome.toUpperCase()} entrou no catálogo.`);
+      carregarPendentes();
+      onChanged();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Falha ao aprovar');
+    }
+  };
 
   const usageCount = (name: string) =>
     emails.filter((e) => (e.departments ?? []).includes(name)).length;
@@ -76,6 +109,51 @@ export default function DepartmentsSection({
 
   return (
     <div className="space-y-6">
+      {(pendentes.length > 0 || !pendentesMedido) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Inbox className="h-5 w-5" />
+              No Convenia e ainda não no catálogo
+            </CardTitle>
+            <CardDescription>
+              A fonte da lista é o Convenia; o catálogo guarda o de-para de grafias e o que pode
+              ser atribuído como escopo. Estes valores existem no cadastro das pessoas e ainda não
+              foram revisados — <strong>não aparecem no seletor de acesso</strong> até você
+              aprovar. Se for outra grafia de uma área que já existe, cadastre como apelido dela em
+              vez de aprovar aqui, senão a área se parte em duas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!pendentesMedido ? (
+              <p className="text-sm text-muted-foreground">
+                Não consegui ler o organograma agora — isto não quer dizer que não haja pendentes,
+                quer dizer que não perguntei.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {pendentes.map((p) => (
+                  <div
+                    key={p.nome}
+                    className="flex items-center justify-between gap-4 p-3 rounded-lg border border-border"
+                  >
+                    <div>
+                      <span className="text-sm font-medium">{p.nome}</span>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {p.pessoas} pessoa{p.pessoas === 1 ? '' : 's'} no Convenia
+                      </span>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => void aprovar(p.nome)}>
+                      Aprovar
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">

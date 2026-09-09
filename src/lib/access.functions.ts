@@ -1229,3 +1229,85 @@ export const removerPerfilDeAcesso = createServerFn({ method: 'POST' })
     if (error) throw new Error(`Falha ao apagar o perfil: ${error.message}`);
     return { ok: true };
   });
+
+/**
+ * Departamentos que o Convenia tem e o catálogo não conhece.
+ *
+ * ===========================================================================
+ * QUEM MANDA NA LISTA É O CONVENIA; O CATÁLOGO MANDA NAS REGRAS
+ * ===========================================================================
+ * O catálogo de `departments` era a lista, escrita à mão. O efeito: uma área
+ * que o RH cria no Convenia não existe para o escopo de acesso até alguém
+ * lembrar de cadastrá-la aqui -- e o único sinal era um item de qualidade de
+ * dado que talvez ninguém leia.
+ *
+ * Agora a lista sai do Convenia e o catálogo guarda duas coisas que o Convenia
+ * não sabe:
+ *
+ *   `aliases`  o de-para de grafias. "Legal & Compliance", "LEGAL" e
+ *              "Legal e Compliance" são a mesma área, e sem isto virariam três
+ *              departamentos com um pedaço das pessoas cada.
+ *   `active`   o que pode ser atribuído como escopo. SEM DEPTO e TECHNOLOGY
+ *              GROUP existem no Convenia e não são áreas para dar a um BP.
+ *              Isso é decisão, não fato.
+ *
+ * ===========================================================================
+ * PENDENTE NÃO ENTRA NO SELETOR
+ * ===========================================================================
+ * Decisão da Carolina, 09/09: área nova aparece numa lista de pendentes e só
+ * vira escopo atribuível depois de aprovada. O contrário -- entrar já pronta
+ * para uso -- faria uma decisão de acesso acontecer por omissão, toda vez que
+ * o RH criasse um departamento.
+ *
+ * O que muda para melhor é que a ausência para de ser silenciosa: hoje ela é
+ * invisível, e passa a ser uma lista com nome e número de pessoas.
+ */
+export const departamentosPendentes = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { requireAdmin, supabaseAdmin } = await import('./access-rules.server');
+    await requireAdmin(context.claims.email as string | undefined);
+
+    const { data: deps } = await supabaseAdmin
+      .from('departments')
+      .select('name, aliases, active');
+    // Nome E apelido contam como "conhecido": um valor que casa com apelido já
+    // está mapeado, e listá-lo como pendente mandaria criar uma duplicata da
+    // área que ele já resolve.
+    const conhecidos = new Set<string>();
+    for (const d of (deps ?? []) as Array<{ name: string; aliases: string[] | null }>) {
+      conhecidos.add(d.name.trim().toUpperCase());
+      for (const a of d.aliases ?? []) conhecidos.add(a.trim().toUpperCase());
+    }
+
+    const db = supabaseAdmin as unknown as {
+      from: (t: string) => {
+        select: (c: string) => PromiseLike<{
+          data: Array<Record<string, unknown>> | null;
+          error: { message: string } | null;
+        }>;
+      };
+    };
+    const { data: pessoas, error } = await db.from('org_pessoas').select('department');
+    if (error) throw new Error(`Falha ao ler o organograma: ${error.message}`);
+
+    // Leitura vazia não é "o Convenia não tem departamento nenhum" -- é não
+    // ter perguntado. Sem uma linha sequer, não há pendente a afirmar.
+    const linhas = (pessoas ?? []) as Array<{ department?: string | null }>;
+    if (!linhas.length) return { medido: false, pendentes: [] as Array<{ nome: string; pessoas: number }> };
+
+    const contagem = new Map<string, number>();
+    for (const p of linhas) {
+      const nome = (p.department ?? '').trim();
+      if (!nome) continue;
+      if (conhecidos.has(nome.toUpperCase())) continue;
+      contagem.set(nome, (contagem.get(nome) ?? 0) + 1);
+    }
+
+    return {
+      medido: true,
+      pendentes: [...contagem.entries()]
+        .map(([nome, pessoas]) => ({ nome, pessoas }))
+        .sort((a, b) => b.pessoas - a.pessoas),
+    };
+  });
