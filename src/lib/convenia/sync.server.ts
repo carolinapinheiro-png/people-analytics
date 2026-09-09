@@ -549,6 +549,10 @@ export async function executarSyncConvenia(
           social_name: p.social_name,
           team: p.team,
           salary: p.salary,
+          // O vínculo vem na listagem, de graça, e não estava sendo guardado.
+          // Sem ele não dá para escolher a linha da banda, que é chaveada por
+          // (família, contrato, nível). Ver comp-ratio-convenia.ts.
+          relationship: p.relationship,
           birth_date: p.birth_date || null,
           birth_month: mesDe(p.birth_date ?? null),
           hiring_date: p.hiring_date || null,
@@ -1510,6 +1514,102 @@ export async function executarSyncConvenia(
           `Organograma nao gravado: ${msgOrg}. A serie mensal entrou normalmente -- headcount, entradas, saidas e atricao estao atualizados. O que ficou parado foi a camada N, que continua com o valor da ultima execucao bem-sucedida: quem mudou de gestor ou foi promovido desde entao esta com a camada antiga na aba de Salarios. Nao ha risco de acesso indevido, porque camada nula esconde e nunca libera a mais.`,
         );
       }
+    }
+
+    // ======================================================================
+    // COMP-RATIO, A PARTIR DO CONVENIA
+    // ======================================================================
+    // A tabela vinha de uma planilha que parou em junho. Aqui ela passa a ser
+    // gravada a cada carga: salário do Convenia dividido pelo ponto médio da
+    // banda, que é a única coisa que o Convenia não tem -- ponto médio é
+    // decisão da empresa, não fato sobre a pessoa.
+    //
+    // Lê do CADASTRO ACUMULADO (`convenia_pessoas`), e não do que esta rodada
+    // trouxe. O detalhe individual vem em lotes de 200, então uma rodada
+    // conhece o campo personalizado de uma parte das pessoas -- montar só com
+    // o lote da vez daria uma tabela que encolhe e cresce a cada execução.
+    //
+    // UPSERT por `convenia_id`, nunca apagar e reescrever. Quem não resolveu
+    // nesta rodada fica como estava.
+    try {
+      const { montarCompRatio, resumoDaCarga } = await import('@/lib/comp-ratio-convenia');
+      const { valorDe, lerCustomFields: ler } = await import('./custom-fields');
+
+      const [cadRes, orgRes, bandasRes] = await Promise.all([
+        db.from('convenia_pessoas')
+          .select('convenia_id, salary, team, job_title, hiring_date, status, custom_fields, relationship, empresa'),
+        db.from('org_pessoas').select('convenia_id, nome, department'),
+        db.from('salary_bands').select('job_family, contract, level, minimum, midpoint, maximum'),
+      ]);
+
+      const bandas = ((bandasRes.data ?? []) as Array<Record<string, unknown>>).map((b) => ({
+        jobFamily: String(b.job_family), contract: String(b.contract), level: String(b.level),
+        minimum: Number(b.minimum), midpoint: Number(b.midpoint), maximum: Number(b.maximum),
+      }));
+      const org = new Map(
+        ((orgRes.data ?? []) as Array<{ convenia_id: string; nome: string | null; department: string | null }>)
+          .map((o) => [o.convenia_id, o]),
+      );
+
+      // Só ativos: comp-ratio de quem saiu não é comp-ratio, é histórico -- e
+      // a aba de Salários soma o que está na tabela.
+      const cadastro = ((cadRes.data ?? []) as Array<Record<string, unknown>>)
+        .filter((c) => String(c.status ?? '').toLowerCase() !== 'desligado');
+
+      const linhas = montarCompRatio(cadastro.map((c) => {
+        const campos = ler(c.custom_fields);
+        const o = org.get(String(c.convenia_id));
+        return {
+          conveniaId: String(c.convenia_id),
+          nome: o?.nome ?? '',
+          salario: c.salary == null ? null : Number(c.salary),
+          department: o?.department ?? null,
+          team: (c.team as string | null) ?? null,
+          jobTitle: (c.job_title as string | null) ?? null,
+          hire: (c.hiring_date as string | null) ?? null,
+          empresa: (c.empresa as string | null) ?? null,
+          vinculo: (c.relationship as string | null) ?? null,
+          level: valorDe(campos, ['level']),
+          jobTypeFamily: valorDe(campos, ['job type family']),
+        };
+      }), bandas);
+
+      // Sem banda nenhuma cadastrada, TODO MUNDO ficaria sem comp-ratio e a
+      // carga sobrescreveria a tabela inteira com nulos. Falhar fechado: não
+      // grava, e diz por quê.
+      if (!bandas.length) {
+        avisos.push(
+          'Comp-ratio não gravado: `salary_bands` está vazia. Sem faixa não há denominador, e '
+          + 'gravar assim apagaria o comp-ratio de todo mundo.',
+        );
+      } else if (confirm) {
+        for (let i = 0; i < linhas.length; i += 300) {
+          const { error } = await db.from('comp_ratio')
+            .upsert(
+              linhas.slice(i, i + 300).map((l) => ({ ...l, atualizado_em: new Date().toISOString() })) as never,
+              { onConflict: 'convenia_id' },
+            );
+          if (error) throw new Error(error.message);
+        }
+      }
+
+      const r = resumoDaCarga(linhas);
+      avisos.push(
+        `Comp-ratio${confirm ? '' : ' (prévia, não gravado)'}: ${r.comRatio} de ${r.total} com faixa. `
+        + (r.porMotivo.length
+          ? `Sem faixa: ${r.porMotivo.map((m) => `${m.n} — ${m.motivo}`).join(' | ')}`
+          : 'Todos resolveram.'),
+      );
+    } catch (e) {
+      // Falhar aqui não pode derrubar a carga: a série mensal, o organograma e
+      // o cadastro já entraram. O que fica parado é o comp-ratio, e o aviso
+      // precisa dizer isso -- senão a aba de Salários mostra junho e ninguém
+      // sabe que está velha.
+      const msgCr = e instanceof Error ? e.message : String(e);
+      avisos.push(
+        `Comp-ratio nao atualizado: ${msgCr}. O resto da carga entrou normalmente. A aba de `
+        + 'Salarios continua com os valores da ultima execucao bem-sucedida.',
+      );
     }
 
     await encerrar('success', {
