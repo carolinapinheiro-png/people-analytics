@@ -13,6 +13,7 @@ import UsersAccessSection, {
   type AllowedEmail,
   type DepartmentOption,
 } from '@/components/admin/UsersAccessSection';
+import PerfisDeAcessoSection from '@/components/admin/PerfisDeAcessoSection';
 import DepartmentsSection from '@/components/admin/DepartmentsSection';
 import UsersCsvCard from '@/components/admin/UsersCsvCard';
 import AuditSection, { type AccessLog } from '@/components/admin/AuditSection';
@@ -238,6 +239,14 @@ export default function AdminPage() {
               onLimitChange={handleLimitChange}
               onChanged={refreshAccess}
             />
+            {/* Os perfis ficam LOGO ABAIXO do cadastro de pessoas, e não numa
+                aba própria: quem está cadastrando alguém e não acha o perfil
+                certo precisa criá-lo sem perder o que digitou. */}
+            {isAdmin && (
+              <div className="mt-4">
+                <PerfisDeAcessoSection />
+              </div>
+            )}
             <div className="mt-4">
               <UsersCsvCard onChanged={refreshAccess} />
             </div>

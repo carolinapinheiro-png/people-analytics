@@ -59,7 +59,7 @@ import {
 } from '@/lib/permissions';
 
 /** Rotulos das abas, para os chips da previa. */
-const TAB_LABELS: Record<DashboardTab, string> = {
+export const TAB_LABELS: Record<DashboardTab, string> = {
   overview: 'Overview',
   team: 'Meu Time',
   dei: 'DEI',
@@ -84,7 +84,7 @@ const TAB_LABELS: Record<DashboardTab, string> = {
  * vale no servidor (o dado não entra na resposta); em Salários e Atrição ainda
  * é corte de navegação. Esconder na tela não é esconder.
  */
-const SUB_ABAS: Array<{ aba: DashboardTab; id: string; rotulo: string; noServidor: boolean }> = [
+export const SUB_ABAS: Array<{ aba: DashboardTab; id: string; rotulo: string; noServidor: boolean }> = [
   { aba: 'engagement', id: 'engajamento', rotulo: 'Engajamento', noServidor: true },
   { aba: 'engagement', id: 'onboarding', rotulo: 'Onboarding', noServidor: true },
   { aba: 'engagement', id: 'inclusao', rotulo: 'Inclusão & Pertencimento', noServidor: true },
@@ -115,7 +115,7 @@ const SUB_ABAS_QUE_COMPARTILHAM_DADO: Record<string, string> = {
   'nao-desejada': 'Desligamentos',
 };
 
-const SUB_ABA_LABEL: Record<string, string> = Object.fromEntries(
+export const SUB_ABA_LABEL: Record<string, string> = Object.fromEntries(
   SUB_ABAS.map((s) => [s.id, `${TAB_LABELS[s.aba]} › ${s.rotulo}`]),
 );
 
