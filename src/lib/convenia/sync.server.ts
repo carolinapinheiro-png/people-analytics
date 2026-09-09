@@ -1364,6 +1364,40 @@ export async function executarSyncConvenia(
       // 4ª sem nada explicar, e no meio do caminho alguém abre chamado no RH
       // para corrigir um dado que está certo.
       const naFila = cadastro.filter((c) => Number(c.detalhe_versao ?? 0) < VERSAO_DETALHE).length;
+
+      // ------------------------------------------------------------------
+      // QUANDO A BUSCA FALHA, MOSTRE OS NOMES QUE EXISTEM
+      // ------------------------------------------------------------------
+      // `valorDe(campos, ['level'])` procura por NOME. Se o RH chamou o campo
+      // de outra coisa, a busca devolve null para todo mundo -- e null vira
+      // "sem level no Convenia", que é uma afirmação sobre o cadastro do RH
+      // quando o defeito é o meu nome de procura. Já aconteceu com `cargo`:
+      // zero em 638, e o painel afirmando em amarelo que o Convenia não tinha
+      // o campo.
+      //
+      // Então, quando a cobertura é baixa, o aviso mostra os nomes que ESTÃO
+      // no cadastro, com a contagem. Nomes e contagens, nunca valores: os
+      // campos personalizados incluem CNPJ e endereço de prestador, e essa
+      // lição também já foi paga.
+      const censo = new Map<string, number>();
+      for (const c of cadastro) {
+        for (const campo of ler(c.custom_fields)) {
+          censo.set(campo.nome, (censo.get(campo.nome) ?? 0) + 1);
+        }
+      }
+      const semLevel = linhas.filter((l) => l.level == null).length;
+      if (semLevel > cadastro.length / 2) {
+        const lista = [...censo.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([n, q]) => `${n} (${q})`)
+          .join(', ');
+        avisos.push(
+          `Campos personalizados que EXISTEM no cadastro, com quantas pessoas os têm — `
+          + `${semLevel} de ${cadastro.length} ficaram sem \`level\`, e antes de dizer que o RH `
+          + `não preencheu é preciso confirmar que o nome procurado é o nome usado: `
+          + (lista || 'nenhum campo personalizado gravado — aí o problema é a leitura, não o nome.'),
+        );
+      }
       avisos.push(
         `Comp-ratio${confirm ? '' : ' (prévia, não gravado)'}: ${r.comRatio} de ${r.total} com faixa. `
         + (r.porMotivo.length
