@@ -328,6 +328,12 @@ export async function executarSyncConvenia(
      * disso, e as quatro primeiras custaram uma coluna vazia cada.
      */
     const VERSAO_HISTORICO = 1;
+    /**
+     * Quem a fila do histórico ALCANÇA: os ativos da listagem, empresa por
+     * empresa. Os desligados guardados não entram na fila -- e por isso não
+     * podem entrar no denominador da cobertura, ou "faltam N" nunca zera.
+     */
+    const idsAlcancaveis = new Set<string>();
     let historicoBuscadosAgora = 0;
     const historicoFalhas: string[] = [];
     /** Marcadas quando o relógio interrompeu uma das filas -- viram aviso. */
@@ -630,6 +636,7 @@ export async function executarSyncConvenia(
         }
 
         const porId = new Map(pessoas.map((p) => [p.id, p]));
+        for (const p of pessoas) idsAlcancaveis.add(p.id);
 
         // ------------------------------------------------------------------
         // O QUE VEM NA LISTAGEM É GRAVADO PARA TODO MUNDO, TODA CARGA
@@ -1223,10 +1230,22 @@ export async function executarSyncConvenia(
       // Sem esta frase, "3 promoções em março" é indistinguível de "3
       // promoções lidas até agora em março" -- e a segunda vira decisão de
       // carreira na reunião de alguém.
-      const totalPessoas = [...porMarca.values()].reduce((s, p) => s + p.length, 0);
-      const pendentesHist = totalPessoas - historicoLido.size;
+      // ------------------------------------------------------------------
+      // O DENOMINADOR TEM DE SER O QUE A FILA ALCANÇA
+      // ------------------------------------------------------------------
+      // A primeira versão dividia por `porMarca`, que inclui os DESLIGADOS
+      // guardados -- 809 pessoas. Só que a fila é montada sobre a listagem de
+      // ativos: desligado nunca entra nela. O aviso diria "faltam 173" para
+      // sempre, e "rode de novo" viraria uma instrução que nunca termina.
+      //
+      // A promoção de quem já saiu é real e continua contando quando o
+      // histórico dela já foi lido -- o que muda aqui é só o denominador da
+      // cobertura, que passa a ser a população que esta carga consegue ler.
+      const lidosAlcancaveis = [...historicoLido].filter((id) => idsAlcancaveis.has(id)).length;
+      const totalPessoas = idsAlcancaveis.size;
+      const pendentesHist = totalPessoas - lidosAlcancaveis;
       avisos.push(
-        `Promocoes: historico salarial lido de ${historicoLido.size} de ${totalPessoas} pessoas`
+        `Promocoes: historico salarial lido de ${lidosAlcancaveis} de ${totalPessoas} pessoas`
         + (pendentesHist > 0
           ? ` -- faltam ${pendentesHist} (lotes de ${LOTE_HISTORICO} por execucao). Ate zerar, a serie mostra MENOS promocoes do que houve. Rode de novo.`
           : '. Cobertura completa.'),
@@ -1516,6 +1535,27 @@ export async function executarSyncConvenia(
     // vinte entraram em 2025 e 2026, e uma tem admissão de 2013. Um registro
     // fabricou 151 meses para uma marca que nasceu em 2025, e tirou os mesmos
     // 77 da NSX.
+    // ------------------------------------------------------------------
+    // QUANTAS DAS LINHAS OFERECIDAS NASCEM ESCONDIDAS
+    // ------------------------------------------------------------------
+    // Este aviso existia e vivia DEPOIS do `return` da prévia: só aparecia
+    // depois de gravar. Ou seja, "Gravar 275 linhas" não dizia que ~90 delas
+    // nasceriam marcadas e invisíveis -- e a decisão de gravar depende
+    // exatamente disso.
+    //
+    // Terceira vez hoje que o mesmo defeito aparece: o número que sustenta a
+    // decisão estava atrás do botão que a decisão autoriza.
+    const marcadasAoGravar = todasLinhas.length - linhasLegiveis.length;
+    if (marcadasAoGravar > 0) {
+      avisos.push(
+        `Das ${todasLinhas.length} linhas, ${marcadasAoGravar} sao anteriores a ${primeiraSaidaConhecida} `
+        + 'e nascem MARCADAS: antes do primeiro desligado conhecido a serie nao sabe quem saiu, entao '
+        + 'a atricao sai zero e o headcount sai subestimado. Nenhuma tela le linha marcada -- elas '
+        + 'ficam gravadas para quem for investigar. As outras '
+        + `${linhasLegiveis.length} sao as que o painel vai mostrar.`,
+      );
+    }
+
     const saltos = detectarSaltoDeHistoria(
       linhasLegiveis.map((l) => ({ brand: l.brand, month: l.month, headcount: l.headcount })),
       gravadas,
@@ -1813,15 +1853,6 @@ export async function executarSyncConvenia(
       // a gravação escrevendo outra.
       const primeiraSaida = primeiraSaidaConhecida;
       const horizonte = horizonteSerie;
-      const antesDoHorizonte = horizonte
-        ? todasLinhas.filter((l) => l.month < horizonte).length : 0;
-      if (antesDoHorizonte > 0) {
-        avisos.push(
-          `${antesDoHorizonte} meses anteriores a ${primeiraSaida} foram gravados MARCADOS: ` +
-          'antes do primeiro desligado conhecido a serie nao sabe quem saiu, entao a atricao ' +
-          'sai zero e o headcount sai subestimado. Nenhuma tela le linha marcada.',
-        );
-      }
       const registros = todasLinhas.map((l) => ({
         month: l.month,
         brand: l.brand,
