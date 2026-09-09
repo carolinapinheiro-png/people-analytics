@@ -110,8 +110,13 @@ export interface ResumoSyncConvenia {
  * 3: `bruto` passou a guardar a listagem CRUA, e nao a reducao dela -- a
  *    versao 2 gravava 42 chaves em vez das 123, e `nationalities` era uma
  *    das que ficavam de fora.
+ * 4: `relationship` saiu do bloco da listagem, que o gravava NULL por cima do
+ *    valor bom vindo do detalhe. A quarta vez que este arquivo perde um campo
+ *    pelo mesmo motivo -- e a primeira em que a causa foi escrever, e nao
+ *    esquecer de escrever. Sobe a versao para reenfileirar as 636 pessoas cujo
+ *    vinculo foi apagado; sem isso elas nunca voltariam para a fila.
  */
-const VERSAO_DETALHE = 3;
+const VERSAO_DETALHE = 4;
 
 /**
  * O Convenia devolve salário ora como número, ora como string no formato
@@ -549,10 +554,19 @@ export async function executarSyncConvenia(
           social_name: p.social_name,
           team: p.team,
           salary: p.salary,
-          // O vínculo vem na listagem, de graça, e não estava sendo guardado.
-          // Sem ele não dá para escolher a linha da banda, que é chaveada por
-          // (família, contrato, nível). Ver comp-ratio-convenia.ts.
-          relationship: p.relationship,
+          // ------------------------------------------------------------
+          // `relationship` NÃO ENTRA AQUI -- E A PRIMEIRA VERSÃO O PÔS
+          // ------------------------------------------------------------
+          // Eu escrevi `relationship: p.relationship` neste bloco achando que
+          // o vínculo vinha na listagem de graça. Vinha o CÓDIGO, quando
+          // vinha: para quase todo mundo `textoDe` devolve null.
+          //
+          // E null num upsert não é "não mexe", é GRAVA NULL. Este bloco roda
+          // ANTES do laço do detalhe e sobre TODA a base, então cada carga
+          // apagava o vínculo que o detalhe tinha escrito certo. Sobreviviam
+          // só os lidos no detalhe depois da última passagem daqui -- as 6
+          // pessoas da prévia, de 642. O rótulo "CLT"/"Pessoa Jurídica" mora
+          // no DETALHE (ver o upsert lá embaixo), e é de lá que ele vem.
           birth_date: p.birth_date || null,
           birth_month: mesDe(p.birth_date ?? null),
           hiring_date: p.hiring_date || null,
@@ -1273,7 +1287,7 @@ export async function executarSyncConvenia(
 
       const [cadRes, orgRes, bandasRes] = await Promise.all([
         db.from('convenia_pessoas')
-          .select('convenia_id, salary, team, job_title, hiring_date, status, custom_fields, relationship, empresa'),
+          .select('convenia_id, salary, team, job_title, hiring_date, status, custom_fields, relationship, empresa, detalhe_versao'),
         db.from('org_pessoas').select('convenia_id, nome, department'),
         db.from('salary_bands').select('job_family, contract, level, minimum, midpoint, maximum'),
       ]);
@@ -1340,11 +1354,26 @@ export async function executarSyncConvenia(
       }
 
       const r = resumoDaCarga(linhas);
+      // ------------------------------------------------------------------
+      // "AINDA NÃO LI" NÃO PODE SE PARECER COM "NÃO EXISTE"
+      // ------------------------------------------------------------------
+      // O detalhe vem em lotes de 200. Depois de subir VERSAO_DETALHE, as
+      // primeiras cargas mostram muita gente sem vínculo e sem campo
+      // personalizado -- e isso é FILA, não cadastro incompleto. Sem esta
+      // frase, a mesma tela que diz "636 sem vínculo" na 1ª rodada diz "36" na
+      // 4ª sem nada explicar, e no meio do caminho alguém abre chamado no RH
+      // para corrigir um dado que está certo.
+      const naFila = cadastro.filter((c) => Number(c.detalhe_versao ?? 0) < VERSAO_DETALHE).length;
       avisos.push(
         `Comp-ratio${confirm ? '' : ' (prévia, não gravado)'}: ${r.comRatio} de ${r.total} com faixa. `
         + (r.porMotivo.length
           ? `Sem faixa: ${r.porMotivo.map((m) => `${m.n} — ${m.motivo}`).join(' | ')}`
-          : 'Todos resolveram.'),
+          : 'Todos resolveram.')
+        + (naFila
+          ? ` — ${naFila} destas pessoas ainda não tiveram o detalhe lido nesta versão da carga `
+            + '(lotes de 200 por execução): rode de novo até este número zerar antes de tratar o '
+            + 'resto como cadastro incompleto.'
+          : ''),
       );
     } catch (e) {
       // Falhar aqui não pode derrubar a carga: a série mensal, o organograma e
