@@ -1092,10 +1092,10 @@ export const listarPerfisDeAcesso = createServerFn({ method: 'GET' })
       from: (t: string) => {
         select: (c: string) => PromiseLike<{
           data: Array<Record<string, unknown>> | null;
-          error: { message: string } | null;
+          error: { message: string; code?: string } | null;
         }> & { order: (c: string) => PromiseLike<{
           data: Array<Record<string, unknown>> | null;
-          error: { message: string } | null;
+          error: { message: string; code?: string } | null;
         }> };
       };
     };
@@ -1104,12 +1104,38 @@ export const listarPerfisDeAcesso = createServerFn({ method: 'GET' })
       .from('access_profiles')
       .select('id, nome, descricao, ve_empresa_toda, administra_usuarios, ve_individual, tabs, sub_tabs')
       .order('nome');
-    // Tabela ainda não migrada não é erro de permissão nem lista vazia de
-    // verdade: a tela precisa saber a diferença para não dizer "não há perfis"
-    // quando o que houve foi um deploy antes da migração.
+
+    // ------------------------------------------------------------------
+    // O ERRO DIZ QUAL É; NÃO É PARA EU ADIVINHAR
+    // ------------------------------------------------------------------
+    // A primeira versão disto testava se a MENSAGEM continha o nome da tabela
+    // e concluía "não migrada". Qualquer erro que cite a tabela caía ali --
+    // inclusive o mais provável logo depois de migrar:
+    //
+    //   PGRST205  Could not find the table 'public.access_profiles' in the
+    //             schema cache
+    //
+    // Esse erro quer dizer que a tabela EXISTE e o PostgREST está com o cache
+    // velho. A tela então mandava rodar de novo uma migração que já tinha
+    // rodado, com toda a confiança de quem sabe a causa.
+    //
+    // Agora o código distingue pelo CÓDIGO do erro, e o que não conhece ele
+    // devolve como está -- a mensagem crua serve mais do que o meu palpite.
     if (error) {
-      if (/access_profiles/i.test(error.message)) return { migrado: false, perfis: [] };
-      throw new Error(`Falha ao carregar perfis: ${error.message}`);
+      const cod = error.code ?? '';
+      // 42P01 = relação não existe (o Postgres, direto).
+      if (cod === '42P01') return { migrado: false, perfis: [], erro: null as string | null };
+      // PGRST205 = existe no banco, falta no cache do PostgREST.
+      if (cod === 'PGRST205') {
+        return {
+          migrado: false,
+          perfis: [],
+          erro: 'A tabela existe no banco, mas a API ainda está com o cache de schema antigo. '
+            + 'Rode `notify pgrst, \'reload schema\';` no SQL editor, ou espere alguns minutos. '
+            + 'Não precisa rodar a migração de novo.',
+        };
+      }
+      return { migrado: false, perfis: [], erro: `${cod ? cod + ': ' : ''}${error.message}` };
     }
 
     const { data: usos } = await db.from('allowed_emails').select('profile_id');
@@ -1121,6 +1147,7 @@ export const listarPerfisDeAcesso = createServerFn({ method: 'GET' })
 
     return {
       migrado: true,
+      erro: null as string | null,
       perfis: ((data ?? []) as Array<Record<string, unknown>>).map((p) => ({
         id: String(p.id),
         nome: String(p.nome),

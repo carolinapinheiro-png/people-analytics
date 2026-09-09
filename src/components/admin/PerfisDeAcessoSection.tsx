@@ -47,6 +47,8 @@ export default function PerfisDeAcessoSection() {
 
   const [perfis, setPerfis] = useState<PerfilOpcao[]>([]);
   const [migrado, setMigrado] = useState(true);
+  /** A mensagem crua do banco, quando houve uma. Vale mais que o meu palpite. */
+  const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [editando, setEditando] = useState<PerfilOpcao | 'novo' | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -57,6 +59,7 @@ export default function PerfisDeAcessoSection() {
       .then((r) => {
         setPerfis(r.perfis as PerfilOpcao[]);
         setMigrado(r.migrado);
+        setErro((r as { erro?: string | null }).erro ?? null);
       })
       .catch((e: unknown) => {
         toast.error(e instanceof Error ? e.message : 'Falha ao carregar perfis');
@@ -152,13 +155,33 @@ export default function PerfisDeAcessoSection() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* ------------------------------------------------------------------
+            A MENSAGEM É A DO BANCO, NÃO A MINHA DEDUÇÃO
+            ------------------------------------------------------------------
+            Este bloco dizia sempre a mesma frase -- "rode as migrações" --
+            porque o servidor classificava qualquer erro que citasse a tabela
+            como "não migrada". O caso mais provável logo depois de migrar é
+            outro: a tabela existe e o cache de schema do PostgREST está velho.
+
+            A tela então mandava rodar de novo o que já tinha rodado, com a
+            confiança de quem sabe a causa. Agora, quando há mensagem do banco,
+            é ela que aparece. */}
         {!migrado && (
-          <p className="text-sm rounded-md border border-amber-500/40 p-3 text-amber-600 dark:text-amber-500">
-            A tabela de perfis ainda não existe no banco. Rode as migrações{' '}
-            <code>20260908120000_perfis_de_acesso.sql</code> e{' '}
-            <code>20260908130000_perfis_iniciais.sql</code>. Até lá, os cadastros continuam
-            funcionando avulsos — nada quebra, e nenhum perfil pode ser criado.
-          </p>
+          <div className="text-sm rounded-md border border-amber-500/40 p-3 text-amber-600 dark:text-amber-500 space-y-2">
+            {erro ? (
+              <p>{erro}</p>
+            ) : (
+              <p>
+                A tabela de perfis ainda não existe no banco. Rode as migrações{' '}
+                <code>20260908120000_perfis_de_acesso.sql</code> e{' '}
+                <code>20260908130000_perfis_iniciais.sql</code>.
+              </p>
+            )}
+            <p className="text-muted-foreground">
+              Até lá os cadastros continuam funcionando avulsos — nada quebra, e nenhum perfil pode
+              ser criado.
+            </p>
+          </div>
         )}
 
         {migrado && !carregando && perfis.length === 0 && (
