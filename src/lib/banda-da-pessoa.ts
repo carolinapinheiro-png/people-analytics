@@ -110,8 +110,21 @@ export function bandaDaPessoa(p: PessoaParaBanda): BandaDaPessoa {
   const vazio = (motivo: string): BandaDaPessoa =>
     ({ familia: null, contrato, level, motivo });
 
+  // ------------------------------------------------------------------
+  // AUSENTE E CONHECIDO-SEM-FAIXA NÃO SÃO A MESMA COISA
+  // ------------------------------------------------------------------
+  // A primeira versão juntava os dois numa frase só, com o valor entre aspas.
+  // O resumo da carga agrupa tirando as aspas -- então "vínculo vazio" e
+  // "Aprendiz" viravam a mesma linha, e a primeira prévia disse "640 sem
+  // faixa" sem deixar distinguir cadastro incompleto de exclusão por regra.
+  //
+  // São ações opostas: ausente é a carga não ter gravado o campo ainda;
+  // Aprendiz é faixa que nunca existiu. Duas mensagens, dois destinos.
+  if (!(p.vinculo ?? '').trim()) {
+    return vazio('Vínculo não gravado no cadastro — a carga ainda não trouxe este campo para esta pessoa.');
+  }
   if (!contrato) {
-    return vazio(`Vínculo "${p.vinculo ?? '—'}" não tem banda definida: as faixas existem só para CLT e PJ.`);
+    return vazio(`Vínculo "${p.vinculo}" não tem banda definida: as faixas existem só para CLT e PJ.`);
   }
   if (!level) return vazio('Sem level no Convenia — sem ele não há linha de banda.');
 

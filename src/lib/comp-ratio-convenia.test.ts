@@ -76,6 +76,14 @@ test('vínculo sem faixa é motivo próprio', () => {
   assert.match(l.sem_banda!, /só para CLT e PJ/);
 });
 
+test('vínculo AUSENTE não se confunde com vínculo sem faixa', () => {
+  // A primeira prévia disse "640 sem faixa" juntando os dois, e não deu para
+  // saber se era cadastro incompleto ou exclusão por regra. São ações opostas.
+  const [l] = montarCompRatio([pessoa({ vinculo: null })], BANDAS);
+  assert.match(l.sem_banda!, /não gravado no cadastro/);
+  assert.doesNotMatch(l.sem_banda!, /CLT e PJ/);
+});
+
 test('sem salário não vira comp-ratio zero', () => {
   // Zero é um número, e um comp-ratio zero na tela diz "essa pessoa ganha
   // muito abaixo da faixa". Ausência de salário não é isso.

@@ -1287,9 +1287,19 @@ export async function executarSyncConvenia(
           .map((o) => [o.convenia_id, o]),
       );
 
-      // Só ativos: comp-ratio de quem saiu não é comp-ratio, é histórico -- e
-      // a aba de Salários soma o que está na tabela.
+      // ------------------------------------------------------------------
+      // A POPULAÇÃO É O ORGANOGRAMA, NÃO A TABELA INTEIRA
+      // ------------------------------------------------------------------
+      // `convenia_pessoas` acumula TODO MUNDO que já passou pela carga --
+      // incluindo desligados guardados, que nunca recebem os campos da
+      // listagem. A primeira prévia deu "0 de 809 com faixa" por isso: 809 é a
+      // tabela inteira, e a resposta certa nem os incluía.
+      //
+      // `org_pessoas` é reescrito a cada carga com quem está ativo hoje --
+      // 636 pessoas. É essa a população do comp-ratio, e usá-la também faz o
+      // denominador do aviso ser o número que a pessoa reconhece na tela.
       const cadastro = ((cadRes.data ?? []) as Array<Record<string, unknown>>)
+        .filter((c) => org.has(String(c.convenia_id)))
         .filter((c) => String(c.status ?? '').toLowerCase() !== 'desligado');
 
       const linhas = montarCompRatio(cadastro.map((c) => {
