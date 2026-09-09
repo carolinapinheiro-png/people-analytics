@@ -1130,11 +1130,21 @@ export const listarPerfisDeAcesso = createServerFn({ method: 'GET' })
         return {
           migrado: false,
           perfis: [],
-          // Sem crases: a mensagem é uma string simples e vai para a tela como
-          // texto, então o crase aparece como caractere em vez de virar código.
-          erro: 'A tabela existe no banco, e a API está com o cache de schema antigo. '
-            + 'No SQL editor rode: notify pgrst, \'reload schema\'; — depois recarregue a '
-            + 'página. Não precisa rodar a migração de novo.',
+          // ------------------------------------------------------------------
+          // A INSTRUÇÃO TEM DE CABER NO ACESSO DE QUEM LÊ
+          // ------------------------------------------------------------------
+          // Isto dizia "no SQL editor rode ...". O acesso ao banco aqui é pelo
+          // Lovable, e não há editor SQL -- a tela mandava para um lugar onde
+          // não dá para ir. Instrução correta e inalcançável não é instrução.
+          //
+          // O caminho que existe é rodar migração, então a mensagem aponta o
+          // arquivo. E deixa de afirmar que a tabela existe: PGRST205 diz que
+          // a API não a encontra, o que também acontece quando a criação foi
+          // desfeita -- ver o `drop policy if exists` em 20260908120000.
+          erro: 'A API não encontra a tabela de perfis. Costuma ser o cache de schema: '
+            + 'rode a migração 20260909110000_recarregar_schema.sql, que só manda a API reler. '
+            + 'Se continuar assim, rode de novo a 20260908120000_perfis_de_acesso.sql — '
+            + 'ela é reexecutável e refaz a tabela caso a criação tenha sido desfeita.',
         };
       }
       return { migrado: false, perfis: [], erro: `${cod ? cod + ': ' : ''}${error.message}` };

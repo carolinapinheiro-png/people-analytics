@@ -73,6 +73,23 @@ create index if not exists allowed_emails_profile_id_idx
 
 alter table public.access_profiles enable row level security;
 
+-- ===========================================================================
+-- `drop policy if exists` ANTES DE CADA `create policy`
+-- ===========================================================================
+-- `create policy` não aceita `if not exists`. Sem o drop, a SEGUNDA execução
+-- deste arquivo falha em "policy already exists" -- e, se quem executa roda o
+-- arquivo inteiro numa transação, o `create table` do começo é desfeito junto.
+--
+-- O resultado é o pior possível: parece que rodou, e não sobrou tabela
+-- nenhuma. Foi o que provavelmente aconteceu aqui, e a tela passou dois dias
+-- dizendo "a tabela existe, é só o cache" -- porque eu tinha escrito uma
+-- migração que só funciona na primeira tentativa.
+--
+-- Segunda tentativa é a regra, não a exceção: toda migração tem de poder rodar
+-- de novo.
+drop policy if exists "perfis: leitura para autenticados" on public.access_profiles;
+drop policy if exists "perfis: escrita só para quem administra usuários" on public.access_profiles;
+
 -- Só quem administra usuários mexe em perfil -- decisão da Carolina, 08/09.
 -- Perfil é a chave-mestra: quem edita perfil edita o acesso de todo mundo que
 -- está nele, de uma vez.
