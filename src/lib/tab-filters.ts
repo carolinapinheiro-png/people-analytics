@@ -105,7 +105,12 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   // series-filter.ts). A exclusividade entre os tres e garantida na barra.
   // tipoContrato saiu: a contagem por vinculo vive em contract_mix_monthly, que
   // a serie do contexto nao carrega -- dava headcount 0. Ver series-filter.ts.
-  overview: ['departamento', 'level', 'tempoCasa'],
+  // `jobFamily` e `tipoContrato` entraram em 09/09, quando a carga passou a
+  // gravar `family_base` e `contract_base` na linha mensal (migracao
+  // 20260909170000). Antes disso eles apareciam esmaecidos aqui, e o motivo
+  // escrito na tela -- "a serie so guarda a quebra por departamento" -- era
+  // verdade sobre a tabela, nao sobre o dado.
+  overview: ['departamento', 'level', 'tempoCasa', 'jobFamily', 'tipoContrato'],
   data: ['departamento'],
   // Compensação responde via a sub-aba de Salários (SalaryTab lê a série).
   // comp_ratio e person-level: level, contrato, familia, tempo de casa e faixa
@@ -278,7 +283,7 @@ export function filtersForTab(tab: DashboardTab, subTab?: string | null): Filter
  * a série não guarda. Em vez de devolver número errado ou vazio silencioso, a
  * barra troca a seleção: escolher um limpa o outro, e diz isso.
  */
-export const RECORTES_EXCLUSIVOS: FilterKey[] = ['level', 'tempoCasa'];
+export const RECORTES_EXCLUSIVOS: FilterKey[] = ['level', 'tempoCasa', 'jobFamily', 'tipoContrato'];
 
 /**
  * Os perfis DEIXARAM de se excluir. Esta lista ficou vazia de propósito.
