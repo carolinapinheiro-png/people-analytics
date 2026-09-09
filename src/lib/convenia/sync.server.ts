@@ -1324,6 +1324,43 @@ export async function executarSyncConvenia(
       const marcaDaPessoa = new Map<string, string>();
       for (const [marca, pessoas] of porMarca) for (const p of pessoas) marcaDaPessoa.set(p.id, marca);
 
+      // ------------------------------------------------------------------
+      // "COBERTURA COMPLETA" NAO PROVA QUE ALGO FOI GUARDADO
+      // ------------------------------------------------------------------
+      // A marca `historico_em` registra a PERGUNTA -- e eu a escrevo mesmo
+      // quando a resposta vem sem nenhuma linha, porque "esta pessoa nao teve
+      // alteracao" e uma resposta legitima. O efeito colateral: se o meu
+      // leitor nao entender o formato da resposta, TODO MUNDO fica marcado
+      // como lido com zero linhas, e a tela anuncia "cobertura completa" sobre
+      // uma tabela vazia.
+      //
+      // Foi o que aconteceu: promocoes em 0 com 636 de 636 "lidos". Entao a
+      // carga passa a dizer quantas linhas existem e quais motivos apareceram
+      // -- nomes e contagens, como no censo de campos personalizados. Com isso
+      // as tres causas se distinguem numa leitura:
+      //
+      //   tabela vazia .......... o leitor nao entendeu a resposta
+      //   so "Sem motivo" ....... o campo do motivo tem outro nome
+      //   motivos variados ...... o dado esta la e o problema e o casamento
+      const porMotivoHist = new Map<string, number>();
+      for (const h of (hist ?? []) as Array<Record<string, unknown>>) {
+        const m = String(h.motivo ?? 'sem motivo gravado');
+        porMotivoHist.set(m, (porMotivoHist.get(m) ?? 0) + 1);
+      }
+      const totalHist = ((hist ?? []) as unknown[]).length;
+      avisos.push(
+        totalHist === 0
+          ? 'Historico salarial: a tabela esta VAZIA apesar de a fila ter zerado. '
+            + 'Isso nao e "ninguem foi promovido": e a leitura da resposta do Convenia nao ter '
+            + 'entendido o formato. Nenhuma promocao pode ser calculada assim.'
+          : `Historico salarial: ${totalHist} alteracoes guardadas. Motivos: `
+            + [...porMotivoHist.entries()]
+              .sort((a, b) => b[1] - a[1])
+              .slice(0, 12)
+              .map(([m, n]) => `${m} (${n})`)
+              .join(', '),
+      );
+
       const registros = ((hist ?? []) as Array<Record<string, unknown>>).map((h) => ({
         conveniaId: String(h.convenia_id),
         vigencia: (h.vigencia as string | null) ?? null,
@@ -1341,6 +1378,15 @@ export async function executarSyncConvenia(
       }
 
       for (const l of todasLinhas) {
+        // Tabela vazia = nao calculado. Deixar `0` aqui era eu repetindo, na
+        // mesma semana, o defeito que passei o dia consertando: zero e uma
+        // afirmacao sobre a empresa ("ninguem foi promovido"), e a tela nao
+        // teria como distinguir isso de "a leitura falhou".
+        if (totalHist === 0) {
+          l.promotions = undefined;
+          l.raise_events = undefined;
+          continue;
+        }
         const mes = l.month.slice(0, 7);
         const m = porMarcaEMes.get(l.brand)?.get(mes);
         // Sem movimento no mês é ZERO, e aqui isso é uma resposta: o histórico
