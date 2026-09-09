@@ -373,11 +373,19 @@ export async function executarSyncConvenia(
     // este número só evita chegar perto dele no caminho feliz.
     const LOTE_HISTORICO = 60;
     /**
-     * Suba quando a leitura do histórico passar a guardar um campo novo.
-     * Ver a nota de `VERSAO_DETALHE`: é a quinta vez que este arquivo depende
-     * disso, e as quatro primeiras custaram uma coluna vazia cada.
+     * Suba quando a leitura do histórico mudar.
+     *
+     * 1: lia `data` como lista. Resultado medido: 636 pessoas marcadas como
+     *    lidas e ZERO linhas guardadas -- a resposta não tinha esse formato.
+     * 2: procura a lista também dentro de um objeto (`{salaries: [...]}`) e
+     *    MEDE a forma da primeira resposta, publicando as chaves no aviso.
+     *
+     * A subida é obrigatória, não opcional: com todo mundo marcado por um
+     * código que não entendeu a resposta, a fila fica vazia para sempre e
+     * nenhuma leitura nova acontece. A marca registra "perguntei" -- e quem
+     * perguntou foi o código errado.
      */
-    const VERSAO_HISTORICO = 1;
+    const VERSAO_HISTORICO = 2;
     /**
      * Quem a fila do histórico ALCANÇA: os ativos da listagem, empresa por
      * empresa. Os desligados guardados não entram na fila -- e por isso não
