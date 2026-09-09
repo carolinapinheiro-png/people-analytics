@@ -1410,8 +1410,34 @@ export async function executarSyncConvenia(
     // International. Ou seja: a protecao funcionou por SORTE. Se o token da
     // Flutter tambem parar de devolver desligados, nao sobra nada para
     // disparar, e a Betfair cai de 34 para 2 num painel que continua abrindo.
+    // ------------------------------------------------------------------
+    // A TRAVA COMPARAVA DUAS POPULAÇÕES DIFERENTES
+    // ------------------------------------------------------------------
+    // `gravadas` lê o banco com `.is('quality_flag', null)` -- só as linhas que
+    // ALGUMA TELA LÊ. E a comparação recebia `todasLinhas`, que inclui os meses
+    // anteriores ao primeiro desligado conhecido, que esta mesma carga grava
+    // MARCADOS e que nenhuma tela lê.
+    //
+    // O efeito é a trava que segurou a série desde segunda: a admissão de 2013
+    // do Sebastian produz uma linha 2013-03 para Flutter International, essa
+    // linha nasce marcada -- e a trava, olhando o conjunto todo, anuncia que a
+    // marca "mudou o início da própria história" e bloqueia a gravação inteira.
+    //
+    // Ou seja: o alarme era sobre uma linha que ele mesmo já tinha decidido
+    // esconder. Comparar o legível com o legível não afrouxa a proteção contra
+    // troca de marca -- se a mudança de início acontecer entre linhas que as
+    // telas leem, a trava continua disparando exatamente como antes.
+    const primeiraSaidaConhecida = ((jaResolvidos ?? []) as Array<{ dismissal_month: string | null }>)
+      .map((l) => l.dismissal_month).filter(Boolean).sort()[0] ?? null;
+    const horizonteSerie = primeiraSaidaConhecida ? `${primeiraSaidaConhecida}-01` : null;
+    /** O que vai ficar LEGÍVEL depois da gravação -- a mesma régua de `gravadas`. */
+    const linhasLegiveis = todasLinhas.filter(
+      (l) => !(horizonteSerie && l.month < horizonteSerie),
+    );
+
     const colapsos = detectarColapso(
-      todasLinhas.map((l) => ({ brand: l.brand, month: l.month, headcount: l.headcount })),
+      // Mesma correção da trava de baixo: comparar o legível com o legível.
+      linhasLegiveis.map((l) => ({ brand: l.brand, month: l.month, headcount: l.headcount })),
       gravadas,
     );
 
@@ -1448,7 +1474,7 @@ export async function executarSyncConvenia(
     // fabricou 151 meses para uma marca que nasceu em 2025, e tirou os mesmos
     // 77 da NSX.
     const saltos = detectarSaltoDeHistoria(
-      todasLinhas.map((l) => ({ brand: l.brand, month: l.month, headcount: l.headcount })),
+      linhasLegiveis.map((l) => ({ brand: l.brand, month: l.month, headcount: l.headcount })),
       gravadas,
     );
     if (saltos.length && !serieTravada) {
@@ -1738,9 +1764,12 @@ export async function executarSyncConvenia(
       // aplica -- dashboard, pesquisa, qualidade, MCP --, então marcar remove
       // de todas de uma vez, e a linha continua consultável para quem for
       // investigar. Mesmo tratamento de dez/2025 e Porto.
-      const primeiraSaida = ((jaResolvidos ?? []) as Array<{ dismissal_month: string | null }>)
-        .map((l) => l.dismissal_month).filter(Boolean).sort()[0] ?? null;
-      const horizonte = primeiraSaida ? `${primeiraSaida}-01` : null;
+      // Calculados uma vez só, lá em cima, junto das travas -- que precisam da
+      // MESMA definição de "linha legível" que a gravação usa. Duas cópias
+      // divergiriam, e a divergência seria a trava protegendo uma população e
+      // a gravação escrevendo outra.
+      const primeiraSaida = primeiraSaidaConhecida;
+      const horizonte = horizonteSerie;
       const antesDoHorizonte = horizonte
         ? todasLinhas.filter((l) => l.month < horizonte).length : 0;
       if (antesDoHorizonte > 0) {

@@ -140,3 +140,50 @@ test('marca nova, sem historico gravado, nao acusa', () => {
   );
   assert.equal(achados.length, 0);
 });
+
+// ---------------------------------------------------------------------------
+// A TRAVA E A GRAVAÇÃO PRECISAM OLHAR A MESMA POPULAÇÃO (09/09)
+// ---------------------------------------------------------------------------
+// `detectarSaltoDeHistoria` é uma função pura e estava certa. O defeito era de
+// quem a chamava: o que vem do banco é filtrado por `quality_flag is null` --
+// só o que alguma tela lê -- e o que ia como "novo" era o conjunto TODO,
+// incluindo os meses anteriores ao primeiro desligado conhecido, que a própria
+// carga grava marcados.
+//
+// Resultado: a admissão de 2013 de uma pessoa produzia uma linha 2013-03 que
+// nasceria escondida, e a trava bloqueava a gravação inteira por causa dela.
+// A série ficou travada de segunda a quarta por isso.
+test('a linha que nasce marcada nao pode disparar salto de historia', () => {
+  const gravado: PontoDeSerie[] = [
+    { brand: 'Flutter International', month: '2024-06-01', headcount: 12 },
+    { brand: 'Flutter International', month: '2024-07-01', headcount: 14 },
+  ];
+  // O conjunto TODO inclui 2013 -- e é assim que a trava era chamada antes.
+  const comMarcadas: PontoDeSerie[] = [
+    { brand: 'Flutter International', month: '2013-03-01', headcount: 1 },
+    ...gravado,
+  ];
+  assert.equal(
+    detectarSaltoDeHistoria(comMarcadas, gravado).length, 1,
+    'com a linha marcada dentro, a trava dispara -- era o comportamento antigo',
+  );
+
+  // Filtrando o que a gravação vai esconder, o alarme silencia: as duas pontas
+  // passam a falar da mesma população.
+  const horizonte = '2024-06-01';
+  const legiveis = comMarcadas.filter((l) => l.month >= horizonte);
+  assert.deepEqual(detectarSaltoDeHistoria(legiveis, gravado), []);
+});
+
+test('e a protecao continua valendo entre linhas legiveis', () => {
+  // O conserto não pode virar "a trava nunca dispara". Uma marca que começa um
+  // ano antes DENTRO do que as telas leem continua sendo bloqueada.
+  const gravado: PontoDeSerie[] = [
+    { brand: 'NSX', month: '2024-06-01', headcount: 500 },
+  ];
+  const novo: PontoDeSerie[] = [
+    { brand: 'NSX', month: '2019-08-01', headcount: 300 },
+    { brand: 'NSX', month: '2024-06-01', headcount: 500 },
+  ];
+  assert.equal(detectarSaltoDeHistoria(novo, gravado).length, 1);
+});
