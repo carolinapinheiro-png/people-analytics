@@ -56,6 +56,23 @@ export interface CompRatioRow {
   comp_ratio: number | null;
   quartile: string | null;
   hire: string | null;
+  /**
+   * Por que esta pessoa não tem comp-ratio. Nulo = tem.
+   *
+   * -------------------------------------------------------------------------
+   * ESTA COLUNA MUDA O QUE `rows.length` SIGNIFICA
+   * -------------------------------------------------------------------------
+   * Enquanto `comp_ratio` vinha de planilha, a tabela só continha quem TINHA
+   * banda -- então contar linhas e contar pessoas com banda era a mesma coisa,
+   * e a tela chamava o total de "Ativos com banda" com razão.
+   *
+   * A carga do Convenia grava TODO MUNDO, inclusive quem não resolve faixa,
+   * justamente para que a ausência tenha motivo em vez de virar omissão. Isso
+   * inverte o sentido do total: a partir daí, `rows.length` é a população, e
+   * quem tem banda é um subconjunto. Toda média, percentual e rótulo que
+   * usava o total como base precisa dizer qual das duas coisas está contando.
+   */
+  sem_banda?: string | null;
 }
 
 /**

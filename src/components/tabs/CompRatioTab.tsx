@@ -79,23 +79,58 @@ export default function CompRatioTab() {
 
   const stats = useMemo(() => {
     if (!rows || rows.length === 0) return null;
-    const crs = rows.map((r) => r.comp_ratio ?? 0).filter((c) => c > 0);
+    // ------------------------------------------------------------------
+    // COM FAIXA E SEM FAIXA SÃO DUAS BASES, E ELAS NÃO SE MISTURAM
+    // ------------------------------------------------------------------
+    // Enquanto a tabela vinha de planilha, ela só tinha quem tem banda. A
+    // carga do Convenia grava a população inteira, com o motivo de cada
+    // ausência -- e isso quebrou três contas aqui de uma vez:
+    //
+    //   média por área ... somava `comp_ratio ?? 0` no numerador e contava
+    //                      TODO MUNDO no denominador. Uma área com metade do
+    //                      pessoal sem banda aparecia com metade do
+    //                      comp-ratio real. Não era lacuna: era número errado,
+    //                      plausível, e o mais visto da tela.
+    //   % acima/abaixo ... dividido pela população, quando "acima da faixa" só
+    //                      existe para quem tem faixa.
+    //   "Ativos com banda" .. era o total de linhas, o que era verdade antes e
+    //                      deixou de ser.
+    const comFaixa = rows.filter((r) => r.comp_ratio != null);
+    const crs = comFaixa.map((r) => r.comp_ratio as number);
     const sorted = [...crs].sort((a, b) => a - b);
     const median = sorted[Math.floor(sorted.length / 2)];
     const above = rows.filter((r) => r.quartile === 'Above range').length;
     const below = rows.filter((r) => r.quartile === 'Below Range').length;
     const byQuartile = QUARTILE_ORDER.map((q) => ({ q, n: rows.filter((r) => r.quartile === q).length }));
-    const byArea: Record<string, { sum: number; n: number }> = {};
+    const byArea: Record<string, { sum: number; n: number; sem: number }> = {};
     for (const r of rows) {
       const a = r.area ?? '—';
-      (byArea[a] = byArea[a] ?? { sum: 0, n: 0 });
-      byArea[a].sum += r.comp_ratio ?? 0;
+      (byArea[a] = byArea[a] ?? { sum: 0, n: 0, sem: 0 });
+      if (r.comp_ratio == null) { byArea[a].sem++; continue; }
+      byArea[a].sum += r.comp_ratio;
       byArea[a].n++;
     }
     const areas = Object.entries(byArea)
-      .map(([area, v]) => ({ area, avg: v.sum / v.n, n: v.n }))
+      .filter(([, v]) => v.n > 0)
+      .map(([area, v]) => ({ area, avg: v.sum / v.n, n: v.n, sem: v.sem }))
       .sort((a, b) => b.avg - a.avg);
-    return { total: rows.length, median, above, below, byQuartile, areas };
+
+    // Os motivos, agrupados. Sem isto a tela diz quantas faltam e não diz a
+    // quem pedir -- e cada motivo tem um dono diferente: `Level` e `Job Type
+    // Family` são o RH no Convenia; vínculo sem faixa é Comp & Ben.
+    const motivos = new Map<string, number>();
+    for (const r of rows) {
+      if (r.comp_ratio != null) continue;
+      const m = (r.sem_banda ?? 'motivo não registrado').replace(/"[^"]*"/g, '"…"');
+      motivos.set(m, (motivos.get(m) ?? 0) + 1);
+    }
+    return {
+      total: rows.length,
+      comFaixa: comFaixa.length,
+      semFaixa: rows.length - comFaixa.length,
+      motivos: [...motivos.entries()].map(([motivo, n]) => ({ motivo, n })).sort((a, b) => b.n - a.n),
+      median, above, below, byQuartile, areas,
+    };
   }, [rows]);
 
   // Distribuicao de pessoas por level x area (pedido da diretora). Dados ja
@@ -158,15 +193,44 @@ export default function CompRatioTab() {
         </h2>
         <p className="text-sm text-muted-foreground flex items-center gap-1.5">
           <ShieldAlert className="h-3.5 w-3.5" />
-          Comp-ratio individual (sem salário nominal exposto) — cada consulta é registrada. {stats.total} ativos com banda salarial.
+          Comp-ratio individual (sem salário nominal exposto) — cada consulta é registrada.{' '}
+          {stats.comFaixa} de {stats.total} pessoas com banda salarial.
         </p>
       </div>
 
+      {/* ------------------------------------------------------------------
+          A COBERTURA, ANTES DOS NÚMEROS QUE ELA LIMITA
+          ------------------------------------------------------------------
+          Toda média desta tela é sobre quem TEM banda. Sem esta linha, 399 de
+          642 pessoas se leem como a empresa inteira -- e ninguém tem como
+          desconfiar, porque os números continuam plausíveis.
+
+          Fica acima dos cartões de propósito: depois deles já é tarde, a
+          leitura foi feita. E diz o motivo, porque cada um tem dono diferente:
+          `Level` e `Job Type Family` são o RH no Convenia; vínculo sem faixa é
+          Comp & Ben. */}
+      {stats.semFaixa > 0 && (
+        <div className="text-sm rounded-md border border-amber-500/40 p-3 space-y-1">
+          <p className="text-amber-600 dark:text-amber-500">
+            {stats.semFaixa} de {stats.total} pessoas não têm comp-ratio. As médias, os quartis e os
+            percentuais abaixo são sobre as {stats.comFaixa} que têm — não sobre a empresa toda.
+          </p>
+          <ul className="text-muted-foreground text-xs space-y-0.5">
+            {stats.motivos.map((m) => (
+              <li key={m.motivo}>{m.n} — {m.motivo}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Ativos com banda" value={stats.total} color={COLORS.flutter} icon={DollarSign} />
+        <KpiCard label="Pessoas com banda" value={`${stats.comFaixa} de ${stats.total}`} color={COLORS.flutter} icon={DollarSign} />
         <KpiCard label="Comp ratio mediano" value={`${fmt1(stats.median)}%`} color={COLORS.nsx} icon={Scale} help="compRatio" helpValue={stats.median} />
-        <KpiCard label="Acima da faixa" value={`${stats.above} (${fmt1((stats.above / stats.total) * 100)}%)`} color={COLORS.warning} icon={TrendingUp} help="acimaDaFaixa" />
-        <KpiCard label="Abaixo da faixa" value={`${stats.below} (${fmt1((stats.below / stats.total) * 100)}%)`} color={COLORS.danger} icon={TrendingDown} help="abaixoDaFaixa" />
+        {/* Base = quem tem faixa. "Acima da faixa" não é definido para quem
+            não tem faixa, e dividir pela população daria um percentual menor
+            que o real, na direção tranquilizadora. */}
+        <KpiCard label="Acima da faixa" value={stats.comFaixa ? `${stats.above} (${fmt1((stats.above / stats.comFaixa) * 100)}%)` : '—'} color={COLORS.warning} icon={TrendingUp} help="acimaDaFaixa" />
+        <KpiCard label="Abaixo da faixa" value={stats.comFaixa ? `${stats.below} (${fmt1((stats.below / stats.comFaixa) * 100)}%)` : '—'} color={COLORS.danger} icon={TrendingDown} help="abaixoDaFaixa" />
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
@@ -192,7 +256,12 @@ export default function CompRatioTab() {
               <thead className="sticky top-0 bg-card">
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
                   <th className="p-2">Área</th>
-                  <th className="p-2 text-right">Pessoas</th>
+                  {/* "Pessoas" era ambíguo e agora seria falso: a média é
+                      sobre quem tem banda, e a coluna ao lado diz quantos
+                      ficaram fora dela nesta área. Uma área com 4 de 30 tem
+                      média, e ela não representa a área. */}
+                  <th className="p-2 text-right">Com banda</th>
+                  <th className="p-2 text-right">Sem banda</th>
                   <th className="p-2 text-right">Comp ratio médio</th>
                 </tr>
               </thead>
@@ -201,6 +270,7 @@ export default function CompRatioTab() {
                   <tr key={a.area} className="border-b border-border/50">
                     <td className="p-2 font-medium">{a.area}</td>
                     <td className="p-2 text-right tabular-nums">{a.n}</td>
+                    <td className="p-2 text-right tabular-nums text-muted-foreground">{a.sem || '—'}</td>
                     <td className="p-2 text-right tabular-nums font-semibold">{fmt1(a.avg)}%</td>
                   </tr>
                 ))}
