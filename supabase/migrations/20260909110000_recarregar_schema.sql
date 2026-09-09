@@ -1,0 +1,31 @@
+-- Manda o PostgREST reler o schema.
+--
+-- ===========================================================================
+-- POR QUE ISTO É UMA MIGRAÇÃO E NÃO UM COMANDO NO EDITOR
+-- ===========================================================================
+-- `access_profiles` foi criada e a API continuou respondendo PGRST205 --
+-- "Could not find the table in the schema cache". A tabela existe; quem está
+-- desatualizado é o cache do PostgREST.
+--
+-- O comando que resolve é uma linha, e normalmente se roda no editor SQL do
+-- Supabase. Só que o acesso ao banco aqui é pelo Lovable, e o caminho que
+-- existe é este: rodar migração. Então o comando vira uma migração.
+--
+-- Não cria nada, não altera nada, não tem o que dar errado. Pode ser rodada
+-- quantas vezes for preciso, hoje ou daqui a seis meses -- e vai ser preciso
+-- de novo, toda vez que uma tabela nova demorar a aparecer para a API.
+--
+-- ===========================================================================
+-- SE DEPOIS DISTO AINDA DER PGRST205
+-- ===========================================================================
+-- Aí a hipótese do cache caiu, e as duas que sobram são:
+--
+--   1. a migração que cria a tabela rodou em OUTRO banco (outro projeto, outro
+--      ambiente) e não no que a aplicação lê;
+--   2. a criação falhou no meio e foi desfeita junto -- o bloco de RLS no fim
+--      de 20260908120000 usa `create policy`, que não aceita `if not exists`
+--      e falha na segunda execução.
+--
+-- As duas se distinguem com uma consulta só: `select count(*) from
+-- public.access_profiles`. Se der erro de relação inexistente, é o caso 2.
+notify pgrst, 'reload schema';
