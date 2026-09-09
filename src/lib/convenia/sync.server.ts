@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { reconstruirSerie, type LinhaMensal, type PessoaConvenia } from './pessoas';
 import { empresaDe, escritorioDe, lerCustomFields, valorDe as valorDeCampo } from './custom-fields';
+import { feito, limite } from './avisos';
 import { detectarColapso, detectarSaltoDeHistoria } from './colapso';
 import { marcaDeEmpresa, empresasNaoReconhecidas, MARCAS_DO_PAINEL, type MarcaDoPainel } from './marca';
 
@@ -90,6 +91,15 @@ export interface ResumoSyncConvenia {
   totalOrg: number;
   /** Motivo, quando a série mensal foi recusada. `null` = seguiu normal. */
   serieTravada: string | null;
+  /**
+   * Quantas das linhas o painel vai de fato MOSTRAR.
+   *
+   * `totalLinhas` conta tudo o que a carga calculou, inclusive os meses
+   * anteriores ao primeiro desligado conhecido, que nascem marcados e nenhuma
+   * tela lê. Os dois números juntos são o que impede a tela de anunciar "275
+   * linhas" e a pessoa entender "275 meses de história".
+   */
+  linhasVisiveis: number;
   requisicoes: number;
   avisos: string[];
 }
@@ -1090,7 +1100,7 @@ export async function executarSyncConvenia(
     }
     if (desligadosResgatados > 0) {
       avisos.push(
-        `${desligadosResgatados} desligados vieram da tabela guardada, e nao de token: ` +
+        limite(`${desligadosResgatados} desligados vieram da tabela guardada, e nao de token: `) +
         'ou o token da empresa deles foi removido, ou a listagem nao os devolveu nesta carga. ' +
         'A serie os mantem de qualquer forma -- quem saiu nao deixa de ter saido.',
       );
@@ -1149,7 +1159,7 @@ export async function executarSyncConvenia(
         fotoGravada += foto.slice(i, i + 300).length;
       }
       avisos.push(
-        `Foto do cadastro de ${ateMes}: ${fotoGravada} pessoas guardadas. ` +
+        feito(`Foto do cadastro de ${ateMes}: ${fotoGravada} pessoas guardadas. `) +
         'E dela que sai o carry-forward de Compensation Grade e Job Family, ' +
         'e a possibilidade de re-rodar um mes passado com o cadastro daquele mes.',
       );
@@ -1244,12 +1254,14 @@ export async function executarSyncConvenia(
       const lidosAlcancaveis = [...historicoLido].filter((id) => idsAlcancaveis.has(id)).length;
       const totalPessoas = idsAlcancaveis.size;
       const pendentesHist = totalPessoas - lidosAlcancaveis;
-      avisos.push(
+      // Enquanto falta gente, isto PEDE uma ação (rodar de novo) e fica em
+      // pendência. Quando fecha, vira recibo: informa e não cobra nada.
+      const linhaCobertura =
         `Promocoes: historico salarial lido de ${lidosAlcancaveis} de ${totalPessoas} pessoas`
         + (pendentesHist > 0
           ? ` -- faltam ${pendentesHist} (lotes de ${LOTE_HISTORICO} por execucao). Ate zerar, a serie mostra MENOS promocoes do que houve. Rode de novo.`
-          : '. Cobertura completa.'),
-      );
+          : '. Cobertura completa.');
+      avisos.push(pendentesHist > 0 ? linhaCobertura : feito(linhaCobertura));
       if (historicoSemTempo || detalheSemTempo) {
         avisos.push(
           'A carga PAROU DE BUSCAR por tempo, e seguiu para gravar o que ja tinha. '
@@ -1386,9 +1398,18 @@ export async function executarSyncConvenia(
       }
       const encontradas = [...porMarcaDoCadastro].map(([m, n]) => `${m} (${n})`).join(', ');
       avisos.push(
-        `Marca pelo cadastro: ${comMarcaDoCadastro} de ${lidos.length} pessoas ` +
-        `(${Math.round((comMarcaDoCadastro / lidos.length) * 100)}%), o resto pela marca do ` +
-        `token. Identificaveis pelo campo Empresa: ${encontradas || 'nenhuma ainda'}.`,
+        // ----------------------------------------------------------------
+        // O MESMO 613, DITO DUAS VEZES
+        // ----------------------------------------------------------------
+        // Esta linha e a de cobertura de `Empresa` logo acima anunciavam o
+        // mesmo numero com nomes diferentes ("Empresa preenchida em 613" e
+        // "Marca pelo cadastro: 613 de 636"). Duas frases sobre o mesmo fato
+        // e o comeco de duas frases que discordam.
+        //
+        // O que esta linha tem de proprio -- e por isso ela fica -- e a
+        // QUEBRA por marca. O percentual saiu; ele ja foi dito.
+        limite(`Marca pelo cadastro, quando o campo Empresa existe: `
+          + `${encontradas || 'nenhuma ainda'}. Sem ele, vale a marca do token.`),
       );
 
 
@@ -1548,7 +1569,7 @@ export async function executarSyncConvenia(
     const marcadasAoGravar = todasLinhas.length - linhasLegiveis.length;
     if (marcadasAoGravar > 0) {
       avisos.push(
-        `Das ${todasLinhas.length} linhas, ${marcadasAoGravar} sao anteriores a ${primeiraSaidaConhecida} `
+        limite(`Das ${todasLinhas.length} linhas, ${marcadasAoGravar} sao anteriores a ${primeiraSaidaConhecida} `)
         + 'e nascem MARCADAS: antes do primeiro desligado conhecido a serie nao sabe quem saiu, entao '
         + 'a atricao sai zero e o headcount sai subestimado. Nenhuma tela le linha marcada -- elas '
         + 'ficam gravadas para quem for investigar. As outras '
@@ -1777,6 +1798,7 @@ export async function executarSyncConvenia(
       naoResolvidos,
       linhasPorMarca,
       totalLinhas: todasLinhas.length,
+      linhasVisiveis: linhasLegiveis.length,
       // Quantas pessoas o organograma vai gravar. Com a serie travada, ISTO e
       // o que ainda vale confirmar -- camada N, cargo, empresa e escritorio.
       totalOrg: orgTodos.length,

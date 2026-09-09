@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, DownloadCloud, RefreshCw } from 'lucide-re
 import { Button } from '@/components/ui/button';
 import { COLORS } from '@/lib/colors';
 import { syncConvenia, type ResumoSyncConvenia } from '@/lib/convenia.functions';
+import { agruparAvisos } from '@/lib/convenia/avisos';
 
 /**
  * A carga do Convenia.
@@ -98,6 +99,12 @@ export function ConveniaSyncCard() {
 
           {r && (
             <div className="mt-3 text-sm">
+              {/* ------------------------------------------------------------
+                  A FRASE DE RESULTADO, ANTES DOS NÚMEROS
+                  ------------------------------------------------------------
+                  "Gravado" sozinho não diz o que entrou. E os cinco cartões
+                  abaixo não respondem em dois segundos: "Linhas 275" chega a
+                  enganar, porque 193 dessas linhas nascem invisíveis. */}
               <div className="flex items-center gap-2 font-medium">
                 {r.gravado ? (
                   <><CheckCircle2 className="h-4 w-4" style={{ color: COLORS.success }} /> Gravado</>
@@ -105,10 +112,16 @@ export function ConveniaSyncCard() {
                   <>Prévia — a série não foi gravada</>
                 )}
               </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {r.pessoasUnicas} pessoas · {r.linhasVisiveis} meses que o painel mostra
+                {r.totalLinhas > r.linhasVisiveis && ` (de ${r.totalLinhas} calculados)`}
+                {' · '}{r.requisicoes} requisições ao Convenia
+              </p>
 
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
                 <div><div className="text-muted-foreground">Pessoas</div><div className="font-medium">{r.pessoasUnicas}</div></div>
-                <div><div className="text-muted-foreground">Linhas</div><div className="font-medium">{r.totalLinhas}</div></div>
+                {/* "Linhas" era ambíguo entre calculado e visível. */}
+                <div><div className="text-muted-foreground">Meses visíveis</div><div className="font-medium">{r.linhasVisiveis}</div></div>
                 <div><div className="text-muted-foreground">Buscados 1 a 1</div><div className="font-medium">{r.detalhesBuscados}</div></div>
                 <div><div className="text-muted-foreground">Não resolvidos</div><div className="font-medium">{r.naoResolvidos}</div></div>
                 <div><div className="text-muted-foreground">Requisições</div><div className="font-medium">{r.requisicoes}</div></div>
@@ -150,15 +163,75 @@ export function ConveniaSyncCard() {
               <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                 {r.linhasPorMarca.map((m) => (
                   <div key={m.marca}>
-                    <span className="font-medium">{m.marca}</span>: {m.linhas} meses
+                    {/* CALCULADOS, e não visíveis: parte destes meses nasce
+                        marcada. Dizer só "163 meses" ao lado de um aviso que
+                        diz "82 aparecem" são duas frases discordando sobre o
+                        mesmo resultado. */}
+                    <span className="font-medium">{m.marca}</span>: {m.linhas} meses calculados
                     {m.de && ` (${m.de.slice(0, 7)} a ${m.ate?.slice(0, 7)})`}
                   </div>
                 ))}
               </div>
 
-              {r.avisos.map((a) => (
-                <p key={a} className="mt-2 text-xs" style={{ color: COLORS.warning }}>⚠ {a}</p>
-              ))}
+              {/* ------------------------------------------------------------
+                  TRÊS PESOS, PORQUE SÃO TRÊS COISAS
+                  ------------------------------------------------------------
+                  Antes eram oito linhas idênticas, todas com ⚠ amarelo. No
+                  meio delas conviviam "gravei a foto" (recibo), "162 sem
+                  Level" (alguém precisa preencher) e "193 linhas nascem
+                  marcadas" (é assim e vai continuar sendo).
+
+                  Quando tudo é alerta, nada é -- e quem lê aprende, em duas
+                  execuções, a passar o olho por cima de todas. O que pede
+                  ação fica em cima e sozinho; o resto desce de peso. */}
+              {(() => {
+                const g = agruparAvisos(r.avisos);
+                return (
+                  <>
+                    {g.pendencia.length > 0 && (
+                      <div className="mt-3 rounded-lg border border-amber-500/40 p-3">
+                        <p className="text-xs font-medium flex items-center gap-1.5 text-amber-600 dark:text-amber-500">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                          Precisa de alguém
+                        </p>
+                        <ul className="mt-1.5 space-y-1.5">
+                          {g.pendencia.map((a) => (
+                            <li key={a} className="text-xs leading-relaxed">{a}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {g.feito.length > 0 && (
+                      <ul className="mt-3 space-y-1">
+                        {g.feito.map((a) => (
+                          <li key={a} className="text-xs text-muted-foreground flex gap-1.5">
+                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: COLORS.success }} />
+                            <span>{a}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    {/* Recolhido: verdadeiro hoje, amanhã e no mês que vem.
+                        Não é notícia depois da primeira leitura -- e sumir
+                        seria pior, porque alguém reencontraria o fato como se
+                        fosse novidade. */}
+                    {g.limite.length > 0 && (
+                      <details className="mt-3">
+                        <summary className="cursor-pointer text-xs text-muted-foreground">
+                          Limites conhecidos ({g.limite.length}) — o que esta carga não tem como saber
+                        </summary>
+                        <ul className="mt-1.5 space-y-1.5 pl-1">
+                          {g.limite.map((a) => (
+                            <li key={a} className="text-xs text-muted-foreground leading-relaxed">{a}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>
