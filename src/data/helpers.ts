@@ -113,6 +113,22 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       apprentice: (n.apprentice || 0) + (b.apprentice || 0) + (f.apprentice || 0),
       leader_dept: mergeLeaderDept(n.leader_dept, b.leader_dept, f.leader_dept),
       tenure_base: mergeLevels(n.tenure_base, b.tenure_base, f.tenure_base),
+      // ------------------------------------------------------------------
+      // FAMÍLIA E VÍNCULO TAMBÉM SOMAM -- E FALTAVAM AQUI
+      // ------------------------------------------------------------------
+      // As duas quebras foram gravadas pela carga e estão cheias no banco:
+      // "Customer Operations": 145 em set/2026. Mas a visão COMBINADA é
+      // montada aqui, e esta função não as somava -- então o registro
+      // combinado saía sem `family_base`, o filtro lia `undefined` e o
+      // headcount dava zero.
+      //
+      // O sintoma foi cruel de propósito: o aviso que eu mesmo escrevi
+      // ("este valor não aparece em nenhum mês da série") acusou o Convenia
+      // de não ter o dado, quando o dado estava lá e quem o perdeu foi a
+      // combinação das marcas. Um instrumento que aponta para fora quando o
+      // defeito é interno é pior que não ter instrumento.
+      family_base: mergeLevels(n.family_base, b.family_base, f.family_base),
+      contract_base: mergeLevels(n.contract_base, b.contract_base, f.contract_base),
       demographics: mergeDemographics(n.demographics, b.demographics, f.demographics),
       race_cross: mergeRaceCross(n.race_cross, b.race_cross, f.race_cross),
       // ------------------------------------------------------------------
@@ -242,6 +258,9 @@ function mergeDeptBreakdown(
       const cur = (out[dept] = out[dept] || {
         gender_female: 0, gender_male: 0, leaders: 0, leader_female: 0,
         level_base: {}, tenure_base: {},
+        // Mesma omissão da linha mensal, um nível abaixo: sem estas duas
+        // aqui, a quebra por ÁREA da visão combinada perde família e vínculo.
+        family_base: {}, contract_base: {},
         demographics: { age: {}, race: {}, marital: {}, origin: {} },
         race_cross: {},
       });
@@ -251,6 +270,8 @@ function mergeDeptBreakdown(
       cur.leader_female += v.leader_female || 0;
       somarMapa(cur.level_base, v.level_base);
       somarMapa(cur.tenure_base, v.tenure_base);
+      somarMapa(cur.family_base ??= {}, v.family_base);
+      somarMapa(cur.contract_base ??= {}, v.contract_base);
       somarMapa(cur.demographics.age, v.demographics?.age);
       somarMapa(cur.demographics.race, v.demographics?.race);
       somarMapa(cur.demographics.marital, v.demographics?.marital);

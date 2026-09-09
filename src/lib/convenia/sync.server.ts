@@ -398,6 +398,8 @@ export async function executarSyncConvenia(
     const historicoFalhas: string[] = [];
     /** Marcadas quando o relógio interrompeu uma das filas -- viram aviso. */
     let historicoSemTempo = false;
+    /** A forma da primeira resposta do histórico. Vira aviso. */
+    let formaDoHistorico: string | null = null;
     let detalheSemTempo = false;
 
     // ------------------------------------------------------------------
@@ -1108,8 +1110,36 @@ export async function executarSyncConvenia(
               const env = await client.get<Record<string, unknown>>(SALARIO_HISTORICO(alvo.id));
               requisicoes++;
               historicoBuscadosAgora++;
+              // ------------------------------------------------------------
+              // A FORMA DA RESPOSTA, MEDIDA -- NAO ADIVINHADA
+              // ------------------------------------------------------------
+              // Eu li `data` como lista e a tabela ficou com ZERO linhas para
+              // 636 pessoas lidas. Duas tentativas de adivinhar o formato ja
+              // custaram uma tarde, entao aqui a carga MEDE: guarda os nomes
+              // das chaves da primeira resposta e os publica no aviso.
+              //
+              // Nomes de chave e contagens, nunca valores: a resposta tem
+              // salario nominal. Mesma regra da sonda de campos.
               const bruto = ((env?.data ?? env) as unknown);
-              const itens = Array.isArray(bruto) ? bruto : [];
+              if (!formaDoHistorico) {
+                formaDoHistorico = Array.isArray(bruto)
+                  ? `lista de ${bruto.length} item(ns); chaves do primeiro: `
+                    + (bruto.length && bruto[0] && typeof bruto[0] === 'object'
+                      ? Object.keys(bruto[0] as object).join(', ')
+                      : '(vazia)')
+                  : bruto && typeof bruto === 'object'
+                    ? `objeto com as chaves: ${Object.keys(bruto as object).join(', ')}`
+                    : `tipo inesperado: ${typeof bruto}`;
+              }
+              // Duas formas cobertas: lista direta, ou objeto com UMA chave que
+              // contem a lista (`salaries`, `historic`, `items`...). A segunda
+              // e a suspeita, e o aviso confirma qual e.
+              const listaAninhada = !Array.isArray(bruto) && bruto && typeof bruto === 'object'
+                ? Object.values(bruto as Record<string, unknown>).find((v) => Array.isArray(v))
+                : null;
+              const itens = Array.isArray(bruto)
+                ? bruto
+                : (Array.isArray(listaAninhada) ? listaAninhada : []);
 
               const linhasHist = itens
                 .map((it) => {
@@ -1141,6 +1171,12 @@ export async function executarSyncConvenia(
               // ("esta pessoa não teve alteração"), e sem a marca ela voltaria
               // para a fila em toda carga, empurrando para o fim quem nunca
               // foi lido.
+              //
+              // O custo dessa escolha apareceu: com o leitor sem entender o
+              // formato, TODO MUNDO foi marcado como lido com zero linhas, e a
+              // tela anunciou "cobertura completa" sobre uma tabela vazia. Por
+              // isso a forma da resposta virou aviso -- a marca sozinha não
+              // distingue "não teve alteração" de "não entendi a resposta".
               await db.from('convenia_pessoas').upsert({
                 convenia_id: alvo.id,
                 historico_em: new Date().toISOString(),
@@ -1381,6 +1417,9 @@ export async function executarSyncConvenia(
         porMotivoHist.set(m, (porMotivoHist.get(m) ?? 0) + 1);
       }
       const totalHist = ((hist ?? []) as unknown[]).length;
+      if (formaDoHistorico) {
+        avisos.push(`Historico salarial, forma da resposta do Convenia: ${formaDoHistorico}`);
+      }
       avisos.push(
         totalHist === 0
           ? 'Historico salarial: a tabela esta VAZIA apesar de a fila ter zerado. '
