@@ -359,6 +359,17 @@ export default function OverviewTab() {
     return (
       <div className="space-y-4">
         {cutWarning}
+        {/* Zero em todo mês tem duas causas opostas -- ninguém naquela faixa,
+            ou um rótulo que a carga nunca gravou. Sem esta linha, um seletor
+            com vocabulário desalinhado se lê como "a área não tem ninguém
+            assim", que é uma afirmação sobre as pessoas. */}
+        {cut.valorDesconhecido && (
+          <p className="text-[11px] rounded-md border border-amber-500/40 p-2 text-amber-600 dark:text-amber-500">
+            <strong>{cut.label}</strong> não aparece em nenhum mês da série. Isso não quer dizer
+            "ninguém nessa faixa": quer dizer que a carga nunca gravou esse valor. Provável
+            diferença de vocabulário entre o seletor e o cadastro do Convenia — vale reportar.
+          </p>
+        )}
         <SeriesCutView
           months={cut.months}
           label={cut.label}

@@ -660,3 +660,69 @@ test('applySeriesFilter: sem recorte devolve a serie intacta', async () => {
   assert.equal(r.active, false);
   assert.equal(r.months[0].gender_female, 40);
 });
+
+// ---------------------------------------------------------------------------
+// JOB FAMILY E VINCULO NA SERIE MENSAL (09/09)
+// ---------------------------------------------------------------------------
+// Ate aqui os dois eram seletores esmaecidos nas abas de serie, com o motivo
+// "a serie so guarda a quebra por departamento". A carga passou a gravar
+// `family_base` e `contract_base`, e estes testes travam as tres coisas que
+// podiam sair erradas: o denominador, o numerador e o zero ambiguo.
+
+test('applySeriesFilter: job family sai da quebra gravada, nao de rateio', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter');
+  const meses = [
+    { month: '2026-01', headcount: 100, leavers: 5, family_base: { 'Data & Analytics': 12, HR: 8 } },
+    { month: '2026-02', headcount: 110, leavers: 3, family_base: { 'Data & Analytics': 14, HR: 8 } },
+  ] as never[];
+  const saidas = [
+    { data_desligamento: '2026-02-10', job_family: 'Data & Analytics', vinculo: 'CLT' },
+    { data_desligamento: '2026-02-11', job_family: 'HR', vinculo: 'CLT' },
+  ] as never[];
+  const r = applySeriesFilter(meses, saidas, 'jobFamily', 'Data & Analytics');
+  assert.equal(r.months[0].headcount, 12);
+  assert.equal(r.months[1].headcount, 14);
+  // A saida de HR nao pode entrar no numerador de Data & Analytics.
+  assert.equal(r.months[1].leavers, 1);
+  assert.equal(r.valorDesconhecido, false);
+});
+
+test('applySeriesFilter: vinculo casa sem depender da caixa', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter');
+  const meses = [
+    { month: '2026-01', headcount: 100, leavers: 1, contract_base: { CLT: 80, 'Pessoa Jurídica': 20 } },
+  ] as never[];
+  // A serie escreve como o Convenia manda; a tabela de desligados veio de
+  // planilha. Uma diferenca de maiuscula tiraria a saida do numerador e
+  // deixaria o headcount intacto -- atricao 0% com gente saindo.
+  const saidas = [
+    { data_desligamento: '2026-01-20', vinculo: 'pessoa jurídica', job_family: 'HR' },
+  ] as never[];
+  const r = applySeriesFilter(meses, saidas, 'tipoContrato', 'Pessoa Jurídica');
+  assert.equal(r.months[0].headcount, 20);
+  assert.equal(r.months[0].leavers, 1);
+});
+
+test('applySeriesFilter: valor que a carga nunca gravou NAO se lê como zero pessoas', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter');
+  const meses = [
+    { month: '2026-01', headcount: 100, leavers: 0, contract_base: { CLT: 90, 'Diretor Estatutário': 2 } },
+  ] as never[];
+  // O seletor oferece "Sócio"; o cadastro escreve "Diretor Estatutário". O
+  // headcount da zero nos dois casos -- a diferenca so existe se for dita.
+  const r = applySeriesFilter(meses, [], 'tipoContrato', 'Sócio');
+  assert.equal(r.months[0].headcount, 0);
+  assert.equal(r.valorDesconhecido, true, 'precisa distinguir rótulo ausente de faixa vazia');
+
+  const existe = applySeriesFilter(meses, [], 'tipoContrato', 'CLT');
+  assert.equal(existe.valorDesconhecido, false);
+});
+
+test('applySeriesFilter: serie antiga, sem a quebra, nao finge ter a resposta', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter');
+  // Linhas gravadas antes da migracao 20260909170000 nao tem `family_base`.
+  const meses = [{ month: '2025-05', headcount: 90, leavers: 2 }] as never[];
+  const r = applySeriesFilter(meses, [], 'jobFamily', 'HR');
+  assert.equal(r.months[0].headcount, 0);
+  assert.equal(r.valorDesconhecido, true);
+});

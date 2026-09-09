@@ -74,6 +74,20 @@ export interface SeriesFilterResult {
   label: string | null;
   /** Nomes amigáveis do que NÃO pode ser mostrado sob este recorte. */
   suppressed: string[];
+  /**
+   * true quando o valor escolhido não aparece em NENHUM mês da quebra gravada.
+   *
+   * ------------------------------------------------------------------
+   * ZERO EM TODO MÊS TEM DUAS CAUSAS OPOSTAS
+   * ------------------------------------------------------------------
+   * Ou não havia ninguém naquela faixa (resposta), ou o seletor oferece um
+   * rótulo que a carga nunca gravou -- "Sócio" contra um cadastro que escreve
+   * "Diretor Estatutário" (defeito). As duas desenham a mesma linha reta no
+   * zero, e a segunda é um filtro que parece funcionar e devolve vazio.
+   *
+   * Quem consome mostra isto como aviso; sem ele, a diferença some.
+   */
+  valorDesconhecido: boolean;
 }
 
 const SUPRIMIDO = [
@@ -127,7 +141,7 @@ export function applySeriesFilter(
   // não tem como esbarrar num 'Todos' ou num nulo mais abaixo.
   const escolhido = key ? valorFiltro(value) : null;
   if (escolhido == null) {
-    return { months, active: false, label: null, suppressed: [], unreliable: false };
+    return { months, active: false, label: null, suppressed: [], unreliable: false, valorDesconhecido: false };
   }
 
   // Se ha departamento selecionado, o recorte so e confiavel quando o filtro de
@@ -204,9 +218,21 @@ export function applySeriesFilter(
     };
   });
 
+  // A chave existe em algum mês? Se não, o zero de todo mês é sobre o rótulo,
+  // e não sobre as pessoas.
+  const valorDesconhecido = !months.some((m) => {
+    const b = key === 'level' ? m.level_base
+      : key === 'tempoCasa' ? m.tenure_base
+      : key === 'jobFamily' ? m.family_base
+      : m.contract_base;
+    const c = key === 'tempoCasa' ? (TENURE_LABEL_TO_KEY[escolhido] ?? escolhido) : escolhido;
+    return b != null && c in b;
+  });
+
   return {
     months: out,
     active: true,
+    valorDesconhecido,
     label: `${labelPrefix}: ${escolhido}`,
     suppressed: SUPRIMIDO,
     unreliable,
