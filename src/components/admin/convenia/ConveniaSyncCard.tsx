@@ -105,13 +105,47 @@ export function ConveniaSyncCard() {
                   "Gravado" sozinho não diz o que entrou. E os cinco cartões
                   abaixo não respondem em dois segundos: "Linhas 275" chega a
                   enganar, porque 193 dessas linhas nascem invisíveis. */}
-              <div className="flex items-center gap-2 font-medium">
-                {r.gravado ? (
-                  <><CheckCircle2 className="h-4 w-4" style={{ color: COLORS.success }} /> Gravado</>
-                ) : (
-                  <>Prévia — a série não foi gravada</>
-                )}
-              </div>
+              {/* ------------------------------------------------------------
+                  O VEREDITO, ANTES DE TUDO
+                  ------------------------------------------------------------
+                  "Eu nunca sei quando tá pronto ou não." A tela terminava com
+                  oito avisos e nenhuma resposta -- descobrir se dava para
+                  gravar exigia ler todos, entender cada fila e fazer a conta.
+
+                  Uma tela que exige interpretação para responder sim ou não
+                  está empurrando o próprio trabalho para quem a usa. */}
+              {r.gravado ? (
+                <div className="flex items-center gap-2 font-medium">
+                  <CheckCircle2 className="h-4 w-4" style={{ color: COLORS.success }} /> Gravado
+                </div>
+              ) : r.pronto ? (
+                <div
+                  className="rounded-lg border p-3"
+                  style={{ borderColor: COLORS.success, background: `${COLORS.success}14` }}
+                >
+                  <p className="font-medium flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4" style={{ color: COLORS.success }} />
+                    Pronto para gravar
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Nenhuma fila em aberto. O que a carga vai gravar já está completo.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
+                  <p className="font-medium flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 shrink-0" />
+                    Ainda não — rode "Simular" de novo
+                  </p>
+                  <ul className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                    {r.oQueFalta.map((f) => <li key={f}>falta {f}</li>)}
+                  </ul>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Gravar agora funciona, mas grava incompleto — e a tela não teria como
+                    dizer isso depois.
+                  </p>
+                </div>
+              )}
               <p className="mt-1 text-xs text-muted-foreground">
                 {r.pessoasUnicas} pessoas · {r.linhasVisiveis} meses que o painel mostra
                 {r.totalLinhas > r.linhasVisiveis && ` (de ${r.totalLinhas} calculados)`}

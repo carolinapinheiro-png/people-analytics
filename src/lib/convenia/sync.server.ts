@@ -100,6 +100,15 @@ export interface ResumoSyncConvenia {
    * linhas" e a pessoa entender "275 meses de história".
    */
   linhasVisiveis: number;
+  /**
+   * A resposta para "posso gravar agora?".
+   *
+   * `pronto: true` = nenhuma fila em aberto e a série não travou. Quando é
+   * falso, `oQueFalta` diz exatamente o quê -- em vez de deixar a pessoa
+   * deduzir isso de oito avisos.
+   */
+  pronto: boolean;
+  oQueFalta: string[];
   requisicoes: number;
   avisos: string[];
 }
@@ -380,6 +389,19 @@ export async function executarSyncConvenia(
     /** Marcadas quando o relógio interrompeu uma das filas -- viram aviso. */
     let historicoSemTempo = false;
     let detalheSemTempo = false;
+
+    // ------------------------------------------------------------------
+    // O VEREDITO: "POSSO GRAVAR AGORA?"
+    // ------------------------------------------------------------------
+    // A carga terminava com oito avisos e nenhuma resposta. A Carolina disse
+    // com todas as letras: "eu nunca sei quando tá pronto ou não" -- e ela
+    // está certa, porque descobrir isso exigia ler tudo, entender cada fila e
+    // fazer a conta de cabeça.
+    //
+    // Uma tela que exige interpretação para responder SIM ou NÃO está
+    // empurrando o trabalho dela para quem a usa. Estas listas viram uma
+    // frase só, no topo: pronto, ou o que falta.
+    const filasPendentes: string[] = [];
     const { data: pessoasCache } = await db
       .from('convenia_pessoas')
       // `bruto` entra na consulta porque estado civil e UF natal só existem
@@ -1386,6 +1408,9 @@ export async function executarSyncConvenia(
           ? ` -- faltam ${pendentesHist} (lotes de ${LOTE_HISTORICO} por execucao). Ate zerar, a serie mostra MENOS promocoes do que houve. Rode de novo.`
           : '. Cobertura completa.');
       avisos.push(pendentesHist > 0 ? linhaCobertura : feito(linhaCobertura));
+      if (pendentesHist > 0) {
+        filasPendentes.push(`historico salarial de ${pendentesHist} pessoa(s) -- afeta as promocoes`);
+      }
       if (historicoSemTempo || detalheSemTempo) {
         avisos.push(
           'A carga PAROU DE BUSCAR por tempo, e seguiu para gravar o que ja tinha. '
@@ -1481,6 +1506,9 @@ export async function executarSyncConvenia(
         `(${pct(comEmpresa)}%) e Escritorio em ${comEscritorio} (${pct(comEscritorio)}%).` +
         (naFila > 0 ? ` Faltam ${naFila} na fila -- rode de novo.` : ''),
       );
+      if (naFila > 0) {
+        filasPendentes.push(`detalhe de ${naFila} pessoa(s) -- afeta empresa, escritorio, level, origem e cotas`);
+      }
       // ------------------------------------------------------------------
       // O DE-PARA TEM QUE DIZER O QUE NAO RECONHECEU, POR NOME
       // ------------------------------------------------------------------
@@ -1923,6 +1951,8 @@ export async function executarSyncConvenia(
       linhasPorMarca,
       totalLinhas: todasLinhas.length,
       linhasVisiveis: linhasLegiveis.length,
+      pronto: filasPendentes.length === 0 && !serieTravada,
+      oQueFalta: serieTravada ? ['a serie esta travada (ver o aviso acima)', ...filasPendentes] : filasPendentes,
       // Quantas pessoas o organograma vai gravar. Com a serie travada, ISTO e
       // o que ainda vale confirmar -- camada N, cargo, empresa e escritorio.
       totalOrg: orgTodos.length,
