@@ -48,6 +48,46 @@ export const FILTER_LABELS: Record<FilterKey, string> = {
   marcaProduto: 'Marca de produto',
 };
 
+/**
+ * Os quatro que aparecem em TODA aba, nesta ordem. Decisão da Carolina, 09/09.
+ *
+ * ===========================================================================
+ * POR QUE UMA ORDEM FIXA, E POR QUE ESTES QUATRO
+ * ===========================================================================
+ * A barra mudava de composição E de ordem a cada aba: departamento sozinho no
+ * Overview, sete em Desligamentos, e os esmaecidos jogados no fim. Quem
+ * navega entre abas relia a barra toda vez para achar o mesmo controle.
+ *
+ * Agora estes quatro ocupam sempre as mesmas quatro posições. Quando um deles
+ * não recorta a aba, ele fica NA POSIÇÃO, esmaecido, com o motivo -- não sai
+ * da fila. Some da fila e a pessoa conclui que o painel não recorta aquilo em
+ * lugar nenhum, quando recorta na aba ao lado.
+ *
+ * Os demais (level, faixa salarial, tipo de desligamento, modelo de trabalho,
+ * marca de produto) continuam existindo e vêm DEPOIS, só onde funcionam de
+ * verdade -- a regra deste arquivo não mudou: filtro que aparece ativo tem de
+ * filtrar.
+ */
+export const FILTROS_FIXOS: FilterKey[] = [
+  'departamento',
+  'jobFamily',
+  'tipoContrato',
+  'tempoCasa',
+];
+
+/** Ordem de tudo: os fixos primeiro, na ordem acordada; os extras depois. */
+export const ORDEM_DA_BARRA: FilterKey[] = [
+  ...FILTROS_FIXOS,
+  'level',
+  'faixaSalarial',
+  'tipoDesligamento',
+  'modeloTrabalho',
+  'marcaProduto',
+];
+
+const porOrdem = (ks: readonly FilterKey[]): FilterKey[] =>
+  ORDEM_DA_BARRA.filter((k) => ks.includes(k));
+
 const TODOS: FilterKey[] = [
   'departamento',
   'jobFamily',
@@ -171,37 +211,64 @@ export const FILTER_UNAVAILABLE_REASON: Record<string, string> = {
 };
 
 /** Para cada aba, o que fica visível-porém-inativo e por quê. */
+/** Por que os quatro fixos não recortam ESTA aba. */
+const MOTIVO_POR_ABA: Partial<Record<DashboardTab, string>> = {
+  individual:
+    'Esta aba mostra uma pessoa por vez, encontrada pela busca. Recorte de conjunto não muda o que ela responde.',
+};
+
 export function unavailableFilters(
   tab: DashboardTab,
   subTab?: string | null,
 ): Array<{ key: FilterKey; reason: string }> {
   const ativos = new Set(filtersForTab(tab, subTab));
-  const daSerie: FilterKey[] = ['tempoCasa', 'tipoContrato', 'faixaSalarial', 'level', 'jobFamily'];
-  const abasDeSerie: DashboardTab[] = ['dei', 'demographics', 'data'];
   const out: Array<{ key: FilterKey; reason: string }> = [];
-  if (abasDeSerie.includes(tab)) {
-    for (const k of daSerie) {
-      if (!ativos.has(k)) out.push({ key: k, reason: FILTER_UNAVAILABLE_REASON.serie });
-    }
+
+  // ------------------------------------------------------------------
+  // OS QUATRO FIXOS APARECEM SEMPRE -- ATIVOS OU ESMAECIDOS
+  // ------------------------------------------------------------------
+  // Antes, só três abas (dei, demographics, data) explicavam a ausência; nas
+  // outras o controle simplesmente não existia, e "não recorta aqui" ficava
+  // indistinguível de "esqueceram de pôr". Agora a fila é a mesma em toda aba
+  // e a ausência tem motivo em todas.
+  const motivoDaSubAba = subTab ? MOTIVO_POR_SUBABA[subTab] : undefined;
+  const motivoDaAba = MOTIVO_POR_ABA[tab];
+  for (const k of FILTROS_FIXOS) {
+    if (ativos.has(k)) continue;
+    out.push({
+      key: k,
+      reason: motivoDaSubAba
+        ?? motivoDaAba
+        // Departamento passa pelo applyDeptFilter e vale em toda aba que
+        // consome a série; se ele cair aqui, não é a série que falta.
+        ?? (k === 'departamento'
+          ? FILTER_UNAVAILABLE_REASON.escopo
+          : FILTER_UNAVAILABLE_REASON.serie),
+    });
   }
 
-  // O que a ABA oferece mas esta SUB-ABA não honra. Some da lista ativa e
-  // aparece esmaecido com o motivo -- sumir sem explicação faria a pessoa
-  // concluir que o painel não recorta aquilo em lugar nenhum, quando recorta
-  // na sub-aba ao lado.
-  const motivo = subTab ? MOTIVO_POR_SUBABA[subTab] : undefined;
-  if (motivo) {
-    const daAba = FILTERS_BY_TAB[tab] ?? [];
-    for (const k of daAba) {
-      if (!ativos.has(k) && !out.some((o) => o.key === k)) out.push({ key: k, reason: motivo });
+  // O que a ABA oferece mas esta SUB-ABA não honra -- fora dos quatro fixos,
+  // que já foram tratados acima. Sumir sem explicação faria a pessoa concluir
+  // que o painel não recorta aquilo em lugar nenhum, quando recorta na sub-aba
+  // ao lado.
+  if (motivoDaSubAba) {
+    for (const k of FILTERS_BY_TAB[tab] ?? []) {
+      if (!ativos.has(k) && !out.some((o) => o.key === k)) {
+        out.push({ key: k, reason: motivoDaSubAba });
+      }
     }
   }
   return out;
 }
 
 export function filtersForTab(tab: DashboardTab, subTab?: string | null): FilterKey[] {
-  if (subTab && subTab in FILTERS_BY_SUBTAB) return FILTERS_BY_SUBTAB[subTab];
-  return FILTERS_BY_TAB[tab] ?? ['departamento'];
+  const brutos = subTab && subTab in FILTERS_BY_SUBTAB
+    ? FILTERS_BY_SUBTAB[subTab]
+    : FILTERS_BY_TAB[tab] ?? ['departamento'];
+  // A ordem da barra é uma só, e não a ordem em que cada lista foi digitada
+  // aqui. Sem isto, "Contrato" aparece antes de "Job family" numa aba e depois
+  // na outra, e a barra tem de ser relida a cada troca.
+  return porOrdem(brutos);
 }
 
 /**

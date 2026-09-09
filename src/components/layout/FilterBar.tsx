@@ -12,6 +12,7 @@ import {
   unavailableFilters,
   FILTER_LABELS,
   RECORTES_EXCLUSIVOS,
+  ORDEM_DA_BARRA,
   type FilterKey,
 } from "@/lib/tab-filters";
 import { Lock, SlidersHorizontal, X } from "lucide-react";
@@ -155,6 +156,22 @@ export default function FilterBar() {
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const disponiveis = filtersForTab(activeTab, activeSubTab);
   const indisponiveis = unavailableFilters(activeTab, activeSubTab);
+
+  /**
+   * A barra inteira, já na ordem: ativos e esmaecidos misturados, ordenados
+   * por `ORDEM_DA_BARRA`. `reason` preenchido = esmaecido.
+   *
+   * Ordenar aqui, e não em dois `map` separados, é o que garante que os quatro
+   * fixos fiquem nas quatro primeiras posições em toda aba.
+   */
+  const barra: Array<{ key: FilterKey; reason: string | null }> = ORDEM_DA_BARRA
+    .map((k) => ({
+      key: k,
+      reason: disponiveis.includes(k)
+        ? null
+        : indisponiveis.find((i) => i.key === k)?.reason ?? undefined,
+    }))
+    .filter((x): x is { key: FilterKey; reason: string | null } => x.reason !== undefined);
 
   // ------------------------------------------------------------------
   // PARA QUEM TEM ESCOPO, "TODOS" NAO EXISTE
@@ -356,10 +373,28 @@ export default function FilterBar() {
           </span>
         )}
         <div className="flex flex-wrap items-center gap-2">
-            {/* Indisponíveis primeiro? Não: depois, esmaecidos. Ver comentário
-              em unavailableFilters -- some sem explicação faz a pessoa procurar
-              o controle de novo na próxima vez. */}
-            {disponiveis.map((k) => (
+            {/* ------------------------------------------------------------
+              UMA FILA SÓ, NA MESMA ORDEM EM TODA ABA
+              ------------------------------------------------------------
+              Antes eram duas listas: os ativos e, depois de todos eles, os
+              esmaecidos. O efeito era que a MESMA aba mudava a posição do
+              mesmo controle conforme ele recortasse ou não -- "Tempo de casa"
+              em segundo lugar aqui e em quinto ali.
+
+              Agora Departamento, Job family, Contrato e Tempo de casa ocupam
+              sempre as quatro primeiras posições, ativos ou esmaecidos, e os
+              extras da aba vêm atrás. Esmaecido continua sendo esmaecido: ele
+              informa o limite, não some. */}
+            {barra.map(({ key: k, reason }) => (reason ? (
+              <div key={k} className="flex items-center gap-1.5 opacity-45" title={reason}>
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+                  {FILTER_LABELS[k]}
+                </label>
+                <div className="border border-dashed border-border rounded px-2 py-1 text-[11px] text-muted-foreground min-w-[140px] max-w-[200px] cursor-help">
+                  não se aplica aqui
+                </div>
+              </div>
+            ) : (
               <div key={k} className="flex items-center gap-1.5">
                 {/* Prefixo na mesma linha, e não rótulo em cima: com um filtro
                   só, o rótulo empilhado custava uma linha inteira da barra. */}
@@ -402,26 +437,16 @@ export default function FilterBar() {
                   </select>
                 )}
               </div>
-            ))}
-
-          {indisponiveis.map(({ key, reason }) => (
-              <div key={key} className="flex items-center gap-1.5 opacity-45" title={reason}>
-                <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
-                  {FILTER_LABELS[key]}
-                </label>
-                <div className="border border-dashed border-border rounded px-2 py-1 text-[11px] text-muted-foreground min-w-[140px] max-w-[200px] cursor-help">
-                  não se aplica aqui
-                </div>
-              </div>
-            ))}
+            )))}
         </div>
       </div>
 
       {indisponiveis.length > 0 && (
         <p className="text-[11px] text-muted-foreground pt-2 max-w-3xl leading-relaxed">
-          Os esmaecidos existem em Atrição &amp; Desligamentos, que lê pessoa a pessoa. Nas abas de
-          série mensal só o departamento é recortável — a série é pré-agregada e guarda apenas essa
-          quebra. Passe o mouse para ver o motivo de cada um.
+          Departamento, Job family, Contrato e Tempo de casa ficam sempre nesta ordem, em toda aba.
+          Os esmaecidos aqui recortam em Atrição &amp; Desligamentos e em Compensação, que leem
+          pessoa a pessoa; nas abas de série mensal só o departamento recorta, porque a série é
+          pré-agregada e guarda apenas essa quebra. Passe o mouse para ver o motivo de cada um.
         </p>
       )}
     </div>
