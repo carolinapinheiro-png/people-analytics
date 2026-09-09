@@ -599,7 +599,52 @@ export default function UsersAccessSection({
   const removeAllowedEmailFn = useServerFn(removeAllowedEmail);
   const updateAllowedEmailUserFn = useServerFn(updateAllowedEmailUser);
 
-  const activeDepartments = departments.filter((d) => d.active).map((d) => d.name);
+  // ==================================================================
+  // O SELETOR OFERECE SÓ QUEM TEM GENTE NO CONVENIA
+  // ==================================================================
+  // O catálogo carrega departamentos que não existem no cadastro de ninguém --
+  // medido em set/2026: CW GROUP, SEM DEPTO e TECHNOLOGY GROUP, zero pessoas
+  // cada. Eles apareciam no seletor, e escolher um salva sem erro e entrega um
+  // painel em branco. Quem cadastrou lê isso como falta de dado, não de
+  // escopo.
+  //
+  // Decisão da Carolina, 09/09: "eu quero só o que tem no Convenia".
+  //
+  // NÃO é remoção do catálogo -- a área continua lá, aparece na aba de
+  // Departamentos e volta ao seletor sozinha no dia em que alguém for
+  // cadastrado nela. O que muda é só o que se pode ATRIBUIR hoje.
+  //
+  // ------------------------------------------------------------------
+  // A RÉGUA É O HEADCOUNT, E NÃO A FOLHA
+  // ------------------------------------------------------------------
+  // As duas contagens vêm de bases diferentes:
+  //
+  //   headcount  `dept_data` do mês mais novo, somando NSX, Betfair BR e
+  //              Flutter International. Vem da carga do Convenia.
+  //   folha      `comp_ratio`. Veio de planilha e parou em junho, e não cobre
+  //              as três marcas.
+  //
+  // A primeira versão disto oferecia o departamento se QUALQUER uma das duas
+  // tivesse gente. Isso deixava entrar área que só existe na planilha velha --
+  // o oposto de "o que está no Convenia, na base de agosto".
+  //
+  // Decisão da Carolina, 09/09: tudo o que for NSX, Betfair e Flutter
+  // International, do que estiver no Convenia, na base de agosto. `dept_data`
+  // do mês mais novo é exatamente isso, e já soma as três marcas -- ver
+  // `getDepartments`, que descarta os meses anteriores de propósito.
+  //
+  // A folha continua no RÓTULO de cada opção, porque a diferença entre as duas
+  // é informação: diz em que abas a área alcança gente. Ela só não decide mais
+  // quem entra na lista.
+  //
+  // O `null` importa: quer dizer "não medido", e é o que vem quando a consulta
+  // de contagem não pôde ser feita. Esconder tudo nesse caso deixaria o seletor
+  // vazio, e a tela afirmaria por omissão que não existe departamento nenhum.
+  // Sem medida, oferece tudo.
+  const activeDepartments = departments
+    .filter((d) => d.active)
+    .filter((d) => d.pessoasHeadcount == null || d.pessoasHeadcount > 0)
+    .map((d) => d.name);
   /**
    * Quantas pessoas cada área alcança. Ver `getDepartments`: o catálogo e a
    * base de pessoas se separaram, e atribuir alguém a uma área vazia salva

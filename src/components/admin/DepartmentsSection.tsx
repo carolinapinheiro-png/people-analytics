@@ -40,10 +40,15 @@ export default function DepartmentsSection({
   // pode virar escopo de acesso por omissão.
   const pendentesFn = useServerFn(departamentosPendentes);
   const [pendentes, setPendentes] = useState<Array<{ nome: string; pessoas: number }>>([]);
+  const [orfaos, setOrfaos] = useState<string[]>([]);
   const [pendentesMedido, setPendentesMedido] = useState(true);
   const carregarPendentes = () => {
     pendentesFn({})
-      .then((r) => { setPendentes(r.pendentes); setPendentesMedido(r.medido); })
+      .then((r) => {
+        setPendentes(r.pendentes);
+        setOrfaos((r as { orfaos?: string[] }).orfaos ?? []);
+        setPendentesMedido(r.medido);
+      })
       .catch(() => { setPendentes([]); });
   };
   useEffect(carregarPendentes, []);
@@ -109,6 +114,33 @@ export default function DepartmentsSection({
 
   return (
     <div className="space-y-6">
+      {orfaos.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              No catálogo e sem ninguém no Convenia
+            </CardTitle>
+            <CardDescription>
+              Estes departamentos estão ativos e podem ser atribuídos como escopo, e não há uma
+              pessoa sequer neles no cadastro. Escolher um deles salva sem erro e entrega um painel
+              em branco — o que se lê como falta de dado, não de escopo. Não removo sozinha: uma
+              área pode estar vazia hoje e receber gente amanhã. Desative com o botão ao lado, na
+              lista abaixo.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-2">
+              {orfaos.map((n) => (
+                <span key={n} className="rounded-md border border-border px-2 py-1 text-sm">
+                  {n}
+                </span>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {(pendentes.length > 0 || !pendentesMedido) && (
         <Card>
           <CardHeader>

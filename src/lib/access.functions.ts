@@ -1333,7 +1333,13 @@ export const departamentosPendentes = createServerFn({ method: 'GET' })
     // Leitura vazia não é "o Convenia não tem departamento nenhum" -- é não
     // ter perguntado. Sem uma linha sequer, não há pendente a afirmar.
     const linhas = (pessoas ?? []) as Array<{ department?: string | null }>;
-    if (!linhas.length) return { medido: false, pendentes: [] as Array<{ nome: string; pessoas: number }> };
+    if (!linhas.length) {
+      return {
+        medido: false,
+        pendentes: [] as Array<{ nome: string; pessoas: number }>,
+        orfaos: [] as string[],
+      };
+    }
 
     const contagem = new Map<string, number>();
     for (const p of linhas) {
@@ -1343,10 +1349,39 @@ export const departamentosPendentes = createServerFn({ method: 'GET' })
       contagem.set(nome, (contagem.get(nome) ?? 0) + 1);
     }
 
+    // ------------------------------------------------------------------
+    // A DIVERGÊNCIA TEM DUAS DIREÇÕES, E SÓ UMA ESTAVA NA TELA
+    // ------------------------------------------------------------------
+    // `pendentes` mostra o que o Convenia tem e o catálogo não. O contrário --
+    // catálogo com departamento que não existe no cadastro de ninguém -- ficava
+    // invisível, e é ele que enche o seletor de opção morta: escolher uma
+    // delas salva sem erro e entrega um painel em branco.
+    //
+    // Medido em set/2026: CW GROUP, SEM DEPTO e TECHNOLOGY GROUP não têm uma
+    // pessoa sequer, e continuavam sendo oferecidos como escopo de acesso.
+    //
+    // NÃO são removidos daqui: uma área pode estar vazia hoje e receber gente
+    // amanhã, e apagar sozinha seria decidir por omissão -- o mesmo que a
+    // aprovação de pendentes evita do outro lado. A tela mostra, quem decide é
+    // quem administra.
+    const noConvenia = new Set<string>();
+    for (const p of linhas) {
+      const nome = (p.department ?? '').trim().toUpperCase();
+      if (nome) noConvenia.add(nome);
+    }
+    const orfaos = ((deps ?? []) as Array<{ name: string; aliases: string[] | null; active: boolean }>)
+      .filter((d) => d.active)
+      .filter((d) => {
+        const nomes = [d.name, ...(d.aliases ?? [])].map((x) => x.trim().toUpperCase());
+        return !nomes.some((n) => noConvenia.has(n));
+      })
+      .map((d) => d.name);
+
     return {
       medido: true,
       pendentes: [...contagem.entries()]
         .map(([nome, pessoas]) => ({ nome, pessoas }))
         .sort((a, b) => b.pessoas - a.pessoas),
+      orfaos,
     };
   });
