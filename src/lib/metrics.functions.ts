@@ -303,6 +303,9 @@ export interface MonthlyMetricRow extends MetricSeriesRow {
   leader_dept: Record<string, { leaders: number; female: number }> | null;
   /** Distribuicao por tempo de casa ({ "0-3m": n, ..., "5a+": n }). */
   tenure_base: Record<string, number> | null;
+  /** Contagem por Job Type Family e por vinculo ({ "CLT": n, ... }). */
+  family_base: Record<string, number> | null;
+  contract_base: Record<string, number> | null;
   /** Demograficos ({ age, race, marital, origin }). */
   demographics: {
     age?: Record<string, number>;
@@ -363,10 +366,10 @@ export const getMonthlyMetrics = createServerFn({ method: 'GET' })
     const tabela = db.from('monthly_metrics');
     let q = (podeVerMovimentacoes
       ? tabela.select(
-        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, raise_events, pcd, apprentice, leader_dept, tenure_base, demographics, race_cross, dept_breakdown',
+        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, raise_events, pcd, apprentice, leader_dept, tenure_base, family_base, contract_base, demographics, race_cross, dept_breakdown',
       )
       : tabela.select(
-        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, pcd, apprentice, leader_dept, tenure_base, demographics, race_cross, dept_breakdown',
+        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, pcd, apprentice, leader_dept, tenure_base, family_base, contract_base, demographics, race_cross, dept_breakdown',
       ))
       .is('quality_flag', null)
       .order('month', { ascending: true });

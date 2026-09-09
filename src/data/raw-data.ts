@@ -79,6 +79,11 @@ export interface DeptBreakdownRecord {
   leader_female: number;
   level_base: Record<string, number>;
   tenure_base: Record<string, number>;
+  /** Quebra por familia e por vinculo DENTRO da area. E o que permite combinar
+   *  "TECHNOLOGY" com "PJ" sem ratear -- linha antiga nao tem, e o recorte
+   *  combinado se declara nao-confiavel em vez de inventar. */
+  family_base?: Record<string, number>;
+  contract_base?: Record<string, number>;
   demographics: {
     age: Record<string, number>;
     race: Record<string, number>;

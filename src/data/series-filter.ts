@@ -44,7 +44,17 @@ import { semFiltro, valorFiltro } from '@/lib/filtro-sentinela';
  * aqui, o headcount vinha sempre 0 e a tela mostrava "0 pessoas, 21 saidas,
  * 0% de atricao", que e pior que nao oferecer o recorte.
  */
-export type SeriesFilterKey = 'level' | 'tempoCasa';
+/**
+ * `jobFamily` e `tipoContrato` ENTRARAM em 09/09.
+ *
+ * O comentario acima descrevia por que `tipoContrato` tinha sido removido: a
+ * contagem por vinculo vivia em `contract_mix_monthly`, uma tabela que a serie
+ * do contexto nao carrega, e o headcount vinha sempre 0. A causa nunca foi o
+ * dado -- era o lugar onde ele estava. A carga passou a gravar `contract_base`
+ * e `family_base` na propria linha mensal (migracao 20260909170000), e as duas
+ * dimensoes viraram exatas aqui, pela mesma regra do nivel e do tempo de casa.
+ */
+export type SeriesFilterKey = 'level' | 'tempoCasa' | 'jobFamily' | 'tipoContrato';
 
 /** Métricas que sobrevivem a um recorte de dimensão única. */
 export const METRICAS_EXATAS = ['headcount', 'leavers', 'attrition_rate'] as const;
@@ -125,7 +135,10 @@ export function applySeriesFilter(
   // populacoes diferentes -- e a atricao entre elas seria um numero inventado.
   const unreliable = !!department && months.some((m) => m.dept_filter_exact === false);
 
-  const labelPrefix = key === 'level' ? 'Nível' : 'Tempo de casa';
+  const labelPrefix = key === 'level' ? 'Nível'
+    : key === 'tempoCasa' ? 'Tempo de casa'
+    : key === 'jobFamily' ? 'Job family'
+    : 'Contrato';
   const dept = valorFiltro(department)?.toUpperCase() ?? null;
 
   // Contagem de saídas por mês dentro do recorte. Person-level, então exata.
@@ -137,6 +150,13 @@ export function applySeriesFilter(
     if (dept && norm(l.departamento).toUpperCase() !== dept) continue;
     let bate = false;
     if (key === 'level') bate = norm(l.level) === norm(escolhido);
+    // Familia e vinculo do DESLIGADO, pessoa a pessoa -- mesma fonte do nivel.
+    // Comparacao sem caixa: a serie escreve o valor como veio do cadastro e a
+    // tabela de desligados como veio da planilha, e uma diferenca de maiuscula
+    // faria a saida sumir do numerador com o headcount intacto. Atricao 0% com
+    // gente saindo e pior que recorte indisponivel.
+    else if (key === 'jobFamily') bate = norm(l.job_family).toUpperCase() === norm(escolhido).toUpperCase();
+    else if (key === 'tipoContrato') bate = norm(l.vinculo).toUpperCase() === norm(escolhido).toUpperCase();
     else if (key === 'tempoCasa') {
       const alvo = TENURE_LABEL_TO_KEY[escolhido] ?? escolhido;
       bate = tenureBucketFromDays(l.tempo_casa_dias ?? 0) === alvo;
@@ -145,11 +165,19 @@ export function applySeriesFilter(
   }
 
   const out = months.map((m): MonthRecord => {
-    let hc = 0;
-    hc =
-      key === 'level'
-        ? (m.level_base?.[escolhido] ?? 0)
-        : (m.tenure_base?.[TENURE_LABEL_TO_KEY[escolhido] ?? escolhido] ?? 0);
+    // O denominador sai da quebra gravada para a dimensao escolhida. Chave
+    // ausente = zero pessoas naquele mes, que e a verdade sobre o que foi
+    // gravado -- linha antiga, anterior a migracao, nao tem a quebra e mostra
+    // zero em vez de fingir.
+    const base =
+      key === 'level' ? m.level_base
+      : key === 'tempoCasa' ? m.tenure_base
+      : key === 'jobFamily' ? m.family_base
+      : m.contract_base;
+    const chaveHc = key === 'tempoCasa'
+      ? (TENURE_LABEL_TO_KEY[escolhido] ?? escolhido)
+      : escolhido;
+    const hc = base?.[chaveHc] ?? 0;
     const saidas = saidasPorMes.get(m.month) ?? 0;
 
     return {
@@ -166,6 +194,8 @@ export function applySeriesFilter(
       promotions: 0,
       level_base: undefined,
       tenure_base: undefined,
+      family_base: undefined,
+      contract_base: undefined,
       demographics: undefined,
       race_cross: undefined,
       dept_breakdown: undefined,
@@ -206,7 +236,7 @@ export interface SeriesCut {
 }
 
 /** Precedência: nível primeiro (recorte mais usado na leitura executiva). */
-const CUT_PRECEDENCE: SeriesFilterKey[] = ['level', 'tempoCasa'];
+const CUT_PRECEDENCE: SeriesFilterKey[] = ['level', 'tempoCasa', 'jobFamily', 'tipoContrato'];
 
 export function resolveSeriesCut(
   filters: Partial<Record<SeriesFilterKey, string>>,
