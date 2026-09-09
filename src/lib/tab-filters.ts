@@ -103,9 +103,9 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   // Consomem a série do contexto, que passa pelo applyDeptFilter.
   // Overview aceita UM recorte de dimensao alem do departamento (ver
   // series-filter.ts). A exclusividade entre os tres e garantida na barra.
-  // tipoContrato saiu: a contagem por vinculo vive em contract_mix_monthly, que
-  // a serie do contexto nao carrega -- dava headcount 0. Ver series-filter.ts.
-  // `jobFamily` e `tipoContrato` entraram em 09/09, quando a carga passou a
+  // `tipoContrato` chegou a SAIR daqui: a contagem por vinculo vivia em
+  // `contract_mix_monthly`, que a serie do contexto nao carrega, e o headcount
+  // vinha 0. Voltou junto com `jobFamily` em 09/09, quando a carga passou a
   // gravar `family_base` e `contract_base` na linha mensal (migracao
   // 20260909170000). Antes disso eles apareciam esmaecidos aqui, e o motivo
   // escrito na tela -- "a serie so guarda a quebra por departamento" -- era
