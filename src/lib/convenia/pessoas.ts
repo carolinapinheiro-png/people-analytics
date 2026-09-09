@@ -100,6 +100,14 @@ export interface PessoaConvenia {
    * ser descoberto como surpresa.
    */
   jobFamily?: string | null;
+  /** `Level` do cadastro ("L0".."L9"). Atributo ATUAL, igual à família. */
+  nivel?: string | null;
+  /** Estado civil, do detalhe ("Casado(a)"). */
+  marital?: string | null;
+  /** UF de NASCIMENTO (`natural_from_state_uf`) -- não é a de residência, que
+   *  já vive em `uf` e alimenta o `state_mix`. As duas respondem perguntas
+   *  diferentes: origem e localização. */
+  origem?: string | null;
   /**
    * A listagem como veio, menos documentos. É a rede contra o ciclo de "mais
    * uma coluna": campo novo já está guardado antes de alguém precisar dele.
@@ -205,7 +213,29 @@ export interface LinhaMensal {
    * certa, era a que estava no ar. Quando o Convenia a substituiu, os dois
    * gráficos perderam o dado -- e a tela não tinha como dizer isso.
    */
-  demographics: { age: Record<string, number>; race: Record<string, number> };
+  demographics: {
+    age: Record<string, number>;
+    race: Record<string, number>;
+    /**
+     * ESTADO CIVIL E UF NATAL ENTRARAM EM 09/09.
+     *
+     * A aba de Demográficos desenha quatro gráficos a partir daqui, e a série
+     * do Convenia só produzia dois. "Estado civil" e "Origem (UF natal)"
+     * ficavam vazios -- sem erro, sem aviso, indistinguíveis de "ninguém
+     * respondeu". Os dois campos vêm no detalhe do cadastro e estavam sendo
+     * lidos e jogados fora.
+     */
+    marital?: Record<string, number>;
+    origin?: Record<string, number>;
+  };
+  /**
+   * Distribuição por nível ("L0".."L9").
+   *
+   * Mesma história: o gráfico "Senioridade (nível)" lê `level_base`, a série
+   * reconstruída gravava, e a do Convenia -- que a substituiu -- nunca
+   * calculou. O `Level` está no cadastro de 7 em cada 8 pessoas.
+   */
+  level_base: Record<string, number>;
   gender_female: number;
   gender_male: number;
   /** `null` enquanto a cobertura de gênero for baixa demais para ser honesta. */
@@ -551,6 +581,9 @@ export function reconstruirSerie(
     const state_mix: Record<string, number> = {};
     const tenure_base: Record<string, number> = {};
     const family_base: Record<string, number> = {};
+    const level_base: Record<string, number> = {};
+    const porEstadoCivil: Record<string, number> = {};
+    const porOrigem: Record<string, number> = {};
     const contract_base: Record<string, number> = {};
     const porIdade: Record<string, number> = {};
     const porRacaDemo: Record<string, number> = {};
@@ -625,6 +658,29 @@ export function reconstruirSerie(
         contract_base[vinculo] = (contract_base[vinculo] ?? 0) + 1;
         A.contract_base[vinculo] = (A.contract_base[vinculo] ?? 0) + 1;
 
+        // ------------------------------------------------------------
+        // NÍVEL, ESTADO CIVIL E UF NATAL
+        // ------------------------------------------------------------
+        // Os três alimentam gráficos que existem na aba de Demográficos e
+        // estavam em branco: a série reconstruída os gravava, a do Convenia
+        // nunca os calculou, e a troca de série apagou os gráficos sem que
+        // nada na tela dissesse por quê.
+        //
+        // "Não informado" entra como categoria, como no resto deste laço: a
+        // soma tem de bater com o headcount. A tela já sabe rotular e, no caso
+        // da origem, filtra o rótulo antes de desenhar o top 10.
+        const nivel = (x.p.nivel ?? '').trim() || 'NA';
+        level_base[nivel] = (level_base[nivel] ?? 0) + 1;
+        A.level_base[nivel] = (A.level_base[nivel] ?? 0) + 1;
+
+        const civil = (x.p.marital ?? '').trim() || 'Não informado';
+        porEstadoCivil[civil] = (porEstadoCivil[civil] ?? 0) + 1;
+        A.demographics.marital[civil] = (A.demographics.marital[civil] ?? 0) + 1;
+
+        const natal = (x.p.origem ?? '').trim() || 'Não informado';
+        porOrigem[natal] = (porOrigem[natal] ?? 0) + 1;
+        A.demographics.origin[natal] = (A.demographics.origin[natal] ?? 0) + 1;
+
         const idade = faixaEtaria(x.p.birth_date, mes);
         if (idade) {
           porIdade[idade] = (porIdade[idade] ?? 0) + 1;
@@ -677,7 +733,11 @@ export function reconstruirSerie(
       tenure_base,
       family_base,
       contract_base,
-      demographics: { age: porIdade, race: porRacaDemo },
+      level_base,
+      demographics: {
+        age: porIdade, race: porRacaDemo,
+        marital: porEstadoCivil, origin: porOrigem,
+      },
       gender_female: gF,
       gender_male: gM,
       // Percentual só quando a cobertura sustenta. Ver COBERTURA_MINIMA_GENERO.

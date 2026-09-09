@@ -378,7 +378,10 @@ test('demographics vem aninhado em age e race, que é o que a tela lê', () => {
     p({ id: '2', hiring_date: '2026-01-01', birth_date: '1990-05-05', raca: 'Branca' }),
   ];
   const d = reconstruirSerie(pessoas, 'NSX', '2026-01').linhas[0].demographics;
-  assert.deepEqual(Object.keys(d).sort(), ['age', 'race']);
+  // `marital` e `origin` entraram em 09/09: a tela sempre teve os gráficos e a
+  // série do Convenia não produzia os dois. O que este teste trava continua
+  // sendo a FORMA aninhada -- a plana deixou idade e cor/raça em branco.
+  assert.deepEqual(Object.keys(d).sort(), ['age', 'marital', 'origin', 'race']);
   assert.equal(d.race.Parda, 1);
   assert.equal(d.race.Branca, 1);
   assert.ok(Object.values(d.age).some((v) => v > 0), 'idade não pode vir vazia');
@@ -622,4 +625,44 @@ test('semSensiveis recusa o que nao e objeto', () => {
   assert.equal(semSensiveis(null), null);
   assert.equal(semSensiveis('texto'), null);
   assert.equal(semSensiveis(['a']), null);
+});
+
+// ---------------------------------------------------------------------------
+// OS TRES GRAFICOS EM BRANCO DA ABA DE DEMOGRAFICOS (09/09)
+// ---------------------------------------------------------------------------
+// "Estado civil", "Origem (UF natal)" e "Senioridade (nivel)" existiam na tela
+// e nao desenhavam nada. A serie reconstruida gravava os tres; a do Convenia,
+// que a substituiu, nunca os calculou -- e a tela nao tinha como dizer isso.
+// Um grafico vazio se le como "ninguem respondeu".
+test('a serie do Convenia calcula nivel, estado civil e UF natal', () => {
+  const { linhas } = reconstruirSerie(
+    [
+      {
+        id: '1', hiring_date: '2026-01-10', department: { name: 'TECHNOLOGY' },
+        nivel: 'L5', marital: 'Casado(a)', origem: 'PE',
+      },
+      {
+        id: '2', hiring_date: '2026-01-15', department: { name: 'TECHNOLOGY' },
+        nivel: 'L5', marital: 'Solteiro(a)', origem: 'SP',
+      },
+      // Sem nenhum dos tres: nao pode SUMIR da conta, ou a soma deixa de bater
+      // com o headcount e o grafico mostra menos gente do que existe.
+      { id: '3', hiring_date: '2026-01-20', department: { name: 'HR' } },
+    ],
+    'NSX',
+    '2026-01',
+  );
+  const jan = linhas.find((l) => l.month === '2026-01-01')!;
+  assert.equal(jan.headcount, 3);
+  assert.deepEqual(jan.level_base, { L5: 2, NA: 1 });
+  assert.deepEqual(jan.demographics.marital, { 'Casado(a)': 1, 'Solteiro(a)': 1, 'Não informado': 1 });
+  assert.deepEqual(jan.demographics.origin, { PE: 1, SP: 1, 'Não informado': 1 });
+  // A soma de cada quebra bate com o headcount -- a garantia de que ninguem
+  // caiu fora por falta de valor.
+  for (const q of [jan.level_base, jan.demographics.marital!, jan.demographics.origin!]) {
+    assert.equal(Object.values(q).reduce((a, b) => a + b, 0), jan.headcount);
+  }
+  // E a mesma quebra existe DENTRO da area, para o filtro de departamento.
+  assert.deepEqual(jan.dept_breakdown.TECHNOLOGY.level_base, { L5: 2 });
+  assert.deepEqual(jan.dept_breakdown.HR.demographics.origin, { 'Não informado': 1 });
 });

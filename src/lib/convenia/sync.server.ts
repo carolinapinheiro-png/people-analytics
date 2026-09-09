@@ -291,7 +291,12 @@ export async function executarSyncConvenia(
     const LOTE_GENERO = 200;
     const { data: pessoasCache } = await db
       .from('convenia_pessoas')
-      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields, detalhe_em, detalhe_versao');
+      // `bruto` entra na consulta porque estado civil e UF natal só existem
+      // ali: são campos do DETALHE que a carga lia e jogava fora, e nenhum
+      // deles tem coluna própria. Ler daqui evita subir `VERSAO_DETALHE` de
+      // novo -- o dado já está guardado desde a releitura de hoje, e mais um
+      // ciclo de quatro cargas atrasaria os gráficos por dias.
+      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields, bruto, detalhe_em, detalhe_versao');
     const cacheGenero = new Map<string, 'F' | 'M' | null>(
       ((pessoasCache ?? []) as { convenia_id: string; gender: string | null }[])
         .map((r) => [r.convenia_id, (r.gender as 'F' | 'M' | null) ?? null]),
@@ -357,6 +362,32 @@ export async function executarSyncConvenia(
           r.convenia_id,
           valorDeCampo(lerCustomFields(r.custom_fields), ['job type family']),
         ]),
+    );
+    // `exato`: existe `WorkDay Level` no mesmo cadastro, com outra escala
+    // (N-3..N-6 Above). Sem isto, a pirâmide de senioridade misturaria as
+    // duas réguas e ninguém notaria pelo desenho.
+    const nivelPorId = new Map<string, string | null>(
+      ((pessoasCache ?? []) as { convenia_id: string; custom_fields: unknown }[])
+        .map((r) => [
+          r.convenia_id,
+          valorDeCampo(lerCustomFields(r.custom_fields), ['level'], { exato: true }),
+        ]),
+    );
+    // Estado civil e UF NATAL, do `bruto` (a resposta do detalhe, guardada
+    // inteira justamente para não precisar de coluna nova a cada gráfico).
+    // `natural_from_state_uf` é onde a pessoa NASCEU -- não confundir com
+    // `uf`, que é residência e alimenta outro gráfico.
+    const doBruto = (b: unknown, chave: string): string | null => {
+      const o = (b ?? {}) as Record<string, unknown>;
+      return textoDe(o[chave]);
+    };
+    const estadoCivilPorId = new Map<string, string | null>(
+      ((pessoasCache ?? []) as { convenia_id: string; bruto: unknown }[])
+        .map((r) => [r.convenia_id, doBruto(r.bruto, 'marital_status_id')]),
+    );
+    const origemPorId = new Map<string, string | null>(
+      ((pessoasCache ?? []) as { convenia_id: string; bruto: unknown }[])
+        .map((r) => [r.convenia_id, doBruto(r.bruto, 'natural_from_state_uf')]),
     );
     // ------------------------------------------------------------------
     // "JA LIDO" MUDA DE SIGNIFICADO A CADA CAMPO NOVO
@@ -602,6 +633,9 @@ export async function executarSyncConvenia(
           // Quem ainda não teve o detalhe lido fica sem, e a série a conta como
           // "Não informado" -- visível, em vez de sumir do headcount.
           jobFamily: familiaPorId.get(p.id) ?? null,
+          nivel: nivelPorId.get(p.id) ?? null,
+          marital: estadoCivilPorId.get(p.id) ?? null,
+          origem: origemPorId.get(p.id) ?? null,
           genero: cacheGenero.get(p.id) ?? null,
           raca: cacheRaca.get(p.id) ?? null,
         }));
@@ -1569,6 +1603,11 @@ export async function executarSyncConvenia(
         // esmaecidos nas abas de série -- que era a situação até 09/09.
         family_base: l.family_base,
         contract_base: l.contract_base,
+        // `level_base` NUNCA foi gravado por esta carga -- a série
+        // reconstruída gravava, a do Convenia a substituiu, e o gráfico
+        // "Senioridade (nível)" apagou junto. Mesmo caso de "Estado civil" e
+        // "Origem (UF natal)", que saem dentro de `demographics`.
+        level_base: l.level_base,
         demographics: l.demographics,
         // As duas razões de marcar convivem: a linha pode ser anterior ao
         // horizonte E ter desligado sem admissão resolvida. Quem lê a marca
