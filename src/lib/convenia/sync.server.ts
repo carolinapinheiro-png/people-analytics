@@ -560,6 +560,16 @@ export async function executarSyncConvenia(
         .filter((r) => r.detalhe_em != null && (r.detalhe_versao ?? 0) >= VERSAO_DETALHE)
         .map((r) => r.convenia_id),
     );
+    /**
+     * A FILA DO DETALHE, uma vez só.
+     *
+     * É esta que o veredito consulta e é esta que a carga reenfileira. Ter uma
+     * segunda contagem em outro lugar foi o que fez a tela anunciar "pronto"
+     * com 546 pessoas em aberto.
+     */
+    const naFilaDoDetalhe = ((pessoasCache ?? []) as Array<{ convenia_id: string; detalhe_versao: number | null }>)
+      .filter((r) => (r.detalhe_versao ?? 0) < VERSAO_DETALHE).length;
+
     const cargoBuscado = new Set(
       ((pessoasCache ?? []) as { convenia_id: string; job_title_em: string | null }[])
         .filter((r) => r.job_title_em != null).map((r) => r.convenia_id),
@@ -1552,8 +1562,25 @@ export async function executarSyncConvenia(
         `(${pct(comEmpresa)}%) e Escritorio em ${comEscritorio} (${pct(comEscritorio)}%).` +
         (naFila > 0 ? ` Faltam ${naFila} na fila -- rode de novo.` : ''),
       );
+      // ------------------------------------------------------------------
+      // DUAS DEFINIÇÕES DE "FILA DO DETALHE", E O VEREDITO PEGOU A ERRADA
+      // ------------------------------------------------------------------
+      // Este `naFila` é `orgTodos menos quem tem cargo buscado` -- uma marca
+      // antiga, de quando o detalhe só servia para o cargo. A fila que a carga
+      // DE FATO reenfileira é `detalhe_versao < VERSAO_DETALHE`, e as duas
+      // divergiram: 0 aqui, 546 no aviso do comp-ratio, na mesma execução.
+      //
+      // O resultado foi a tela dizer "Pronto para gravar" com 546 pessoas na
+      // fila -- exatamente o erro que eu disse que seria meu para caçar, e que
+      // é pior que o problema original: agora a tela mente com confiança.
+      //
+      // A fila do veredito é calculada UMA vez, em `naFilaDoDetalhe`, junto de
+      // onde `pessoasCache` é lido. Aqui fica só o texto.
       if (naFila > 0) {
-        filasPendentes.push(`detalhe de ${naFila} pessoa(s) -- afeta empresa, escritorio, level, origem e cotas`);
+        avisos.push(
+          `Marca antiga de cargo: ${naFila} pessoa(s) sem \`job_title_em\`. Não é a fila do `
+          + 'detalhe -- essa é contada por `detalhe_versao` e aparece no veredito.',
+        );
       }
       // ------------------------------------------------------------------
       // O DE-PARA TEM QUE DIZER O QUE NAO RECONHECEU, POR NOME
@@ -1923,7 +1950,9 @@ export async function executarSyncConvenia(
       // frase, a mesma tela que diz "636 sem vínculo" na 1ª rodada diz "36" na
       // 4ª sem nada explicar, e no meio do caminho alguém abre chamado no RH
       // para corrigir um dado que está certo.
-      const naFila = cadastro.filter((c) => Number(c.detalhe_versao ?? 0) < VERSAO_DETALHE).length;
+      // A MESMA contagem do veredito. Recontar aqui foi o que produziu 0 num
+      // lugar e 546 no outro, na mesma execucao.
+      const naFila = naFilaDoDetalhe;
 
       // ------------------------------------------------------------------
       // QUANDO A BUSCA FALHA, MOSTRE OS NOMES QUE EXISTEM
@@ -1997,8 +2026,21 @@ export async function executarSyncConvenia(
       linhasPorMarca,
       totalLinhas: todasLinhas.length,
       linhasVisiveis: linhasLegiveis.length,
-      pronto: filasPendentes.length === 0 && !serieTravada,
-      oQueFalta: serieTravada ? ['a serie esta travada (ver o aviso acima)', ...filasPendentes] : filasPendentes,
+      // O veredito consulta as filas E o relógio: se a carga parou por tempo,
+      // ela SABE que ficou incompleta, e dizer "pronto" nesse caso seria a
+      // mesma mentira com outra fonte.
+      pronto: filasPendentes.length === 0 && naFilaDoDetalhe === 0
+        && !detalheSemTempo && !historicoSemTempo && !serieTravada,
+      oQueFalta: [
+        ...(serieTravada ? ['a serie esta travada (ver o aviso acima)'] : []),
+        ...(naFilaDoDetalhe > 0
+          ? [`detalhe de ${naFilaDoDetalhe} pessoa(s) -- afeta empresa, escritorio, level, origem e cotas`]
+          : []),
+        ...filasPendentes,
+        ...(detalheSemTempo || historicoSemTempo
+          ? ['terminar de buscar: a carga parou por tempo nesta execucao']
+          : []),
+      ],
       // Quantas pessoas o organograma vai gravar. Com a serie travada, ISTO e
       // o que ainda vale confirmar -- camada N, cargo, empresa e escritorio.
       totalOrg: orgTodos.length,
