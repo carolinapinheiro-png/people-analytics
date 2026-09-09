@@ -109,6 +109,17 @@ export interface PessoaConvenia {
    *  diferentes: origem e localização. */
   origem?: string | null;
   /**
+   * Cotas legais, atributo ATUAL aplicado à série.
+   *
+   * `pcd` vem do campo personalizado "Considera PCD"; `aprendiz`, do vínculo.
+   * Os dois são COTA LEGAL, e por isso a regra aqui é diferente das outras:
+   * campo em branco NÃO é "não é PCD" -- é desconhecido. Contar branco como
+   * negativo subestima uma cota, e subestimar cota legal tem consequência
+   * fora do painel.
+   */
+  pcd?: boolean | null;
+  aprendiz?: boolean | null;
+  /**
    * A listagem como veio, menos documentos. É a rede contra o ciclo de "mais
    * uma coluna": campo novo já está guardado antes de alguém precisar dele.
    */
@@ -207,6 +218,17 @@ export interface LinhaMensal {
    */
   promotions?: number;
   raise_events?: Record<'promocao' | 'merito' | 'dissidio', { n: number; delta: number }>;
+  /**
+   * Cotas legais no mês.
+   *
+   * `pcd` conta quem tem o campo personalizado marcado como sim. `pcd_conhecido`
+   * conta quem tem QUALQUER resposta ali -- é o denominador honesto. Sem ele, a
+   * tela mostrava "0,0% PCD" com o campo preenchido em 1 de 8 pessoas, o que se
+   * lê como "não temos ninguém" em vez de "quase ninguém respondeu".
+   */
+  pcd: number;
+  pcd_conhecido: number;
+  apprentice: number;
   /** Contagem por Job Type Family. Ver a nota em `DeptBreakdownPorArea`. */
   family_base: Record<string, number>;
   /** Contagem por vínculo, como o Convenia escreve ("CLT", "Pessoa Jurídica"). */
@@ -597,6 +619,7 @@ export function reconstruirSerie(
     const level_base: Record<string, number> = {};
     const porEstadoCivil: Record<string, number> = {};
     const porOrigem: Record<string, number> = {};
+    let pcd = 0, pcdConhecido = 0, aprendizes = 0;
     const contract_base: Record<string, number> = {};
     const porIdade: Record<string, number> = {};
     const porRacaDemo: Record<string, number> = {};
@@ -694,6 +717,13 @@ export function reconstruirSerie(
         porOrigem[natal] = (porOrigem[natal] ?? 0) + 1;
         A.demographics.origin[natal] = (A.demographics.origin[natal] ?? 0) + 1;
 
+        // Cota legal: `null` (ninguém respondeu) NÃO entra como "não".
+        if (x.p.pcd != null) {
+          pcdConhecido++;
+          if (x.p.pcd) pcd++;
+        }
+        if (x.p.aprendiz) aprendizes++;
+
         const idade = faixaEtaria(x.p.birth_date, mes);
         if (idade) {
           porIdade[idade] = (porIdade[idade] ?? 0) + 1;
@@ -747,6 +777,9 @@ export function reconstruirSerie(
       family_base,
       contract_base,
       level_base,
+      pcd,
+      pcd_conhecido: pcdConhecido,
+      apprentice: aprendizes,
       demographics: {
         age: porIdade, race: porRacaDemo,
         marital: porEstadoCivil, origin: porOrigem,

@@ -84,9 +84,11 @@ test('os quatro fixos aparecem em TODA aba, ativos ou esmaecidos', () => {
 test('os fixos vêm primeiro, na ordem acordada, antes dos extras', () => {
   // Departamento, Job family, Contrato, Tempo de casa -- e só então level,
   // faixa salarial, tipo de desligamento, modelo, marca.
+  // `modeloTrabalho` saiu de Atrição em 09/09: aparecia ativo e não filtrava
+  // nada -- a base de desligados por pessoa não guarda modelo de trabalho.
   assert.deepEqual(filtersForTab('attrition', null), [
     'departamento', 'jobFamily', 'tipoContrato', 'tempoCasa',
-    'level', 'faixaSalarial', 'tipoDesligamento', 'modeloTrabalho',
+    'level', 'faixaSalarial', 'tipoDesligamento',
   ]);
   assert.deepEqual(filtersForTab('comp', 'compratio'), [
     'departamento', 'jobFamily', 'tipoContrato', 'tempoCasa', 'level', 'faixaSalarial',

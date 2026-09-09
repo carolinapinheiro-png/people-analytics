@@ -88,6 +88,18 @@ export const ORDEM_DA_BARRA: FilterKey[] = [
 const porOrdem = (ks: readonly FilterKey[]): FilterKey[] =>
   ORDEM_DA_BARRA.filter((k) => ks.includes(k));
 
+/**
+ * Tudo o que Atrição & Desligamentos recorta de verdade.
+ *
+ * `modeloTrabalho` SAIU em 09/09. Ele estava nesta lista, aparecia ativo na
+ * barra e não fazia nada: nem `LeaversTab` nem `UnwantedTab` leem
+ * `filters.modeloTrabalho`, e `LeaverRecord` não tem o campo -- a base de
+ * desligados por pessoa não guarda modelo de trabalho.
+ *
+ * Era exatamente o defeito que este arquivo existe para impedir, dentro do
+ * próprio arquivo: um seletor que afirma filtrar e não filtra. Modelo de
+ * trabalho continua funcionando no Engajamento, onde a pesquisa pergunta.
+ */
 const TODOS: FilterKey[] = [
   'departamento',
   'jobFamily',
@@ -96,7 +108,6 @@ const TODOS: FilterKey[] = [
   'faixaSalarial',
   'tipoDesligamento',
   'level',
-  'modeloTrabalho',
 ];
 
 export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {

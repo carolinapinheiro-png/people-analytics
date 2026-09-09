@@ -43,11 +43,6 @@
  * de propósito. Fazer a carga produzir e esquecer de tirar a linha também.
  */
 export const AUSENTES_NA_SERIE_CONVENIA: Record<string, string> = {
-  pcd:
-    'Cota legal. O campo personalizado "Considera PCD" existe no cadastro e é pouco preenchido; '
-    + 'a carga ainda não o conta, e contar mal aqui subestimaria uma cota legal.',
-  apprentice:
-    'Cota legal, derivável do vínculo "Aprendiz" (que a carga já guarda). Ainda não é contada por mês.',
   leader_dept:
     'Liderança por área já existe dentro de `dept_breakdown` (leaders, leader_female). '
     + 'Esta coluna é a forma antiga da mesma informação e não foi replicada de propósito.',
@@ -75,6 +70,16 @@ export const AUSENTES_NA_SERIE_CONVENIA: Record<string, string> = {
  * cálculo, e a cobertura que a carga imprime a cada execução.
  */
 export const PRODUZIDOS_FORA_DA_RECONSTRUCAO = new Set(['promotions', 'raise_events']);
+
+/**
+ * Cotas legais: contadas desde 09/09, mas ZERO é uma resposta possível.
+ *
+ * `camposComValor` trata 0 como preenchido, então elas passam na comparação --
+ * o cenário de teste não tem PCD nem aprendiz e as duas saem 0. Ficam citadas
+ * aqui porque a regra delas é diferente das outras: campo em branco não é
+ * "não é PCD", é desconhecido, e `pcd_conhecido` carrega esse denominador.
+ */
+export const COTAS_LEGAIS = new Set(['pcd', 'apprentice']);
 
 /**
  * Campos que a série NÃO produz porque a COMPOSIÇÃO os deriva.

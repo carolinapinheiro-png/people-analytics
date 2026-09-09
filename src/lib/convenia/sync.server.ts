@@ -125,8 +125,14 @@ export interface ResumoSyncConvenia {
  *    pelo mesmo motivo -- e a primeira em que a causa foi escrever, e nao
  *    esquecer de escrever. Sobe a versao para reenfileirar as 636 pessoas cujo
  *    vinculo foi apagado; sem isso elas nunca voltariam para a fila.
+ * 5: `bruto` saiu do mesmo bloco, pelo mesmo motivo, um campo ao lado. Ao
+ *    consertar o vinculo eu nao olhei a linha de baixo: o `bruto` da listagem
+ *    substituia o `{listagem + detalhe}` a cada carga, e com ele iam embora
+ *    `natural_from_state_uf` e `marital_status_id`. O grafico "Origem (UF
+ *    natal)" continuou vazio depois da serie gravada, e foi assim que
+ *    apareceu. Sobe a versao para remontar o `bruto` completo de todo mundo.
  */
-const VERSAO_DETALHE = 4;
+const VERSAO_DETALHE = 5;
 
 /**
  * O Convenia devolve salário ora como número, ora como string no formato
@@ -455,6 +461,28 @@ export async function executarSyncConvenia(
       ((pessoasCache ?? []) as { convenia_id: string; bruto: unknown }[])
         .map((r) => [r.convenia_id, doBruto(r.bruto, 'marital_status_id')]),
     );
+    // ------------------------------------------------------------------
+    // COTA LEGAL: BRANCO NAO E "NAO"
+    // ------------------------------------------------------------------
+    // "Considera PCD - Folha de Pagamento?" existe no cadastro e e pouco
+    // preenchido. `null` quando ninguem respondeu, `true`/`false` quando
+    // respondeu -- e a serie guarda o denominador de quem respondeu junto com
+    // o numerador. A tela mostrava "0,0% PCD", que se le como "nao temos
+    // ninguem" em vez de "quase ninguem respondeu".
+    const simNao = (v: string | null): boolean | null => {
+      const k = (v ?? '').trim().toLowerCase();
+      if (!k) return null;
+      if (k.startsWith('s')) return true;   // Sim
+      if (k.startsWith('n')) return false;  // Nao
+      return null;
+    };
+    const pcdPorId = new Map<string, boolean | null>(
+      ((pessoasCache ?? []) as { convenia_id: string; custom_fields: unknown }[])
+        .map((r) => [
+          r.convenia_id,
+          simNao(valorDeCampo(lerCustomFields(r.custom_fields), ['considera pcd'])),
+        ]),
+    );
     const origemPorId = new Map<string, string | null>(
       ((pessoasCache ?? []) as { convenia_id: string; bruto: unknown }[])
         .map((r) => [r.convenia_id, doBruto(r.bruto, 'natural_from_state_uf')]),
@@ -685,7 +713,23 @@ export async function executarSyncConvenia(
           hiring_date: p.hiring_date || null,
           cost_center: p.cost_center ?? null,
           status: p.status ?? null,
-          bruto: p.bruto,
+          // ------------------------------------------------------------
+          // `bruto` TAMBÉM NÃO ENTRA AQUI -- MESMO DEFEITO DO VÍNCULO
+          // ------------------------------------------------------------
+          // Ontem eu tirei `relationship` deste bloco porque ele gravava null
+          // por cima do valor bom. `bruto` fazia o mesmo, um campo ao lado, e
+          // eu não olhei: aqui ele é a LISTAGEM crua; lá embaixo, no detalhe,
+          // ele é `{...listagem, ...detalhe}`.
+          //
+          // Como este upsert roda ANTES do laço do detalhe e sobre TODA a
+          // base, cada carga substituía o `bruto` completo pelo da listagem --
+          // apagando `natural_from_state_uf` e `marital_status_id`, que só
+          // existem no detalhe. Efeito na tela: "Origem (UF natal)" vazio
+          // mesmo depois de a série ser gravada.
+          //
+          // Pior que perder um campo: `bruto` é a REDE contra o ciclo de "mais
+          // uma coluna". Uma rede que se esvazia sozinha a cada carga não é
+          // rede -- e ninguém teria motivo para desconfiar dela.
         }));
         for (let i = 0; i < daListagem.length; i += 500) {
           const { error } = await db.from('convenia_pessoas')
@@ -707,6 +751,11 @@ export async function executarSyncConvenia(
           nivel: nivelPorId.get(p.id) ?? null,
           marital: estadoCivilPorId.get(p.id) ?? null,
           origem: origemPorId.get(p.id) ?? null,
+          pcd: pcdPorId.get(p.id) ?? null,
+          // Aprendiz sai do vinculo, que a carga ja guarda -- nao custa
+          // requisicao nenhuma. E cota legal, entao vale contar mesmo com o
+          // cadastro pela metade.
+          aprendiz: (p.relationship ?? '').trim().toLowerCase() === 'aprendiz',
           genero: cacheGenero.get(p.id) ?? null,
           raca: cacheRaca.get(p.id) ?? null,
         }));
@@ -1921,6 +1970,11 @@ export async function executarSyncConvenia(
         // "Senioridade (nível)" apagou junto. Mesmo caso de "Estado civil" e
         // "Origem (UF natal)", que saem dentro de `demographics`.
         level_base: l.level_base,
+        // Cotas legais. `pcd_conhecido` nao tem coluna: o denominador honesto
+        // vai junto do numerador no proprio aviso da carga, e a tela de DEI
+        // passa a poder dizer "1 de 8 responderam" em vez de "0,0%".
+        pcd: l.pcd,
+        apprentice: l.apprentice,
         demographics: l.demographics,
         // As duas razões de marcar convivem: a linha pode ser anterior ao
         // horizonte E ter desligado sem admissão resolvida. Quem lê a marca
