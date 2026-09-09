@@ -186,6 +186,10 @@ export interface LinhaMensal {
   state_mix: Record<string, number>;
   /** Faixas de tempo de casa. */
   tenure_base: Record<string, number>;
+  /** Contagem por Job Type Family. Ver a nota em `DeptBreakdownPorArea`. */
+  family_base: Record<string, number>;
+  /** Contagem por vínculo, como o Convenia escreve ("CLT", "Pessoa Jurídica"). */
+  contract_base: Record<string, number>;
   /**
    * Demográficos aninhados: `{ age, race }`.
    *
@@ -534,7 +538,7 @@ export function reconstruirSerie(
     const porArea: Record<string, DeptBreakdownPorArea> = {};
     const areaDe_ = (a: string): DeptBreakdownPorArea => (porArea[a] ??= {
       gender_female: 0, gender_male: 0, leaders: 0, leader_female: 0,
-      level_base: {}, tenure_base: {},
+      level_base: {}, tenure_base: {}, family_base: {}, contract_base: {},
       demographics: { age: {}, race: {}, marital: {}, origin: {} },
       race_cross: {},
     });
@@ -546,6 +550,8 @@ export function reconstruirSerie(
     const salDemais: number[] = [];
     const state_mix: Record<string, number> = {};
     const tenure_base: Record<string, number> = {};
+    const family_base: Record<string, number> = {};
+    const contract_base: Record<string, number> = {};
     const porIdade: Record<string, number> = {};
     const porRacaDemo: Record<string, number> = {};
 
