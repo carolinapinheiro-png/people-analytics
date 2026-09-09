@@ -910,14 +910,35 @@ export default function UsersAccessSection({
                 <div className="flex flex-col gap-1.5 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium truncate">{item.email}</span>
-                    <Badge variant={item.profile === 'admin' ? 'default' : 'secondary'}>
-                      {isGlobalProfile(item.profile) ? (
-                        <ShieldCheck className="h-3 w-3 mr-1" />
-                      ) : (
-                        <ShieldAlert className="h-3 w-3 mr-1" />
-                      )}
-                      {PROFILE_LABELS[item.profile] ?? item.profile}
-                    </Badge>
+                    {/* ------------------------------------------------------------------
+                        A ETIQUETA MOSTRA O PERFIL ATRIBUÍDO, NÃO O RÓTULO DERIVADO
+                        ------------------------------------------------------------------
+                        `item.profile` é o enum interno, derivado das três chaves. Alguém
+                        posto no perfil "Business Partner" resolve para `dept_leader`, e a
+                        etiqueta diria "Department Leader" -- um nome que não existe em
+                        lugar nenhum da tela e que a Carolina nunca escolheu.
+
+                        Seriam duas coisas chamadas de perfil no mesmo lugar: a que ela
+                        atribuiu e a que o sistema deduziu. É exatamente a ambiguidade que
+                        os perfis vieram fechar, reaberta na lista.
+
+                        Sem perfil atribuído, o rótulo derivado continua -- é o que
+                        descreve um cadastro avulso. */}
+                    {(() => {
+                      const atribuido = perfis.find(
+                        (p) => p.id === (item as { profile_id?: string | null }).profile_id,
+                      );
+                      return (
+                        <Badge variant={item.profile === 'admin' ? 'default' : 'secondary'}>
+                          {isGlobalProfile(item.profile) ? (
+                            <ShieldCheck className="h-3 w-3 mr-1" />
+                          ) : (
+                            <ShieldAlert className="h-3 w-3 mr-1" />
+                          )}
+                          {atribuido?.nome ?? PROFILE_LABELS[item.profile] ?? item.profile}
+                        </Badge>
+                      );
+                    })()}
                     {(item.job_title || item.job_level) && (
                       <Badge variant="outline">
                         {[item.job_title, item.job_level].filter(Boolean).join(' · ')}
