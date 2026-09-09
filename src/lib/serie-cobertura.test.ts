@@ -104,9 +104,10 @@ test('presença não conta: `{}` e `[]` valem como ausência', () => {
   assert.deepEqual([...campos].sort(), ['cheio', 'texto', 'zero']);
 });
 
-test('promoções seguem declaradas, com o caminho para deixarem de estar', () => {
-  // Enquanto a carga não ler o histórico salarial, este é o registro do porquê.
-  // Quando ler, o teste de declarações obsoletas cobra a remoção desta linha.
-  assert.ok(AUSENTES_NA_SERIE_CONVENIA.promotions.includes('salaries-historic'));
-  assert.ok(AUSENTES_NA_SERIE_CONVENIA.raise_events.length > 20);
+test('promoções saíram da lista de dívidas -- a carga passou a calculá-las', () => {
+  // Em 09/09 esta lista dizia "falta ler o histórico salarial". A carga passou
+  // a ler, e a linha saiu. O teste fica para que a volta dela seja deliberada:
+  // se alguém reintroduzir a declaração, é porque desligou a leitura.
+  assert.ok(!('promotions' in AUSENTES_NA_SERIE_CONVENIA));
+  assert.ok(!('raise_events' in AUSENTES_NA_SERIE_CONVENIA));
 });

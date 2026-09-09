@@ -255,7 +255,7 @@ export async function executarSyncConvenia(
   try {
     const { fontesConfiguradas } = await import('./fontes');
     const { ConveniaClient } = await import('./client.server');
-    const { EMPLOYEES, EMPLOYEES_DISMISSED, EMPLOYEE_DETAIL } = await import('./paths');
+    const { EMPLOYEES, EMPLOYEES_DISMISSED, EMPLOYEE_DETAIL, SALARIO_HISTORICO } = await import('./paths');
     const { mesDe, ehVoluntaria, normalizarGenero, textoDe, ufDe, dataISO, semSensiveis } = await import('./pessoas');
 
     // O cache do que já foi resolvido. Uma pessoa desligada não muda de data
@@ -289,6 +289,23 @@ export async function executarSyncConvenia(
     // contador de pendentes no resumo -- em vez de a série ficar
     // silenciosamente incompleta.
     const LOTE_GENERO = 200;
+
+    // ------------------------------------------------------------------
+    // O HISTÓRICO TEM LOTE PRÓPRIO, E MENOR
+    // ------------------------------------------------------------------
+    // Ele soma às requisições do detalhe na MESMA execução. Com 200 de cada,
+    // uma carga faria 400 chamadas e ficaria perto do limite do Convenia --
+    // e o que estoura o limite derruba a carga inteira, não só a parte nova.
+    // 150 converge as 642 pessoas em cinco execuções.
+    const LOTE_HISTORICO = 150;
+    /**
+     * Suba quando a leitura do histórico passar a guardar um campo novo.
+     * Ver a nota de `VERSAO_DETALHE`: é a quinta vez que este arquivo depende
+     * disso, e as quatro primeiras custaram uma coluna vazia cada.
+     */
+    const VERSAO_HISTORICO = 1;
+    let historicoBuscadosAgora = 0;
+    const historicoFalhas: string[] = [];
     const { data: pessoasCache } = await db
       .from('convenia_pessoas')
       // `bruto` entra na consulta porque estado civil e UF natal só existem
@@ -296,7 +313,7 @@ export async function executarSyncConvenia(
       // deles tem coluna própria. Ler daqui evita subir `VERSAO_DETALHE` de
       // novo -- o dado já está guardado desde a releitura de hoje, e mais um
       // ciclo de quatro cargas atrasaria os gráficos por dias.
-      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields, bruto, detalhe_em, detalhe_versao');
+      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields, bruto, detalhe_em, detalhe_versao, historico_em, historico_versao');
     const cacheGenero = new Map<string, 'F' | 'M' | null>(
       ((pessoasCache ?? []) as { convenia_id: string; gender: string | null }[])
         .map((r) => [r.convenia_id, (r.gender as 'F' | 'M' | null) ?? null]),
@@ -356,6 +373,16 @@ export async function executarSyncConvenia(
     // consulta -- nenhuma requisição a mais. É o que permite a série mensal
     // guardar a quebra por família, e com isso o filtro "Job family" deixar de
     // ser um seletor esmaecido nas abas de série.
+    // Quem já teve o histórico lido NESTA versão. Mesma ideia de
+    // `cadastroCompleto`: a fila se reenfileira sozinha quando o código muda.
+    const historicoLido = new Set<string>(
+      ((pessoasCache ?? []) as Array<{
+        convenia_id: string; historico_em: string | null; historico_versao: number | null;
+      }>)
+        .filter((r) => r.historico_em != null && (r.historico_versao ?? 0) >= VERSAO_HISTORICO)
+        .map((r) => r.convenia_id),
+    );
+
     const familiaPorId = new Map<string, string | null>(
       ((pessoasCache ?? []) as { convenia_id: string; custom_fields: unknown }[])
         .map((r) => [
@@ -855,6 +882,77 @@ export async function executarSyncConvenia(
           r.raca = cacheRaca.get(r.id) ?? null;
         }
 
+        // ==================================================================
+        // HISTÓRICO SALARIAL -- DE ONDE SAEM AS PROMOÇÕES
+        // ==================================================================
+        // Uma requisição POR PESSOA, então vale a mesma disciplina do detalhe:
+        // lote por execução, marca de versão, e converge em alguns dias sem
+        // ninguém acompanhar. A diferença é que aqui o resultado NÃO é campo
+        // da pessoa -- são N linhas de alteração, que vão para tabela própria.
+        //
+        // Enquanto a fila não zera, a série mostra MENOS promoções do que
+        // houve. É por isso que a cobertura vira aviso lá embaixo: um número
+        // parcial com cara de completo é a coisa que este painel mais evita.
+        {
+          const naFila = pessoas
+            .filter((p) => !historicoLido.has(p.id))
+            .slice(0, LOTE_HISTORICO - historicoBuscadosAgora);
+
+          for (const alvo of naFila) {
+            if (historicoBuscadosAgora >= LOTE_HISTORICO) break;
+            try {
+              const env = await client.get<Record<string, unknown>>(SALARIO_HISTORICO(alvo.id));
+              requisicoes++;
+              historicoBuscadosAgora++;
+              const bruto = ((env?.data ?? env) as unknown);
+              const itens = Array.isArray(bruto) ? bruto : [];
+
+              const linhasHist = itens
+                .map((it) => {
+                  const o = (it ?? {}) as Record<string, unknown>;
+                  // A resposta chama a data ora `date`, ora `from`, ora
+                  // `start_date`. Ler uma só devolveria lista cheia com todas
+                  // as datas nulas -- e `movimentacoesPorMes` descarta sem
+                  // data, então o resultado seria "nenhuma promoção" com o
+                  // histórico inteiro na mão.
+                  const vig = dataISO(
+                    (o.date ?? o.from ?? o.start_date ?? o.validity) as string | null | undefined,
+                  );
+                  return {
+                    convenia_id: alvo.id,
+                    vigencia: vig,
+                    motivo: textoDe(o.motive ?? o.reason ?? o.motivo) ?? 'Sem motivo',
+                    salario: normalizarSalario(o.salary ?? o.value ?? null),
+                  };
+                })
+                .filter((l) => l.vigencia != null);
+
+              if (linhasHist.length) {
+                const { error } = await db.from('convenia_historico_salarial')
+                  .upsert(linhasHist, { onConflict: 'convenia_id,vigencia,motivo' });
+                if (error) throw new Error(error.message);
+              }
+
+              // Marca a PERGUNTA, e não a resposta: lista vazia é uma resposta
+              // ("esta pessoa não teve alteração"), e sem a marca ela voltaria
+              // para a fila em toda carga, empurrando para o fim quem nunca
+              // foi lido.
+              await db.from('convenia_pessoas').upsert({
+                convenia_id: alvo.id,
+                historico_em: new Date().toISOString(),
+                historico_versao: VERSAO_HISTORICO,
+              }, { onConflict: 'convenia_id' });
+              historicoLido.add(alvo.id);
+            } catch (e) {
+              // NÃO marca como lido: a próxima execução tenta de novo. Mas
+              // registra, porque falha silenciosa aqui vira promoção faltando
+              // na tela sem nada explicando.
+              historicoFalhas.push(`${alvo.id}: ${e instanceof Error ? e.message : String(e)}`);
+              break;
+            }
+          }
+        }
+
         // ------------------------------------------------------------------
         // A MARCA SAI DO CADASTRO, COM O TOKEN COMO RESERVA
         // ------------------------------------------------------------------
@@ -1032,6 +1130,88 @@ export async function executarSyncConvenia(
         ate: linhas.at(-1)?.month ?? null,
       });
       for (const a of resumo.avisos) avisos.push(`${marca}: ${a}`);
+    }
+
+    // ======================================================================
+    // PROMOÇÕES E MOVIMENTAÇÕES ENTRAM NA SÉRIE
+    // ======================================================================
+    // Lê o histórico ACUMULADO, e não o que esta rodada trouxe: a leitura vem
+    // em lotes, e montar só com o lote da vez daria uma série que encolhe e
+    // cresce a cada execução.
+    //
+    // Não distribui por marca. O histórico não diz a que marca a pessoa
+    // pertencia na época, e inventar isso reescreveria a história de uma marca
+    // com a promoção de outra -- o mesmo defeito que mantém a série mensal
+    // travada até hoje. Enquanto isso, o valor vai para a marca ATUAL da
+    // pessoa, que é o que o resto da série também faz.
+    try {
+      const { movimentacoesPorMes } = await import('@/lib/convenia/movimentacoes');
+      const { data: hist } = await db
+        .from('convenia_historico_salarial')
+        .select('convenia_id, vigencia, motivo, salario');
+
+      const marcaDaPessoa = new Map<string, string>();
+      for (const [marca, pessoas] of porMarca) for (const p of pessoas) marcaDaPessoa.set(p.id, marca);
+
+      const registros = ((hist ?? []) as Array<Record<string, unknown>>).map((h) => ({
+        conveniaId: String(h.convenia_id),
+        vigencia: (h.vigencia as string | null) ?? null,
+        motivo: (h.motivo as string | null) ?? null,
+        salario: h.salario == null ? null : Number(h.salario),
+      }));
+
+      // Por marca, para a linha mensal de cada marca receber o que é dela.
+      const porMarcaEMes = new Map<string, ReturnType<typeof movimentacoesPorMes>>();
+      for (const marca of porMarca.keys()) {
+        porMarcaEMes.set(
+          marca,
+          movimentacoesPorMes(registros.filter((r) => marcaDaPessoa.get(r.conveniaId) === marca)),
+        );
+      }
+
+      for (const l of todasLinhas) {
+        const mes = l.month.slice(0, 7);
+        const m = porMarcaEMes.get(l.brand)?.get(mes);
+        // Sem movimento no mês é ZERO, e aqui isso é uma resposta: o histórico
+        // daquelas pessoas foi lido e não há alteração no mês. Quem ainda não
+        // foi lido está contado no aviso de cobertura, logo abaixo.
+        l.promotions = m?.promotions ?? 0;
+        l.raise_events = m?.raise_events ?? {
+          promocao: { n: 0, delta: 0 },
+          merito: { n: 0, delta: 0 },
+          dissidio: { n: 0, delta: 0 },
+        };
+      }
+
+      // ------------------------------------------------------------------
+      // A COBERTURA VAI JUNTO COM O NÚMERO
+      // ------------------------------------------------------------------
+      // Enquanto a fila não zera, a série mostra MENOS promoções do que houve.
+      // Sem esta frase, "3 promoções em março" é indistinguível de "3
+      // promoções lidas até agora em março" -- e a segunda vira decisão de
+      // carreira na reunião de alguém.
+      const totalPessoas = [...porMarca.values()].reduce((s, p) => s + p.length, 0);
+      const pendentesHist = totalPessoas - historicoLido.size;
+      avisos.push(
+        `Promocoes: historico salarial lido de ${historicoLido.size} de ${totalPessoas} pessoas`
+        + (pendentesHist > 0
+          ? ` -- faltam ${pendentesHist} (lotes de ${LOTE_HISTORICO} por execucao). Ate zerar, a serie mostra MENOS promocoes do que houve. Rode de novo.`
+          : '. Cobertura completa.'),
+      );
+      if (historicoFalhas.length) {
+        avisos.push(
+          `Historico salarial falhou para ${historicoFalhas.length} pessoa(s); elas voltam para a fila na proxima carga. `
+          + `Primeira: ${historicoFalhas[0]}`,
+        );
+      }
+    } catch (e) {
+      // Falhar aqui não derruba a carga: headcount, atrição e organograma já
+      // estão calculados. O que fica parado é a promoção -- e o aviso precisa
+      // dizer isso, senão a tela mostra zero e ninguém sabe que é falha.
+      avisos.push(
+        `Promocoes NAO calculadas nesta execucao: ${e instanceof Error ? e.message : String(e)}. `
+        + 'A serie mantem o valor da ultima carga bem-sucedida.',
+      );
     }
 
     // Sinal de sanidade: se o status já marca quem saiu, cruzar com a listagem
@@ -1603,6 +1783,14 @@ export async function executarSyncConvenia(
         // esmaecidos nas abas de série -- que era a situação até 09/09.
         family_base: l.family_base,
         contract_base: l.contract_base,
+        // Promoções e movimentações, calculadas do histórico salarial. Enquanto
+        // a fila de leitura não zera, o número é PARCIAL -- e o aviso de
+        // cobertura, montado junto com ele, diz de quantas pessoas ele saiu.
+        // `null`, e nao `0`/`{}`, quando o bloco de historico falhou: a aba de
+        // Movimentacoes distingue "lido, e nao houve" de "nao calculado", e
+        // gravar zero apagaria essa distincao na origem.
+        promotions: l.promotions ?? null,
+        raise_events: l.raise_events ?? null,
         // `level_base` NUNCA foi gravado por esta carga -- a série
         // reconstruída gravava, a do Convenia a substituiu, e o gráfico
         // "Senioridade (nível)" apagou junto. Mesmo caso de "Estado civil" e

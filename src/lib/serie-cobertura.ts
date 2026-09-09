@@ -43,11 +43,6 @@
  * de propósito. Fazer a carga produzir e esquecer de tirar a linha também.
  */
 export const AUSENTES_NA_SERIE_CONVENIA: Record<string, string> = {
-  promotions:
-    'Vem do histórico salarial (/employees/{id}/salaries-historic), que a carga ainda não lê. '
-    + 'O motivo já chega classificado pela Convenia; falta a leitura em lotes, como a do detalhe individual.',
-  raise_events:
-    'Mesma origem de `promotions`: promoção, mérito e dissídio saem do histórico salarial.',
   pcd:
     'Cota legal. O campo personalizado "Considera PCD" existe no cadastro e é pouco preenchido; '
     + 'a carga ainda não o conta, e contar mal aqui subestimaria uma cota legal.',
@@ -65,6 +60,21 @@ export const AUSENTES_NA_SERIE_CONVENIA: Record<string, string> = {
   dept_filter_exact: 'Marca posta pelo filtro de departamento em tempo de leitura.',
   source: 'Identifica a série; não é conteúdo dela.',
 };
+
+/**
+ * Campos que a série produz FORA de `reconstruirSerie`.
+ *
+ * `promotions` e `raise_events` saem do histórico salarial, que é uma
+ * requisição por pessoa e vive em tabela própria: a carga os calcula e os
+ * pendura na linha depois. A reconstrução, sozinha, não os produz -- e fingir
+ * que produz (devolvendo zero) foi exatamente o que fez a tela dizer
+ * "0 promoções" durante semanas.
+ *
+ * Ficam fora da comparação porque o cenário de teste não tem histórico. O que
+ * garante que eles existem de verdade é `movimentacoes.test.ts`, que testa o
+ * cálculo, e a cobertura que a carga imprime a cada execução.
+ */
+export const PRODUZIDOS_FORA_DA_RECONSTRUCAO = new Set(['promotions', 'raise_events']);
 
 /**
  * Campos que a série NÃO produz porque a COMPOSIÇÃO os deriva.
@@ -129,7 +139,10 @@ export function compararSeries(
   const prod = uniao(produzida);
 
   const naoDeclarados = [...ref]
-    .filter((k) => !prod.has(k) && !(k in declaradas) && !DERIVADOS_NA_COMPOSICAO.has(k))
+    .filter((k) => !prod.has(k)
+      && !(k in declaradas)
+      && !DERIVADOS_NA_COMPOSICAO.has(k)
+      && !PRODUZIDOS_FORA_DA_RECONSTRUCAO.has(k))
     .sort();
   const declaracoesObsoletas = Object.keys(declaradas)
     .filter((k) => prod.has(k))

@@ -194,6 +194,19 @@ export interface LinhaMensal {
   state_mix: Record<string, number>;
   /** Faixas de tempo de casa. */
   tenure_base: Record<string, number>;
+  /**
+   * Promoções e movimentações salariais do mês.
+   *
+   * Preenchidos DEPOIS, pela carga, a partir do histórico salarial guardado --
+   * não aqui. A reconstrução da série trabalha com o cadastro de hoje; o
+   * histórico é uma requisição por pessoa e vive em tabela própria.
+   *
+   * Opcionais porque `reconstruirSerie` sozinha não os produz, e fingir que
+   * produz (com zero) foi exatamente o que fez a tela dizer "0 promoções"
+   * durante semanas.
+   */
+  promotions?: number;
+  raise_events?: Record<'promocao' | 'merito' | 'dissidio', { n: number; delta: number }>;
   /** Contagem por Job Type Family. Ver a nota em `DeptBreakdownPorArea`. */
   family_base: Record<string, number>;
   /** Contagem por vínculo, como o Convenia escreve ("CLT", "Pessoa Jurídica"). */
