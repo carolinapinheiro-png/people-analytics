@@ -54,6 +54,8 @@ import {
 const CUT_LABELS: Record<SeriesFilterKey, string> = {
   level: 'Nível',
   tempoCasa: 'Tempo de casa',
+  jobFamily: 'Job family',
+  tipoContrato: 'Contrato',
 };
 
 export default function OverviewTab() {
@@ -66,7 +68,12 @@ export default function OverviewTab() {
   // ativado na aba de Atricao, onde a leitura e pessoa a pessoa e o cruzamento
   // existe), resolveSeriesCut escolhe um e devolve o outro em `ignored`, que a
   // tela avisa em vez de ignorar em silencio.
-  const seriesCut = resolveSeriesCut({ level: filters.level, tempoCasa: filters.tempoCasa });
+  const seriesCut = resolveSeriesCut({
+    level: filters.level,
+    tempoCasa: filters.tempoCasa,
+    jobFamily: filters.jobFamily,
+    tipoContrato: filters.tipoContrato,
+  });
   const cutKey: SeriesFilterKey | null = seriesCut.key;
   const cutValue = seriesCut.value;
   // O departamento entra aqui para as saidas serem contadas na MESMA populacao
