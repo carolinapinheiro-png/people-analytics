@@ -203,3 +203,19 @@ test('`Level` vence `WorkDay Level`, em qualquer ordem da resposta', () => {
   // E procurar o outro de proposito continua achando o outro.
   assert.equal(valorDe([level, workday], ['workday level']), 'N-6 Above');
 });
+
+test('sem `Level`, a busca exata NAO cai no `WorkDay Level`', () => {
+  // 146 das 642 pessoas estao exatamente neste caso. Com a busca por pedaco
+  // elas recebiam "N-6 Above" como nivel salarial, e a tela pedia a Comp & Ben
+  // faixas numa escala que nao e a deles.
+  const so_workday = [{ nome: 'WorkDay Level', valor: 'N-6 Above' }];
+  assert.equal(valorDe(so_workday, ['level'], { exato: true }), null);
+  // Sem `exato`, o comportamento antigo continua -- e e ele que acha
+  // "Escritorio (novo)" quando o RH renomeia um campo.
+  assert.equal(valorDe(so_workday, ['level']), 'N-6 Above');
+  // E com `Level` presente, exato acha o certo.
+  assert.equal(
+    valorDe([...so_workday, { nome: 'Level', valor: 'L3' }], ['level'], { exato: true }),
+    'L3',
+  );
+});

@@ -150,11 +150,27 @@ export const chave = (s: string): string =>
 export function valorDe(
   campos: readonly CampoPersonalizado[],
   procurados: readonly string[],
+  opcoes: { exato?: boolean } = {},
 ): string | null {
   const alvos = procurados.map(chave);
   for (const c of campos) {
     if (alvos.includes(chave(c.nome))) return c.valor;
   }
+  // ------------------------------------------------------------------
+  // QUANDO O PEDAÇO DE NOME NÃO SERVE
+  // ------------------------------------------------------------------
+  // `exato: true` para campos que têm um HOMÔNIMO PARCIAL com outra escala.
+  // Medido: 146 das 642 pessoas não têm `Level` (L0..L9) e têm `WorkDay Level`
+  // (N-3..N-6 Above). Com a busca por pedaço, essas 146 recebiam "N-6 Above"
+  // como se fosse o nível salarial. Hoje isso só não virou número errado
+  // porque `salary_bands` não tem linha nenhuma nessa escala -- ou seja, o que
+  // segurou foi sorte, e ela acaba no dia em que Comp & Ben cadastrar uma
+  // faixa "N-6 Above" achando que está preenchendo uma lacuna.
+  //
+  // Pior que o número errado era a MENSAGEM: "não há faixa cadastrada para
+  // CUSTOMER SERVICE · CLT · N-6 Above" manda Comp & Ben criar bandas numa
+  // escala que não é a deles, quando o que falta é o RH preencher `Level`.
+  if (opcoes.exato) return null;
   for (const c of campos) {
     const k = chave(c.nome);
     if (alvos.some((a) => k.includes(a))) return c.valor;

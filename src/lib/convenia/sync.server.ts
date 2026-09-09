@@ -1329,7 +1329,9 @@ export async function executarSyncConvenia(
           hire: (c.hiring_date as string | null) ?? null,
           empresa: (c.empresa as string | null) ?? null,
           vinculo: (c.relationship as string | null) ?? null,
-          level: valorDe(campos, ['level']),
+          // `exato`: existe `WorkDay Level` no mesmo cadastro, com outra
+          // escala. Ver a nota em valorDe.
+          level: valorDe(campos, ['level'], { exato: true }),
           jobTypeFamily: valorDe(campos, ['job type family']),
         };
       }), bandas);
