@@ -1130,9 +1130,11 @@ export const listarPerfisDeAcesso = createServerFn({ method: 'GET' })
         return {
           migrado: false,
           perfis: [],
-          erro: 'A tabela existe no banco, mas a API ainda está com o cache de schema antigo. '
-            + 'Rode `notify pgrst, \'reload schema\';` no SQL editor, ou espere alguns minutos. '
-            + 'Não precisa rodar a migração de novo.',
+          // Sem crases: a mensagem é uma string simples e vai para a tela como
+          // texto, então o crase aparece como caractere em vez de virar código.
+          erro: 'A tabela existe no banco, e a API está com o cache de schema antigo. '
+            + 'No SQL editor rode: notify pgrst, \'reload schema\'; — depois recarregue a '
+            + 'página. Não precisa rodar a migração de novo.',
         };
       }
       return { migrado: false, perfis: [], erro: `${cod ? cod + ': ' : ''}${error.message}` };
