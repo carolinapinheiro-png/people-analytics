@@ -84,7 +84,7 @@ const toArr = (o: Record<string, number> | undefined, order?: string[]) => {
 const pctOf = (part: number, total: number) => (total > 0 ? (part / total) * 100 : 0);
 
 export default function DemographicsTab() {
-  const { currentData, currentMonth, brand } = useDashboard();
+  const { currentData, currentMonth, brand, filters } = useDashboard();
   const curr = currentData;
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
 
@@ -94,11 +94,13 @@ export default function DemographicsTab() {
   const [workModel, setWorkModel] = useState<WorkModelRow[] | null>(null);
   useEffect(() => {
     let cancelled = false;
-    fetchWorkModel()
+    fetchWorkModel({ data: { department: filters.departamento } })
       .then((d) => { if (!cancelled) setWorkModel(d as WorkModelRow[]); })
       .catch(() => { if (!cancelled) setWorkModel([]); });
     return () => { cancelled = true; };
-  }, [fetchWorkModel]);
+    // `filters.departamento` na lista: sem ele o gráfico congelava no primeiro
+    // valor e passava a mostrar uma área com o rótulo de outra.
+  }, [fetchWorkModel, filters.departamento]);
 
   const wmOverall = (workModel ?? [])
     .filter((r) => r.scope_type === 'overall')

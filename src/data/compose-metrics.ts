@@ -67,7 +67,10 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
     dept_data: r.dept_data ?? {},
     salary_band_attrition: r.salary_band_attrition ?? undefined,
     exit_survey: (r.exit_survey as MonthRecord['exit_survey']) ?? undefined,
-    promotions: r.promotions == null ? 0 : Number(r.promotions),
+    // Nulo continua nulo. Virar 0 aqui era o passo que transformava "a carga
+    // não calculou" em "não houve promoção nenhuma" -- e nenhuma tela tinha
+    // como distinguir depois.
+    promotions: r.promotions == null ? null : Number(r.promotions),
     level_base:
       r.level_base && Object.keys(r.level_base).length > 0 ? r.level_base : undefined,
     raise_events:

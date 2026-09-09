@@ -94,7 +94,7 @@ export default function OverviewTab() {
   const fetchExp = useServerFn(getExperienceData);
   useEffect(() => {
     let cancelled = false;
-    fetchExp()
+    fetchExp({ data: { department: filters.departamento } })
       .then((d: unknown) => {
         if (cancelled) return;
         const eng = (d as { engagement?: Array<{ scope: string; enps: number | null; enps_delta: number | null }> }).engagement ?? [];
@@ -103,7 +103,7 @@ export default function OverviewTab() {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [fetchExp]);
+  }, [fetchExp, filters.departamento]);
 
   // Composicao CLT/PJ (snapshot atual, contagem pura) para o quadro do HC.
   //
@@ -117,7 +117,7 @@ export default function OverviewTab() {
   const fetchComp = useServerFn(getHeadcountMix);
   useEffect(() => {
     let cancelled = false;
-    fetchComp()
+    fetchComp({ data: { department: filters.departamento } })
       .then((d) => { if (!cancelled) setComp(d as HeadcountMix); })
       // Engolir o erro deixava a linha em "…" indefinidamente. Guardar a
       // mensagem custa uma linha e transforma "parece travado" em "deu erro".
@@ -125,7 +125,7 @@ export default function OverviewTab() {
         if (!cancelled) setCompErro(e instanceof Error ? e.message : 'erro');
       });
     return () => { cancelled = true; };
-  }, [fetchComp]);
+  }, [fetchComp, filters.departamento]);
   const contractMix = (() => {
     if (!comp) return null;
     const set = new Set(BRAND_COMPANIES[brand] ?? BRAND_COMPANIES.combined);
@@ -175,7 +175,18 @@ export default function OverviewTab() {
     };
   });
   const attritionYoY = yearlyStats.length > 1 ? yearlyStats[yearlyStats.length - 1].avgAttr - yearlyStats[yearlyStats.length - 2].avgAttr : null;
-  const totalPromoPeriod = allMonthsData.reduce((s, d) => s + (d.promotions || 0), 0);
+  // ------------------------------------------------------------------
+  // "NENHUMA PROMOÇÃO" E "NÃO CALCULADO" NÃO PODEM SER O MESMO ZERO
+  // ------------------------------------------------------------------
+  // A série do Convenia não lê o histórico salarial, então não sabe quem foi
+  // promovido -- e a tela mostrava 0, que é uma afirmação sobre a empresa.
+  // Quando NENHUM mês traz o número, a resposta certa é dizer que não foi
+  // calculado; quando algum traz, o total é dos meses que trazem.
+  const promocoesNaoCalculadas = allMonthsData.length > 0
+    && allMonthsData.every((d) => d.promotions == null);
+  const totalPromoPeriod = promocoesNaoCalculadas
+    ? null
+    : allMonthsData.reduce((s, d) => s + (d.promotions ?? 0), 0);
 
   // Acumulado do periodo (pergunta da Carolina): total de saidas/entradas do
   // periodo sobre o HC medio -- diferente da media das taxas mensais.
@@ -247,9 +258,11 @@ export default function OverviewTab() {
     },
     {
       label: 'Promoções',
-      val: `${curr.promotions || 0}`, 
-      color: COLORS.nsx, 
-      sub: `${pr}% do HC`,
+      val: curr.promotions == null ? '—' : `${curr.promotions}`,
+      color: COLORS.nsx,
+      sub: curr.promotions == null
+        ? 'não calculado nesta série'
+        : `${pr ?? 0}% do HC`,
       icon: Target
     },
     { 
@@ -394,7 +407,7 @@ export default function OverviewTab() {
         <p className="text-foreground leading-relaxed">
           Em {mLabel(currentMonth)}, a organização apresenta <strong>{generateNarrative()}</strong>. 
           Com {curr.headcount} colaboradores ativos, {curr.leaders} líderes ({curr.leaders_pct}% do total) 
-          e {curr.promotions || 0} promoções realizadas, o cenário atual demonstra 
+          e {curr.promotions == null ? 'promoções não calculadas nesta série' : `${curr.promotions} promoções realizadas`}, o cenário atual demonstra 
           {growthTrend === 'positive' ? ' expansão' : growthTrend === 'negative' ? ' contração' : ' estabilidade'}
           {' '}no headcount. Números factuais do período; leituras de "adequado/atenção" dependem de metas
           {' '}a validar com a liderança.
@@ -435,7 +448,11 @@ export default function OverviewTab() {
             value={`${turnoverAccum.toFixed(1)}%`}
             subtext={`${totalJoinersPeriod} entradas / ${totalLeaversPeriod} saídas · média mensal ${avgTurnover.toFixed(1)}%`}
           />
-          <StoryMetric label="Promoções no período" value={String(totalPromoPeriod)} subtext="acumulado" />
+          <StoryMetric
+            label="Promoções no período"
+            value={totalPromoPeriod == null ? '—' : String(totalPromoPeriod)}
+            subtext={totalPromoPeriod == null ? 'não calculado nesta série' : 'acumulado'}
+          />
         </div>
         <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
           <strong>Como é calculado.</strong> <em>Atrição acumulada</em> = total de saídas do período ÷ HC médio do período.

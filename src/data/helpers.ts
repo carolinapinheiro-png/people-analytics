@@ -354,8 +354,10 @@ export function calcTurnover(curr: MonthRecord, prev?: MonthRecord): number {
   return parseFloat((((curr.joiners || 0) + (curr.leavers || 0)) / avgHC * 100).toFixed(2));
 }
 
-export function promoRate(d: MonthRecord): number {
-  return d.headcount > 0 ? parseFloat(((d.promotions || 0) / d.headcount * 100).toFixed(2)) : 0;
+/** `null` quando a série não calcula promoções -- ver `MonthRecord.promotions`. */
+export function promoRate(d: MonthRecord): number | null {
+  if (d.promotions == null) return null;
+  return d.headcount > 0 ? parseFloat((d.promotions / d.headcount * 100).toFixed(2)) : 0;
 }
 
 export function shortDept(k: string): string {

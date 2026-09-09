@@ -96,7 +96,7 @@ export default function LeaversTab() {
   const fetchComp = useServerFn(getCompAggregates);
   useEffect(() => {
     let cancelled = false;
-    fetchComp()
+    fetchComp({ data: { department: filters.departamento } })
       .then((d) => { if (!cancelled) setComp(d as CompAggregates); })
       .catch((e: unknown) => {
         // Recusa por perfil e um fato sobre o acesso, nao uma falha. As duas
@@ -106,7 +106,10 @@ export default function LeaversTab() {
         if (!cancelled) setSemAcesso(/forbidden|acesso a esta se/i.test(msg));
       });
     return () => { cancelled = true; };
-  }, [fetchComp]);
+    // Sem `filters.departamento` na lista, a chamada acontecia uma vez e o
+    // cartão ficava com os agregados da primeira renderização -- os da empresa
+    // -- enquanto o resto da tela já estava recortado.
+  }, [fetchComp, filters.departamento]);
   const activeByBand = useMemo(() => {
     const acc: Record<string, number> = {};
     comp?.bands.forEach((b) => { acc[b.band] = (acc[b.band] ?? 0) + b.n; });

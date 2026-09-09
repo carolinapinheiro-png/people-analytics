@@ -5,7 +5,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   canSeeIndividualData,
   isInScope,
+  normalizeDept,
 } from '@/lib/permissions';
+import { DeptFilterInput, selectedDept } from '@/lib/dept-filter';
 import { salaryBand, tenureBandFromHire } from '@/lib/person-bands';
 import { valorFiltro } from '@/lib/filtro-sentinela';
 import {
@@ -803,9 +805,17 @@ export interface HeadcountMix {
 
 export const getHeadcountMix = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<HeadcountMix> => {
+  // O escopo de acesso sempre foi respeitado aqui; o filtro da barra, não. Para
+  // quem vê a empresa toda, escolher "TECHNOLOGY" deixava este cartão com a
+  // composição da empresa embaixo do rótulo da área -- número certo sobre uma
+  // população que não é a da tela.
+  .validator((input: unknown) => DeptFilterInput.parse(input))
+  .handler(async ({ context, data: input }): Promise<HeadcountMix> => {
     const { resolverEscopo } = await import('@/lib/escopo.server');
     const e = await resolverEscopo(context.claims.email as string | undefined, 'overview');
+    // `deptSel`, e não `sel`: `sel` já é `valorFiltro` neste arquivo, e
+    // sombrear uma função por um string é como se cria um bug mudo.
+    const deptSel = selectedDept(input);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -820,7 +830,10 @@ export const getHeadcountMix = createServerFn({ method: 'GET' })
 
     const cMap = new Map<string, HeadcountContractAgg>();
     for (const r of (rows ?? []).filter(
-      (r) => r.in_comp_scope !== false && isInScope(e.scope, r.area, r.job_type_family),
+      (r) => r.in_comp_scope !== false
+        && isInScope(e.scope, r.area, r.job_type_family)
+        // A seleção ESTREITA o que o escopo já permitiu -- nunca amplia.
+        && (!deptSel || normalizeDept(r.area) === deptSel),
     )) {
       const company = (r.company ?? '—') as string;
       const contract = (r.contract ?? '—') as string;
@@ -835,8 +848,12 @@ export const getHeadcountMix = createServerFn({ method: 'GET' })
 
 export const getCompAggregates = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }): Promise<CompAggregates> => {
+  .validator((input: unknown) => DeptFilterInput.parse(input))
+  .handler(async ({ context, data: input }): Promise<CompAggregates> => {
     const { escopoComp } = await authorize(context.claims.email as string | undefined, { subAba: 'custos' });
+    // `deptSel`, e não `sel`: `sel` já é `valorFiltro` neste arquivo, e
+    // sombrear uma função por um string é como se cria um bug mudo.
+    const deptSel = selectedDept(input);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
@@ -850,7 +867,9 @@ export const getCompAggregates = createServerFn({ method: 'GET' })
     // desde 14/08/2026, so os niveis abaixo do de quem olha. Ver o comentario
     // em getCompByLevelRole: media de poucos e salario individual disfarcado.
     const rows = filtrarLinhas(escopoComp, allRows ?? [])
-      .filter((r) => r.in_comp_scope !== false);
+      .filter((r) => r.in_comp_scope !== false)
+      // Mesma regra do resto do painel: o filtro de tela estreita o escopo.
+      .filter((r) => !deptSel || normalizeDept(r.area) === deptSel);
 
     const cMap = new Map<string, CompContractAgg>();
     const aMap = new Map<string, CompAreaAgg>();

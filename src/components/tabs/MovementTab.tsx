@@ -42,6 +42,16 @@ export default function MovementTab() {
   });
   const grandDelta = totals.promocao.delta + totals.merito.delta + totals.dissidio.delta;
 
+  // ------------------------------------------------------------------
+  // TRÊS GRÁFICOS ZERADOS SÃO UMA AFIRMAÇÃO, E ELA PODE SER FALSA
+  // ------------------------------------------------------------------
+  // `raise_events` vem do histórico salarial, que a carga do Convenia não lê.
+  // Sem nenhum mês com o campo, esta tela desenhava três séries em zero -- que
+  // se lê como "não houve promoção, mérito nem dissídio no período". A série
+  // congelada, vinda de planilha, traz o campo; a do Convenia, não.
+  const naoCalculado = allMonthsData.length > 0
+    && allMonthsData.every((d) => d.raise_events == null);
+
   const monthlyN = allMonthsData.map((d) => ({
     month: mLabel(d.month),
     Promoção: re(d, 'promocao').n,
@@ -54,6 +64,24 @@ export default function MovementTab() {
     'Mérito/Reajuste': re(d, 'merito').delta,
     'Dissídio (coletivo)': re(d, 'dissidio').delta,
   }));
+
+  if (naoCalculado) {
+    return (
+      <div className="space-y-3 py-16 text-center">
+        <p className="text-sm text-muted-foreground max-w-xl mx-auto">
+          <strong className="text-foreground">Movimentações não são calculadas nesta série.</strong>{' '}
+          Promoção, mérito e dissídio saem do histórico salarial de cada pessoa, e a carga do
+          Convenia ainda não o lê — por isso não há número aqui, e não porque não tenha havido
+          movimentação.
+        </p>
+        <p className="text-xs text-muted-foreground max-w-xl mx-auto">
+          O dado existe no Convenia, em <code>/employees/&#123;id&#125;/salaries-historic</code>,
+          com o motivo já classificado na origem. Hoje ele é lido só na geração do report do WIL,
+          para a liderança sênior.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

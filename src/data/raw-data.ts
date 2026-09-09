@@ -34,7 +34,15 @@ export interface MonthRecord {
   dept_data: Record<string, DeptData>;
   salary_band_attrition?: Array<{ band: string; leavers: number; pct_of_leavers: number; avg_tenure_months: number }>;
   exit_survey?: Array<{ reason: string; count: number; pct: number; trend: string; comments: string[] }>;
-  promotions: number;
+  /**
+   * Promoções do mês.
+   *
+   * `null` = a série NÃO CALCULA promoções, e não "houve zero". A distinção
+   * existe porque a série do Convenia não lê o histórico salarial: sem ele não
+   * há como saber quem foi promovido, e um zero ali é uma afirmação falsa
+   * sobre a empresa. A série congelada, vinda de planilha, traz o número.
+   */
+  promotions: number | null;
   /** Distribuicao por nivel DA EPOCA ({ "L0": n, ..., "NA": n }). So a serie
    *  reconstruida preenche; a congelada (raw-data.ts) nao tem e fica vazio. */
   level_base?: Record<string, number>;
