@@ -135,6 +135,21 @@ export interface ResumoSyncConvenia {
 const VERSAO_DETALHE = 5;
 
 /**
+ * A versão do código que lê o detalhe de um DESLIGADO.
+ *
+ * O cache de desligados existe para não buscar a mesma pessoa duas vezes -- e
+ * é justamente por isso que ele precisa de versão: quando a leitura passa a
+ * guardar um campo novo, as pessoas já lidas ficariam com ele vazio para
+ * sempre. O cache transforma uma leitura incompleta em permanente.
+ *
+ * 1: guardava só mês de admissão e área.
+ * 2: passa a guardar nome, cargo, salário, `Level`, `Job Type Family`, gênero
+ *    e raça -- tudo o que a aba de Desligamentos lia da planilha manual, e que
+ *    já vinha nesta mesma resposta.
+ */
+const VERSAO_DESLIGADO = 2;
+
+/**
  * O Convenia devolve salário ora como número, ora como string no formato
  * brasileiro ("3.218,00"). `Number("3.218,00")` é `NaN`, e um NaN entrando na
  * média a transformaria em NaN inteira -- um campo que some do gráfico sem dar
@@ -299,9 +314,19 @@ export async function executarSyncConvenia(
     // pessoal para reconfirmar um dado imutável.
     const { data: jaResolvidos } = await db
       .from('convenia_leavers')
-      .select('convenia_id, hiring_month, department, dismissal_month, marca, dismissal_date');
+      .select('convenia_id, hiring_month, department, dismissal_month, marca, dismissal_date, detalhe_versao');
+    // ------------------------------------------------------------------
+    // O CACHE SÓ VALE SE FOI ESCRITO PELO CÓDIGO DE HOJE
+    // ------------------------------------------------------------------
+    // Antes bastava existir. Com colunas novas (salário, level, família), as
+    // 138 pessoas já lidas continuariam com elas vazias -- e a aba de
+    // Desligamentos seguiria dependendo da planilha manual por causa disso.
     const cache = new Map<string, { hiring_month: string | null; department: string | null }>(
-      ((jaResolvidos ?? []) as { convenia_id: string; hiring_month: string | null; department: string | null }[])
+      ((jaResolvidos ?? []) as {
+        convenia_id: string; hiring_month: string | null; department: string | null;
+        detalhe_versao: number | null;
+      }[])
+        .filter((r) => (r.detalhe_versao ?? 0) >= VERSAO_DESLIGADO)
         .map((r) => [r.convenia_id, { hiring_month: r.hiring_month, department: r.department }]),
     );
     let buscadosAgora = 0;
@@ -796,6 +821,23 @@ export async function executarSyncConvenia(
                 const mesAdmissao = mesDe(det.hiring_date as string);
                 const area = ((det.department as { name?: string })?.name ?? null);
 
+                // ------------------------------------------------------------
+                // O QUE A ABA DE DESLIGAMENTOS PRECISA JÁ ESTAVA NESTA RESPOSTA
+                // ------------------------------------------------------------
+                // A redução guardava dois campos e descartava o resto. Salário,
+                // `Level` e `Job Type Family` vinham aqui e morriam na linha
+                // seguinte -- e é por eles que a aba lia a tabela ANTIGA, de
+                // planilha, parada há dois meses.
+                //
+                // Nenhuma requisição a mais: é a mesma chamada.
+                const camposDoDesligado = lerCustomFields(det.custom_fields);
+                const nivelSaida = valorDeCampo(camposDoDesligado, ['level'], { exato: true });
+                const familiaSaida = valorDeCampo(camposDoDesligado, ['job type family']);
+                const generoSaida = normalizarGenero(
+                  typeof det.gender === 'string' ? det.gender : (det.gender as { name?: string })?.name,
+                );
+                const racaSaida = (det.ethnicity as { name?: string } | null)?.name ?? null;
+
                 // SÓ GUARDA O QUE SERVE. Cachear um nulo transformaria uma
                 // falha temporária em permanente: a pessoa nunca mais seria
                 // buscada, e a série carregaria o buraco para sempre.
@@ -821,6 +863,14 @@ export async function executarSyncConvenia(
                   department: area,
                   dismissal_type: s.tipo,
                   voluntary: ehVoluntaria(s.tipo),
+                  nome: nomeCompleto(det),
+                  cargo: cargoDe(det),
+                  salary: normalizarSalario(det.salary),
+                  level: nivelSaida,
+                  job_type_family: familiaSaida,
+                  genero: generoSaida,
+                  raca: racaSaida,
+                  detalhe_versao: VERSAO_DESLIGADO,
                 }, { onConflict: 'convenia_id' });
               } catch {
                 // Uma pessoa que falha não derruba a carga. Ela fica sem
@@ -1305,6 +1355,31 @@ export async function executarSyncConvenia(
       const pendentesHist = totalPessoas - lidosAlcancaveis;
       // Enquanto falta gente, isto PEDE uma ação (rodar de novo) e fica em
       // pendência. Quando fecha, vira recibo: informa e não cobra nada.
+      // ------------------------------------------------------------------
+      // AS DUAS BASES DE DESLIGADOS, LADO A LADO
+      // ------------------------------------------------------------------
+      // A aba de Desligamentos lê `leavers` (planilha, manual) e a carga grava
+      // `convenia_leavers`. Ninguém comparava as duas, e a diferença -- 138
+      // contra 65 -- só apareceu porque o selo de frescor reclamou.
+      //
+      // Enquanto a aba não migrar, a comparação fica aqui: dois números na
+      // mesma frase é o que impede uma fonte de envelhecer em silêncio.
+      try {
+        const [cl, lv] = await Promise.all([
+          db.from('convenia_leavers').select('convenia_id'),
+          db.from('leavers').select('id'),
+        ]);
+        const nConvenia = ((cl.data ?? []) as unknown[]).length;
+        const nPlanilha = ((lv.data ?? []) as unknown[]).length;
+        if (nConvenia !== nPlanilha) {
+          avisos.push(
+            `Desligados: o Convenia conhece ${nConvenia} e a planilha que a aba LE tem ${nPlanilha}. `
+            + 'A aba de Desligamentos ainda desenha a planilha -- a migracao depende das colunas '
+            + 'novas (salario, level, job family) terminarem de preencher.',
+          );
+        }
+      } catch { /* comparar e diagnostico; falhar aqui nao pode custar a carga */ }
+
       const linhaCobertura =
         `Promocoes: historico salarial lido de ${lidosAlcancaveis} de ${totalPessoas} pessoas`
         + (pendentesHist > 0
