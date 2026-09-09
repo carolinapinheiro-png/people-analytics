@@ -240,6 +240,26 @@ export async function executarSyncConvenia(
   // mais caro que a falha que ele deveria descrever.
   let requisicoes = 0;
 
+  // ------------------------------------------------------------------
+  // ORÇAMENTO DE TEMPO, PORQUE A FUNÇÃO TEM PRAZO E O CONVENIA NÃO SABE
+  // ------------------------------------------------------------------
+  // A carga roda como função de servidor, e ela é MORTA no limite da
+  // plataforma. Quando isso acontece, o navegador mostra "Failed to fetch" --
+  // sem mensagem, sem log de erro, sem nada dizendo que faltou tempo. Foi o
+  // que aconteceu em 09/09 quando a leitura do histórico salarial (mais 150
+  // requisições) entrou em cima das 200 do detalhe individual.
+  //
+  // Contar REQUISIÇÕES não protege: cada uma pode levar 50ms ou 3s, e o lote
+  // que cabia ontem não cabe hoje. O relógio é a única grandeza que
+  // corresponde ao que a plataforma mede.
+  //
+  // Ao estourar, a carga PARA de buscar e segue para gravar o que já tem. É
+  // por isso que as filas existem: o que não coube nesta execução entra na
+  // próxima, e o aviso de cobertura diz quanto falta.
+  const inicioDaCarga = Date.now();
+  const ORCAMENTO_MS = 45_000;
+  const semTempo = () => Date.now() - inicioDaCarga > ORCAMENTO_MS;
+
   const { data: logRow } = await db.from('integration_sync_log').insert({
     provider: 'convenia', status: 'running', triggered_by: origem,
   }).select('id').maybeSingle();
@@ -297,7 +317,11 @@ export async function executarSyncConvenia(
     // uma carga faria 400 chamadas e ficaria perto do limite do Convenia --
     // e o que estoura o limite derruba a carga inteira, não só a parte nova.
     // 150 converge as 642 pessoas em cinco execuções.
-    const LOTE_HISTORICO = 150;
+    // 60, e não 150: o limite real não é o número, é o tempo total da função.
+    // Com 200 detalhes na mesma execução, 150 históricos mataram a carga em
+    // 09/09 ("Failed to fetch"). O orçamento de tempo é a proteção de verdade;
+    // este número só evita chegar perto dele no caminho feliz.
+    const LOTE_HISTORICO = 60;
     /**
      * Suba quando a leitura do histórico passar a guardar um campo novo.
      * Ver a nota de `VERSAO_DETALHE`: é a quinta vez que este arquivo depende
@@ -306,6 +330,9 @@ export async function executarSyncConvenia(
     const VERSAO_HISTORICO = 1;
     let historicoBuscadosAgora = 0;
     const historicoFalhas: string[] = [];
+    /** Marcadas quando o relógio interrompeu uma das filas -- viram aviso. */
+    let historicoSemTempo = false;
+    let detalheSemTempo = false;
     const { data: pessoasCache } = await db
       .from('convenia_pessoas')
       // `bruto` entra na consulta porque estado civil e UF natal só existem
@@ -786,6 +813,7 @@ export async function executarSyncConvenia(
         for (const alvo of semGenero) {
           if (generoBuscadosAgora >= LOTE_GENERO) break;
           try {
+            if (semTempo()) { detalheSemTempo = true; break; }
             const env2 = await client.get<Record<string, unknown>>(EMPLOYEE_DETAIL(String(alvo.id)));
             const det2 = (env2?.data ?? env2) as Record<string, unknown>;
             // Dos 123 campos, três seguem adiante. `gender` é a identidade de
@@ -900,6 +928,11 @@ export async function executarSyncConvenia(
 
           for (const alvo of naFila) {
             if (historicoBuscadosAgora >= LOTE_HISTORICO) break;
+            // O histórico é o ÚLTIMO a rodar e o primeiro a ceder: sem ele a
+            // carga ainda entrega headcount, atrição e organograma. Ceder aqui
+            // é perder promoções desta rodada; insistir é perder a carga
+            // inteira.
+            if (semTempo()) { historicoSemTempo = true; break; }
             try {
               const env = await client.get<Record<string, unknown>>(SALARIO_HISTORICO(alvo.id));
               requisicoes++;
@@ -1198,6 +1231,16 @@ export async function executarSyncConvenia(
           ? ` -- faltam ${pendentesHist} (lotes de ${LOTE_HISTORICO} por execucao). Ate zerar, a serie mostra MENOS promocoes do que houve. Rode de novo.`
           : '. Cobertura completa.'),
       );
+      if (historicoSemTempo || detalheSemTempo) {
+        avisos.push(
+          'A carga PAROU DE BUSCAR por tempo, e seguiu para gravar o que ja tinha. '
+          + `${detalheSemTempo ? 'O detalhe individual ' : ''}`
+          + `${detalheSemTempo && historicoSemTempo ? 'e ' : ''}`
+          + `${historicoSemTempo ? 'o historico salarial ' : ''}`
+          + 'ficaram incompletos NESTA execucao -- o que faltou volta na proxima. '
+          + 'Isto nao e erro: e o limite de tempo da funcao sendo respeitado em vez de estourado.',
+        );
+      }
       if (historicoFalhas.length) {
         avisos.push(
           `Historico salarial falhou para ${historicoFalhas.length} pessoa(s); elas voltam para a fila na proxima carga. `
