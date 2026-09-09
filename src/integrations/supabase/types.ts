@@ -1012,11 +1012,13 @@ export type Database = {
           avg_salary_non_leaders: number | null
           brand: string
           business_unit: Database["public"]["Enums"]["business_unit"] | null
+          contract_base: Json
           created_at: string | null
           demographics: Json
           dept_breakdown: Json | null
           dept_data: Json
           exit_survey: Json | null
+          family_base: Json
           gender_female: number | null
           gender_female_pct: number | null
           gender_male: number | null
@@ -1049,11 +1051,13 @@ export type Database = {
           avg_salary_non_leaders?: number | null
           brand: string
           business_unit?: Database["public"]["Enums"]["business_unit"] | null
+          contract_base?: Json
           created_at?: string | null
           demographics?: Json
           dept_breakdown?: Json | null
           dept_data?: Json
           exit_survey?: Json | null
+          family_base?: Json
           gender_female?: number | null
           gender_female_pct?: number | null
           gender_male?: number | null
@@ -1086,11 +1090,13 @@ export type Database = {
           avg_salary_non_leaders?: number | null
           brand?: string
           business_unit?: Database["public"]["Enums"]["business_unit"] | null
+          contract_base?: Json
           created_at?: string | null
           demographics?: Json
           dept_breakdown?: Json | null
           dept_data?: Json
           exit_survey?: Json | null
+          family_base?: Json
           gender_female?: number | null
           gender_female_pct?: number | null
           gender_male?: number | null
