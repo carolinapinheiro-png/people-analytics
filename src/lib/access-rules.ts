@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ALL_TABS, SUB_ABAS_DO_PRODUTO } from '@/lib/permissions';
 
 /**
  * Schemas e regras puras do controle de acesso.
@@ -109,13 +110,23 @@ export function roleForProfile(profile: AccessProfileValue): 'admin' | 'viewer' 
 export const SCOPED_REQUIRES_SCOPE_MESSAGE =
   'Perfis HRBP e Department Leader exigem ao menos um departamento ou job family.';
 
-/** Abas concedidas alem das do perfil. Validadas contra a lista real. */
+/**
+ * Abas concedidas alem das do perfil. Validadas contra a lista real.
+ *
+ * ------------------------------------------------------------------
+ * DERIVADA DE `ALL_TABS`, E NAO COPIADA DELA
+ * ------------------------------------------------------------------
+ * Era uma lista escrita a mao, com o `.max(11)` tambem a mao. Duas copias da
+ * mesma verdade, e a copia envelhece: `permissions.ts` ganha uma aba, este
+ * arquivo nao fica sabendo, e o servidor passa a recusar uma aba que a tela
+ * oferece. Ver `SubTabsSchema` logo abaixo, que foi exatamente isso.
+ *
+ * Continua sendo lista FECHADA -- uma aba inventada nao entra no cadastro --,
+ * so que agora e a lista certa, e ela nao pode divergir.
+ */
 export const ExtraTabsSchema = z
-  .array(z.enum([
-    'overview', 'team', 'dei', 'comp', 'demographics', 'engagement',
-    'span', 'attrition', 'recruitment', 'individual', 'data',
-  ]))
-  .max(11)
+  .array(z.enum(ALL_TABS as [string, ...string[]]))
+  .max(ALL_TABS.length)
   .default([]);
 
 /**
@@ -131,17 +142,30 @@ export const TabsSchema = ExtraTabsSchema;
 /**
  * As sub-abas desta pessoa, achatadas entre as abas.
  *
- * O enum é fechado pelo mesmo motivo das abas. Se uma sub-aba nova nascer no
- * produto e não entrar aqui, o cadastro a recusa -- que é o lado seguro do
- * erro: melhor não conseguir conceder do que conceder algo que a regra não
- * sabe interpretar.
+ * ===========================================================================
+ * A LISTA ESTAVA DESATUALIZADA, E O SINTOMA ERA UM ERRO DE VALIDACAO
+ * ===========================================================================
+ * Este enum tinha SEIS valores e `.max(6)`. `SUB_ABAS_DO_PRODUTO` tem OITO --
+ * `desligamentos` e `nao-desejada` entraram com a aba de Atricao e nunca
+ * chegaram aqui.
+ *
+ * A tela oferecia as oito; o servidor recusava duas. Ou seja: ninguem nunca
+ * conseguiu salvar um cadastro com as sub-abas de Atricao, e o erro so
+ * apareceu quando um perfil trouxe as oito de uma vez. Um controle que oferece
+ * o que o servidor recusa e pior que um controle ausente -- quem tenta conclui
+ * que errou alguma coisa.
+ *
+ * O comentario antigo defendia o enum fechado: "melhor nao conseguir conceder
+ * do que conceder algo que a regra nao sabe interpretar". A defesa continua
+ * valendo e nao exige copia: derivando de `SUB_ABAS_DO_PRODUTO`, a lista
+ * segue fechada e passa a ser a mesma que o produto usa para resolver a
+ * sub-aba na tela. Sub-aba nova entra nas duas ao mesmo tempo, ou em nenhuma.
  */
+const SUB_ABAS_VALIDAS = Object.keys(SUB_ABAS_DO_PRODUTO);
+
 export const SubTabsSchema = z
-  .array(z.enum([
-    'engajamento', 'onboarding', 'inclusao',
-    'custos', 'compratio', 'movimentacoes',
-  ]))
-  .max(6)
+  .array(z.enum(SUB_ABAS_VALIDAS as [string, ...string[]]))
+  .max(SUB_ABAS_VALIDAS.length)
   .default([]);
 
 /**
