@@ -12,6 +12,7 @@ import { Users, MapPin, Cake, ShieldCheck, Globe, GraduationCap, Laptop } from '
 import { useState, useEffect } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { getWorkModel, type WorkModelRow } from '@/lib/work-model.functions';
+import { FAIXAS_TEMPO_DE_CASA } from '@/lib/convenia/pessoas';
 
 const WORK_MODEL_ORDER = ['Remoto', 'Híbrido', 'Presencial', 'Não informado'];
 const WORK_MODEL_COLORS: Record<string, string> = {
@@ -30,7 +31,6 @@ const BRAND_COLORS: Record<string, string> = {
 };
 
 const AGE_ORDER = ['<25', '25-34', '35-44', '45-54', '55+', 'Não informado'];
-const TENURE_ORDER = ['0-3m', '3-6m', '6-12m', '1-2a', '2-5a', '5a+', 'Não informado'];
 const LEVELS = ['L0', 'L1', 'L2', 'L3', 'L4', 'L5', 'L6', 'L7', 'L8', 'L9'];
 const RACE_COLORS: Record<string, string> = {
   Branca: '#cbd5e1', Parda: '#c99a6b', Preta: '#5b4636', Amarela: '#e9c46a', Indígena: '#2a9d8f', 'Não informado': '#475569',
@@ -139,7 +139,26 @@ export default function DemographicsTab() {
   const marital = toArr(dg.marital);
   const origin = toArr(dg.origin).filter((o) => o.name !== 'Não informado').slice(0, 10);
   const level = LEVELS.map((l) => ({ name: l, value: curr.level_base?.[l] || 0 })).filter((l) => l.value > 0);
-  const tenure = toArr(curr.tenure_base, TENURE_ORDER).filter((t) => t.value > 0);
+  // ------------------------------------------------------------------
+  // TEMPO DE CASA: EIXO FIXO, DO MENOR PARA O MAIOR
+  // ------------------------------------------------------------------
+  // Este gráfico saía fora de ordem ("5+ anos" antes de "0-3 meses") porque a
+  // ordem vinha de uma lista local escrita noutro vocabulário -- '0-3m',
+  // '1-2a', '5a+' -- enquanto a série grava '0-3 meses', '1-2 anos', '5+ anos'.
+  // Nenhum rótulo batia, `indexOf` devolvia -1 para todos, e a ordenação virava
+  // a ordem em que as chaves aparecem no JSON, que muda com a carga.
+  //
+  // Agora a régua vem de FAIXAS_TEMPO_DE_CASA (pessoas.ts), o único lugar que
+  // a define, e as seis faixas são SEMPRE desenhadas -- inclusive as de valor
+  // zero. Faixa vazia que some do eixo faz o gráfico mudar de forma a cada
+  // filtro, e some justamente a informação de que ali não tem ninguém.
+  const tenure = [
+    ...FAIXAS_TEMPO_DE_CASA.map((name) => ({ name: name as string, value: curr.tenure_base?.[name] || 0 })),
+    // 'Não informado' não é faixa de tempo: só entra se existir de fato.
+    ...(curr.tenure_base?.['Não informado']
+      ? [{ name: 'Não informado', value: curr.tenure_base['Não informado'] }]
+      : []),
+  ];
 
   const states = Object.entries(curr.state_mix || {})
     .map(([name, v]) => ({ name: resolveState(name).uf, full: name, value: v }))
@@ -398,7 +417,9 @@ export default function DemographicsTab() {
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={tenure}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                  <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
+                  {/* interval={0}: sem isto o recharts esconde rótulos quando a
+                      largura aperta, e o eixo deixa de ser a escada completa. */}
+                  <XAxis dataKey="name" interval={0} tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
                   <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                   <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                   <Bar dataKey="value" name="Pessoas" fill={COLORS.info} radius={[4, 4, 0, 0]} />

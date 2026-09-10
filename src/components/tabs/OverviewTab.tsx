@@ -4,6 +4,7 @@ import { useDashboard } from '@/data/DashboardContext';
 import { getExperienceData } from '@/lib/experience.functions';
 import { getHeadcountMix, type HeadcountMix } from '@/lib/comp.functions';
 import { calcTurnover, promoRate, mLabel, fmt } from '@/data/helpers';
+import { FAIXAS_TEMPO_DE_CASA } from '@/lib/convenia/pessoas';
 
 const NSX_COS = ['NSX BRASIL RECIFE', 'NSX BRASIL SÃO PAULO', 'NSX MARECHAL'];
 const BRAND_COMPANIES: Record<string, string[]> = {
@@ -12,7 +13,11 @@ const BRAND_COMPANIES: Record<string, string[]> = {
   'Flutter International': [],
   combined: [...NSX_COS, 'NSX BETFAIR BRASIL S.A.'],
 };
-const TENURE_ORDER = ['0-3m', '3-6m', '6-12m', '1-2a', '2-5a', '5a+'];
+// A régua vem de pessoas.ts, o único lugar que a define. A lista que estava
+// aqui usava outro vocabulário ('0-3m', '1-2a') e nenhuma chave batia com a
+// série -- `tb[k]` dava 0 em todas as faixas e o KPI ficava permanentemente em
+// "—", sem erro nenhum na tela.
+const TENURE_ORDER: readonly string[] = FAIXAS_TEMPO_DE_CASA;
 import KpiCard from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { StorySection, StoryInsight, StoryMetric, StoryAlert } from '@/components/dashboard/StorySection';
