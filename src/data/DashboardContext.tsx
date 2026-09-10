@@ -69,6 +69,14 @@ interface DashboardState {
   currentData: MonthRecord;
   prevData: MonthRecord | undefined;
   allMonthsData: MonthRecord[];
+  /**
+   * A série ANTES do recorte de área. Serve para montar o catálogo de opções
+   * dos filtros -- que não pode depender do que já está selecionado, senão
+   * escolher um departamento apaga os outros do seletor.
+   *
+   * Não use para desenhar número: ela ignora o filtro de departamento.
+   */
+  serieSemRecorteDeArea: MonthRecord[];
   filteredDeptKey: string | null;
   /** A serie mensal agora vem do banco (nao mais do mock), entao tem carga. */
   dataLoading: boolean;
@@ -406,12 +414,29 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   const filteredDeptKey = valorFiltro(filters.departamento);
 
   // Get monthly data first (ja restrito ao ano em escopo).
-  const monthlyAllData = useMemo(() => {
-    const raw = getAllMonthsForBrand(data, brand).filter(
+  // ------------------------------------------------------------------
+  // A SÉRIE ANTES DO RECORTE DE ÁREA -- É DELA QUE SAI O CATÁLOGO
+  // ------------------------------------------------------------------
+  // `applyDeptFilter` troca `dept_data` pela fatia de UM departamento. Quem
+  // ler a série depois dele para montar a lista de opções vê só o
+  // departamento já escolhido -- e aí escolher TECHNOLOGY apaga todos os
+  // outros do seletor, sem volta.
+  //
+  // Foi o que aconteceu em 10/09, no mesmo dia em que as opções passaram a vir
+  // do dado: o catálogo virou consequência da seleção. Marca e ano continuam
+  // valendo (são outros eixos, e o dado realmente não existe fora deles); o
+  // recorte de área, não.
+  const serieSemRecorteDeArea = useMemo(
+    () => getAllMonthsForBrand(data, brand).filter(
       (r) => !activeYear || r.month.startsWith(activeYear),
-    );
+    ),
+    [data, brand, activeYear],
+  );
+
+  const monthlyAllData = useMemo(() => {
+    const raw = serieSemRecorteDeArea;
     return filteredDeptKey ? raw.map(r => applyDeptFilter(r, filteredDeptKey)) : raw;
-  }, [data, brand, filteredDeptKey, activeYear]);
+  }, [serieSemRecorteDeArea, filteredDeptKey]);
 
   // Aggregate to quarterly if needed
   const allMonthsData = useMemo(() => {
@@ -462,6 +487,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       activeTab, setActiveTab, activeSubTab, setActiveSubTab, view, setView, filters, setFilters,
       yearFilter, setYearFilter, availableYears, activeYear,
       monthsOrder, currentMonth, currentData, prevData, allMonthsData,
+      serieSemRecorteDeArea,
       filteredDeptKey, dataLoading, dataError, serie, cobertura,
       leaversLoading, leaversError, reloadLeavers,
     }}>

@@ -72,6 +72,33 @@ test('o vocabulário é a UNIÃO dos meses, não o do último', () => {
   assert.deepEqual(o.tipoContrato, ['CLT', 'Estágio']);
 });
 
+test('o catálogo NÃO pode encolher quando um valor já está escolhido', () => {
+  // O defeito de 10/09, relatado como "não consigo ver todos os departamentos
+  // após selecionar um".
+  //
+  // As opções passaram a vir do dado -- certo -- mas vinham de `allMonthsData`,
+  // que já passou pelo `applyDeptFilter`. Escolher TECHNOLOGY reduzia
+  // `dept_data` a TECHNOLOGY, e o seletor perdia todos os outros: a seleção
+  // apagava as alternativas a ela.
+  //
+  // Aqui as duas séries são exercitadas lado a lado. A do catálogo tem de
+  // continuar oferecendo as três áreas.
+  const completa = mes({
+    dept_data: {
+      TECHNOLOGY: { hc: 173 }, OPERATION: { hc: 147 }, HR: { hc: 24 },
+    } as never,
+  });
+  const jaRecortada = mes({ dept_data: { TECHNOLOGY: { hc: 173 } } as never });
+
+  assert.deepEqual(
+    opcoesDoDado([completa], []).departamento,
+    ['TECHNOLOGY', 'OPERATION', 'HR'],
+  );
+  // O que a barra veria se lesse a série recortada -- e é por isso que ela
+  // recebe `serieSemRecorteDeArea` do contexto, e não `allMonthsData`.
+  assert.deepEqual(opcoesDoDado([jaRecortada], []).departamento, ['TECHNOLOGY']);
+});
+
 test('série vazia não devolve listas vazias', () => {
   // Lista vazia apagaria os seletores durante o carregamento, e "ainda não
   // carregou" viraria "não existe". A barra precisa cair na reserva dela.

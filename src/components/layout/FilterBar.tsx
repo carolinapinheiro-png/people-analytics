@@ -168,7 +168,7 @@ const VAZIO: Filters = {
 };
 
 export default function FilterBar() {
-  const { filters, setFilters, brand, activeTab, activeSubTab, allMonthsData, leavers } = useDashboard();
+  const { filters, setFilters, brand, activeTab, activeSubTab, serieSemRecorteDeArea, leavers } = useDashboard();
   const { profile, departments, jobFamilies } = useAuth();
 
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
@@ -247,8 +247,8 @@ export default function FilterBar() {
   // continua como reserva para o que não vem da série (pesquisa) e para o
   // instante antes de a série carregar. Ver `opcoes-de-filtro.ts`.
   const doDado = useMemo(
-    () => opcoesDoDado(allMonthsData ?? [], leavers ?? []),
-    [allMonthsData, leavers],
+    () => opcoesDoDado(serieSemRecorteDeArea ?? [], leavers ?? []),
+    [serieSemRecorteDeArea, leavers],
   );
 
   const opcoes = (k: FilterKey): string[] => {
