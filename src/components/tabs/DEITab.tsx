@@ -221,22 +221,32 @@ export default function DEITab() {
         reconstruído pelo cargo da época — não é por nível nem por nº de reportes diretos.
       </p>
 
-      {/* Filtro de raça (interativo) */}
+      {/* Filtro de raça: mesmo padrão do seletor de departamento da barra
+          global -- rótulo em cima, <select> embaixo, borda da marca quando
+          algo diferente de "Todas" está escolhido. */}
       {hasRaceCross && (
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground mr-1">Filtrar por raça</span>
-          {['Todas', ...raceRows.map((r) => r.race)].map((r) => (
-            <button
-              key={r}
-              onClick={() => setRaceFilter(r)}
-              className={`text-xs px-2.5 py-1 rounded border transition-colors ${
-                raceFilter === r ? 'text-white border-transparent' : 'text-muted-foreground border-border hover:text-foreground'
-              }`}
-              style={raceFilter === r ? { background: brandColor } : undefined}
-            >
-              {r}
-            </button>
-          ))}
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+            Filtrar por raça
+          </label>
+          <select
+            value={raceFilter}
+            onChange={(e) => setRaceFilter(e.target.value)}
+            className={`bg-secondary border rounded px-2 py-1 text-[11px] text-foreground min-w-[140px] max-w-[200px] ${
+              raceFilter !== 'Todas' ? 'ring-1' : 'border-border'
+            }`}
+            style={
+              raceFilter !== 'Todas'
+                ? ({ borderColor: brandColor, '--tw-ring-color': brandColor } as React.CSSProperties)
+                : undefined
+            }
+          >
+            {['Todas', ...raceRows.map((r) => r.race)].map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
           {sel && (
             <span className="text-[11px] text-muted-foreground ml-1">
               KPIs de mulheres/liderança abaixo são de <strong className="text-foreground">{raceFilter}</strong>; gráficos de tendência seguem company-wide.
