@@ -95,6 +95,8 @@ export default function DEITab() {
       label: sel ? `Mulheres na liderança · ${raceFilter}` : 'Mulheres na liderança',
       value: (sel ? selLeadFemalePct.toFixed(0) : (curr.leader_female_pct || 0)) + '%',
       color: COLORS.purple,
+      help: 'liderancaFeminina' as const,
+      helpValue: sel ? selLeadFemalePct : (curr.leader_female_pct || 0),
       sub: sel
         ? `${sel.female_leaders} de ${sel.leaders} líderes ${raceFilter}`
         : lpDelta >= 0
@@ -225,10 +227,6 @@ export default function DEITab() {
           por isso, e não por ausência de pessoas.
         </p>
       )}
-      <p className="text-xs text-muted-foreground -mt-2">
-        <strong>Líder</strong> = colaborador que aparece como supervisor de pelo menos uma pessoa no
-        cadastro (derivado, não um campo próprio) — não é por nível nem por nº de reportes diretos.
-      </p>
 
       {/* Filtro de raça: mesmo padrão do seletor de departamento da barra
           global -- rótulo em cima, <select> embaixo, borda da marca quando
@@ -281,7 +279,7 @@ export default function DEITab() {
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {kpis.map(k => <KpiCard key={k.label} label={k.label} value={k.value} color={k.color} sub={k.sub} icon={k.label.includes('Líder') ? Award : Users} />)}
+            {kpis.map(k => <KpiCard key={k.label} label={k.label} value={k.value} color={k.color} sub={k.sub} icon={k.label.includes('Líder') ? Award : Users} help={k.help} helpValue={k.helpValue} />)}
           </div>
 
       {/* Charts */}

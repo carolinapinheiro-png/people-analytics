@@ -225,6 +225,12 @@ export const AJUDA = {
     cuidado: 'Pessoas sem gênero cadastrado ficam fora do cálculo, não entram como zero.',
     formatar: pct,
   },
+  liderancaFeminina: {
+    titulo: 'Mulheres na liderança',
+    oQueE: '% de líderes mulheres sobre o total de líderes.',
+    comoLer: 'Líder = colaborador que aparece como supervisor de pelo menos uma pessoa no cadastro — derivado, não um campo próprio. Não é por nível nem por nº de reportes diretos.',
+    formatar: pct,
+  },
 } as const satisfies Record<string, AjudaMetrica>;
 
 export type ChaveMetrica = keyof typeof AJUDA;
