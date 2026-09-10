@@ -467,16 +467,72 @@ export async function executarSyncConvenia(
     // empurrando o trabalho dela para quem a usa. Estas listas viram uma
     // frase só, no topo: pronto, ou o que falta.
     const filasPendentes: string[] = [];
-    const { data: pessoasCache } = await db
+    // ------------------------------------------------------------------
+    // ESTA CONSULTA É A BASE DE TUDO -- E O ERRO DELA ERA DESCARTADO
+    // ------------------------------------------------------------------
+    // Dela saem gênero, raça, cargo, empresa (e portanto a MARCA), família,
+    // level, estado civil, origem e PCD. Quando ela falha, `data` vem `null`,
+    // todos os mapas nascem vazios e a carga segue adiante calculando em cima
+    // de nada -- sem erro, sem aviso.
+    //
+    // Foi o que aconteceu em 10/09 01:5x: a tela anunciou "gênero 15 de 636",
+    // "Betfair BR de 34 para 2" e Flutter International simplesmente sumiu.
+    // Nenhum dado tinha sido perdido: o banco seguia com 785 gêneros e 651
+    // empresas. A carga é que estava lendo o vazio e relatando como se fosse
+    // a empresa.
+    //
+    // É o defeito do dia inteiro na sua forma mais pura -- ausência de leitura
+    // apresentada como fato sobre o mundo -- e desta vez com potencial de ser
+    // GRAVADO. Agora ela interrompe: sem esta consulta não há carga.
+    //
+    // `bruto` saiu do SELECT e virou duas projeções. A coluna inteira são
+    // 2,5 MB para ler dois campos, e a resposta batia em 3,3 MB -- tamanho
+    // suficiente para falhar de vez em quando, que é o pior modo de falhar.
+    const { data: pessoasCache, error: erroCache } = await db
       .from('convenia_pessoas')
-      // `bruto` entra na consulta porque estado civil e UF natal só existem
-      // ali: são campos do DETALHE que a carga lia e jogava fora, e nenhum
-      // deles tem coluna própria. Ler daqui evita subir `VERSAO_DETALHE` de
-      // novo -- o dado já está guardado desde a releitura de hoje, e mais um
-      // ciclo de quatro cargas atrasaria os gráficos por dias.
-      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields, bruto, detalhe_em, detalhe_versao, historico_em, historico_versao');
+      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields, detalhe_em, detalhe_versao, historico_em, historico_versao, '
+        // Estado civil e UF NATAL vivem só dentro do `bruto` (a resposta do
+        // detalhe, guardada inteira para não precisar de coluna nova a cada
+        // gráfico). O Postgres extrai os dois na consulta; o resto fica lá.
+        + 'marital_status_id:bruto->>marital_status_id, natural_from_state_uf:bruto->>natural_from_state_uf');
+    if (erroCache) {
+      throw new Error(
+        'Nao consegui ler o cadastro guardado (convenia_pessoas): '
+        + `${erroCache.message}. A carga PAROU aqui de proposito -- sem essa leitura, genero, `
+        + 'marca, familia e level sairiam vazios e a tela mostraria isso como se fosse a empresa. '
+        + 'Nada foi gravado. Rode de novo; se repetir, e a consulta que precisa ser reduzida.',
+      );
+    }
+    /**
+     * A forma das linhas do cadastro guardado, escrita UMA vez.
+     *
+     * Antes cada mapa repetia o seu próprio molde inline (`as { convenia_id,
+     * gender }[]`), doze vezes. Isso escondia o problema desta noite: com doze
+     * moldes diferentes, ninguém percebia que todos vinham da mesma consulta e
+     * que ela podia ter falhado.
+     *
+     * `marital_status_id` e `natural_from_state_uf` chegam projetados de dentro
+     * do `bruto` pelo Postgres, então são `unknown`: quem lê passa por `textoDe`.
+     */
+    type LinhaDoCadastro = {
+      convenia_id: string;
+      gender: string | null;
+      race: string | null;
+      job_title: string | null;
+      job_title_em: string | null;
+      empresa: string | null;
+      escritorio: string | null;
+      custom_fields: unknown;
+      detalhe_em: string | null;
+      detalhe_versao: number | null;
+      historico_em: string | null;
+      historico_versao: number | null;
+      marital_status_id: unknown;
+      natural_from_state_uf: unknown;
+    };
+    const linhasDoCadastro = (pessoasCache ?? []) as unknown as LinhaDoCadastro[];
     const cacheGenero = new Map<string, 'F' | 'M' | null>(
-      ((pessoasCache ?? []) as { convenia_id: string; gender: string | null }[])
+      (linhasDoCadastro)
         .map((r) => [r.convenia_id, (r.gender as 'F' | 'M' | null) ?? null]),
     );
     // A raça já era GRAVADA em `convenia_pessoas` desde que o gênero entrou --
@@ -488,7 +544,7 @@ export async function executarSyncConvenia(
     // perguntei por esta pessoa". Raça e gênero vêm da mesma requisição, então
     // as duas chegam juntas ou nenhuma chega.
     const cacheRaca = new Map<string, string | null>(
-      ((pessoasCache ?? []) as { convenia_id: string; race: string | null }[])
+      (linhasDoCadastro)
         .map((r) => [r.convenia_id, r.race ?? null]),
     );
     // ------------------------------------------------------------------
@@ -506,7 +562,7 @@ export async function executarSyncConvenia(
     // Nao custa requisicao nova: o laco de genero JA busca esse detalhe e
     // descarta o resto da resposta. O cargo sai da mesma chamada.
     const cacheCargo = new Map<string, string | null>(
-      ((pessoasCache ?? []) as { convenia_id: string; job_title: string | null }[])
+      (linhasDoCadastro)
         .map((r) => [r.convenia_id, r.job_title ?? null]),
     );
     // ------------------------------------------------------------------
@@ -523,11 +579,11 @@ export async function executarSyncConvenia(
     // Ver custom-fields.ts: "Empresa" é a marca, "Escritório" é a localidade, e
     // são campos distintos -- juntá-los devolveria o que viesse primeiro.
     const cacheEmpresa = new Map<string, string | null>(
-      ((pessoasCache ?? []) as { convenia_id: string; empresa: string | null }[])
+      (linhasDoCadastro)
         .map((r) => [r.convenia_id, r.empresa ?? null]),
     );
     const cacheEscritorio = new Map<string, string | null>(
-      ((pessoasCache ?? []) as { convenia_id: string; escritorio: string | null }[])
+      (linhasDoCadastro)
         .map((r) => [r.convenia_id, r.escritorio ?? null]),
     );
     // A Job Type Family sai do mesmo `custom_fields` que já veio nesta
@@ -537,15 +593,13 @@ export async function executarSyncConvenia(
     // Quem já teve o histórico lido NESTA versão. Mesma ideia de
     // `cadastroCompleto`: a fila se reenfileira sozinha quando o código muda.
     const historicoLido = new Set<string>(
-      ((pessoasCache ?? []) as Array<{
-        convenia_id: string; historico_em: string | null; historico_versao: number | null;
-      }>)
+      (linhasDoCadastro)
         .filter((r) => r.historico_em != null && (r.historico_versao ?? 0) >= VERSAO_HISTORICO)
         .map((r) => r.convenia_id),
     );
 
     const familiaPorId = new Map<string, string | null>(
-      ((pessoasCache ?? []) as { convenia_id: string; custom_fields: unknown }[])
+      (linhasDoCadastro)
         .map((r) => [
           r.convenia_id,
           valorDeCampo(lerCustomFields(r.custom_fields), ['job type family']),
@@ -555,23 +609,19 @@ export async function executarSyncConvenia(
     // (N-3..N-6 Above). Sem isto, a pirâmide de senioridade misturaria as
     // duas réguas e ninguém notaria pelo desenho.
     const nivelPorId = new Map<string, string | null>(
-      ((pessoasCache ?? []) as { convenia_id: string; custom_fields: unknown }[])
+      (linhasDoCadastro)
         .map((r) => [
           r.convenia_id,
           valorDeCampo(lerCustomFields(r.custom_fields), ['level'], { exato: true }),
         ]),
     );
-    // Estado civil e UF NATAL, do `bruto` (a resposta do detalhe, guardada
-    // inteira justamente para não precisar de coluna nova a cada gráfico).
-    // `natural_from_state_uf` é onde a pessoa NASCEU -- não confundir com
-    // `uf`, que é residência e alimenta outro gráfico.
-    const doBruto = (b: unknown, chave: string): string | null => {
-      const o = (b ?? {}) as Record<string, unknown>;
-      return textoDe(o[chave]);
-    };
+    // Estado civil e UF NATAL vêm projetados de dentro do `bruto` pela própria
+    // consulta (ver o SELECT acima). `natural_from_state_uf` é onde a pessoa
+    // NASCEU -- não confundir com `uf`, que é residência e alimenta outro
+    // gráfico.
     const estadoCivilPorId = new Map<string, string | null>(
-      ((pessoasCache ?? []) as { convenia_id: string; bruto: unknown }[])
-        .map((r) => [r.convenia_id, doBruto(r.bruto, 'marital_status_id')]),
+      (linhasDoCadastro)
+        .map((r) => [r.convenia_id, textoDe(r.marital_status_id)]),
     );
     // ------------------------------------------------------------------
     // COTA LEGAL: BRANCO NAO E "NAO"
@@ -589,15 +639,15 @@ export async function executarSyncConvenia(
       return null;
     };
     const pcdPorId = new Map<string, boolean | null>(
-      ((pessoasCache ?? []) as { convenia_id: string; custom_fields: unknown }[])
+      (linhasDoCadastro)
         .map((r) => [
           r.convenia_id,
           simNao(valorDeCampo(lerCustomFields(r.custom_fields), ['considera pcd'])),
         ]),
     );
     const origemPorId = new Map<string, string | null>(
-      ((pessoasCache ?? []) as { convenia_id: string; bruto: unknown }[])
-        .map((r) => [r.convenia_id, doBruto(r.bruto, 'natural_from_state_uf')]),
+      (linhasDoCadastro)
+        .map((r) => [r.convenia_id, textoDe(r.natural_from_state_uf)]),
     );
     // ------------------------------------------------------------------
     // "JA LIDO" MUDA DE SIGNIFICADO A CADA CAMPO NOVO
@@ -621,7 +671,7 @@ export async function executarSyncConvenia(
     // a escreveu: subir `VERSAO_DETALHE` reenfileira todo mundo, e esquecer de
     // subir é um erro que aparece na revisão do diff, não três cargas depois.
     const cadastroCompleto = new Set(
-      ((pessoasCache ?? []) as { convenia_id: string; detalhe_em: string | null; detalhe_versao: number | null }[])
+      (linhasDoCadastro)
         .filter((r) => r.detalhe_em != null && (r.detalhe_versao ?? 0) >= VERSAO_DETALHE)
         .map((r) => r.convenia_id),
     );
@@ -643,13 +693,13 @@ export async function executarSyncConvenia(
      * a população que a carga ALCANÇA.
      */
     const atrasadosNoDetalhe = new Set(
-      ((pessoasCache ?? []) as Array<{ convenia_id: string; detalhe_versao: number | null }>)
+      (linhasDoCadastro)
         .filter((r) => (r.detalhe_versao ?? 0) < VERSAO_DETALHE)
         .map((r) => r.convenia_id),
     );
 
     const cargoBuscado = new Set(
-      ((pessoasCache ?? []) as { convenia_id: string; job_title_em: string | null }[])
+      (linhasDoCadastro)
         .filter((r) => r.job_title_em != null).map((r) => r.convenia_id),
     );
     // Quem já foi buscado e voltou sem gênero não é buscado de novo: a linha
