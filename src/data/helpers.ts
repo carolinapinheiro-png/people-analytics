@@ -32,7 +32,10 @@ export function aggregateMonthlyToQuarterly(monthlyData: MonthRecord[]): MonthRe
     const avgHeadcount = Math.round(totalHeadcount / months.length);
     const totalJoiners = months.reduce((sum, m) => sum + (m.joiners || 0), 0);
     const totalLeavers = months.reduce((sum, m) => sum + (m.leavers || 0), 0);
-    const totalPromotions = months.reduce((sum, m) => sum + (m.promotions || 0), 0);
+    // Mesma regra do merge por marca: se NENHUM mês calculou, o acumulado é
+    // nulo, e a tela mostra "—". `|| 0` aqui devolveria "zero promoções no
+    // período", que é uma frase sobre a empresa.
+    const totalPromotions = somarPreservandoNulo(...months.map((m) => m.promotions));
     const totalGenderFemale = months.reduce((sum, m) => sum + (m.gender_female || 0), 0);
     const totalGenderMale = months.reduce((sum, m) => sum + (m.gender_male || 0), 0);
     const totalLeaders = months.reduce((sum, m) => sum + (m.leaders || 0), 0);
@@ -106,8 +109,21 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       avg_salary_non_leaders: n.avg_salary_non_leaders || 0,
       state_mix: n.state_mix || {},
       dept_data: mergeDepts(mergeDepts(n.dept_data || {}, b.dept_data || {}), f.dept_data || {}),
-      promotions: (n.promotions || 0) + (b.promotions || 0) + (f.promotions || 0),
+      // ------------------------------------------------------------------
+      // `|| 0` APAGA O "NÃO CALCULADO" -- E ELE ESTAVA AQUI
+      // ------------------------------------------------------------------
+      // A carga grava `promotions = null` quando não conseguiu ler o histórico
+      // salarial, justamente para a tela poder dizer "—" em vez de "0". Esta
+      // soma transformava os três nulos em zero, e a visão Combinada -- que é
+      // a que abre por padrão -- voltava a afirmar "nenhuma promoção".
+      //
+      // Duas linhas abaixo eu já tinha consertado `family_base` pelo mesmo
+      // motivo, e passei direto por esta. Nulo só vira número quando ALGUMA
+      // marca tem número; se nenhuma tem, continua nulo.
+      promotions: somarPreservandoNulo(n.promotions, b.promotions, f.promotions),
       level_base: mergeLevels(n.level_base, b.level_base, f.level_base),
+      // `undefined` quando NENHUMA marca calculou -- mesma regra de
+      // `promotions`. `mergeRaises` já devolve `undefined` nesse caso.
       raise_events: mergeRaises(n.raise_events, b.raise_events, f.raise_events),
       pcd: (n.pcd || 0) + (b.pcd || 0) + (f.pcd || 0),
       apprentice: (n.apprentice || 0) + (b.apprentice || 0) + (f.apprentice || 0),
@@ -174,6 +190,18 @@ function mergeLevels(
 }
 
 /** Soma movimentacoes salariais (raise_events) das marcas para a visao combinada. */
+/**
+ * Soma que distingue "ninguém teve" de "ninguém calculou".
+ *
+ * `(a || 0) + (b || 0)` devolve 0 nos dois casos, e a diferença entre eles é
+ * a coisa que este painel passou o dia 09/09 tentando preservar: zero é uma
+ * afirmação sobre a empresa; nulo é uma afirmação sobre o dado.
+ */
+function somarPreservandoNulo(...valores: Array<number | null | undefined>): number | null {
+  const comValor = valores.filter((v): v is number => v != null);
+  return comValor.length ? comValor.reduce((a, b) => a + b, 0) : null;
+}
+
 function mergeRaises(
   ...bases: Array<Record<string, { n: number; delta: number }> | undefined>
 ): Record<string, { n: number; delta: number }> | undefined {

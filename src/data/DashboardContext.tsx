@@ -114,7 +114,10 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
     // rio abaixo tinha como saber que aquilo nao era do departamento.
     return {
       ...record, dept_filter_exact: false,
-      headcount: 0, joiners: 0, leavers: 0, leaders: 0, promotions: 0,
+      headcount: 0, joiners: 0, leavers: 0, leaders: 0,
+      // Departamento sem quebra: o headcount é zero DE VERDADE (a área não
+      // aparece na série), mas promoções continua sendo "não sabemos".
+      promotions: record.promotions == null ? null : 0,
     };
   }
   const [deptName, deptInfo] = deptEntry;
@@ -153,7 +156,9 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
       return expostos > 0 ? Math.round((sai / expostos) * 1000) / 10 : 0;
     })(),
     leaders: Math.round((record.leaders || 0) * ratio),
-    promotions: Math.round((record.promotions || 0) * ratio),
+    // Ratear nulo daria 0 -- e o rateio já é aproximação; somar a ela uma
+    // afirmação falsa ("nenhuma promoção nesta área") seria pior.
+    promotions: record.promotions == null ? null : Math.round(record.promotions * ratio),
     gender_female: Math.round((record.gender_female || 0) * ratio),
     gender_male: Math.round((record.gender_male || 0) * ratio),
     gender_female_pct: record.gender_female_pct, // keep overall pct
