@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { EyeOff } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
@@ -11,6 +11,23 @@ import type { SurveyCut } from '@/lib/survey.functions';
 import {
   partesDoCruzamento, ehCruzamento, rotuloDeCorte, CROSS_BRAND, CROSS_BRAND_DESCRICAO,
 } from '@/lib/aggregator/polly-survey';
+import { toneDe, rotuloDe, TONE_TEXT, type ChaveMetrica } from '@/lib/metric-help';
+
+/**
+ * Cor sólida por trás de cada tom -- as barras usam a MESMA régua de
+ * `metric-help.ts` que já pinta o KpiCard e o EngagementTab. Antes esta tela
+ * pintava a barra pela DISTÂNCIA até a empresa; um grupo em 44 de eNPS ficava
+ * verde se a empresa estivesse em 30, e o mesmo 44 ficava âmbar se a empresa
+ * estivesse em 60 -- o número parecia bom ou ruim dependendo de uma conta que
+ * ninguém via. Agora a cor é sobre o valor em si: 44 é "patamar baixo" (âmbar)
+ * em qualquer empresa, porque é isso que a régua de `metric-help` diz.
+ */
+const TONE_BAR: Record<string, string> = {
+  good: COLORS.success,
+  warn: COLORS.warning,
+  bad: COLORS.danger,
+  neutral: COLORS.gray400,
+};
 
 /**
  * Gestor/contribuidor, marca e tempo de casa -- recortes que só existem depois
@@ -79,37 +96,52 @@ const BLOCOS: Array<{ tipo: string; titulo: string; curto: string; cruzado: stri
 const listar = (v: string[]) =>
   v.length <= 1 ? (v[0] ?? '') : `${v.slice(0, -1).join(', ')} e ${v[v.length - 1]}`;
 
-/** Barra divergente: distância até a empresa, para a esquerda ou para a direita. */
-function Divergente({
-  valor, base, max, invertido = false,
+/**
+ * Barra de valor absoluto, colorida pela régua de `metric-help.ts`.
+ *
+ * `centroZero` é só para o eNPS: a escala vai de -100 a +100 e o zero
+ * continua marcado, porque negativo/positivo ainda é uma leitura real. O
+ * risco não tem essa marca -- é uma % que começa em zero e não existe
+ * "risco negativo".
+ */
+function BarraAbsoluta({
+  valor, chave, escalaMin, escalaMax, centroZero = false,
 }: {
   valor: number | null;
-  base: number;
-  max: number;
-  /** true quando MAIOR é pior (caso do risco de saída). */
-  invertido?: boolean;
+  chave: ChaveMetrica;
+  escalaMin: number;
+  escalaMax: number;
+  centroZero?: boolean;
 }) {
   if (valor == null) {
     return <div className="h-3 rounded-full bg-muted/60 w-full" />;
   }
-  const d = valor - base;
-  const larguraPct = Math.min(Math.abs(d) / max, 1) * 50;
-  const bom = invertido ? d <= 0 : d >= 0;
-  const cor = bom ? COLORS.success : COLORS.warning;
+  const cor = TONE_BAR[toneDe(chave, valor)];
+  const posPct = (v: number) =>
+    Math.max(0, Math.min(((v - escalaMin) / (escalaMax - escalaMin)) * 100, 100));
+
+  if (!centroZero) {
+    return (
+      <div className="relative h-3 w-full rounded-full bg-muted/50 overflow-hidden">
+        <div
+          className="absolute inset-y-0 left-0 rounded-full transition-all"
+          style={{ width: `${posPct(valor)}%`, background: cor }}
+        />
+      </div>
+    );
+  }
+
+  const zero = posPct(0);
+  const alvo = posPct(valor);
+  const esquerda = Math.min(zero, alvo);
+  const largura = Math.abs(alvo - zero);
   return (
     <div className="relative h-3 w-full">
       <div className="absolute inset-0 rounded-full bg-muted/50" />
-      <div className="absolute inset-y-0 left-1/2 w-px bg-border" />
+      <div className="absolute inset-y-0 w-px bg-border" style={{ left: `${zero}%` }} />
       <div
         className="absolute inset-y-0 rounded-full transition-all"
-        style={{
-          // Intensidade acompanha a distância: perto da empresa quase apaga,
-          // longe fica cheio. Sem isso, todo desvio parecia igual.
-          background: `color-mix(in oklab, ${cor} ${55 + (larguraPct / 50) * 40}%, transparent)`,
-          ...(d >= 0
-            ? { left: '50%', width: `${larguraPct}%` }
-            : { right: '50%', width: `${larguraPct}%` }),
-        }}
+        style={{ left: `${esquerda}%`, width: `${largura}%`, background: cor }}
       />
     </div>
   );
@@ -121,26 +153,49 @@ function Divergente({
  * linha-a-linha; separadas, "quem está longe" salta antes da leitura consciente.
  */
 function Painel({
-  rotulo, rows, base, max, invertido = false, sufixo, destacado = false,
+  rotulo, rows, chave, escalaMin, escalaMax, centroZero = false, sufixo, destacado = false,
+  baseEmpresa,
 }: {
   rotulo: string;
   rows: SurveyCut[];
-  base: number;
-  max: number;
-  invertido?: boolean;
+  /** Chave em `metric-help.ts` -- de onde vêm a cor e o selo de patamar. */
+  chave: ChaveMetrica;
+  escalaMin: number;
+  escalaMax: number;
+  centroZero?: boolean;
   sufixo: string;
   /** Pedido da Marilia: o eNPS um pouco maior que o vizinho. */
   destacado?: boolean;
+  /**
+   * O valor da empresa, mostrado uma vez ao pé do painel -- não mais como a
+   * régua que decide a cor de cada linha.
+   *
+   * ------------------------------------------------------------------
+   * POR QUE A COR PAROU DE SER "ACIMA/ABAIXO DA EMPRESA"
+   * ------------------------------------------------------------------
+   * Os BPs relataram que o cartão anterior ficava confuso em toda leitura, e
+   * a raiz não era o layout -- era o conceito: "distância até a empresa"
+   * exige guardar um segundo número de cabeça antes de saber se o primeiro é
+   * bom. `metric-help.ts` já resolve isso para o resto do painel com uma
+   * régua sobre o VALOR em si (patamar alto/saudável/baixo/crítico para
+   * eNPS; sob controle/atenção/acima do confortável para risco). Reusar essa
+   * régua aqui faz "44 de eNPS" significar a mesma coisa em qualquer cartão
+   * do sistema.
+   *
+   * A empresa não sai da tela -- ela ainda é o contexto que a Controladoria e
+   * o Sandeep usam --, só deixa de ser o que pinta a barra.
+   */
+  baseEmpresa: number | null;
 }) {
-  const valorDe = (r: SurveyCut) => (invertido ? r.risco : r.enps);
+  const valorDe = (r: SurveyCut) => (chave === 'riscoSaida' ? r.risco : r.enps);
   return (
     <div className="min-w-0">
       <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">{rotulo}</p>
       <div className="space-y-1.5">
         {rows.map((r) => {
           const v = valorDe(r);
-          const d = v == null ? null : v - base;
-          const bom = d == null ? false : invertido ? d <= 0 : d >= 0;
+          const tom = toneDe(chave, v);
+          const selo = rotuloDe(chave, v);
           return (
             <div key={r.cutValue} className="flex items-center gap-2 text-xs">
               <span
@@ -150,38 +205,24 @@ function Painel({
                 {rotuloDeCorte(r.cutValue)}
               </span>
               <div className="flex-1 min-w-0">
-                <Divergente valor={v} base={base} max={max} invertido={invertido} />
+                <BarraAbsoluta
+                  valor={v} chave={chave} escalaMin={escalaMin} escalaMax={escalaMax}
+                  centroZero={centroZero}
+                />
               </div>
-              {/* ------------------------------------------------------------------
-                  A DIFERENÇA E O VALOR, JUNTOS
-                  ------------------------------------------------------------------
-                  Só a diferença aparecia aqui: "-14 pts". Para saber o eNPS dos
-                  gestores era preciso guardar o 69 da empresa, que está no alto
-                  do cartão, e subtrair de cabeça -- e a Marilia pediu
-                  exatamente isso, "sem a necessidade de memorização dos dados".
-
-                  Os dois números respondem perguntas diferentes e as duas são
-                  feitas nesta tela: a diferença diz se o grupo destoa, o valor
-                  diz de que patamar se está falando. -14 sobre 69 e -14 sobre
-                  30 são conversas distintas.
-
-                  A diferença fica em destaque e o valor entre parênteses, e não
-                  o contrário: o cartão é sobre distância da média -- é o que o
-                  título promete e o que a barra desenha. */}
+              {/* O valor do próprio grupo é o número principal agora, com o
+                  selo de patamar ao lado -- "44 · patamar baixo" não exige
+                  saber nada sobre a empresa para ser lido. */}
               <span className={cn(
                 'tabular-nums shrink-0 text-right',
                 destacado ? 'text-[13px] font-bold' : 'font-medium',
-                d == null ? 'w-[104px] text-muted-foreground'
-                : 'w-[104px]',
-                d != null && (bom ? 'text-emerald-600 dark:text-emerald-500'
-                : 'text-amber-600 dark:text-amber-500'),
+                v == null ? 'w-[132px] text-muted-foreground' : 'w-[132px]',
+                v != null && TONE_TEXT[tom],
               )}>
-                {d == null ? 'oculto' : (
+                {v == null ? 'oculto' : (
                   <>
-                    {`${d > 0 ? '+' : ''}${fmt1(d)}${sufixo}`}
-                    <span className="text-muted-foreground font-normal">
-                      {' '}({invertido ? `${fmt1(v)}%` : fmt1(v)})
-                    </span>
+                    {`${fmt1(v)}${sufixo}`}
+                    {selo && <span className="text-muted-foreground font-normal"> · {selo}</span>}
                   </>
                 )}
               </span>
@@ -189,6 +230,14 @@ function Painel({
           );
         })}
       </div>
+      {/* A empresa, discreta, uma vez por painel -- não mais por linha. Segue
+          servindo à Controladoria e ao Sandeep, sem carregar a leitura de
+          quem só precisa saber "este grupo está bem ou mal". */}
+      {baseEmpresa != null && (
+        <p className="text-[10px] text-muted-foreground mt-1.5 pl-[120px]">
+          empresa: {fmt1(baseEmpresa)}{sufixo}
+        </p>
+      )}
     </div>
   );
 }
@@ -222,32 +271,37 @@ function Bloco({
   const [aberto, setAberto] = useState<string | null>(null);
   const temClima = (valor: string) =>
     !!cutType && drivers.some((l) => l.cutType === cutType && l.cutValue === valor);
-  const baseEnps = empresa?.enps ?? 0;
-  const baseRisco = empresa?.risco ?? 0;
-  const maxEnps = useMemo(
-    () => Math.max(...rows.map((r) => Math.abs((r.enps ?? baseEnps) - baseEnps)), 5),
-    [rows, baseEnps],
-  );
-  const maxRisco = useMemo(
-    () => Math.max(...rows.map((r) => Math.abs((r.risco ?? baseRisco) - baseRisco)), 3),
-    [rows, baseRisco],
-  );
   const ocultos = rows.filter((r) => r.suprimido);
 
   return (
     <div className="rounded-lg border border-border/60 bg-muted/15 p-3">
       <div className="flex items-baseline justify-between mb-2.5">
         <span className="text-sm font-medium">{titulo}</span>
-        <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-          diferença para a empresa
-        </span>
       </div>
       <div className="grid lg:grid-cols-2 gap-x-6 gap-y-4">
         {/* "O NPS em negrito para ficar um pouco maior, um pouco mais
             destacado." Os dois painéis tinham exatamente o mesmo peso, e o
-            eNPS é o número que abre a conversa. */}
-        <Painel rotulo="eNPS" rows={rows} base={baseEnps} max={maxEnps} sufixo=" pts" destacado />
-        <Painel rotulo="Risco de saída" rows={rows} base={baseRisco} max={maxRisco} invertido sufixo=" p.p." />
+            eNPS é o número que abre a conversa.
+
+            As escalas são FIXAS, e não mais calculadas a partir do maior
+            desvio do grupo (`maxEnps`/`maxRisco`, removidos): eram uma escala
+            relativa por bloco -- o mesmo -19 de eNPS ocupava larguras de barra
+            diferentes em "Por marca" e em "Por tempo de casa", conforme o
+            desvio máximo de cada um. Cor e barra por VALOR absoluto exigem uma
+            régua que não muda de bloco para bloco.
+
+            eNPS vai de -100 a 100 (ver metric-help.ts). O risco é uma % que,
+            nas três ondas carregadas até 10/09, nunca passou de 35 -- 40 dá
+            folga sem esmagar a barra contra a esquerda, e ainda deixa a faixa
+            "acima do confortável" (20+) ocupando a metade de fora da barra. */}
+        <Painel
+          rotulo="eNPS" rows={rows} chave="enps" escalaMin={-100} escalaMax={100}
+          centroZero sufixo="" destacado baseEmpresa={empresa?.enps ?? null}
+        />
+        <Painel
+          rotulo="Risco de saída" rows={rows} chave="riscoSaida" escalaMin={0} escalaMax={40}
+          sufixo="%" baseEmpresa={empresa?.risco ?? null}
+        />
       </div>
       {/* Abrir o clima de um grupo. Os nomes ficam aqui embaixo, e não em cada
           uma das duas colunas, porque o grupo é o mesmo nas duas -- repetir o
@@ -502,10 +556,11 @@ export default function SurveyCuts({
         ))}
       </div>
       <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
-        A linha do meio de cada barra é a empresa. Verde é melhor que a média, âmbar é pior — vale
-        para os dois lados, já que em risco de saída menor é melhor. O número em destaque é a
-        <strong> distância até a empresa</strong>; entre parênteses vai o valor do próprio grupo,
-        para não ser preciso guardar a régua de cabeça.
+        A cor é sobre o valor do grupo, não sobre a distância até a empresa — a mesma régua que
+        pinta os outros cartões do painel (<strong className="text-emerald-600 dark:text-emerald-500">verde</strong> é
+        patamar bom, <strong className="text-amber-600 dark:text-amber-500">âmbar</strong> é atenção,{' '}
+        <strong className="text-red-600 dark:text-red-500">vermelho</strong> é crítico). O número da
+        empresa aparece embaixo de cada painel, como referência — não é mais o que decide a cor.
       </p>
     </ChartCard>
   );
