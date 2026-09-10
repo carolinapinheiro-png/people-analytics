@@ -379,13 +379,20 @@ export async function executarSyncConvenia(
      *    lidas e ZERO linhas guardadas -- a resposta não tinha esse formato.
      * 2: procura a lista também dentro de um objeto (`{salaries: [...]}`) e
      *    MEDE a forma da primeira resposta, publicando as chaves no aviso.
+     *    Resultado medido: a resposta É uma lista direta e sempre foi -- a
+     *    v1 acertava aí. O que ela errava era o nome do campo da data, e a
+     *    v2 errava igual. Outras 636 leituras, outra tabela vazia.
+     * 3: lê `date_from`, o nome que a medição da v2 revelou, e para de marcar
+     *    como lida a pessoa cuja resposta veio com alterações e não gerou
+     *    nenhuma linha. Sem a segunda metade, a terceira tentativa teria o
+     *    mesmo fim silencioso das duas primeiras.
      *
      * A subida é obrigatória, não opcional: com todo mundo marcado por um
      * código que não entendeu a resposta, a fila fica vazia para sempre e
      * nenhuma leitura nova acontece. A marca registra "perguntei" -- e quem
      * perguntou foi o código errado.
      */
-    const VERSAO_HISTORICO = 2;
+    const VERSAO_HISTORICO = 3;
     /**
      * Quem a fila do histórico ALCANÇA: os ativos da listagem, empresa por
      * empresa. Os desligados guardados não entram na fila -- e por isso não
@@ -408,6 +415,16 @@ export async function executarSyncConvenia(
     let historicoSemTempo = false;
     /** A forma da primeira resposta do histórico. Vira aviso. */
     let formaDoHistorico: string | null = null;
+    /**
+     * Pessoas cuja resposta trouxe alterações e das quais nada foi guardado.
+     *
+     * É o contador que faltava: com ele em zero, "cobertura completa" quer
+     * dizer alguma coisa. Com ele acima de zero, a carga sabe que não entendeu
+     * o que leu -- e diz isso em vez de anunciar tabela vazia como calmaria.
+     */
+    let historicoDescartados = 0;
+    /** As chaves do primeiro item descartado, para o aviso apontar o culpado. */
+    let formaDescartada: string | null = null;
     let detalheSemTempo = false;
 
     // ------------------------------------------------------------------
@@ -1157,8 +1174,14 @@ export async function executarSyncConvenia(
                   // as datas nulas -- e `movimentacoesPorMes` descarta sem
                   // data, então o resultado seria "nenhuma promoção" com o
                   // histórico inteiro na mão.
+                  // `date_from` é o nome MEDIDO, não adivinhado: veio do aviso
+                  // de forma da resposta gravado em `integration_sync_log` em
+                  // 10/09 01:07. Vem primeiro na lista por isso. Os outros
+                  // quatro eram os meus palpites -- ficam como rede, mas o
+                  // primeiro é o único que se sabe existir.
                   const vig = dataISO(
-                    (o.date ?? o.from ?? o.start_date ?? o.validity) as string | null | undefined,
+                    (o.date_from ?? o.date ?? o.from ?? o.start_date ?? o.validity) as
+                      string | null | undefined,
                   );
                   return {
                     convenia_id: alvo.id,
@@ -1175,16 +1198,30 @@ export async function executarSyncConvenia(
                 if (error) throw new Error(error.message);
               }
 
-              // Marca a PERGUNTA, e não a resposta: lista vazia é uma resposta
-              // ("esta pessoa não teve alteração"), e sem a marca ela voltaria
-              // para a fila em toda carga, empurrando para o fim quem nunca
-              // foi lido.
+              // ------------------------------------------------------------
+              // VEIO ALGO E NADA FICOU: ISSO É "NÃO ENTENDI", NÃO É RESPOSTA
+              // ------------------------------------------------------------
+              // O defeito que custou o dia inteiro não foi o nome do campo --
+              // foi ESTA linha marcar como lida uma pessoa cuja resposta veio
+              // com 2 alterações e saiu com 0 guardadas. A peneira do fim
+              // (`vigencia != null`) descartava tudo em silêncio e a marca
+              // dizia "perguntei", trancando a fila para sempre.
               //
-              // O custo dessa escolha apareceu: com o leitor sem entender o
-              // formato, TODO MUNDO foi marcado como lido com zero linhas, e a
-              // tela anunciou "cobertura completa" sobre uma tabela vazia. Por
-              // isso a forma da resposta virou aviso -- a marca sozinha não
-              // distingue "não teve alteração" de "não entendi a resposta".
+              // Agora a marca só é escrita quando a resposta foi COMPREENDIDA:
+              //   lista vazia ............ resposta legítima, marca.
+              //   lista virou linhas ..... entendi, marca.
+              //   lista virou nada ....... não entendi, NÃO marca e conta.
+              // O terceiro caso volta para a fila e vira aviso, em vez de
+              // virar "cobertura completa" sobre uma tabela vazia.
+              if (itens.length > 0 && linhasHist.length === 0) {
+                historicoDescartados++;
+                if (!formaDescartada) {
+                  const o = (itens[0] ?? {}) as Record<string, unknown>;
+                  formaDescartada = Object.keys(o).join(', ');
+                }
+                continue;
+              }
+
               await db.from('convenia_pessoas').upsert({
                 convenia_id: alvo.id,
                 historico_em: new Date().toISOString(),
@@ -1551,6 +1588,16 @@ export async function executarSyncConvenia(
         avisos.push(
           `Historico salarial falhou para ${historicoFalhas.length} pessoa(s); elas voltam para a fila na proxima carga. `
           + `Primeira: ${historicoFalhas[0]}`,
+        );
+      }
+      if (historicoDescartados > 0) {
+        // O aviso que teria economizado o dia: a resposta veio com conteudo e
+        // nada ficou. Nao e "ninguem foi promovido", e o leitor nao entendeu o
+        // que leu -- e as pessoas continuam na fila ate isso ser resolvido.
+        avisos.push(
+          `Historico salarial: ${historicoDescartados} pessoa(s) responderam COM alteracoes e nenhuma linha `
+          + 'foi guardada -- a leitura nao entendeu a resposta. Elas NAO foram marcadas como lidas e voltam '
+          + `na proxima carga. Chaves do primeiro item descartado: ${formaDescartada ?? '(nao medida)'}`,
         );
       }
     } catch (e) {
