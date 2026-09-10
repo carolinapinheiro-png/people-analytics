@@ -1,4 +1,5 @@
 import type { MonthRecord } from './raw-data';
+import { faixaTempoPorMeses } from '@/lib/convenia/pessoas';
 import type { LeaverRecord } from './leaver-types';
 import { semFiltro, valorFiltro } from '@/lib/filtro-sentinela';
 
@@ -115,30 +116,23 @@ const SUPRIMIDO_SEM_QUEBRA = [
 const SUPRIMIDO_COM_QUEBRA = ['entradas', 'promoções', 'salários'];
 
 /**
- * Mapeia a faixa de tempo de casa da série (chaves do tenure_base, ex.: "1-2a")
- * para o rótulo do seletor (ex.: "1-2 anos"). São vocabulários diferentes que
- * descrevem a mesma coisa -- unificar na origem seria melhor, mas mudaria dado
- * já validado, então a tradução vive aqui, isolada.
+ * A TRADUÇÃO SAIU, PORQUE OS DOIS LADOS PASSARAM A FALAR A MESMA LÍNGUA.
+ *
+ * Aqui havia `TENURE_LABEL_TO_KEY`, mapeando rótulos do seletor para chaves da
+ * série, e um `tenureBucketFromDays` com uma TERCEIRA régua para os desligados
+ * (0-3m, 3-6m, 6-12m, 1-2a, 2-5a, 5a+).
+ *
+ * Nenhuma das três coincidia. A série grava "0-6 meses"; o mapa esperava
+ * "0-3 meses"; o desligado virava "0-3m". Resultado medido em 10/09: recortar
+ * por tempo de casa dava o headcount certo e ZERO saídas em todo mês, porque o
+ * balde do desligado nunca casava. Atrição 0% com gente saindo é pior que
+ * recorte indisponível -- e nada na tela dizia.
+ *
+ * A régua agora é uma só, em `pessoas.ts`, ao lado de quem a grava. Aqui só
+ * resta converter dias em meses, que é a única diferença real entre as duas
+ * fontes: a série sabe a data de entrada, a base de desligados sabe os dias.
  */
-const TENURE_LABEL_TO_KEY: Record<string, string> = {
-  '0-3 meses': '0-3m',
-  '3-6 meses': '3-6m',
-  '6-12 meses': '6-12m',
-  '1-2 anos': '1-2a',
-  '2-5 anos': '2-5a',
-  '5+ anos': '5a+',
-};
-
-/** Faixa de tempo de casa de um desligado, a partir dos dias de casa. */
-function tenureBucketFromDays(dias: number): string {
-  const meses = dias / 30.44;
-  if (meses < 3) return '0-3m';
-  if (meses < 6) return '3-6m';
-  if (meses < 12) return '6-12m';
-  if (meses < 24) return '1-2a';
-  if (meses < 60) return '2-5a';
-  return '5a+';
-}
+const faixaDoDesligado = (dias: number): string => faixaTempoPorMeses(dias / 30.44);
 
 const norm = (v: string | null | undefined) => (v ?? '').trim();
 
@@ -187,8 +181,8 @@ export function applySeriesFilter(
     else if (key === 'jobFamily') bate = norm(l.job_family).toUpperCase() === norm(escolhido).toUpperCase();
     else if (key === 'tipoContrato') bate = norm(l.vinculo).toUpperCase() === norm(escolhido).toUpperCase();
     else if (key === 'tempoCasa') {
-      const alvo = TENURE_LABEL_TO_KEY[escolhido] ?? escolhido;
-      bate = tenureBucketFromDays(l.tempo_casa_dias ?? 0) === alvo;
+      const alvo = escolhido;
+      bate = faixaDoDesligado(l.tempo_casa_dias ?? 0) === alvo;
     }
     if (bate) saidasPorMes.set(ym, (saidasPorMes.get(ym) ?? 0) + 1);
   }
@@ -203,9 +197,8 @@ export function applySeriesFilter(
       : key === 'tempoCasa' ? m.tenure_base
       : key === 'jobFamily' ? m.family_base
       : m.contract_base;
-    const chaveHc = key === 'tempoCasa'
-      ? (TENURE_LABEL_TO_KEY[escolhido] ?? escolhido)
-      : escolhido;
+    // Sem tradução: o seletor e a série usam a MESMA régua desde 10/09.
+    const chaveHc = escolhido;
     const hc = base?.[chaveHc] ?? 0;
     const saidas = saidasPorMes.get(m.month) ?? 0;
 
@@ -269,7 +262,7 @@ export function applySeriesFilter(
       : key === 'tempoCasa' ? m.tenure_base
       : key === 'jobFamily' ? m.family_base
       : m.contract_base;
-    const c = key === 'tempoCasa' ? (TENURE_LABEL_TO_KEY[escolhido] ?? escolhido) : escolhido;
+    const c = escolhido;
     return b != null && c in b;
   });
 

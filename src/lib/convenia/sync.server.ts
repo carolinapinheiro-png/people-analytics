@@ -490,7 +490,12 @@ export async function executarSyncConvenia(
     // suficiente para falhar de vez em quando, que é o pior modo de falhar.
     const { data: pessoasCache, error: erroCache } = await db
       .from('convenia_pessoas')
-      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields, detalhe_em, detalhe_versao, historico_em, historico_versao, '
+      // `relationship` entrou em 10/09. Ele SÓ existe no detalhe -- na listagem
+      // vem como código, e `textoDe` devolve null para quase todo mundo. A
+      // série o lia da listagem e gravava "Não informado" para as 636 pessoas,
+      // com o valor bom guardado aqui o tempo todo. Mesmo caminho já usado pela
+      // família e pelo level: ler do cadastro, sem requisição a mais.
+      .select('convenia_id, gender, race, job_title, job_title_em, empresa, escritorio, custom_fields, relationship, detalhe_em, detalhe_versao, historico_em, historico_versao, '
         // Estado civil e UF NATAL vivem só dentro do `bruto` (a resposta do
         // detalhe, guardada inteira para não precisar de coluna nova a cada
         // gráfico). O Postgres extrai os dois na consulta; o resto fica lá.
@@ -523,6 +528,7 @@ export async function executarSyncConvenia(
       empresa: string | null;
       escritorio: string | null;
       custom_fields: unknown;
+      relationship: string | null;
       detalhe_em: string | null;
       detalhe_versao: number | null;
       historico_em: string | null;
@@ -644,6 +650,21 @@ export async function executarSyncConvenia(
           r.convenia_id,
           simNao(valorDeCampo(lerCustomFields(r.custom_fields), ['considera pcd'])),
         ]),
+    );
+    /**
+     * O vínculo de cada pessoa, do CADASTRO -- não da listagem.
+     *
+     * A listagem traz o código, não o nome, e `textoDe` devolve null para
+     * quase todo mundo. A série lia dali e gravava "Não informado" para as 636:
+     * `contract_base` inteiro numa categoria só, o filtro de contrato devolvendo
+     * zero, e `aprendiz` sempre falso -- porque ele é derivado deste campo.
+     *
+     * O valor bom estava em `convenia_pessoas.relationship` desde a correção de
+     * 09/09. Faltava lê-lo de volta. É a mesma forma pela quarta vez: o dado
+     * chega, é guardado, e o consumidor continua olhando para a fonte antiga.
+     */
+    const vinculoPorId = new Map<string, string | null>(
+      (linhasDoCadastro).map((r) => [r.convenia_id, r.relationship ?? null]),
     );
     const origemPorId = new Map<string, string | null>(
       (linhasDoCadastro)
@@ -927,7 +948,8 @@ export async function executarSyncConvenia(
           cost_center: p.cost_center ?? null,
           supervisorId: p.supervisorId, salary: p.salary, birth_date: p.birth_date, uf: p.uf,
           registration: p.registration, social_name: p.social_name,
-          team: p.team, relationship: p.relationship, bruto: p.bruto,
+          // Do cadastro, com a listagem como reserva: ver `vinculoPorId`.
+          team: p.team, relationship: vinculoPorId.get(p.id) ?? p.relationship, bruto: p.bruto,
           // A família vem do cadastro já lido (`custom_fields`), e não de uma
           // requisição a mais: `pessoasCache` traz a coluna para todo mundo.
           // Quem ainda não teve o detalhe lido fica sem, e a série a conta como
@@ -940,7 +962,11 @@ export async function executarSyncConvenia(
           // Aprendiz sai do vinculo, que a carga ja guarda -- nao custa
           // requisicao nenhuma. E cota legal, entao vale contar mesmo com o
           // cadastro pela metade.
-          aprendiz: (p.relationship ?? '').trim().toLowerCase() === 'aprendiz',
+          // Mesma fonte do vínculo, pelo mesmo motivo: lendo da listagem isto
+          // era falso para TODO MUNDO, e a tela mostrava "0,0% Aprendiz" --
+          // que se lê como "não temos nenhum", e é cota legal.
+          aprendiz: (vinculoPorId.get(p.id) ?? p.relationship ?? '')
+            .trim().toLowerCase() === 'aprendiz',
           genero: cacheGenero.get(p.id) ?? null,
           raca: cacheRaca.get(p.id) ?? null,
         }));

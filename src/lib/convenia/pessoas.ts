@@ -368,15 +368,42 @@ export function idsDeGestores(pessoas: PessoaConvenia[]): Set<string> {
 }
 
 /** Faixas de tempo de casa, em meses completos até o mês de referência. */
-export function faixaTempoDeCasa(entrada: string, mes: string): string {
-  const [ay, am] = entrada.split('-').map(Number);
-  const [by, bm] = mes.split('-').map(Number);
-  const meses = (by - ay) * 12 + (bm - am);
+/**
+ * As faixas de tempo de casa, na ordem, e o ÚNICO lugar que as define.
+ *
+ * ===========================================================================
+ * TRÊS VOCABULÁRIOS PARA A MESMA COISA
+ * ===========================================================================
+ * Existiam três réguas de tempo de casa no app, cada uma num arquivo:
+ *
+ *   esta ................. 0-6 meses, 6-12 meses, 1-2 anos, 2-4 anos, 4+ anos
+ *   series-filter ........ 0-3m, 3-6m, 6-12m, 1-2a, 2-5a, 5a+  (desligados)
+ *   TENURE_LABEL_TO_KEY .. traduzia entre duas que já não existiam assim
+ *
+ * O efeito, medido em 10/09: recortar por tempo de casa devolvia o headcount
+ * certo e ZERO saídas em todo mês -- porque o balde do desligado nunca casava
+ * com a chave da série. Atrição 0% com gente saindo, e nada na tela dizendo.
+ *
+ * Não era um bug de digitação: eram duas definições de "1-2 anos" convivendo,
+ * e nenhuma sabia da outra. Agora há uma só, e quem precisa dela importa daqui.
+ */
+export const FAIXAS_TEMPO_DE_CASA = [
+  '0-6 meses', '6-12 meses', '1-2 anos', '2-4 anos', '4+ anos',
+] as const;
+
+/** A faixa de quem tem `meses` de casa. A régua, isolada da forma de medir. */
+export function faixaTempoPorMeses(meses: number): string {
   if (meses < 6) return '0-6 meses';
   if (meses < 12) return '6-12 meses';
   if (meses < 24) return '1-2 anos';
   if (meses < 48) return '2-4 anos';
   return '4+ anos';
+}
+
+export function faixaTempoDeCasa(entrada: string, mes: string): string {
+  const [ay, am] = entrada.split('-').map(Number);
+  const [by, bm] = mes.split('-').map(Number);
+  return faixaTempoPorMeses((by - ay) * 12 + (bm - am));
 }
 
 /** Faixa etária no mês de referência. */
