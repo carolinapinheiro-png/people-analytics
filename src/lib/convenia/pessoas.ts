@@ -388,16 +388,37 @@ export function idsDeGestores(pessoas: PessoaConvenia[]): Set<string> {
  * e nenhuma sabia da outra. Agora há uma só, e quem precisa dela importa daqui.
  */
 export const FAIXAS_TEMPO_DE_CASA = [
-  '0-6 meses', '6-12 meses', '1-2 anos', '2-4 anos', '4+ anos',
+  '0-3 meses', '3-6 meses', '6-12 meses', '1-2 anos', '2-5 anos', '5+ anos',
 ] as const;
 
-/** A faixa de quem tem `meses` de casa. A régua, isolada da forma de medir. */
+/**
+ * A faixa de quem tem `meses` de casa. A régua, isolada da forma de medir.
+ *
+ * ---------------------------------------------------------------------------
+ * POR QUE ESTA RÉGUA, E NÃO A QUE ESTAVA AQUI
+ * ---------------------------------------------------------------------------
+ * Esta função gravava 0-6 / 6-12 / 1-2 / 2-4 / 4+. Eram CINCO faixas, e as
+ * outras três definições do app usavam SEIS -- 0-3, 3-6, 6-12, 1-2, 2-5, 5+:
+ *
+ *   leavers.tempo_casa_faixa .... gravado assim no banco, 152 linhas
+ *   person-bands.ts ............. Comp Ratio e Meu Time
+ *   a aba de Atrição ............ compara o filtro com a coluna acima
+ *
+ * Três contra uma. Alinhar a série é uma regravação (que o cálculo refaz);
+ * alinhar as outras exigiria reescrever a coluna já gravada dos desligados e
+ * mexer em número que a área validou.
+ *
+ * O que estava em jogo não era estética: com as duas réguas convivendo,
+ * escolher "2-5 anos" achava o desligado e não achava o headcount, e a atrição
+ * saía de duas populações diferentes.
+ */
 export function faixaTempoPorMeses(meses: number): string {
-  if (meses < 6) return '0-6 meses';
+  if (meses < 3) return '0-3 meses';
+  if (meses < 6) return '3-6 meses';
   if (meses < 12) return '6-12 meses';
   if (meses < 24) return '1-2 anos';
-  if (meses < 48) return '2-4 anos';
-  return '4+ anos';
+  if (meses < 60) return '2-5 anos';
+  return '5+ anos';
 }
 
 export function faixaTempoDeCasa(entrada: string, mes: string): string {

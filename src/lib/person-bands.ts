@@ -1,3 +1,5 @@
+import { faixaTempoPorMeses } from '@/lib/convenia/pessoas';
+
 /**
  * Faixas derivadas do dado por pessoa (salario e admissao).
  *
@@ -59,15 +61,17 @@ export function tenureMonthsFromHire(hire: string | null | undefined): number | 
   return Math.max(0, months);
 }
 
-/** Faixa de tempo de casa, nos mesmos rotulos do seletor. */
+/**
+ * Faixa de tempo de casa. A régua vem de `pessoas.ts`, e não é copiada aqui.
+ *
+ * Ela ESTAVA copiada, e por sorte estava igual -- mas a mesma régua existia em
+ * mais dois lugares e um deles divergia (a série gravava 0-6 / 2-4 / 4+). Uma
+ * cópia que por acaso concorda hoje é uma divergência esperando a próxima
+ * edição: quem mexer numa não tem como saber das outras.
+ */
 export function tenureBandFromMonths(months: number | null): string {
   if (months == null) return 'Não informado';
-  if (months < 3) return '0-3 meses';
-  if (months < 6) return '3-6 meses';
-  if (months < 12) return '6-12 meses';
-  if (months < 24) return '1-2 anos';
-  if (months < 60) return '2-5 anos';
-  return '5+ anos';
+  return faixaTempoPorMeses(months);
 }
 
 export function tenureBandFromHire(hire: string | null | undefined): string {

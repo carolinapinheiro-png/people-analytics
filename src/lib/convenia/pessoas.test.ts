@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import {
   mesDe, mesesEntre, ehVoluntaria, areaDe, reconstruirSerie, textoDe, ufDe, dataISO, semSensiveis,
   idsDeGestores, faixaTempoDeCasa, faixaEtaria, normalizarGenero, classificarSaida,
+  faixaTempoPorMeses, FAIXAS_TEMPO_DE_CASA,
   type PessoaConvenia,
 } from './pessoas';
+import { tenureBandFromMonths } from '@/lib/person-bands';
 
 const p = (o: Partial<PessoaConvenia> & { id: string }): PessoaConvenia => ({ ...o });
 
@@ -320,11 +322,36 @@ test('quem já saiu continua contando como gestor no passado', () => {
 });
 
 test('faixas de tempo de casa contam meses completos', () => {
-  assert.equal(faixaTempoDeCasa('2026-01', '2026-03'), '0-6 meses');
+  // A régua mudou em 10/09, de cinco faixas para seis. Não foi preferência:
+  // esta função era a ÚNICA das quatro definições do app que usava 0-6/2-4/4+.
+  // `leavers.tempo_casa_faixa` (152 linhas gravadas), `person-bands.ts` e a aba
+  // de Atrição já usavam estas seis. Com as duas convivendo, escolher
+  // "2-5 anos" achava o desligado e não achava o headcount -- e a atrição saía
+  // de duas populações diferentes.
+  assert.equal(faixaTempoDeCasa('2026-01', '2026-03'), '0-3 meses');
+  assert.equal(faixaTempoDeCasa('2025-10', '2026-03'), '3-6 meses');
   assert.equal(faixaTempoDeCasa('2025-09', '2026-03'), '6-12 meses');
   assert.equal(faixaTempoDeCasa('2025-01', '2026-03'), '1-2 anos');
-  assert.equal(faixaTempoDeCasa('2023-01', '2026-03'), '2-4 anos');
-  assert.equal(faixaTempoDeCasa('2015-01', '2026-03'), '4+ anos');
+  assert.equal(faixaTempoDeCasa('2023-01', '2026-03'), '2-5 anos');
+  assert.equal(faixaTempoDeCasa('2015-01', '2026-03'), '5+ anos');
+});
+
+test('as quatro réguas de tempo de casa são a MESMA régua', () => {
+  // O teste que faltava. Duas definições da mesma escada não dão erro em lugar
+  // nenhum -- elas só fazem o filtro comparar textos diferentes e devolver
+  // vazio. Aqui elas são obrigadas a concordar.
+  for (const meses of [0, 2, 3, 5, 6, 11, 12, 23, 24, 59, 60, 120]) {
+    assert.equal(
+      tenureBandFromMonths(meses),
+      faixaTempoPorMeses(meses),
+      `person-bands e a série discordam em ${meses} meses`,
+    );
+  }
+  // E a régua publicada é a que as duas produzem.
+  assert.deepEqual(
+    [...new Set([0, 4, 8, 18, 40, 80].map(faixaTempoPorMeses))],
+    [...FAIXAS_TEMPO_DE_CASA],
+  );
 });
 
 test('idade implausível fica de fora em vez de virar faixa errada', () => {
@@ -355,7 +382,7 @@ test('liderança, salários, estado, tempo e idade entram na linha mensal', () =
   assert.equal(m.avg_salary_non_leaders, 6000);
   assert.equal(m.state_mix['Pernambuco'], 5);
   assert.equal(m.state_mix['São Paulo'], 1);
-  assert.equal(m.tenure_base['0-6 meses'], 6);
+  assert.equal(m.tenure_base['0-3 meses'], 6);
   assert.equal(m.demographics.age['25-34'], 5);
   assert.equal(m.demographics.age['35-44'], 1);
 });

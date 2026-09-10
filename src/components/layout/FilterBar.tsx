@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useDashboard, Filters } from "@/data/DashboardContext";
+import { opcoesDoDado } from "@/data/opcoes-de-filtro";
 import { COLORS } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
@@ -89,6 +90,23 @@ const AREAS_DA_PESQUISA = [...new Set(Object.values(SCOPE_TO_DEPT))].sort();
  */
 const MARCAS_DA_PESQUISA = ["Todos", "Betnacional", "Betfair", CROSS_BRAND];
 
+/**
+ * "Todos" na frente, sem duplicar.
+ *
+ * As listas derivadas do dado não trazem o sentinela -- ele é da barra, não do
+ * cadastro. Sem esta função, ou o "Todos" some (e não há como limpar o filtro)
+ * ou aparece duas vezes.
+ */
+const comTodos = (vs: string[]): string[] =>
+  vs[0] === "Todos" ? vs : ["Todos", ...vs];
+
+/**
+ * A RESERVA, não a fonte.
+ *
+ * Estas listas eram a fonte da verdade e divergiam do que a carga grava -- ver
+ * a nota em `opcoes-de-filtro.ts`. Hoje valem só para o que não vem da série
+ * (pesquisa) e para o instante antes de a série carregar.
+ */
 const filterOptions: Record<FilterKey, string[]> = {
   departamento: ["Todos", ...AREAS_DA_PESQUISA],
   jobFamily: [
@@ -150,7 +168,7 @@ const VAZIO: Filters = {
 };
 
 export default function FilterBar() {
-  const { filters, setFilters, brand, activeTab, activeSubTab } = useDashboard();
+  const { filters, setFilters, brand, activeTab, activeSubTab, allMonthsData, leavers } = useDashboard();
   const { profile, departments, jobFamilies } = useAuth();
 
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
@@ -216,13 +234,35 @@ export default function FilterBar() {
     scoped && AREAS_DA_PESQUISA.every((a) => meusDepts.includes(a));
   const minhasFamilias = (jobFamilies ?? []).filter(Boolean);
 
+  // ------------------------------------------------------------------
+  // O VOCABULÁRIO VEM DO DADO, NÃO DESTE ARQUIVO
+  // ------------------------------------------------------------------
+  // As listas em `filterOptions` divergiam do que a carga grava -- em TODOS os
+  // filtros, cada um do seu jeito. Medido em 10/09: o seletor de tempo de casa
+  // oferecia quatro faixas que não existiam em mês nenhum, o de level escondia
+  // 178 pessoas (L7, L9 e NA), o de contrato escondia 14 e o de job family
+  // escondia "Data & Analytics".
+  //
+  // `opcoesDoDado` lê as chaves que a própria carga escreveu. `filterOptions`
+  // continua como reserva para o que não vem da série (pesquisa) e para o
+  // instante antes de a série carregar. Ver `opcoes-de-filtro.ts`.
+  const doDado = useMemo(
+    () => opcoesDoDado(allMonthsData ?? [], leavers ?? []),
+    [allMonthsData, leavers],
+  );
+
   const opcoes = (k: FilterKey): string[] => {
     // Ver TEMPO_DA_PESQUISA: mesma chave de filtro, escadas diferentes.
     if (k === "tempoCasa" && activeTab === "engagement") return TEMPO_DA_PESQUISA;
-    if (!scoped) return filterOptions[k];
-    if (k === "departamento") return cobreTodasAsAreas ? filterOptions[k] : meusDepts;
-    if (k === "jobFamily" && minhasFamilias.length > 0) return minhasFamilias;
-    return filterOptions[k];
+    // O escopo do perfil manda ANTES do vocabulário: ele é permissão, e não
+    // catálogo. Quem só enxerga duas áreas não pode receber a lista inteira só
+    // porque ela agora vem do dado.
+    if (scoped && k === "departamento") {
+      return cobreTodasAsAreas ? comTodos(doDado.departamento ?? filterOptions[k]) : meusDepts;
+    }
+    if (scoped && k === "jobFamily" && minhasFamilias.length > 0) return minhasFamilias;
+    const derivadas = doDado[k];
+    return derivadas ? comTodos(derivadas) : filterOptions[k];
   };
 
   /**
