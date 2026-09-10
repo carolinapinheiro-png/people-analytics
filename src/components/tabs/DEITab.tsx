@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useDashboard } from '@/data/DashboardContext';
 import { useRecorteDeSerie } from '@/data/use-series-cut';
 import { mLabel } from '@/data/helpers';
@@ -7,6 +6,7 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { COLORS } from '@/lib/colors';
+import { RACE_ORDER } from '@/lib/race-order';
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 
 export default function DEITab() {
-  const { currentMonth, brand, filteredDeptKey } = useDashboard();
+  const { currentMonth, brand, filteredDeptKey, raceFilter, setRaceFilter } = useDashboard();
   // Mesma razão do DemographicsTab: o contexto só aplica o filtro de
   // departamento. Sem o hook, os seletores de job family, contrato e tempo de
   // casa acendem nesta aba e não recortam nada.
@@ -70,7 +70,6 @@ export default function DEITab() {
   // race_cross). As series temporais seguem company-wide (a serie nao guarda
   // gênero/liderança por raca no tempo) -- avisado na tela.
   const raceCross = curr.race_cross || {};
-  const [raceFilter, setRaceFilter] = useState<string>('Todas');
   const sel = raceFilter !== 'Todas' ? raceCross[raceFilter] : null;
   const selFemalePct = sel && sel.total > 0 ? (sel.female / sel.total) * 100 : 0;
   const selLeadFemalePct = sel && sel.leaders > 0 ? (sel.female_leaders / sel.leaders) * 100 : 0;
@@ -176,7 +175,6 @@ export default function DEITab() {
     .sort((a, b) => b.pct - a.pct);
 
   // Recorte de DEI por raca (representatividade + lideranca por raca).
-  const RACE_ORDER = ['Branca', 'Parda', 'Preta', 'Amarela', 'Indígena', 'Não informado'];
   const raceRows = Object.entries(raceCross)
     .map(([race, v]) => ({
       race,
@@ -228,38 +226,14 @@ export default function DEITab() {
         </p>
       )}
 
-      {/* Filtro de raça: mesmo padrão do seletor de departamento da barra
-          global -- rótulo em cima, <select> embaixo, borda da marca quando
-          algo diferente de "Todas" está escolhido. */}
-      {hasRaceCross && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
-            Filtrar por raça
-          </label>
-          <select
-            value={raceFilter}
-            onChange={(e) => setRaceFilter(e.target.value)}
-            className={`bg-secondary border rounded px-2 py-1 text-[11px] text-foreground min-w-[140px] max-w-[200px] ${
-              raceFilter !== 'Todas' ? 'ring-1' : 'border-border'
-            }`}
-            style={
-              raceFilter !== 'Todas'
-                ? ({ borderColor: brandColor, '--tw-ring-color': brandColor } as React.CSSProperties)
-                : undefined
-            }
-          >
-            {['Todas', ...raceRows.map((r) => r.race)].map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
-          {sel && (
-            <span className="text-[11px] text-muted-foreground ml-1">
-              Os 4 KPIs abaixo são de <strong className="text-foreground">{raceFilter}</strong>; gráficos de tendência seguem company-wide.
-            </span>
-          )}
-        </div>
+      {/* O seletor de raça foi para a barra global, mesmo lugar do filtro de
+          departamento -- ver FilterBar.tsx. O que sobra aqui é só o aviso do
+          que o filtro FAZ: sem ele, quem chega com "Branca" já escolhida não
+          teria como saber que só os 4 KPIs abaixo mudam. */}
+      {sel && (
+        <p className="text-[11px] text-muted-foreground">
+          Os 4 KPIs abaixo são de <strong className="text-foreground">{raceFilter}</strong>; gráficos de tendência seguem company-wide.
+        </p>
       )}
 
       {recorteAproximado ? (

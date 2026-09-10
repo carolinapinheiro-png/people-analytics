@@ -53,6 +53,16 @@ interface DashboardState {
    *  voltaria a mostrar controle que nao faz nada. */
   activeSubTab: string | null;
   setActiveSubTab: (t: string | null) => void;
+  /**
+   * Filtro de raça da aba DEI. Mora aqui, e não como `useState` local do
+   * componente, porque o seletor passou a morar na barra global (mesmo lugar
+   * do filtro de departamento) -- e a barra e a aba DEI são componentes
+   * diferentes. Não é um `FilterKey`: não passa por `aplicarFiltro` nem
+   * recorta a série, só escolhe qual fatia de `race_cross` (já carregada) os
+   * 4 KPIs leem.
+   */
+  raceFilter: string;
+  setRaceFilter: (r: string) => void;
   view: ViewType;
   setView: (v: ViewType) => void;
   filters: Filters;
@@ -359,6 +369,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     [monthsOrderAll],
   );
   const [activeSubTab, setActiveSubTab] = useState<string | null>(null);
+  const [raceFilter, setRaceFilter] = useState<string>('Todas');
 
   // Restaura aba/sub-aba do ultimo acesso. Feito em efeito (nao no init do
   // useState) porque no SSR nao existe localStorage e o HTML divergiria.
@@ -401,6 +412,10 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     if (lastTab.current === activeTab) return;
     lastTab.current = activeTab;
     setActiveSubTab(null);
+    // Raça é só da aba DEI. Sair dela sem zerar deixaria o filtro "Branca"
+    // escolhido, invisível, esperando a pessoa voltar e estranhar por que os
+    // 4 KPIs já chegam recortados.
+    setRaceFilter('Todas');
   }, [navRestored, activeTab]);
   const [yearFilter, setYearFilter] = useState<string>('atual');
   const activeYear =
@@ -498,7 +513,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   return (
     <DashboardContext.Provider value={{
       data, leavers, brand, setBrand, currentMonthIdx, setCurrentMonthIdx,
-      activeTab, setActiveTab, activeSubTab, setActiveSubTab, view, setView, filters, setFilters,
+      activeTab, setActiveTab, activeSubTab, setActiveSubTab, raceFilter, setRaceFilter, view, setView, filters, setFilters,
       yearFilter, setYearFilter, availableYears, activeYear,
       monthsOrder, currentMonth, currentData, prevData, allMonthsData,
       serieSemRecorteDeArea,

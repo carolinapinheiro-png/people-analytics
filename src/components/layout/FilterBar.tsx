@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { useDashboard, Filters } from "@/data/DashboardContext";
+import { useRecorteDeSerie } from "@/data/use-series-cut";
+import { RACE_ORDER } from "@/lib/race-order";
 import { opcoesDoDado } from "@/data/opcoes-de-filtro";
 import { COLORS } from "@/lib/colors";
 import { cn } from "@/lib/utils";
@@ -168,12 +170,27 @@ const VAZIO: Filters = {
 };
 
 export default function FilterBar() {
-  const { filters, setFilters, brand, activeTab, activeSubTab, serieSemRecorteDeArea, leavers } = useDashboard();
+  const {
+    filters, setFilters, brand, activeTab, activeSubTab, serieSemRecorteDeArea, leavers,
+    raceFilter, setRaceFilter,
+  } = useDashboard();
   const { profile, departments, jobFamilies } = useAuth();
 
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const disponiveis = filtersForTab(activeTab, activeSubTab);
   const indisponiveis = unavailableFilters(activeTab, activeSubTab);
+
+  /**
+   * As raças com gente nesta fatia, na aba DEI -- mesmo cálculo do DEITab
+   * (`race_cross`, `RACE_ORDER`), porque o seletor está fisicamente aqui
+   * agora mas continua sendo o filtro da aba DEI. `useRecorteDeSerie('dei')`
+   * é barato: não refaz fetch, só recorta o que o contexto já tem.
+   */
+  const { currentData: deiData } = useRecorteDeSerie('dei');
+  const racasComGente = Object.entries(deiData?.race_cross || {})
+    .filter(([, v]) => v.total > 0)
+    .map(([race]) => race)
+    .sort((a, b) => RACE_ORDER.indexOf(a) - RACE_ORDER.indexOf(b));
 
   /**
    * A barra inteira, já na ordem: ativos e esmaecidos misturados, ordenados
@@ -478,6 +495,45 @@ export default function FilterBar() {
                 )}
               </div>
             )))}
+            {/* ------------------------------------------------------------
+              RAÇA: SÓ NA ABA DEI, MESMO ESTILO DOS FIXOS ACIMA
+              ------------------------------------------------------------
+              Não é um FilterKey -- não passa por `aplicarFiltro`, não recorta
+              a série, só escolhe a fatia de `race_cross` (já carregada) que
+              os 4 KPIs da aba leem. Por isso fica fora de `barra`, mas com a
+              MESMA classe de seletor: pedido foi "morar no mesmo lugar do
+              filtro de departamento, visualmente" -- e "visualmente" aqui
+              quer dizer também "não parecer um controle de segunda classe". */}
+            {activeTab === "dei" && racasComGente.length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+                  Raça
+                </label>
+                <select
+                  value={raceFilter}
+                  onChange={(e) => setRaceFilter(e.target.value)}
+                  className={cn(
+                    "bg-secondary border rounded px-2 py-1 text-[11px] text-foreground",
+                    "min-w-[140px] max-w-[200px]",
+                    raceFilter !== "Todas" ? "ring-1" : "border-border",
+                  )}
+                  style={
+                    raceFilter !== "Todas"
+                      ? ({
+                          borderColor: brandColor,
+                          "--tw-ring-color": brandColor,
+                        } as React.CSSProperties)
+                      : undefined
+                  }
+                >
+                  {["Todas", ...racasComGente].map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
         </div>
       </div>
 
