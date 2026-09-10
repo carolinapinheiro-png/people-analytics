@@ -28,7 +28,9 @@ test('as opções saem das chaves gravadas, não de uma lista escrita à mão', 
   // "Data & Analytics" e "Diretor Estatutário" não estavam na lista da barra;
   // L7 e L9 também não. Eram 178 pessoas sem recorte possível.
   assert.deepEqual(o.jobFamily, ['Customer Operations', 'Data & Analytics']);
-  assert.deepEqual(o.tipoContrato, ['CLT', 'Pessoa Jurídica', 'Diretor Estatutário']);
+  // Alfabética desde 10/09: "Diretor Estatutário" antes de "Pessoa Jurídica",
+  // e não depois por ter menos gente.
+  assert.deepEqual(o.tipoContrato, ['CLT', 'Diretor Estatutário', 'Pessoa Jurídica']);
   assert.deepEqual(o.level, ['L4', 'L7', 'L9']);
 });
 
@@ -97,7 +99,7 @@ test('o catálogo NÃO pode encolher quando um valor já está escolhido', () =>
 
   assert.deepEqual(
     opcoesDoDado([completa], []).departamento,
-    ['TECHNOLOGY', 'OPERATION', 'HR'],
+    ['HR', 'OPERATION', 'TECHNOLOGY'],
   );
   // O que a barra veria se lesse a série recortada -- e é por isso que ela
   // recebe `serieSemRecorteDeArea` do contexto, e não `allMonthsData`.
@@ -143,13 +145,66 @@ test('todo valor das duas bases é alcançável por alguma opção', () => {
     assert.ok(alcancavel(o.jobFamily, v), `job family "${v}" ficou sem opção`);
   }
   assert.ok(alcancavel(o.tipoContrato, 'Aprendiz'));
-  assert.ok(alcancavel(o.departamento, 'GERALL'));
+  assert.ok(alcancavel(o.departamento, 'TECHNOLOGY'));
 
   // Dos desligados -- inclusive os que a série não conhece
   assert.ok(alcancavel(o.level, 'Não se aplica'), 'a ausência dos desligados');
   assert.ok(alcancavel(o.jobFamily, 'Legal'), 'família só dos desligados');
   assert.ok(alcancavel(o.tipoContrato, 'Sócio'));
-  assert.ok(alcancavel(o.departamento, '-'), 'o departamento "-" dos desligados');
+
+  // A ÚNICA exceção, e ela é declarada: GERALL e "-" não são áreas.
+  // Se alguém tirar uma linha de NAO_SAO_DEPARTAMENTOS sem querer, o teste
+  // acima volta a cobrar a alcançabilidade dela.
+  for (const v of ['GERALL', '-']) {
+    assert.ok(
+      !alcancavel(o.departamento, v),
+      `"${v}" voltou ao seletor de área -- ele não é um departamento oficial`,
+    );
+  }
+});
+
+test('os não-departamentos saem do seletor, e só do de área', () => {
+  // Decisão da Carolina: Porto, Gerall, Geral e Diretoria estão no Convenia e
+  // não são áreas. As pessoas continuam no headcount; o que sai é o recorte.
+  const o = opcoesDoDado([mes({
+    dept_data: {
+      TECHNOLOGY: { hc: 173 }, PORTO: { hc: 18 }, GERALL: { hc: 20 },
+      GERAL: { hc: 1 }, DIRETORIA: { hc: 6 }, HR: { hc: 24 },
+    } as never,
+    // A mesma palavra em OUTRA dimensão continua valendo: "Não informado" em
+    // job family são 64 pessoas reais, e escondê-las faria a soma não bater.
+    family_base: { HR: 24, 'Não informado': 64 },
+  })], []);
+
+  assert.deepEqual(o.departamento, ['HR', 'TECHNOLOGY']);
+  assert.deepEqual(o.jobFamily, ['HR', 'Não informado']);
+});
+
+test('a ordem é alfabética -- e respeita acento do português', () => {
+  // Por código, "Á" vem depois de "Z" e a área acentuada cai no fim da lista,
+  // longe de onde quem procura espera.
+  const o = opcoesDoDado([mes({
+    dept_data: {
+      ZONA: { hc: 1 }, ÁGUAS: { hc: 1 }, MARKETING: { hc: 1 }, ANALYTICS: { hc: 1 },
+    } as never,
+  })], []);
+  assert.deepEqual(o.departamento, ['ÁGUAS', 'ANALYTICS', 'MARKETING', 'ZONA']);
+});
+
+test('as duas escadas NÃO ficam alfabéticas -- elas são progressão', () => {
+  // Alfabética daria "0-3 meses, 1-2 anos, 2-5 anos, 3-6 meses, 5+ anos,
+  // 6-12 meses": a escada embaralhada deixa de ser lida como progressão.
+  const o = opcoesDoDado([mes({
+    tenure_base: {
+      '5+ anos': 1, '0-3 meses': 1, '2-5 anos': 1, '6-12 meses': 1,
+      '1-2 anos': 1, '3-6 meses': 1,
+    },
+  })], [{ faixa_salarial: '50k+' }, { faixa_salarial: '3k-5k' },
+    { faixa_salarial: '12k-20k' }] as LeaverRecord[]);
+
+  assert.deepEqual(o.tempoCasa,
+    ['0-3 meses', '3-6 meses', '6-12 meses', '1-2 anos', '2-5 anos', '5+ anos']);
+  assert.deepEqual(o.faixaSalarial, ['3k-5k', '12k-20k', '50k+']);
 });
 
 test('as três palavras para ausência viram UMA opção', () => {

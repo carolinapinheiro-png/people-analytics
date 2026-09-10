@@ -2,7 +2,7 @@ import type { MonthRecord } from './raw-data';
 import type { LeaverRecord } from './leaver-types';
 import type { FilterKey } from '@/lib/tab-filters';
 import { FAIXAS_TEMPO_DE_CASA } from '@/lib/convenia/pessoas';
-import { ehAusencia, SEM_VALOR } from '@/lib/filtro-sentinela';
+import { ehAusencia, mesmoValor, SEM_VALOR } from '@/lib/filtro-sentinela';
 
 /**
  * As opções de cada filtro, LIDAS DO DADO -- não escritas à mão.
@@ -55,8 +55,38 @@ import { ehAusencia, SEM_VALOR } from '@/lib/filtro-sentinela';
  */
 const ORDEM_TEMPO: readonly string[] = FAIXAS_TEMPO_DE_CASA;
 
-/** Faixa salarial é escada: por frequência ela sairia embaralhada. */
+/** Faixa salarial é escada: fora de ordem ela deixa de ser legível. */
 const ORDEM_SALARIO = ['Até 3k', '3k-5k', '5k-8k', '8k-12k', '12k-20k', '20k-50k', '50k+'];
+
+/**
+ * Linhas do organograma que NÃO são departamentos oficiais.
+ *
+ * ===========================================================================
+ * ELAS EXISTEM NO CONVENIA E NÃO SÃO ÁREAS
+ * ===========================================================================
+ * Decisão da Carolina, 10/09: "estão no convenia, mas não são oficiais".
+ * `GERALL` é o valor não-migrado da unificação de bases, `GERAL` é um resíduo
+ * dele, e Porto e Diretoria são linhas do organograma, não áreas.
+ *
+ * ---------------------------------------------------------------------------
+ * O QUE ISTO CUSTA, E POR QUE MESMO ASSIM
+ * ---------------------------------------------------------------------------
+ * As pessoas continuam no headcount -- 45 em set/2026 -- e deixam de ter um
+ * recorte próprio. É uma exceção deliberada à regra de que todo valor tem de
+ * ser alcançável, e por isso ela mora aqui, nomeada, e não espalhada num
+ * `filter` no meio do código.
+ *
+ * A consequência que importa: somar os departamentos do seletor dá MENOS que o
+ * total da empresa. Isso é correto (elas não são áreas) e é a razão de esta
+ * lista ser explícita -- para que a próxima pessoa que estranhar a diferença
+ * encontre a resposta em vez de procurar um bug.
+ *
+ * COMPLIANCE (1 pessoa) NÃO está aqui: não foi citada, e "LEGAL & COMPLIANCE"
+ * existe como área de verdade. Se também for resíduo, é uma linha a mais.
+ */
+export const NAO_SAO_DEPARTAMENTOS = [
+  'PORTO', 'GERALL', 'GERAL', 'DIRETORIA', 'SEM DEPTO',
+];
 
 /**
  * "Não informado" e "NA" vão para o FIM, e não somem.
@@ -69,11 +99,26 @@ const ORDEM_SALARIO = ['Até 3k', '3k-5k', '5k-8k', '8k-12k', '12k-20k', '20k-50
 const ehSemValor = ehAusencia;
 
 /**
- * Ordena pela régua conhecida quando existe; senão, por tamanho.
+ * Ordena pela régua quando a dimensão É uma escada; alfabética no resto.
  *
- * Por tamanho, e não alfabética: numa lista de dez famílias, a que tem 150
- * pessoas importa mais que a que começa com "A". A régua fixa vence porque
- * "4+ anos" depois de "1-2 anos" é a única ordem que se lê.
+ * ---------------------------------------------------------------------------
+ * ALFABÉTICA POR PADRÃO, DESDE 10/09
+ * ---------------------------------------------------------------------------
+ * Antes era por frequência, com o argumento de que a família de 150 pessoas
+ * importa mais que a que começa com "A". O argumento mede a primeira leitura e
+ * ignora todas as outras: quem volta ao seletor procura um nome que já sabe, e
+ * numa lista ordenada por tamanho a posição dele muda a cada carga.
+ *
+ * Duas dimensões seguem com régua própria, e isso NÃO é desobediência ao
+ * pedido -- é o pedido aplicado a uma lista que não é um conjunto de nomes:
+ *
+ *   tempo de casa .. alfabética daria 0-3 meses, 1-2 anos, 2-5 anos,
+ *                    3-6 meses, 5+ anos, 6-12 meses. A escada se embaralha e
+ *                    deixa de ser lida como progressão.
+ *   faixa salarial . daria 12k-20k, 20k-50k, 3k-5k, 50k+, 5k-8k...
+ *
+ * `level` fica alfabética e dá no mesmo que numérica (L0..L9), então não
+ * precisa de exceção.
  */
 function ordenar(valores: Map<string, number>, regua?: readonly string[]): string[] {
   const chaves = [...valores.keys()];
@@ -92,10 +137,22 @@ function ordenar(valores: Map<string, number>, regua?: readonly string[]): strin
       // para o começo -- que é como um valor novo apareceria primeiro.
       if (ia !== -1 || ib !== -1) return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
     }
-    return (valores.get(b) ?? 0) - (valores.get(a) ?? 0);
+    // `localeCompare` com pt-BR, e não `<`: por código, "Ãrea" cai depois de
+    // "Zebra" e "Óptica" some do lugar esperado. O cadastro tem acento.
+    return a.localeCompare(b, 'pt-BR', { sensitivity: 'base', numeric: true });
   });
   return [...comValor, ...sem];
 }
+
+/**
+ * Tira do seletor de área o que não é área.
+ *
+ * A ausência sai junto: "sem departamento" não é um departamento para
+ * recortar, e oferecê-la ao lado de TECHNOLOGY sugere que são coisas do mesmo
+ * tipo.
+ */
+const semOsNaoOficiais = (vs: string[]): string[] =>
+  vs.filter((v) => !ehAusencia(v) && !NAO_SAO_DEPARTAMENTOS.some((n) => mesmoValor(n, v)));
 
 /** Soma as contagens de um mapa `{ valor: n }` ao longo dos meses. */
 function somarChaves(
@@ -178,11 +235,15 @@ export function opcoesDoDado(
       somarChaves(meses, (m) => m.level_base),
       contarDosDesligados(leavers, (l) => l.level),
     )),
-    departamento: ordenar(unir(
+    // Departamento é a única dimensão com lista de exclusão: nem toda linha do
+    // organograma é uma área. Ver NAO_SAO_DEPARTAMENTOS -- e note que a
+    // ausência ("-", "SEM DEPTO") sai junto, porque "sem departamento" também
+    // não é um departamento para recortar.
+    departamento: semOsNaoOficiais(ordenar(unir(
       somarChaves(meses, (m) =>
         Object.fromEntries(Object.entries(m.dept_data ?? {}).map(([k, d]) => [k, d.hc ?? 0]))),
       contarDosDesligados(leavers, (l) => l.departamento),
-    )),
+    ))),
   };
 
   // Faixa salarial e tipo de desligamento só existem na base por pessoa. Sem
