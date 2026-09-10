@@ -87,7 +87,12 @@ export interface DeptBreakdownPorArea {
     marital: Record<string, number>;
     origin: Record<string, number>;
   };
-  race_cross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
+  race_cross: Record<string, {
+    total: number; female: number; leaders: number; female_leaders: number;
+    /** As mesmas cotas legais, agora cruzadas com raça -- ver o comentário
+     *  de `pcd_conhecido` acima: mesma regra de denominador honesto. */
+    pcd: number; pcd_conhecido: number; apprentice: number;
+  }>;
 }
 
 export interface PessoaConvenia {
@@ -323,15 +328,23 @@ export interface LinhaMensal {
   /**
    * Representatividade por cor/raça entre quem estava presente no mês.
    *
-   * `{ Branca: { total, female, leaders, female_leaders }, ... }` -- a forma
-   * que a tabela do DEI espera. Ela já existia, escrita e completa, atrás de
-   * um `hasRaceCross` que nunca foi verdadeiro: este campo saía `{}` em todas
-   * as linhas porque ninguém o calculava, e a tela inteira não renderizava.
+   * `{ Branca: { total, female, leaders, female_leaders, pcd, pcd_conhecido,
+   * apprentice }, ... }` -- a forma que a tabela do DEI espera. Ela já
+   * existia, escrita e completa, atrás de um `hasRaceCross` que nunca foi
+   * verdadeiro: este campo saía `{}` em todas as linhas porque ninguém o
+   * calculava, e a tela inteira não renderizava.
    *
    * `female_leaders` faltou aqui desde o começo -- o tipo não tinha o campo,
    * então `porRaca` (mais abaixo) também não, e o card "Mulheres na liderança
    * · <raça>" sempre lia 0. A versão por área (`DeptBreakdownPorArea.race_cross`,
    * já com os quatro campos) mostra que o dado real nunca foi zero.
+   *
+   * `pcd`/`pcd_conhecido`/`apprentice` entraram depois: a Carolina pediu que
+   * os cards de PCD e Aprendiz também respondessem ao filtro por raça, que
+   * até aqui só valia para os dois primeiros (mulheres e liderança) porque só
+   * eles tinham cruzamento com raça calculado. Mesma regra de denominador
+   * honesto que `pcd_conhecido` já usa no resto do arquivo: `null` não conta
+   * como "não é PCD".
    *
    * Vem VAZIO quando a cobertura de raça do mês não sustenta percentual --
    * mesma regra do gênero. A tabela divide `total` pelo headcount do mês, e
@@ -340,6 +353,7 @@ export interface LinhaMensal {
    */
   race_cross: Record<string, {
     total: number; female: number; leaders: number; female_leaders: number;
+    pcd: number; pcd_conhecido: number; apprentice: number;
   }>;
   /** Quantas das pessoas presentes têm raça conhecida. */
   raca_conhecida: number;
@@ -738,6 +752,7 @@ export function reconstruirSerie(
     // sempre teve os quatro campos -- só o total da empresa ficou pra trás.
     const porRaca: Record<string, {
       total: number; female: number; leaders: number; female_leaders: number;
+      pcd: number; pcd_conhecido: number; apprentice: number;
     }> = {};
     const salLideres: number[] = [];
     const salDemais: number[] = [];
@@ -806,19 +821,37 @@ export function reconstruirSerie(
         const raca = (x.p.raca ?? '').trim();
         if (raca) {
           racaConhecida++;
-          porRaca[raca] ??= { total: 0, female: 0, leaders: 0, female_leaders: 0 };
+          porRaca[raca] ??= {
+            total: 0, female: 0, leaders: 0, female_leaders: 0,
+            pcd: 0, pcd_conhecido: 0, apprentice: 0,
+          };
           porRaca[raca].total++;
           if (x.p.genero === 'F') {
             porRaca[raca].female++;
             if (ehGestor) porRaca[raca].female_leaders++;
           }
           if (ehGestor) porRaca[raca].leaders++;
+          // Mesma regra de denominador honesto do resto do arquivo: `null`
+          // (ninguém respondeu) não entra como "não é PCD".
+          if (x.p.pcd != null) {
+            porRaca[raca].pcd_conhecido++;
+            if (x.p.pcd) porRaca[raca].pcd++;
+          }
+          if (x.p.aprendiz) porRaca[raca].apprentice++;
 
           for (const B of baldes) {
-            const rc = (B.race_cross[raca] ??= { total: 0, female: 0, leaders: 0, female_leaders: 0 });
+            const rc = (B.race_cross[raca] ??= {
+              total: 0, female: 0, leaders: 0, female_leaders: 0,
+              pcd: 0, pcd_conhecido: 0, apprentice: 0,
+            });
             rc.total++;
             if (x.p.genero === 'F') { rc.female++; if (ehGestor) rc.female_leaders++; }
             if (ehGestor) rc.leaders++;
+            if (x.p.pcd != null) {
+              rc.pcd_conhecido++;
+              if (x.p.pcd) rc.pcd++;
+            }
+            if (x.p.aprendiz) rc.apprentice++;
           }
         }
 

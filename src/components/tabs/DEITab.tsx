@@ -74,6 +74,11 @@ export default function DEITab() {
   const sel = raceFilter !== 'Todas' ? raceCross[raceFilter] : null;
   const selFemalePct = sel && sel.total > 0 ? (sel.female / sel.total) * 100 : 0;
   const selLeadFemalePct = sel && sel.leaders > 0 ? (sel.female_leaders / sel.leaders) * 100 : 0;
+  // Mesma conta do card sem filtro (pcd/apprentice sobre o total da fatia,
+  // não sobre `pcd_conhecido`) -- pra "0,8% PCD" e "0,8% PCD · Branca"
+  // significarem a mesma coisa, só que sobre populações diferentes.
+  const selPcdPct = sel && sel.total > 0 ? (sel.pcd / sel.total) * 100 : 0;
+  const selApprenticePct = sel && sel.total > 0 ? (sel.apprentice / sel.total) * 100 : 0;
 
   const kpis = [
     {
@@ -97,16 +102,20 @@ export default function DEITab() {
           : `<span style="color:#ef5350">${lpDelta.toFixed(1)}pp</span> vs mês ant.`
     },
     {
-      label: '% PCD',
-      value: `${(((curr.pcd || 0) / (curr.headcount || 1)) * 100).toFixed(1)}%`,
+      label: sel ? `% PCD · ${raceFilter}` : '% PCD',
+      value: `${(sel ? selPcdPct : ((curr.pcd || 0) / (curr.headcount || 1)) * 100).toFixed(1)}%`,
       color: COLORS.info,
-      sub: `${curr.pcd || 0} pessoas · campo pouco preenchido (subconta)`,
+      sub: sel
+        ? `${sel.pcd} de ${sel.total} pessoas ${raceFilter} · ${sel.pcd_conhecido} responderam o campo`
+        : `${curr.pcd || 0} pessoas · campo pouco preenchido (subconta)`,
     },
     {
-      label: '% Aprendiz',
-      value: `${(((curr.apprentice || 0) / (curr.headcount || 1)) * 100).toFixed(1)}%`,
+      label: sel ? `% Aprendiz · ${raceFilter}` : '% Aprendiz',
+      value: `${(sel ? selApprenticePct : ((curr.apprentice || 0) / (curr.headcount || 1)) * 100).toFixed(1)}%`,
       color: COLORS.nsx,
-      sub: `${curr.apprentice || 0} aprendizes (vínculo)`,
+      sub: sel
+        ? `${sel.apprentice} de ${sel.total} pessoas ${raceFilter} (vínculo)`
+        : `${curr.apprentice || 0} aprendizes (vínculo)`,
     },
   ];
 
@@ -249,7 +258,7 @@ export default function DEITab() {
           </select>
           {sel && (
             <span className="text-[11px] text-muted-foreground ml-1">
-              KPIs de mulheres/liderança abaixo são de <strong className="text-foreground">{raceFilter}</strong>; gráficos de tendência seguem company-wide.
+              Os 4 KPIs abaixo são de <strong className="text-foreground">{raceFilter}</strong>; gráficos de tendência seguem company-wide.
             </span>
           )}
         </div>

@@ -65,14 +65,18 @@ test('mapas aninhados somam por chave, não se sobrescrevem', () => {
   assert.equal(tech?.demographics.race.Parda, 3);
 });
 
-test('race_cross soma as quatro contagens por raça', () => {
-  const rc = (o: Record<string, number>) => ({ total: 0, female: 0, leaders: 0, female_leaders: 0, ...o });
+test('race_cross soma as sete contagens por raça', () => {
+  const rc = (o: Record<string, number>) =>
+    ({ total: 0, female: 0, leaders: 0, female_leaders: 0, pcd: 0, pcd_conhecido: 0, apprentice: 0, ...o });
   const dados = [
-    mes('NSX', { headcount: 10, dept_breakdown: { HR: db({ race_cross: { Preta: rc({ total: 5, female: 3, leaders: 1, female_leaders: 1 }) } }) } }),
-    mes('Betfair BR', { headcount: 10, dept_breakdown: { HR: db({ race_cross: { Preta: rc({ total: 2, female: 1, leaders: 1, female_leaders: 0 }) } }) } }),
+    mes('NSX', { headcount: 10, dept_breakdown: { HR: db({ race_cross: { Preta: rc({ total: 5, female: 3, leaders: 1, female_leaders: 1, pcd: 1, pcd_conhecido: 4, apprentice: 1 }) } }) } }),
+    mes('Betfair BR', { headcount: 10, dept_breakdown: { HR: db({ race_cross: { Preta: rc({ total: 2, female: 1, leaders: 1, female_leaders: 0, pcd: 0, pcd_conhecido: 2, apprentice: 0 }) } }) } }),
   ];
   const p = getMonthData(dados, '2026-08', 'combined').dept_breakdown?.HR.race_cross.Preta;
-  assert.deepEqual(p, { total: 7, female: 4, leaders: 2, female_leaders: 1 });
+  assert.deepEqual(p, {
+    total: 7, female: 4, leaders: 2, female_leaders: 1,
+    pcd: 1, pcd_conhecido: 6, apprentice: 1,
+  });
 });
 
 test('sem quebra em marca nenhuma, devolve undefined e não objeto vazio', () => {

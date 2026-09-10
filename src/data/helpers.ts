@@ -261,7 +261,10 @@ function mergeDemographics(...bases: Array<Demographics | undefined>): Demograph
   return any ? out : undefined;
 }
 
-type RaceCross = Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
+type RaceCross = Record<string, {
+  total: number; female: number; leaders: number; female_leaders: number;
+  pcd: number; pcd_conhecido: number; apprentice: number;
+}>;
 /** Soma o recorte DEI por raca das marcas para a visao combinada. */
 function mergeRaceCross(...bases: Array<RaceCross | undefined>): RaceCross | undefined {
   const out: RaceCross = {};
@@ -269,11 +272,17 @@ function mergeRaceCross(...bases: Array<RaceCross | undefined>): RaceCross | und
   for (const base of bases) {
     if (!base) continue;
     for (const [race, v] of Object.entries(base)) {
-      const cur = (out[race] = out[race] || { total: 0, female: 0, leaders: 0, female_leaders: 0 });
+      const cur = (out[race] = out[race] || {
+        total: 0, female: 0, leaders: 0, female_leaders: 0,
+        pcd: 0, pcd_conhecido: 0, apprentice: 0,
+      });
       cur.total += v.total || 0;
       cur.female += v.female || 0;
       cur.leaders += v.leaders || 0;
       cur.female_leaders += v.female_leaders || 0;
+      cur.pcd += v.pcd || 0;
+      cur.pcd_conhecido += v.pcd_conhecido || 0;
+      cur.apprentice += v.apprentice || 0;
       any = true;
     }
   }
@@ -328,11 +337,14 @@ function mergeDeptBreakdown(
       somarMapa(cur.demographics.origin, v.demographics?.origin);
       for (const [raca, r] of Object.entries(v.race_cross || {})) {
         const c = (cur.race_cross[raca] = cur.race_cross[raca]
-          || { total: 0, female: 0, leaders: 0, female_leaders: 0 });
+          || { total: 0, female: 0, leaders: 0, female_leaders: 0, pcd: 0, pcd_conhecido: 0, apprentice: 0 });
         c.total += r.total || 0;
         c.female += r.female || 0;
         c.leaders += r.leaders || 0;
         c.female_leaders += r.female_leaders || 0;
+        c.pcd += r.pcd || 0;
+        c.pcd_conhecido += r.pcd_conhecido || 0;
+        c.apprentice += r.apprentice || 0;
       }
       any = true;
     }

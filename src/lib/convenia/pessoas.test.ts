@@ -574,8 +574,10 @@ test('race_cross conta pessoas, mulheres e gestoras por raça', () => {
     // zero em TODAS as raças do teste, e um bug que sempre grava 0 nesse
     // campo passaria despercebido -- foi exatamente o que aconteceu (ver o
     // comentário de `porRaca` em pessoas.ts). '5' reporta para '4'.
-    p({ id: '4', hiring_date: '2026-01-01', genero: 'F', raca: 'Branca' }),
-    p({ id: '5', hiring_date: '2026-01-01', genero: 'M', raca: 'Preta', supervisorId: '4' }),
+    // Mesma pessoa também é PCD, pela mesma razão: sem alguém PCD no teste,
+    // um `pcd` sempre zero e um `pcd` calculado certo dão o mesmo resultado.
+    p({ id: '4', hiring_date: '2026-01-01', genero: 'F', raca: 'Branca', pcd: true }),
+    p({ id: '5', hiring_date: '2026-01-01', genero: 'M', raca: 'Preta', supervisorId: '4', aprendiz: true }),
   ];
   const { linhas } = reconstruirSerie(pessoas, 'NSX', '2026-01');
   const rc = linhas[0].race_cross;
@@ -590,6 +592,14 @@ test('race_cross conta pessoas, mulheres e gestoras por raça', () => {
   // A régua que faltava: '4' é mulher, branca, e gestora.
   assert.equal(rc.Branca.female_leaders, 1);
   assert.equal(rc.Preta.female_leaders, 0);
+  // As cotas legais cruzadas com raça: '4' é PCD e branca; '5' é aprendiz e preto.
+  assert.equal(rc.Branca.pcd, 1);
+  assert.equal(rc.Branca.pcd_conhecido, 1);
+  assert.equal(rc.Preta.pcd, 0);
+  // '1' e '2' não responderam o campo PCD -- não contam nem a favor nem contra.
+  assert.equal(rc.Preta.pcd_conhecido, 0);
+  assert.equal(rc.Preta.apprentice, 1);
+  assert.equal(rc.Branca.apprentice, 0);
 });
 
 test('race_cross vem VAZIO quando a cobertura de raça é baixa', () => {

@@ -172,13 +172,16 @@ const MetricRowSchema = z.object({
     })
     .partial()
     .default({}),
-  /** Recorte DEI por raca ({ raca: { total, female, leaders, female_leaders } }). */
+  /** Recorte DEI por raca ({ raca: { total, female, leaders, female_leaders, pcd, pcd_conhecido, apprentice } }). */
   race_cross: z
     .record(z.object({
       total: z.number().int().nonnegative(),
       female: z.number().int().nonnegative(),
       leaders: z.number().int().nonnegative(),
       female_leaders: z.number().int().nonnegative(),
+      pcd: z.number().int().nonnegative(),
+      pcd_conhecido: z.number().int().nonnegative(),
+      apprentice: z.number().int().nonnegative(),
     }))
     .default({}),
   /** Fase 2: as mesmas dimensoes quebradas por departamento da epoca. Sem isto
@@ -203,6 +206,9 @@ const MetricRowSchema = z.object({
         female: z.number().int().nonnegative(),
         leaders: z.number().int().nonnegative(),
         female_leaders: z.number().int().nonnegative(),
+        pcd: z.number().int().nonnegative(),
+        pcd_conhecido: z.number().int().nonnegative(),
+        apprentice: z.number().int().nonnegative(),
       })),
     }))
     .default({}),
@@ -316,7 +322,10 @@ export interface MonthlyMetricRow extends MetricSeriesRow {
     origin?: Record<string, number>;
   } | null;
   /** Recorte DEI por raca. */
-  race_cross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }> | null;
+  race_cross: Record<string, {
+    total: number; female: number; leaders: number; female_leaders: number;
+    pcd: number; pcd_conhecido: number; apprentice: number;
+  }> | null;
   /** Fase 2: quebras por departamento da epoca (mesmas dimensoes acima). */
   dept_breakdown: Record<string, {
     gender_female: number;
@@ -331,7 +340,10 @@ export interface MonthlyMetricRow extends MetricSeriesRow {
       marital: Record<string, number>;
       origin: Record<string, number>;
     };
-    race_cross: Record<string, { total: number; female: number; leaders: number; female_leaders: number }>;
+    race_cross: Record<string, {
+      total: number; female: number; leaders: number; female_leaders: number;
+      pcd: number; pcd_conhecido: number; apprentice: number;
+    }>;
   }> | null;
   /**
    * As MESMAS quebras, por Job Type Family, por vinculo e por faixa de tempo.
