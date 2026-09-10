@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useDashboard } from '@/data/DashboardContext';
+import { useRecorteDeSerie } from '@/data/use-series-cut';
 import { mLabel } from '@/data/helpers';
 import KpiCard from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
@@ -27,7 +28,11 @@ import {
 } from 'lucide-react';
 
 export default function DEITab() {
-  const { currentData, prevData, allMonthsData, currentMonth, brand, filteredDeptKey } = useDashboard();
+  const { currentMonth, brand, filteredDeptKey } = useDashboard();
+  // Mesma razão do DemographicsTab: o contexto só aplica o filtro de
+  // departamento. Sem o hook, os seletores de job family, contrato e tempo de
+  // casa acendem nesta aba e não recortam nada.
+  const { currentData, prevData, allMonthsData, cut } = useRecorteDeSerie('dei');
   const curr = currentData;
 
   /* ------------------------------------------------------------------
@@ -197,7 +202,20 @@ export default function DEITab() {
       {/* Header */}
       <div className="flex gap-5 flex-wrap text-xs text-muted-foreground">
         <span>Ref: <strong className="text-foreground">{mLabel(currentMonth)}</strong></span>
+        {cut.active && cut.label && (
+          <span>Recorte: <strong className="text-foreground">{cut.label}</strong></span>
+        )}
       </div>
+      {/* Gráfico vazio sem uma frase ao lado se lê como "não temos ninguém" --
+          e num painel de DEI essa leitura errada é especialmente cara. */}
+      {cut.active && currentData?.race_cross == null && (
+        <p className="text-[11px] rounded-md border border-amber-500/40 p-2 text-amber-600 dark:text-amber-500">
+          A composição de <strong>{cut.label}</strong> não foi calculada: ou este mês é anterior à
+          quebra, ou o recorte está combinado com um departamento — a série guarda quem é de cada
+          área e quem é de cada fatia, nunca o cruzamento dos dois. Os gráficos abaixo ficam vazios
+          por isso, e não por ausência de pessoas.
+        </p>
+      )}
       <p className="text-xs text-muted-foreground -mt-2">
         <strong>Líder</strong> = colaborador marcado como liderança no cadastro (campo &quot;Liderança?&quot;),
         reconstruído pelo cargo da época — não é por nível nem por nº de reportes diretos.

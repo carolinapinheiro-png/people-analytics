@@ -92,6 +92,23 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
     race_cross:
       r.race_cross && Object.keys(r.race_cross).length > 0 ? r.race_cross : undefined,
     dept_breakdown: quebraPorArea(r.dept_breakdown),
+    // ------------------------------------------------------------------
+    // AS TRÊS QUEBRAS NOVAS PRECISAM SER TRADUZIDAS AQUI TAMBÉM
+    // ------------------------------------------------------------------
+    // Esta função é a fronteira entre a linha do banco e o registro do app, e
+    // ela traduz campo a campo. Coluna que não aparece aqui simplesmente não
+    // existe para a tela -- por mais cheia que esteja no banco.
+    //
+    // Foi o que aconteceu em 10/09: a carga gravou as três em 275 de 275
+    // linhas, os seletores acenderam em Demográficos e DEI, e nenhum filtrava.
+    // O dado estava a uma linha de distância.
+    //
+    // É a terceira vez que a mesma forma aparece: `family_base` parou na
+    // combinação das marcas, `promotions` parou na soma que virava nulo em
+    // zero, e agora estas na tradução. Escrever no banco não é publicar.
+    family_breakdown: quebraPorArea(r.family_breakdown),
+    contract_breakdown: quebraPorArea(r.contract_breakdown),
+    tenure_breakdown: quebraPorArea(r.tenure_breakdown),
   };
 };
 

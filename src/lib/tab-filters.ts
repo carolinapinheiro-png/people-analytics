@@ -313,6 +313,49 @@ export function filtersForTab(tab: DashboardTab, subTab?: string | null): Filter
 export const RECORTES_EXCLUSIVOS: FilterKey[] = ['level', 'tempoCasa', 'jobFamily', 'tipoContrato'];
 
 /**
+ * Abas que de fato APLICAM o recorte de dimensão (`useRecorteDeSerie`).
+ *
+ * ===========================================================================
+ * POR QUE ESTA LISTA EXISTE
+ * ===========================================================================
+ * Declarar o filtro aqui e aplicá-lo no componente eram duas coisas separadas,
+ * e nada ligava as duas. Em 10/09 eu acrescentei `jobFamily`, `tipoContrato` e
+ * `tempoCasa` a `dei` e `demographics` -- e esqueci que só o `OverviewTab`
+ * chamava `applySeriesFilter`. Os seletores acenderam, e nenhum filtrava.
+ *
+ * Foi o defeito que este arquivo inteiro existe para impedir, cometido dentro
+ * dele. A lição não é "prestar mais atenção": é que a declaração e a
+ * implementação precisavam de um fio entre elas.
+ *
+ * Este é o fio. O teste em `tab-filters.test.ts` cobra: toda aba que oferece
+ * um recorte de dimensão tem de estar aqui, e toda aba daqui tem de oferecer
+ * pelo menos um. Acrescentar `jobFamily` a uma aba nova sem chamar o hook
+ * quebra a verificação, em vez de virar um seletor morto que alguém descobre
+ * olhando a tela.
+ *
+ * Atrição fica de FORA: ela lê pessoa a pessoa, com o cruzamento real, e não
+ * passa por `applySeriesFilter`. Compensação e Meu Time também -- mesma razão.
+ */
+export const ABAS_QUE_APLICAM_RECORTE: DashboardTab[] = ['overview', 'dei', 'demographics'];
+
+/** As abas que leem pessoa a pessoa: recortam de verdade, por outro caminho. */
+export const ABAS_PESSOA_A_PESSOA: DashboardTab[] = ['attrition', 'comp', 'team'];
+
+/**
+ * Abas cujo recorte acontece no SERVIDOR, na própria server function.
+ *
+ * Terceiro caminho, e eu não sabia que ele existia até o teste acima apontar:
+ * Engajamento oferece tempo de casa, modelo e marca, e nenhum deles passa por
+ * `applySeriesFilter` -- a consulta a `survey_cut_scores` já traz o recorte
+ * pronto. Funciona de verdade; só não funciona por aqui.
+ *
+ * A lista existe para que a verificação distinga "recorta por outro caminho"
+ * de "não recorta". Sem ela, o teste acusaria Engajamento e a resposta seria
+ * silenciá-lo -- que é como uma verificação boa vira ruído e depois some.
+ */
+export const ABAS_FILTRADAS_NO_SERVIDOR: DashboardTab[] = ['engagement'];
+
+/**
  * Os perfis DEIXARAM de se excluir. Esta lista ficou vazia de propósito.
  *
  * ------------------------------------------------------------------

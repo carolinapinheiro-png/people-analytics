@@ -1,4 +1,6 @@
 import { useDashboard } from '@/data/DashboardContext';
+import { useRecorteDeSerie } from '@/data/use-series-cut';
+import SeriesCutView from '@/components/dashboard/SeriesCutView';
 import { mLabel } from '@/data/helpers';
 import ChartCard from '@/components/dashboard/ChartCard';
 import KpiCard from '@/components/dashboard/KpiCard';
@@ -84,8 +86,12 @@ const toArr = (o: Record<string, number> | undefined, order?: string[]) => {
 const pctOf = (part: number, total: number) => (total > 0 ? (part / total) * 100 : 0);
 
 export default function DemographicsTab() {
-  const { currentData, currentMonth, brand, filters } = useDashboard();
-  const curr = currentData;
+  const { currentMonth, brand, filters } = useDashboard();
+  // O recorte de dimensão vem do hook, e não do contexto: `currentData` do
+  // contexto passou só pelo filtro de departamento. Sem esta linha os
+  // seletores de job family, contrato e tempo de casa acendem e não fazem
+  // nada -- foi exatamente o que aconteceu em 10/09.
+  const { currentData: curr, cut } = useRecorteDeSerie('demographics');
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
 
   // Modelo de trabalho: agregado dos ativos (Talent Mobility). E company-wide,
@@ -158,7 +164,47 @@ export default function DemographicsTab() {
         <span>Marca: <strong className="text-foreground">{brand === 'combined' ? 'Combinado' : brand}</strong></span>
         <span>Ref: <strong className="text-foreground">{mLabel(currentMonth)}</strong></span>
         <span>Total: <strong className="text-foreground">{hc}</strong></span>
+        {cut.active && cut.label && (
+          <span>Recorte: <strong className="text-foreground">{cut.label}</strong></span>
+        )}
       </div>
+
+      {/* ------------------------------------------------------------------
+          O QUE O RECORTE NÃO ALCANÇA, DITO ANTES DOS GRÁFICOS
+          ------------------------------------------------------------------
+          Nem tudo sobrevive a um recorte de dimensão: PCD, aprendizes e o
+          modelo de trabalho não vêm da quebra e continuam sendo os da empresa.
+          Sem esta linha, os cartões continuariam desenhando esses números ao
+          lado dos recortados, na mesma tela, sem nada dizendo que são de
+          populações diferentes. */}
+      {cut.active && cut.valorDesconhecido && (
+        <p className="text-[11px] rounded-md border border-amber-500/40 p-2 text-amber-600 dark:text-amber-500">
+          <strong>{cut.label}</strong> não aparece em nenhum mês da série. Isso não quer dizer
+          "ninguém nessa faixa": quer dizer que a carga nunca gravou esse valor. Provável
+          diferença de vocabulário entre o seletor e o cadastro do Convenia — vale reportar.
+        </p>
+      )}
+      {/* A composição da fatia não existe: ou é linha anterior à quebra, ou é
+          o cruzamento com departamento, que ninguém calcula. Nos dois casos os
+          gráficos abaixo ficariam vazios -- e gráfico vazio, sem uma frase ao
+          lado, se lê como "não temos ninguém". Foi assim que quatro gráficos
+          passaram despercebidos em 09/09. */}
+      {cut.active && !cut.valorDesconhecido && curr?.demographics == null && (
+        <p className="text-[11px] rounded-md border border-amber-500/40 p-2 text-amber-600 dark:text-amber-500">
+          Os gráficos abaixo estão vazios porque a composição desta fatia não foi calculada
+          {filters.departamento && filters.departamento !== 'Todos'
+            ? ` — a série guarda quem é de ${filters.departamento} e quem é de ${cut.label?.split(': ')[1]}, nunca o cruzamento dos dois. Limpe o departamento para ler este recorte.`
+            : ' — este mês foi gravado antes da quebra por essa dimensão existir. Rode a carga de novo para preenchê-lo.'}
+          {' '}O headcount acima é exato.
+        </p>
+      )}
+      {cut.active && !cut.valorDesconhecido && curr?.demographics != null && (
+        <p className="text-[11px] rounded-md border border-border p-2 text-muted-foreground">
+          Com <strong className="text-foreground">{cut.label}</strong>, gênero, raça, idade,
+          estado civil e origem são os desta fatia. Continuam sendo da empresa toda:{' '}
+          {cut.suppressed.join(', ')}, PCD, aprendizes e modelo de trabalho.
+        </p>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
