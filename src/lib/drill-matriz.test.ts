@@ -52,6 +52,27 @@ test("a célula aponta a pior pergunta dentro dela", () => {
   assert.equal(c.pior?.gap, -20);
 });
 
+// Coluna fixa da empresa (dashboard/MatrizAreaDriver.tsx): o número que a
+// grade mostra sempre, antes de qualquer área.
+test("empresaPorDriver traz a régua em número, um valor por tema", () => {
+  const m = matrizAreaDriver(BASE);
+  assert.equal(m.empresaPorDriver.get("Gestão"), 80); // média de 90 e 70
+  assert.equal(m.empresaPorDriver.get("Remuneração"), 60);
+});
+
+test("empresaPorDriver sobrevive a um tema sem NENHUMA célula de área", () => {
+  // Só a linha da empresa para Remuneração -- nenhuma área respondeu esse
+  // tema neste recorte (é o que o filtro de departamento pode produzir).
+  // "Remuneração" cai fora de `m.drivers` (não há célula alguma), mas a régua
+  // continua disponível: é o cenário que a coluna fixa existe para cobrir.
+  const semAreaEmRemuneracao = BASE.filter(
+    (x) => !(x.cutType === "area" && x.driver === "Remuneração"),
+  );
+  const m = matrizAreaDriver(semAreaEmRemuneracao);
+  assert.ok(!m.drivers.includes("Remuneração"));
+  assert.equal(m.empresaPorDriver.get("Remuneração"), 60);
+});
+
 test("grupo pequeno demais suprime a célula inteira, não só a pergunta", () => {
   const comPoucos = [
     ...BASE,

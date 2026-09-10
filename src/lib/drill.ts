@@ -211,6 +211,20 @@ export interface MatrizAreaDriver {
   celulas: CelulaAreaDriver[];
   /** Acesso direto: `mapa.get('MARKETING||Gestão')`. */
   mapa: Map<string, CelulaAreaDriver>;
+  /**
+   * A régua em si, um % por driver — a mesma que gera `favoravelEmpresa` em
+   * cada célula, só que sem precisar de uma área para chegar até ela.
+   *
+   * ------------------------------------------------------------------
+   * POR QUE ISTO PRECISOU SAIR DAQUI DE DENTRO
+   * ------------------------------------------------------------------
+   * Cada célula já carrega `favoravelEmpresa`, mas só existe célula para
+   * `area||driver` que tem gente — com o filtro de departamento reduzindo a
+   * uma área só, ou com uma área pequena demais e suprimida, um driver podia
+   * ficar sem NENHUMA célula para "emprestar" o valor da empresa. A coluna
+   * fixa de comparação não pode piscar por causa de um filtro que nem é dela.
+   */
+  empresaPorDriver: Map<string, number | null>;
 }
 
 const media = (v: number[]): number | null =>
@@ -340,6 +354,7 @@ export function matrizAreaDriver(
   return {
     drivers, areas, celulas,
     mapa: new Map(celulas.map((c) => [`${c.area}||${c.driver}`, c])),
+    empresaPorDriver,
   };
 }
 

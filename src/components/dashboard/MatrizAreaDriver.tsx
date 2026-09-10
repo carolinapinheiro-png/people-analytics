@@ -126,6 +126,26 @@ export default function MatrizAreaDriver({
               <th className="text-left font-normal text-muted-foreground pb-1 pr-2 sticky left-0 bg-background z-10">
                 tema
               </th>
+              {/* ------------------------------------------------------------
+                COLUNA FIXA DA EMPRESA -- A RÉGUA EM NÚMERO, NÃO SÓ EM COR
+                ------------------------------------------------------------
+                Toda célula da grade já É a distância para a Flutter Brazil,
+                mas a régua em si não aparecia em lugar nenhum: só dava pra
+                recuperá-la clicando célula por célula (o detalhe abaixo da
+                grade mostra "empresa: X%"). Pedido foi justamente esse: um
+                nível de comparação sempre à vista, sem precisar clicar.
+
+                Fica ANTES das áreas e não depende de `m.areas` -- por isso
+                continua aparecendo com o filtro de departamento reduzindo a
+                grade a uma área só, que é o cenário em que ela mais ajuda:
+                sem outra área ao lado para comparar, a empresa é a única
+                referência que sobra. */}
+              <th
+                className="font-normal text-muted-foreground pb-1 px-1 align-bottom border-r border-border"
+                title="Flutter Brazil inteira, na mesma onda -- a régua contra a qual toda célula é medida."
+              >
+                <span className="block text-[10px] leading-tight">Flutter Brazil</span>
+              </th>
               {m.areas.map((a) => (
                 <th
                   key={a}
@@ -138,13 +158,27 @@ export default function MatrizAreaDriver({
             </tr>
           </thead>
           <tbody>
-            {m.drivers.map((d) => (
+            {m.drivers.map((d) => {
+              const emp = m.empresaPorDriver.get(d) ?? null;
+              return (
               <tr key={d}>
                 <td
                   className={`pr-3 py-0.5 ${NOME_DO_TEMA} sticky left-0 bg-background z-10`}
                   title={d}
                 >
                   {d}
+                </td>
+                <td className="p-0 border-r border-border">
+                  <div
+                    className="w-full h-7 rounded tabular-nums flex items-center justify-center font-medium bg-muted/50"
+                    title={
+                      emp == null
+                        ? `Flutter Brazil · ${d}: sem dado suficiente`
+                        : `Flutter Brazil · ${d}: ${emp}% concordam`
+                    }
+                  >
+                    {emp == null ? '·' : `${emp}%`}
+                  </div>
                 </td>
                 {m.areas.map((a) => {
                   const c = m.mapa.get(`${a}||${d}`);
@@ -174,7 +208,8 @@ export default function MatrizAreaDriver({
                   );
                 })}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -310,8 +345,10 @@ export default function MatrizAreaDriver({
         )}
 
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          <strong>Como ler:</strong> cada célula é a distância daquela área para a{' '}
-          <strong>Flutter Brazil inteira, na mesma onda</strong> — não para a pesquisa anterior. É
+          <strong>Como ler:</strong> a coluna <strong>Flutter Brazil</strong> é a régua em número —
+          o % de concordância da empresa inteira, na mesma onda, tema por tema. Cada célula à
+          direita dela é a distância daquela área para{' '}
+          <strong>essa mesma régua</strong> — não para a pesquisa anterior. É
           posição, não evolução. Vermelho é abaixo, verde é acima; o tom forte começa em{' '}
           {FORTE} pontos. Clique numa célula para ver a pergunta mais fraca do tema.
           {/* A ordem das linhas é a amplitude ENTRE áreas. Com uma área só na
