@@ -366,42 +366,66 @@ export type Database = {
       }
       convenia_leavers: {
         Row: {
+          cargo: string | null
           convenia_id: string
           department: string | null
+          detalhe_versao: number | null
           dismissal_date: string | null
           dismissal_month: string | null
           dismissal_type: string | null
           empresa: string
           exit_type: string | null
           fetched_at: string
+          genero: string | null
           hiring_month: string | null
+          job_type_family: string | null
+          level: string | null
           marca: string
+          nome: string | null
+          raca: string | null
+          salary: number | null
           voluntary: boolean | null
         }
         Insert: {
+          cargo?: string | null
           convenia_id: string
           department?: string | null
+          detalhe_versao?: number | null
           dismissal_date?: string | null
           dismissal_month?: string | null
           dismissal_type?: string | null
           empresa: string
           exit_type?: string | null
           fetched_at?: string
+          genero?: string | null
           hiring_month?: string | null
+          job_type_family?: string | null
+          level?: string | null
           marca: string
+          nome?: string | null
+          raca?: string | null
+          salary?: number | null
           voluntary?: boolean | null
         }
         Update: {
+          cargo?: string | null
           convenia_id?: string
           department?: string | null
+          detalhe_versao?: number | null
           dismissal_date?: string | null
           dismissal_month?: string | null
           dismissal_type?: string | null
           empresa?: string
           exit_type?: string | null
           fetched_at?: string
+          genero?: string | null
           hiring_month?: string | null
+          job_type_family?: string | null
+          level?: string | null
           marca?: string
+          nome?: string | null
+          raca?: string | null
+          salary?: number | null
           voluntary?: boolean | null
         }
         Relationships: []
@@ -1043,12 +1067,14 @@ export type Database = {
           brand: string
           business_unit: Database["public"]["Enums"]["business_unit"] | null
           contract_base: Json
+          contract_breakdown: Json | null
           created_at: string | null
           demographics: Json
           dept_breakdown: Json | null
           dept_data: Json
           exit_survey: Json | null
           family_base: Json
+          family_breakdown: Json | null
           gender_female: number | null
           gender_female_pct: number | null
           gender_male: number | null
@@ -1064,14 +1090,16 @@ export type Database = {
           level_base: Json
           month: string
           pcd: number
+          pcd_conhecido: number | null
           promotions: number | null
           quality_flag: string | null
           race_cross: Json
-          raise_events: Json
+          raise_events: Json | null
           salary_band_attrition: Json | null
           source: string
           state_mix: Json
           tenure_base: Json
+          tenure_breakdown: Json | null
           updated_at: string | null
         }
         Insert: {
@@ -1082,12 +1110,14 @@ export type Database = {
           brand: string
           business_unit?: Database["public"]["Enums"]["business_unit"] | null
           contract_base?: Json
+          contract_breakdown?: Json | null
           created_at?: string | null
           demographics?: Json
           dept_breakdown?: Json | null
           dept_data?: Json
           exit_survey?: Json | null
           family_base?: Json
+          family_breakdown?: Json | null
           gender_female?: number | null
           gender_female_pct?: number | null
           gender_male?: number | null
@@ -1103,14 +1133,16 @@ export type Database = {
           level_base?: Json
           month: string
           pcd?: number
+          pcd_conhecido?: number | null
           promotions?: number | null
           quality_flag?: string | null
           race_cross?: Json
-          raise_events?: Json
+          raise_events?: Json | null
           salary_band_attrition?: Json | null
           source?: string
           state_mix?: Json
           tenure_base?: Json
+          tenure_breakdown?: Json | null
           updated_at?: string | null
         }
         Update: {
@@ -1121,12 +1153,14 @@ export type Database = {
           brand?: string
           business_unit?: Database["public"]["Enums"]["business_unit"] | null
           contract_base?: Json
+          contract_breakdown?: Json | null
           created_at?: string | null
           demographics?: Json
           dept_breakdown?: Json | null
           dept_data?: Json
           exit_survey?: Json | null
           family_base?: Json
+          family_breakdown?: Json | null
           gender_female?: number | null
           gender_female_pct?: number | null
           gender_male?: number | null
@@ -1142,14 +1176,16 @@ export type Database = {
           level_base?: Json
           month?: string
           pcd?: number
+          pcd_conhecido?: number | null
           promotions?: number | null
           quality_flag?: string | null
           race_cross?: Json
-          raise_events?: Json
+          raise_events?: Json | null
           salary_band_attrition?: Json | null
           source?: string
           state_mix?: Json
           tenure_base?: Json
+          tenure_breakdown?: Json | null
           updated_at?: string | null
         }
         Relationships: []
