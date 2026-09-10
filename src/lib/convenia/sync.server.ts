@@ -1214,9 +1214,30 @@ export async function executarSyncConvenia(
                 })
                 .filter((l) => l.vigencia != null);
 
-              if (linhasHist.length) {
+              // ------------------------------------------------------------
+              // DUAS LINHAS COM A MESMA CHAVE NO MESMO LOTE
+              // ------------------------------------------------------------
+              // O Postgres recusa o lote INTEIRO quando duas linhas do mesmo
+              // upsert brigam pela mesma chave ("ON CONFLICT DO UPDATE command
+              // cannot affect row a second time"). E acontece de verdade: a
+              // mesma pessoa tem dois "Dissidio" com a mesma data.
+              //
+              // A chave unica e (pessoa, vigencia, motivo) -- entao duas linhas
+              // assim SAO a mesma linha para efeito de banco, e a escolha e
+              // qual delas fica. Fica a ultima: a resposta vem em ordem
+              // cronologica de registro, e a ultima e a correcao da anterior.
+              //
+              // O que se perde: se houve dois reajustes distintos no mesmo dia
+              // com o mesmo motivo, `raise_events` conta um. Promocoes contam
+              // PESSOAS por mes, entao nao mudam. E um erro de contagem que eu
+              // prefiro ao alternativo, que era perder a pessoa inteira.
+              const porChave = new Map<string, typeof linhasHist[number]>();
+              for (const l of linhasHist) porChave.set(`${l.vigencia}|${l.motivo}`, l);
+              const linhasUnicas = [...porChave.values()];
+
+              if (linhasUnicas.length) {
                 const { error } = await db.from('convenia_historico_salarial')
-                  .upsert(linhasHist, { onConflict: 'convenia_id,vigencia,motivo' });
+                  .upsert(linhasUnicas, { onConflict: 'convenia_id,vigencia,motivo' });
                 if (error) throw new Error(error.message);
               }
 
@@ -1637,6 +1658,13 @@ export async function executarSyncConvenia(
       if (historicoFalhas.length) {
         avisos.push(
           `Historico salarial falhou para ${historicoFalhas.length} pessoa(s); elas voltam para a fila na proxima carga. `
+          + (historicoFalhas.length >= LIMITE_FALHAS_HISTORICO
+            // Sem esta frase, a rodada parece ter acabado por falta de tempo --
+            // e a pessoa clica "de novo" para sempre sem a fila andar, que foi
+            // exatamente o que aconteceu em 10/09.
+            ? 'A rodada PAROU por causa delas, antes de o tempo acabar: falha em serie e sinal de defeito, '
+              + 'nao de lentidao, e insistir so repete o erro. '
+            : '')
           + `Primeira: ${historicoFalhas[0]}`,
         );
       }
