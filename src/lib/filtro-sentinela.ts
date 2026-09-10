@@ -59,5 +59,67 @@ export function passaFiltro(
 ): boolean {
   const alvo = valorFiltro(escolhido);
   if (alvo == null) return true;
-  return (valorDaLinha ?? '').trim() === alvo;
+  return mesmoValor(valorDaLinha, alvo);
+}
+
+/**
+ * Os muitos nomes de "este campo não foi preenchido".
+ *
+ * ===========================================================================
+ * TRÊS PALAVRAS PARA A MESMA AUSÊNCIA
+ * ===========================================================================
+ * Medido em 10/09, no mesmo campo:
+ *
+ *   série do Convenia .... "NA"            (166 pessoas em set/26)
+ *   base de desligados ... "Não informado" (56)  e "Não se aplica" (1)
+ *   departamento ......... "-"             (3)
+ *
+ * Cada base escreve a ausência do seu jeito, e nenhuma está errada -- elas
+ * foram preenchidas por processos diferentes, em épocas diferentes. O erro era
+ * comparar as três como se fossem texto qualquer: escolher "NA" no seletor
+ * achava as 166 pessoas da série e ZERO desligados, e a atrição daquele
+ * recorte saía 0% com gente tendo saído.
+ *
+ * Normalizar na comparação, e não reescrever o dado gravado: a base de
+ * desligados veio de planilha e o número dela já foi validado pela área.
+ */
+const AUSENCIAS = new Set([
+  'na', 'n/a', 'nao informado', 'nao informada', 'nao se aplica',
+  'sem informacao', 'nao preenchido', '-', '--', 'null', 'none', '',
+]);
+
+/** Sem acento, sem caixa, sem espaço nas pontas. */
+function chave(v: string | null | undefined): string {
+  return (v ?? '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+/**
+ * Dois valores descrevem a mesma coisa?
+ *
+ * Ignora acento e caixa porque as bases não concordam nisso e nunca vão
+ * concordar: a série escreve o que o Convenia escreve, os desligados vieram de
+ * planilha digitada à mão. "Customer Service" contra "CUSTOMER SERVICE" já
+ * custou um recorte inteiro uma vez.
+ *
+ * E trata todas as formas de ausência como uma só -- ver AUSENCIAS.
+ */
+export function mesmoValor(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): boolean {
+  const ka = chave(a);
+  const kb = chave(b);
+  if (AUSENCIAS.has(ka) && AUSENCIAS.has(kb)) return true;
+  return ka === kb;
+}
+
+/** O rótulo canônico da ausência, para os seletores não oferecerem três. */
+export const SEM_VALOR = 'Não informado';
+
+/** `true` quando o texto é uma das formas de "não preenchido". */
+export function ehAusencia(v: string | null | undefined): boolean {
+  return AUSENCIAS.has(chave(v));
 }

@@ -2,6 +2,7 @@ import type { MonthRecord } from './raw-data';
 import type { LeaverRecord } from './leaver-types';
 import type { FilterKey } from '@/lib/tab-filters';
 import { FAIXAS_TEMPO_DE_CASA } from '@/lib/convenia/pessoas';
+import { ehAusencia, SEM_VALOR } from '@/lib/filtro-sentinela';
 
 /**
  * As opções de cada filtro, LIDAS DO DADO -- não escritas à mão.
@@ -65,8 +66,7 @@ const ORDEM_SALARIO = ['Até 3k', '3k-5k', '5k-8k', '8k-12k', '12k-20k', '20k-50
  * escondê-las faria a soma dos recortes não bater com o headcount sem que nada
  * dissesse por quê.
  */
-const SEM_VALOR = ['Não informado', 'NA', '(vazio)'];
-const ehSemValor = (v: string) => SEM_VALOR.includes(v);
+const ehSemValor = ehAusencia;
 
 /**
  * Ordena pela régua conhecida quando existe; senão, por tamanho.
@@ -78,7 +78,11 @@ const ehSemValor = (v: string) => SEM_VALOR.includes(v);
 function ordenar(valores: Map<string, number>, regua?: readonly string[]): string[] {
   const chaves = [...valores.keys()];
   const comValor = chaves.filter((v) => !ehSemValor(v));
-  const sem = chaves.filter(ehSemValor);
+  // Todas as formas de ausência viram UMA opção. A série escreve "NA", os
+  // desligados escrevem "Não informado" e "Não se aplica", e o departamento
+  // escreve "-": oferecer os quatro daria quatro seletores para a mesma
+  // pergunta, e cada um acharia só a base que o escreveu.
+  const sem = chaves.some(ehSemValor) ? [SEM_VALOR] : [];
 
   comValor.sort((a, b) => {
     if (regua) {
@@ -138,15 +142,47 @@ export function opcoesDoDado(
   // barra piscar sem opções durante o carregamento.
   if (!meses.length) return {};
 
+  // ------------------------------------------------------------------
+  // A UNIÃO DAS DUAS BASES, E NÃO SÓ A SÉRIE
+  // ------------------------------------------------------------------
+  // As mesmas cinco dimensões existem em dois lugares, e os conjuntos NÃO
+  // coincidem: a série tem "Data & Analytics" e "Aprendiz", que ninguém
+  // desligado tem; os desligados têm o departamento "-", que a série não tem.
+  //
+  // Oferecer só a série tornaria inalcançável quem só aparece nos desligados,
+  // e vice-versa. A união é o único conjunto em que toda pessoa de qualquer
+  // das duas bases pode ser encontrada por algum recorte.
+  const unir = (
+    a: Map<string, number>,
+    b: Map<string, number>,
+  ): Map<string, number> => {
+    const out = new Map(a);
+    for (const [k, v] of b) out.set(k, (out.get(k) ?? 0) + v);
+    return out;
+  };
+
   const out: Partial<Record<FilterKey, string[]>> = {
-    jobFamily: ordenar(somarChaves(meses, (m) => m.family_base)),
-    tipoContrato: ordenar(somarChaves(meses, (m) => m.contract_base)),
-    tempoCasa: ordenar(somarChaves(meses, (m) => m.tenure_base), ORDEM_TEMPO),
-    level: ordenar(somarChaves(meses, (m) => m.level_base)),
-    departamento: ordenar(
+    jobFamily: ordenar(unir(
+      somarChaves(meses, (m) => m.family_base),
+      contarDosDesligados(leavers, (l) => l.job_family),
+    )),
+    tipoContrato: ordenar(unir(
+      somarChaves(meses, (m) => m.contract_base),
+      contarDosDesligados(leavers, (l) => l.vinculo),
+    )),
+    tempoCasa: ordenar(unir(
+      somarChaves(meses, (m) => m.tenure_base),
+      contarDosDesligados(leavers, (l) => l.tempo_casa_faixa),
+    ), ORDEM_TEMPO),
+    level: ordenar(unir(
+      somarChaves(meses, (m) => m.level_base),
+      contarDosDesligados(leavers, (l) => l.level),
+    )),
+    departamento: ordenar(unir(
       somarChaves(meses, (m) =>
         Object.fromEntries(Object.entries(m.dept_data ?? {}).map(([k, d]) => [k, d.hc ?? 0]))),
-    ),
+      contarDosDesligados(leavers, (l) => l.departamento),
+    )),
   };
 
   // Faixa salarial e tipo de desligamento só existem na base por pessoa. Sem

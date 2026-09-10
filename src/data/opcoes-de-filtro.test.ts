@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { opcoesDoDado } from './opcoes-de-filtro';
+import { mesmoValor } from '@/lib/filtro-sentinela';
 import type { MonthRecord } from './raw-data';
 import type { LeaverRecord } from './leaver-types';
 
@@ -49,15 +50,19 @@ test('valor novo, fora da régua, entra no fim -- e não no começo', () => {
   assert.deepEqual(o.tempoCasa, ['0-3 meses', '1-2 anos', '10+ anos']);
 });
 
-test('"Não informado" e "NA" vão para o fim, e NÃO somem', () => {
+test('a ausência vai para o fim, com UM nome, e NÃO some', () => {
   // Em set/2026 são 166 pessoas em `level` e 64 em job family -- a maior fatia
   // de `level`. Escondê-las faria a soma dos recortes não bater com o
   // headcount, sem nada na tela dizendo por quê.
+  //
+  // E aparecem com o rótulo canônico, não com o que cada base escreveu: a
+  // série grava "NA", e oferecer "NA" no seletor obrigaria quem lê a saber
+  // que aquilo quer dizer "não preenchido".
   const o = opcoesDoDado([mes({
     level_base: { NA: 166, L4: 115 },
     family_base: { 'Não informado': 64, HR: 24 },
   })], []);
-  assert.deepEqual(o.level, ['L4', 'NA']);
+  assert.deepEqual(o.level, ['L4', 'Não informado']);
   assert.deepEqual(o.jobFamily, ['HR', 'Não informado']);
 });
 
@@ -97,6 +102,65 @@ test('o catálogo NÃO pode encolher quando um valor já está escolhido', () =>
   // O que a barra veria se lesse a série recortada -- e é por isso que ela
   // recebe `serieSemRecorteDeArea` do contexto, e não `allMonthsData`.
   assert.deepEqual(opcoesDoDado([jaRecortada], []).departamento, ['TECHNOLOGY']);
+});
+
+// ---------------------------------------------------------------------------
+// A INVARIANTE: TODA PESSOA TEM DE SER ALCANÇÁVEL POR ALGUM RECORTE
+// ---------------------------------------------------------------------------
+// Este é o teste que faltava e que teria pego tudo o que apareceu em 10/09.
+// Ele não confere uma lista contra outra lista -- confere que, para cada
+// dimensão, TODO valor presente em QUALQUER das duas bases é encontrável por
+// alguma opção do seletor.
+//
+// É a formulação certa porque não depende de eu lembrar quais valores existem.
+
+test('todo valor das duas bases é alcançável por alguma opção', () => {
+  const meses = [mes({
+    level_base: { L4: 115, L7: 10, NA: 166 },
+    family_base: { 'Data & Analytics': 19, 'Não informado': 64 },
+    contract_base: { CLT: 449, Aprendiz: 4 },
+    tenure_base: { '0-3 meses': 100, '5+ anos': 35 },
+    dept_data: { TECHNOLOGY: { hc: 173 }, GERALL: { hc: 20 } } as never,
+  })];
+  // Os desligados trazem valores que a série NÃO tem, e escrevem a ausência
+  // com outra palavra -- os dois casos reais medidos no banco.
+  const leavers = [
+    { level: 'Não se aplica', job_family: 'Legal', vinculo: 'Sócio',
+      tempo_casa_faixa: '2-5 anos', departamento: '-',
+      faixa_salarial: '5k-8k', tipo_desligamento_agrupado: 'Voluntário' },
+  ] as LeaverRecord[];
+
+  const o = opcoesDoDado(meses, leavers);
+
+  const alcancavel = (opcoes: string[] | undefined, valor: string) =>
+    (opcoes ?? []).some((op) => mesmoValor(op, valor));
+
+  // Da série
+  for (const v of ['L4', 'L7', 'NA']) {
+    assert.ok(alcancavel(o.level, v), `level "${v}" ficou sem opção`);
+  }
+  for (const v of ['Data & Analytics', 'Não informado']) {
+    assert.ok(alcancavel(o.jobFamily, v), `job family "${v}" ficou sem opção`);
+  }
+  assert.ok(alcancavel(o.tipoContrato, 'Aprendiz'));
+  assert.ok(alcancavel(o.departamento, 'GERALL'));
+
+  // Dos desligados -- inclusive os que a série não conhece
+  assert.ok(alcancavel(o.level, 'Não se aplica'), 'a ausência dos desligados');
+  assert.ok(alcancavel(o.jobFamily, 'Legal'), 'família só dos desligados');
+  assert.ok(alcancavel(o.tipoContrato, 'Sócio'));
+  assert.ok(alcancavel(o.departamento, '-'), 'o departamento "-" dos desligados');
+});
+
+test('as três palavras para ausência viram UMA opção', () => {
+  // "NA" na série, "Não informado" e "Não se aplica" nos desligados, "-" no
+  // departamento. Oferecer as quatro daria quatro seletores para a mesma
+  // pergunta, cada um achando só a base que o escreveu.
+  const o = opcoesDoDado(
+    [mes({ level_base: { L4: 10, NA: 166 } })],
+    [{ level: 'Não se aplica' }, { level: 'Não informado' }] as LeaverRecord[],
+  );
+  assert.deepEqual(o.level, ['L4', 'Não informado']);
 });
 
 test('série vazia não devolve listas vazias', () => {

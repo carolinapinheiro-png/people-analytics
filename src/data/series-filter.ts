@@ -1,7 +1,7 @@
-import type { MonthRecord } from './raw-data';
+import type { MonthRecord, DeptBreakdownRecord } from './raw-data';
 import { faixaTempoPorMeses } from '@/lib/convenia/pessoas';
 import type { LeaverRecord } from './leaver-types';
-import { semFiltro, valorFiltro } from '@/lib/filtro-sentinela';
+import { semFiltro, valorFiltro, mesmoValor } from '@/lib/filtro-sentinela';
 
 /**
  * Filtro de UMA dimensão sobre a série mensal (nível, tempo de casa, vínculo).
@@ -170,19 +170,25 @@ export function applySeriesFilter(
     const ym = (l.data_desligamento ?? '').slice(0, 7);
     if (!ym) continue;
     // Mesma populacao do headcount: se ha departamento, a saida tem que ser dele.
-    if (dept && norm(l.departamento).toUpperCase() !== dept) continue;
+    if (dept && !mesmoValor(l.departamento, dept)) continue;
+    // ------------------------------------------------------------------
+    // UMA SÓ COMPARAÇÃO, PARA AS QUATRO DIMENSÕES
+    // ------------------------------------------------------------------
+    // Eram quatro regras diferentes: `level` comparava exato, família e vínculo
+    // comparavam em maiúsculas, tempo de casa comparava contra uma régua
+    // própria. Cada uma acertava um caso e errava outro.
+    //
+    // `mesmoValor` ignora acento e caixa -- a série escreve o que o Convenia
+    // escreve, os desligados vieram de planilha -- e trata "NA", "Não
+    // informado", "Não se aplica" e "-" como a mesma ausência, que é o que
+    // elas são. Sem isso, escolher a ausência achava as 166 pessoas da série e
+    // ZERO desligados: atrição 0% com gente tendo saído.
     let bate = false;
-    if (key === 'level') bate = norm(l.level) === norm(escolhido);
-    // Familia e vinculo do DESLIGADO, pessoa a pessoa -- mesma fonte do nivel.
-    // Comparacao sem caixa: a serie escreve o valor como veio do cadastro e a
-    // tabela de desligados como veio da planilha, e uma diferenca de maiuscula
-    // faria a saida sumir do numerador com o headcount intacto. Atricao 0% com
-    // gente saindo e pior que recorte indisponivel.
-    else if (key === 'jobFamily') bate = norm(l.job_family).toUpperCase() === norm(escolhido).toUpperCase();
-    else if (key === 'tipoContrato') bate = norm(l.vinculo).toUpperCase() === norm(escolhido).toUpperCase();
+    if (key === 'level') bate = mesmoValor(l.level, escolhido);
+    else if (key === 'jobFamily') bate = mesmoValor(l.job_family, escolhido);
+    else if (key === 'tipoContrato') bate = mesmoValor(l.vinculo, escolhido);
     else if (key === 'tempoCasa') {
-      const alvo = escolhido;
-      bate = faixaDoDesligado(l.tempo_casa_dias ?? 0) === alvo;
+      bate = mesmoValor(faixaDoDesligado(l.tempo_casa_dias ?? 0), escolhido);
     }
     if (bate) saidasPorMes.set(ym, (saidasPorMes.get(ym) ?? 0) + 1);
   }
@@ -197,8 +203,15 @@ export function applySeriesFilter(
       : key === 'tempoCasa' ? m.tenure_base
       : key === 'jobFamily' ? m.family_base
       : m.contract_base;
-    // Sem tradução: o seletor e a série usam a MESMA régua desde 10/09.
-    const chaveHc = escolhido;
+    // A chave da quebra, achada por EQUIVALÊNCIA e não por igualdade exata.
+    //
+    // `base['Não informado']` não encontra a chave "NA" que a série gravou, e
+    // um `?? 0` transforma isso em "zero pessoas nessa faixa" -- que é uma
+    // afirmação sobre a empresa, não sobre a busca. Mesma razão do
+    // `mesmoValor` no laço dos desligados, do outro lado da mesma conta.
+    const chaveHc = base
+      ? Object.keys(base).find((k) => mesmoValor(k, escolhido)) ?? escolhido
+      : escolhido;
     const hc = base?.[chaveHc] ?? 0;
     const saidas = saidasPorMes.get(m.month) ?? 0;
 
@@ -217,10 +230,19 @@ export function applySeriesFilter(
     //
     // `undefined` (e nao `{}`) quando a quebra nao existe naquela linha: mes
     // gravado antes da migracao tem de se declarar nao-calculado, nao vazio.
+    // Achada por equivalência, como o headcount logo acima: a quebra usa as
+    // mesmas chaves da base, então herda os mesmos "NA" contra "Não informado".
+    const acharQuebra = (
+      q: Record<string, DeptBreakdownRecord> | undefined,
+    ): DeptBreakdownRecord | undefined => {
+      if (!q) return undefined;
+      const k = Object.keys(q).find((x) => mesmoValor(x, escolhido));
+      return k == null ? undefined : q[k];
+    };
     const quebra =
-      key === 'jobFamily' ? m.family_breakdown?.[escolhido]
-      : key === 'tipoContrato' ? m.contract_breakdown?.[escolhido]
-      : key === 'tempoCasa' ? m.tenure_breakdown?.[chaveHc]
+      key === 'jobFamily' ? acharQuebra(m.family_breakdown)
+      : key === 'tipoContrato' ? acharQuebra(m.contract_breakdown)
+      : key === 'tempoCasa' ? acharQuebra(m.tenure_breakdown)
       : undefined;
 
     return {
@@ -262,8 +284,10 @@ export function applySeriesFilter(
       : key === 'tempoCasa' ? m.tenure_base
       : key === 'jobFamily' ? m.family_base
       : m.contract_base;
-    const c = escolhido;
-    return b != null && c in b;
+    // Por equivalência, e não `in`: senão escolher "Não informado" contra uma
+    // série que gravou "NA" acusaria um valor desconhecido -- o aviso apontando
+    // para o Convenia quando o defeito é a comparação. Já aconteceu uma vez.
+    return b != null && Object.keys(b).some((k) => mesmoValor(k, escolhido));
   });
 
   // A quebra existe em ALGUM mês? Se nenhum tem, o recorte segue no regime
