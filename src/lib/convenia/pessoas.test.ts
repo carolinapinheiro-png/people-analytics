@@ -570,16 +570,26 @@ test('race_cross conta pessoas, mulheres e gestoras por raça', () => {
     p({ id: '1', hiring_date: '2026-01-01', genero: 'F', raca: 'Preta' }),
     p({ id: '2', hiring_date: '2026-01-01', genero: 'M', raca: 'Preta', supervisorId: null }),
     p({ id: '3', hiring_date: '2026-01-01', genero: 'F', raca: 'Branca', supervisorId: '2' }),
+    // Gestora branca, de propósito: sem esta pessoa, `female_leaders` fica
+    // zero em TODAS as raças do teste, e um bug que sempre grava 0 nesse
+    // campo passaria despercebido -- foi exatamente o que aconteceu (ver o
+    // comentário de `porRaca` em pessoas.ts). '5' reporta para '4'.
+    p({ id: '4', hiring_date: '2026-01-01', genero: 'F', raca: 'Branca' }),
+    p({ id: '5', hiring_date: '2026-01-01', genero: 'M', raca: 'Preta', supervisorId: '4' }),
   ];
   const { linhas } = reconstruirSerie(pessoas, 'NSX', '2026-01');
   const rc = linhas[0].race_cross;
-  assert.equal(rc.Preta.total, 2);
+  assert.equal(rc.Preta.total, 3);
   assert.equal(rc.Preta.female, 1);
-  assert.equal(rc.Branca.total, 1);
-  assert.equal(rc.Branca.female, 1);
-  // Quem tem alguém reportando é gestor -- '2' é supervisor de '3'.
+  assert.equal(rc.Branca.total, 2);
+  assert.equal(rc.Branca.female, 2);
+  // Quem tem alguém reportando é gestor -- '2' é supervisor de '3', '4' é
+  // supervisora de '5'.
   assert.equal(rc.Preta.leaders, 1);
-  assert.equal(rc.Branca.leaders, 0);
+  assert.equal(rc.Branca.leaders, 1);
+  // A régua que faltava: '4' é mulher, branca, e gestora.
+  assert.equal(rc.Branca.female_leaders, 1);
+  assert.equal(rc.Preta.female_leaders, 0);
 });
 
 test('race_cross vem VAZIO quando a cobertura de raça é baixa', () => {

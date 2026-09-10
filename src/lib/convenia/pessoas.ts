@@ -323,17 +323,24 @@ export interface LinhaMensal {
   /**
    * Representatividade por cor/raça entre quem estava presente no mês.
    *
-   * `{ Branca: { total, female, leaders }, ... }` -- a forma que a tabela do
-   * DEI espera. Ela já existia, escrita e completa, atrás de um
-   * `hasRaceCross` que nunca foi verdadeiro: este campo saía `{}` em todas as
-   * linhas porque ninguém o calculava, e a tela inteira não renderizava.
+   * `{ Branca: { total, female, leaders, female_leaders }, ... }` -- a forma
+   * que a tabela do DEI espera. Ela já existia, escrita e completa, atrás de
+   * um `hasRaceCross` que nunca foi verdadeiro: este campo saía `{}` em todas
+   * as linhas porque ninguém o calculava, e a tela inteira não renderizava.
+   *
+   * `female_leaders` faltou aqui desde o começo -- o tipo não tinha o campo,
+   * então `porRaca` (mais abaixo) também não, e o card "Mulheres na liderança
+   * · <raça>" sempre lia 0. A versão por área (`DeptBreakdownPorArea.race_cross`,
+   * já com os quatro campos) mostra que o dado real nunca foi zero.
    *
    * Vem VAZIO quando a cobertura de raça do mês não sustenta percentual --
    * mesma regra do gênero. A tabela divide `total` pelo headcount do mês, e
    * com metade das pessoas sem raça conhecida "Branca: 20% do quadro" seria
    * lido como representatividade quando é desconhecimento.
    */
-  race_cross: Record<string, { total: number; female: number; leaders: number }>;
+  race_cross: Record<string, {
+    total: number; female: number; leaders: number; female_leaders: number;
+  }>;
   /** Quantas das pessoas presentes têm raça conhecida. */
   raca_conhecida: number;
 }
@@ -721,7 +728,17 @@ export function reconstruirSerie(
 
     let headcount = 0, joiners = 0, leavers = 0, leaders = 0;
     let gF = 0, gM = 0, lidF = 0, generoConhecido = 0, racaConhecida = 0;
-    const porRaca: Record<string, { total: number; female: number; leaders: number }> = {};
+    // `female_leaders` faltava aqui -- o KPI "Mulheres na liderança · <raça>"
+    // lia este campo undefined e, ao somar NSX + Betfair em helpers.ts
+    // (`r.female_leaders || 0`), undefined virava 0 sempre. O card mostrava
+    // "0 de 83 líderes Branca" com o `leaders` certo (83) e o `female_leaders`
+    // inexistente -- não é a empresa que não tem mulher branca na liderança
+    // (soma por área: 23 de 83, ~28%), é este acumulador que nunca contou.
+    // A versão por área (`race_cross` dentro de cada balde, mais abaixo)
+    // sempre teve os quatro campos -- só o total da empresa ficou pra trás.
+    const porRaca: Record<string, {
+      total: number; female: number; leaders: number; female_leaders: number;
+    }> = {};
     const salLideres: number[] = [];
     const salDemais: number[] = [];
     const state_mix: Record<string, number> = {};
@@ -789,9 +806,12 @@ export function reconstruirSerie(
         const raca = (x.p.raca ?? '').trim();
         if (raca) {
           racaConhecida++;
-          porRaca[raca] ??= { total: 0, female: 0, leaders: 0 };
+          porRaca[raca] ??= { total: 0, female: 0, leaders: 0, female_leaders: 0 };
           porRaca[raca].total++;
-          if (x.p.genero === 'F') porRaca[raca].female++;
+          if (x.p.genero === 'F') {
+            porRaca[raca].female++;
+            if (ehGestor) porRaca[raca].female_leaders++;
+          }
           if (ehGestor) porRaca[raca].leaders++;
 
           for (const B of baldes) {

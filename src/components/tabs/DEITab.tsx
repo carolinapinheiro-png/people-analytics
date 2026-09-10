@@ -217,8 +217,8 @@ export default function DEITab() {
         </p>
       )}
       <p className="text-xs text-muted-foreground -mt-2">
-        <strong>Líder</strong> = colaborador marcado como liderança no cadastro (campo &quot;Liderança?&quot;),
-        reconstruído pelo cargo da época — não é por nível nem por nº de reportes diretos.
+        <strong>Líder</strong> = colaborador que aparece como supervisor de pelo menos uma pessoa no
+        cadastro (derivado, não um campo próprio) — não é por nível nem por nº de reportes diretos.
       </p>
 
       {/* Filtro de raça: mesmo padrão do seletor de departamento da barra
