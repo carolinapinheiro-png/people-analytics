@@ -441,14 +441,25 @@ export default function FilterBar() {
         </div>
       </div>
 
-      {indisponiveis.length > 0 && (
-        <p className="text-[11px] text-muted-foreground pt-2 max-w-3xl leading-relaxed">
-          Departamento, Job family, Contrato e Tempo de casa ficam sempre nesta ordem, em toda aba.
-          Os esmaecidos aqui recortam em Atrição &amp; Desligamentos e em Compensação, que leem
-          pessoa a pessoa; nas abas de série mensal só o departamento recorta, porque a série é
-          pré-agregada e guarda apenas essa quebra. Passe o mouse para ver o motivo de cada um.
-        </p>
-      )}
+      {/*
+        AQUI HAVIA UM PARÁGRAFO EXPLICANDO A BARRA. SAIU EM 10/09.
+        --------------------------------------------------------------------
+        Ele repetia, em bloco e em toda aba, o que o motivo de cada filtro já
+        diz no hover -- e cobrava a leitura de quatro linhas de quem só queria
+        trocar um seletor.
+
+        E tinha virado mentira: afirmava que "nas abas de série mensal só o
+        departamento recorta, porque a série é pré-agregada e guarda apenas
+        essa quebra". Era verdade quando foi escrito; desde a migração
+        20260910030000 a série guarda também `family_breakdown`,
+        `contract_breakdown` e `tenure_breakdown`, e os três recortam em
+        Demográficos e DEI.
+
+        É o motivo pelo qual explicação genérica não vale a pena: ela não fica
+        ao lado do que descreve, então ninguém a atualiza junto. O motivo por
+        filtro vive em `tab-filters.ts`, colado na decisão que o gera, e muda
+        junto com ela.
+      */}
     </div>
   );
 }
