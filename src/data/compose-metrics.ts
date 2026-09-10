@@ -76,6 +76,9 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
     raise_events:
       r.raise_events && Object.keys(r.raise_events).length > 0 ? r.raise_events : undefined,
     pcd: r.pcd == null ? undefined : Number(r.pcd),
+    // O denominador honesto das cotas. `undefined` quando a linha é anterior à
+    // coluna -- a tela usa isso para não prometer uma base que ela não tem.
+    pcd_conhecido: r.pcd_conhecido == null ? undefined : Number(r.pcd_conhecido),
     apprentice: r.apprentice == null ? undefined : Number(r.apprentice),
     leader_dept:
       r.leader_dept && Object.keys(r.leader_dept).length > 0 ? r.leader_dept : undefined,

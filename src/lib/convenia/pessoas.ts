@@ -38,6 +38,28 @@ export interface DeptBreakdownPorArea {
   gender_male: number;
   leaders: number;
   leader_female: number;
+  /**
+   * As cotas legais DENTRO da fatia.
+   *
+   * =========================================================================
+   * SEM ISTO, O CARTÃO MISTURA DUAS POPULAÇÕES
+   * =========================================================================
+   * `pcd` e `apprentice` existiam só no nível da empresa. `applyDeptFilter`
+   * não os tocava, então filtrar por TECHNOLOGY mostrava as 5 pessoas PCD da
+   * EMPRESA divididas pelo headcount de TECHNOLOGY -- numerador de uma
+   * população, denominador de outra.
+   *
+   * O sintoma foi "PCD e Aprendiz não se movem": eles de fato não se moviam,
+   * porque nada os movia.
+   *
+   * `pcd_conhecido` é o denominador honesto: quantas pessoas da fatia têm o
+   * campo respondido. Sem ele, "0,8% PCD" se lê como "0,8% da empresa é PCD",
+   * quando o certo é "5 entre os poucos que responderam" -- e a diferença
+   * importa numa cota legal.
+   */
+  pcd: number;
+  pcd_conhecido: number;
+  apprentice: number;
   level_base: Record<string, number>;
   tenure_base: Record<string, number>;
   /**
@@ -683,6 +705,7 @@ export function reconstruirSerie(
     // novo que alguém acrescentar em três delas e esquecer na quarta.
     const vazio = (): DeptBreakdownPorArea => ({
       gender_female: 0, gender_male: 0, leaders: 0, leader_female: 0,
+      pcd: 0, pcd_conhecido: 0, apprentice: 0,
       level_base: {}, tenure_base: {}, family_base: {}, contract_base: {},
       demographics: { age: {}, race: {}, marital: {}, origin: {} },
       race_cross: {},
@@ -824,11 +847,20 @@ export function reconstruirSerie(
         }
 
         // Cota legal: `null` (ninguém respondeu) NÃO entra como "não".
+        // Vai para os quatro baldes junto com o resto -- sem isso, recortar
+        // por área mostrava as PCD da empresa sobre o headcount da área.
         if (x.p.pcd != null) {
           pcdConhecido++;
-          if (x.p.pcd) pcd++;
+          for (const B of baldes) B.pcd_conhecido++;
+          if (x.p.pcd) {
+            pcd++;
+            for (const B of baldes) B.pcd++;
+          }
         }
-        if (x.p.aprendiz) aprendizes++;
+        if (x.p.aprendiz) {
+          aprendizes++;
+          for (const B of baldes) B.apprentice++;
+        }
 
         const idade = faixaEtaria(x.p.birth_date, mes);
         if (idade) {

@@ -336,6 +336,35 @@ test('faixas de tempo de casa contam meses completos', () => {
   assert.equal(faixaTempoDeCasa('2015-01', '2026-03'), '5+ anos');
 });
 
+test('as cotas legais seguem o recorte, com o denominador junto', () => {
+  // "PCD e Aprendiz não se movem", 10/09. Não se moviam porque nada os movia:
+  // `pcd` e `apprentice` existiam só no nível da empresa, e `applyDeptFilter`
+  // deixava passar o número da EMPRESA sob o rótulo do departamento --
+  // numerador de uma população, denominador de outra.
+  const pessoas = [
+    p({ id: 'a', hiring_date: '2025-01-01', department: { name: 'TECH' }, pcd: true }),
+    p({ id: 'b', hiring_date: '2025-01-01', department: { name: 'TECH' }, pcd: false }),
+    // `null` NÃO é "não é PCD": é "ninguém respondeu". Fica fora do
+    // denominador, senão a cota se dilui em quem nunca foi perguntado.
+    p({ id: 'c', hiring_date: '2025-01-01', department: { name: 'TECH' } }),
+    p({ id: 'd', hiring_date: '2025-01-01', department: { name: 'HR' }, aprendiz: true }),
+  ];
+  const { linhas } = reconstruirSerie(pessoas, 'NSX', '2025-01');
+  const m = linhas[0];
+
+  // Empresa
+  assert.equal(m.pcd, 1);
+  assert.equal(m.pcd_conhecido, 2, 'quem não respondeu fica fora do denominador');
+  assert.equal(m.apprentice, 1);
+
+  // E dentro de cada área -- o que faltava
+  assert.equal(m.dept_breakdown.TECH.pcd, 1);
+  assert.equal(m.dept_breakdown.TECH.pcd_conhecido, 2);
+  assert.equal(m.dept_breakdown.TECH.apprentice, 0, 'o aprendiz é do HR, não do TECH');
+  assert.equal(m.dept_breakdown.HR.apprentice, 1);
+  assert.equal(m.dept_breakdown.HR.pcd_conhecido, 0);
+});
+
 test('as quatro réguas de tempo de casa são a MESMA régua', () => {
   // O teste que faltava. Duas definições da mesma escada não dão erro em lugar
   // nenhum -- elas só fazem o filtro comparar textos diferentes e devolver

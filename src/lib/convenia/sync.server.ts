@@ -2440,10 +2440,16 @@ export async function executarSyncConvenia(
         // "Senioridade (nível)" apagou junto. Mesmo caso de "Estado civil" e
         // "Origem (UF natal)", que saem dentro de `demographics`.
         level_base: l.level_base,
-        // Cotas legais. `pcd_conhecido` nao tem coluna: o denominador honesto
-        // vai junto do numerador no proprio aviso da carga, e a tela de DEI
-        // passa a poder dizer "1 de 8 responderam" em vez de "0,0%".
+        // Cotas legais, agora COM o denominador (migracao 20260910230000).
+        //
+        // O comentario que estava aqui dizia "`pcd_conhecido` nao tem coluna" e
+        // era verdade desde 09/09: a carga calculava o denominador e o jogava
+        // fora a cada execucao. A tela dividia por headcount, entao "0,8% PCD"
+        // se lia como "0,8% da empresa e PCD" -- quando o certo e "5 entre os
+        // poucos que responderam". Numa cota legal essa diferenca separa um
+        // problema de inclusao de um problema de cadastro.
         pcd: l.pcd,
+        pcd_conhecido: l.pcd_conhecido,
         apprentice: l.apprentice,
         demographics: l.demographics,
         // As duas razões de marcar convivem: a linha pode ser anterior ao

@@ -211,8 +211,35 @@ export default function DemographicsTab() {
         <KpiCard label="Mulheres" value={`${curr.gender_female_pct || 0}%`} color={COLORS.female} icon={Users} help="mulheres" />
         <KpiCard label="Faixa etária top" value={topAge ? topAge.name : '—'} sub={topAge ? `${pctOf(topAge.value, hc).toFixed(0)}% do quadro` : ''} color={COLORS.info} icon={Cake} />
         <KpiCard label="Não brancos" value={raceKnown ? `${pctOf(nonWhite, raceKnown).toFixed(0)}%` : '—'} sub="da base com raça" color={COLORS.nsx} icon={Globe} help="naoBrancos" />
-        <KpiCard label="% PCD" value={`${pctOf(curr.pcd || 0, hc).toFixed(1)}%`} sub={`${curr.pcd || 0} · campo parcial`} color={COLORS.warning} icon={ShieldCheck} help="pcd" />
-        <KpiCard label="% Aprendiz" value={`${pctOf(curr.apprentice || 0, hc).toFixed(1)}%`} sub={`${curr.apprentice || 0} aprendizes`} color={COLORS.purple} icon={GraduationCap} />
+        {/* ------------------------------------------------------------------
+            AS COTAS LEGAIS: "—" QUANDO NÃO SE SABE, E A BASE DE QUEM RESPONDEU
+            ------------------------------------------------------------------
+            Antes: `curr.pcd || 0` sobre o HEADCOUNT. Dois defeitos numa linha.
+
+            O `|| 0` transformava "esta fatia não tem a quebra" em "zero PCD",
+            e a divisão pelo headcount fazia "0,8%" se ler como "0,8% da
+            empresa é PCD" -- quando o campo "Considera PCD" é respondido por
+            poucos. Numa cota legal, confundir "quase ninguém é PCD" com "quase
+            ninguém respondeu" troca um problema de inclusão por um de
+            cadastro. */}
+        <KpiCard
+          label="% PCD"
+          value={curr.pcd == null
+            ? '—'
+            : `${pctOf(curr.pcd, curr.pcd_conhecido || hc).toFixed(1)}%`}
+          sub={curr.pcd == null
+            ? 'não calculado nesta fatia'
+            : curr.pcd_conhecido
+              ? `${curr.pcd} de ${curr.pcd_conhecido} que responderam`
+              : `${curr.pcd} · base de quem respondeu não gravada`}
+          color={COLORS.warning} icon={ShieldCheck} help="pcd"
+        />
+        <KpiCard
+          label="% Aprendiz"
+          value={curr.apprentice == null ? '—' : `${pctOf(curr.apprentice, hc).toFixed(1)}%`}
+          sub={curr.apprentice == null ? 'não calculado nesta fatia' : `${curr.apprentice} aprendizes`}
+          color={COLORS.purple} icon={GraduationCap}
+        />
       </div>
 
       {/* Modelo de trabalho (company-wide, Talent Mobility) */}

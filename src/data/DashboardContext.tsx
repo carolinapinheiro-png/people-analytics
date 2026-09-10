@@ -192,6 +192,20 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
     family_breakdown: undefined,
     contract_breakdown: undefined,
     tenure_breakdown: undefined,
+    // ------------------------------------------------------------------
+    // AS COTAS LEGAIS SEGUEM O RECORTE, OU NÃO APARECEM
+    // ------------------------------------------------------------------
+    // `pcd` e `apprentice` vinham intactos no spread de `record`: os 5 PCD da
+    // EMPRESA apareciam sob o rótulo de TECHNOLOGY, divididos pelo headcount
+    // de TECHNOLOGY. Numerador de uma população, denominador de outra -- e o
+    // sintoma foi "PCD e Aprendiz não se movem", que era literalmente verdade.
+    //
+    // Com a quebra gravada (10/09), saem da fatia. Sem ela -- mês antigo,
+    // marca Combinada sem breakdown -- saem `undefined`, e o cartão mostra
+    // "—". Um traço é lido como "não sei"; um número errado, não.
+    pcd: db?.pcd,
+    pcd_conhecido: db?.pcd_conhecido,
+    apprentice: db?.apprentice,
   };
   if (!db) return base;
 

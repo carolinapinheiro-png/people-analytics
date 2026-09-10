@@ -126,6 +126,10 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       // `promotions`. `mergeRaises` já devolve `undefined` nesse caso.
       raise_events: mergeRaises(n.raise_events, b.raise_events, f.raise_events),
       pcd: (n.pcd || 0) + (b.pcd || 0) + (f.pcd || 0),
+      // O denominador soma junto com o numerador. Somar um sem o outro daria
+      // "5 PCD entre os 20 que responderam na NSX" -- percentual de uma marca
+      // sobre a base de três.
+      pcd_conhecido: somarPreservandoNulo(n.pcd_conhecido, b.pcd_conhecido, f.pcd_conhecido) ?? undefined,
       apprentice: (n.apprentice || 0) + (b.apprentice || 0) + (f.apprentice || 0),
       leader_dept: mergeLeaderDept(n.leader_dept, b.leader_dept, f.leader_dept),
       tenure_base: mergeLevels(n.tenure_base, b.tenure_base, f.tenure_base),
@@ -295,8 +299,11 @@ function mergeDeptBreakdown(
   for (const base of bases) {
     if (!base) continue;
     for (const [dept, v] of Object.entries(base)) {
+      // As cotas legais entram na soma por área com o resto -- ver o
+      // inicializador logo abaixo.
       const cur = (out[dept] = out[dept] || {
         gender_female: 0, gender_male: 0, leaders: 0, leader_female: 0,
+        pcd: 0, pcd_conhecido: 0, apprentice: 0,
         level_base: {}, tenure_base: {},
         // Mesma omissão da linha mensal, um nível abaixo: sem estas duas
         // aqui, a quebra por ÁREA da visão combinada perde família e vínculo.
@@ -308,6 +315,9 @@ function mergeDeptBreakdown(
       cur.gender_male += v.gender_male || 0;
       cur.leaders += v.leaders || 0;
       cur.leader_female += v.leader_female || 0;
+      cur.pcd = (cur.pcd || 0) + (v.pcd || 0);
+      cur.pcd_conhecido = (cur.pcd_conhecido || 0) + (v.pcd_conhecido || 0);
+      cur.apprentice = (cur.apprentice || 0) + (v.apprentice || 0);
       somarMapa(cur.level_base, v.level_base);
       somarMapa(cur.tenure_base, v.tenure_base);
       somarMapa(cur.family_base ??= {}, v.family_base);

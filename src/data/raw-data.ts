@@ -50,6 +50,11 @@ export interface MonthRecord {
   raise_events?: Record<string, { n: number; delta: number }>;
   /** Cotas legais (PCD, aprendiz) e lideranca por depto ({ DEPT:{leaders,female} }). */
   pcd?: number;
+  /** Quantas pessoas do mes tem o campo "Considera PCD" respondido -- o
+   *  denominador de `pcd`. Headcount NAO e: o campo e pouco preenchido, e
+   *  dividir por ele faz "0,8% PCD" se ler como "0,8% da empresa e PCD".
+   *  `undefined` = linha anterior a migracao 20260910230000. */
+  pcd_conhecido?: number;
   apprentice?: number;
   leader_dept?: Record<string, { leaders: number; female: number }>;
   /** Distribuicao por tempo de casa ({ "0-3m": n, ..., "5a+": n }). */
@@ -94,6 +99,13 @@ export interface DeptBreakdownRecord {
   gender_male: number;
   leaders: number;
   leader_female: number;
+  /** Cotas legais DENTRO da fatia, com o denominador de quem respondeu.
+   *  Sem elas, `applyDeptFilter` deixava passar o numero da EMPRESA sob o
+   *  rotulo do departamento -- foi o "PCD e Aprendiz nao se movem" de 10/09.
+   *  Opcionais: linha anterior a essa gravacao nao tem, e a tela mostra "—". */
+  pcd?: number;
+  pcd_conhecido?: number;
+  apprentice?: number;
   level_base: Record<string, number>;
   tenure_base: Record<string, number>;
   /** Quebra por familia e por vinculo DENTRO da area. E o que permite combinar
