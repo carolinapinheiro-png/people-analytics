@@ -371,7 +371,35 @@ export async function executarSyncConvenia(
     // Com 200 detalhes na mesma execução, 150 históricos mataram a carga em
     // 09/09 ("Failed to fetch"). O orçamento de tempo é a proteção de verdade;
     // este número só evita chegar perto dele no caminho feliz.
-    const LOTE_HISTORICO = 60;
+    //
+    // 10/09: o `60` virou teatro e eu não tinha percebido. As execuções da
+    // madrugada mediram 66 requisições em 51s -- ou seja, o relógio já cortava
+    // ANTES do lote, e o número só existia para me dar a sensação de controle.
+    // Com a leitura em blocos (`CONCORRENCIA_HISTORICO`), quem decide continua
+    // sendo o relógio; o lote volta a ser o que sempre deveria ter sido, um
+    // teto de sanidade bem acima do que cabe numa execução.
+    const LOTE_HISTORICO = 700;
+    /**
+     * Quantas pessoas esperar ao mesmo tempo.
+     *
+     * Medido em 10/09: cada requisição ao Convenia leva ~800ms, quase tudo
+     * espera de rede. Em série isso são 8,5 minutos para 636 pessoas, num
+     * processo que morre aos ~55s -- onze execuções. Em blocos de 8, uma ou
+     * duas.
+     *
+     * O teto não é o nosso: é o do Convenia. Subir muito troca "demora" por
+     * "429 e ninguém foi lido", que é pior e menos visível. Se as falhas em
+     * série aparecerem no aviso, este é o número a baixar.
+     */
+    const CONCORRENCIA_HISTORICO = 8;
+    /**
+     * Quantas falhas antes de desistir da rodada.
+     *
+     * Falha em série é o outro lado pedindo para parar. Insistir não traz o
+     * dado e ainda pode derrubar a carga inteira -- e quem não foi lido segue
+     * na fila, que é o lugar certo para ele.
+     */
+    const LIMITE_FALHAS_HISTORICO = 12;
     /**
      * Suba quando a leitura do histórico mudar.
      *
@@ -1124,13 +1152,7 @@ export async function executarSyncConvenia(
             .filter((p) => !historicoLido.has(p.id))
             .slice(0, LOTE_HISTORICO - historicoBuscadosAgora);
 
-          for (const alvo of naFila) {
-            if (historicoBuscadosAgora >= LOTE_HISTORICO) break;
-            // O histórico é o ÚLTIMO a rodar e o primeiro a ceder: sem ele a
-            // carga ainda entrega headcount, atrição e organograma. Ceder aqui
-            // é perder promoções desta rodada; insistir é perder a carga
-            // inteira.
-            if (semTempo()) { historicoSemTempo = true; break; }
+          const lerHistoricoDe = async (alvo: { id: string }): Promise<void> => {
             try {
               const env = await client.get<Record<string, unknown>>(SALARIO_HISTORICO(alvo.id));
               requisicoes++;
@@ -1219,7 +1241,7 @@ export async function executarSyncConvenia(
                   const o = (itens[0] ?? {}) as Record<string, unknown>;
                   formaDescartada = Object.keys(o).join(', ');
                 }
-                continue;
+                return;
               }
 
               await db.from('convenia_pessoas').upsert({
@@ -1233,8 +1255,34 @@ export async function executarSyncConvenia(
               // registra, porque falha silenciosa aqui vira promoção faltando
               // na tela sem nada explicando.
               historicoFalhas.push(`${alvo.id}: ${e instanceof Error ? e.message : String(e)}`);
-              break;
             }
+          };
+
+          // ------------------------------------------------------------------
+          // ESPERAR POR VÁRIOS AO MESMO TEMPO
+          // ------------------------------------------------------------------
+          // Medido nas execuções de 10/09: 800ms por requisição, 66 por rodada,
+          // 51s de duração. O lote de 60 nunca foi o limite -- o relógio cortava
+          // antes. E 800ms de espera de rede não é trabalho: é ficar parado.
+          //
+          // Em serie, as 636 pessoas levariam 8,5 minutos de espera pura num
+          // processo que morre aos ~55s: onze execuções. Em blocos de 8, o mesmo
+          // trabalho cabe em uma ou duas.
+          //
+          // 8, e não 50: o limite deixa de ser o nosso relógio e passa a ser o
+          // Convenia do outro lado. Um número alto troca "demora" por "tomamos
+          // 429 e ninguem foi lido", que é pior -- e mais dificil de enxergar.
+          for (let i = 0; i < naFila.length; i += CONCORRENCIA_HISTORICO) {
+            // O histórico é o ÚLTIMO a rodar e o primeiro a ceder: sem ele a
+            // carga ainda entrega headcount, atrição e organograma. Ceder aqui
+            // é perder promoções desta rodada; insistir é perder a carga
+            // inteira.
+            if (semTempo()) { historicoSemTempo = true; break; }
+            // Falha em série é o Convenia dizendo para parar -- seguir batendo
+            // não traz o dado e ainda pode nos derrubar. Quem não foi lido
+            // continua na fila, que é exatamente onde deve estar.
+            if (historicoFalhas.length >= LIMITE_FALHAS_HISTORICO) break;
+            await Promise.all(naFila.slice(i, i + CONCORRENCIA_HISTORICO).map(lerHistoricoDe));
           }
         }
 
@@ -1568,7 +1616,9 @@ export async function executarSyncConvenia(
       const linhaCobertura =
         `Promocoes: historico salarial lido de ${lidosAlcancaveis} de ${totalPessoas} pessoas`
         + (pendentesHist > 0
-          ? ` -- faltam ${pendentesHist} (lotes de ${LOTE_HISTORICO} por execucao). Ate zerar, a serie mostra MENOS promocoes do que houve. Rode de novo.`
+          ? ` -- faltam ${pendentesHist}. O limite e o tempo da execucao, nao um lote fixo: `
+            + `a carga le em blocos de ${CONCORRENCIA_HISTORICO} ate o relogio acabar. `
+            + 'Ate zerar, a serie mostra MENOS promocoes do que houve. Rode de novo.'
           : '. Cobertura completa.');
       avisos.push(pendentesHist > 0 ? linhaCobertura : feito(linhaCobertura));
       if (pendentesHist > 0) {
