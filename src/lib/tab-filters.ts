@@ -49,35 +49,56 @@ export const FILTER_LABELS: Record<FilterKey, string> = {
 };
 
 /**
- * Os quatro que aparecem em TODA aba, nesta ordem. Decisão da Carolina, 09/09.
- *
  * ===========================================================================
- * POR QUE UMA ORDEM FIXA, E POR QUE ESTES QUATRO
+ * 10/09: TODOS OS RECORTES FORAM DESLIGADOS, A PEDIDO. SÓ DEPARTAMENTO FICOU.
  * ===========================================================================
- * A barra mudava de composição E de ordem a cada aba: departamento sozinho no
- * Overview, sete em Desligamentos, e os esmaecidos jogados no fim. Quem
- * navega entre abas relia a barra toda vez para achar o mesmo controle.
+ * Decisão da Carolina, depois de um dia inteiro encontrando filtros que
+ * acendiam e não filtravam: "nenhum filtro funciona!!! remova todos, deixe só
+ * departamento."
  *
- * Agora estes quatro ocupam sempre as mesmas quatro posições. Quando um deles
- * não recorta a aba, ele fica NA POSIÇÃO, esmaecido, com o motivo -- não sai
- * da fila. Some da fila e a pessoa conclui que o painel não recorta aquilo em
- * lugar nenhum, quando recorta na aba ao lado.
+ * O que estava de fato quebrado, medido no banco na hora da decisão:
  *
- * Os demais (level, faixa salarial, tipo de desligamento, modelo de trabalho,
- * marca de produto) continuam existindo e vêm DEPOIS, só onde funcionam de
- * verdade -- a regra deste arquivo não mudou: filtro que aparece ativo tem de
- * filtrar.
+ *   job family ..... FUNCIONAVA (152 pessoas em Product & Technology)
+ *   level .......... FUNCIONAVA (75 em L5)
+ *   contrato ....... `contract_base` com um único valor, "Não informado" --
+ *                    o vínculo era lido da listagem, onde vem nulo. Corrigido
+ *                    no código; o dado só muda na próxima gravação.
+ *   tempo de casa .. a série gravada tem a régua antiga (0-6 / 2-4 / 4+) e o
+ *                    seletor oferecia a nova. Mesma pendência.
+ *
+ * Ou seja: dois funcionavam e dois dependiam de uma execução da carga que não
+ * aconteceu. A decisão de tirar os quatro foi tomada com essa informação na
+ * mesa -- e é dela, não minha. Confiança em painel se perde por acumulação, e
+ * ela já tinha gastado a dela.
+ *
+ * ---------------------------------------------------------------------------
+ * COMO VOLTAR
+ * ---------------------------------------------------------------------------
+ * Nada foi apagado. `applySeriesFilter`, `useRecorteDeSerie`, as quebras por
+ * família/contrato/tempo e as opções derivadas do dado continuam no lugar e
+ * com testes. Voltar é acrescentar a chave de novo às listas abaixo -- e a
+ * verificação em `tab-filters.test.ts` continua cobrando que quem declara,
+ * aplique.
+ *
+ * Antes de voltar qualquer um: rodar a carga e conferir no banco que a coluna
+ * correspondente tem mais de um valor. Foi a ausência dessa conferência que
+ * produziu o dia de hoje.
  */
 export const FILTROS_FIXOS: FilterKey[] = [
+  'departamento',
+];
+
+/**
+ * A ordem de tudo. Hoje só departamento aparece, mas a fila continua escrita:
+ * ela é a decisão de POSIÇÃO ("job family sempre em segundo"), que sobrevive a
+ * quais filtros estão ligados. Reduzi-la agora obrigaria a redescobrir a ordem
+ * depois.
+ */
+export const ORDEM_DA_BARRA: FilterKey[] = [
   'departamento',
   'jobFamily',
   'tipoContrato',
   'tempoCasa',
-];
-
-/** Ordem de tudo: os fixos primeiro, na ordem acordada; os extras depois. */
-export const ORDEM_DA_BARRA: FilterKey[] = [
-  ...FILTROS_FIXOS,
   'level',
   'faixaSalarial',
   'tipoDesligamento',
@@ -89,18 +110,16 @@ const porOrdem = (ks: readonly FilterKey[]): FilterKey[] =>
   ORDEM_DA_BARRA.filter((k) => ks.includes(k));
 
 /**
- * Tudo o que Atrição & Desligamentos recorta de verdade.
+ * O que Atrição & Desligamentos SABE recortar, guardado para quando voltar.
  *
- * `modeloTrabalho` SAIU em 09/09. Ele estava nesta lista, aparecia ativo na
- * barra e não fazia nada: nem `LeaversTab` nem `UnwantedTab` leem
- * `filters.modeloTrabalho`, e `LeaverRecord` não tem o campo -- a base de
- * desligados por pessoa não guarda modelo de trabalho.
+ * Não está em uso desde 10/09 -- ver a nota em FILTROS_FIXOS. Fica aqui, e não
+ * apagada, porque esta lista é conhecimento medido: cada chave só entrou nela
+ * depois de alguém verificar que `LeaverRecord` tem o campo e que a aba o lê.
+ * `modeloTrabalho`, por exemplo, foi TIRADO em 09/09 por não passar nesse teste.
  *
- * Era exatamente o defeito que este arquivo existe para impedir, dentro do
- * próprio arquivo: um seletor que afirma filtrar e não filtra. Modelo de
- * trabalho continua funcionando no Engajamento, onde a pesquisa pergunta.
+ * Reconstruir isso do zero custaria a mesma investigação de novo.
  */
-const TODOS: FilterKey[] = [
+export const RECORTES_DE_ATRICAO: FilterKey[] = [
   'departamento',
   'jobFamily',
   'tempoCasa',
@@ -111,67 +130,19 @@ const TODOS: FilterKey[] = [
 ];
 
 export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
-  // Consomem a série do contexto, que passa pelo applyDeptFilter.
-  // Overview aceita UM recorte de dimensao alem do departamento (ver
-  // series-filter.ts). A exclusividade entre os tres e garantida na barra.
-  // `tipoContrato` chegou a SAIR daqui: a contagem por vinculo vivia em
-  // `contract_mix_monthly`, que a serie do contexto nao carrega, e o headcount
-  // vinha 0. Voltou junto com `jobFamily` em 09/09, quando a carga passou a
-  // gravar `family_base` e `contract_base` na linha mensal (migracao
-  // 20260909170000). Antes disso eles apareciam esmaecidos aqui, e o motivo
-  // escrito na tela -- "a serie so guarda a quebra por departamento" -- era
-  // verdade sobre a tabela, nao sobre o dado.
-  overview: ['departamento', 'level', 'tempoCasa', 'jobFamily', 'tipoContrato'],
+  // TODOS reduzidos a departamento em 10/09. Ver a nota em FILTROS_FIXOS: o
+  // que cada aba SABIA recortar está registrado no histórico do git e nos
+  // testes, e voltar é acrescentar a chave de novo aqui.
+  overview: ['departamento'],
   data: ['departamento'],
-  // Compensação responde via a sub-aba de Salários (SalaryTab lê a série).
-  // comp_ratio e person-level: level, contrato, familia, tempo de casa e faixa
-  // salarial funcionam de verdade. As duas ultimas nao existem como coluna --
-  // sao DERIVADAS de `hire` e `salary` no servidor (ver person-bands.ts), com os
-  // mesmos cortes usados nos desligados.
-  comp: ['departamento', 'level', 'tipoContrato', 'jobFamily', 'tempoCasa', 'faixaSalarial'],
-  // ------------------------------------------------------------------
-  // AS TRÊS DIMENSÕES ENTRARAM EM 10/09 -- COM A QUEBRA, NÃO ANTES
-  // ------------------------------------------------------------------
-  // Estas duas abas ofereciam só departamento, e o motivo escrito na tela
-  // ("a série só guarda a quebra por departamento") era verdade: a série
-  // tinha `family_base` e companhia, que são a CONTAGEM por faixa. Sabia que
-  // 145 pessoas eram "Customer Operations" e não sabia o gênero, a raça nem a
-  // idade dessas 145 -- então `applySeriesFilter` devolvia
-  // `demographics: undefined`, e desenhar isso seria gráfico vazio.
-  //
-  // A carga passou a gravar `family_breakdown`, `contract_breakdown` e
-  // `tenure_breakdown`: a mesma estrutura do `dept_breakdown`, com outra
-  // chave (migração 20260910030000). Com a composição gravada, os três
-  // recortam de verdade -- que é a condição desta lista desde o começo.
-  //
-  // `level` continua FORA: nível não ganhou quebra própria. Um seletor de
-  // nível aqui apareceria ativo e devolveria demográficos vazios.
-  dei: ['departamento', 'jobFamily', 'tipoContrato', 'tempoCasa'],
-  demographics: ['departamento', 'jobFamily', 'tipoContrato', 'tempoCasa'],
-  // Filtradas no servidor, cada uma na própria server function.
+  comp: ['departamento'],
+  dei: ['departamento'],
+  demographics: ['departamento'],
   span: ['departamento'],
-  // ------------------------------------------------------------------
-  // TEMPO DE CASA E MODELO ENTRARAM, E O COMENTÁRIO ANTIGO ERA A PISTA
-  // ------------------------------------------------------------------
-  // Dizia: "alcança o engajamento; drivers/inclusão não têm recorte". A
-  // segunda metade era verdade sobre a CONSULTA, não sobre o dado --
-  // `survey_driver_scores` guarda 525 linhas por tempo de casa em três ondas
-  // e 102 por modelo, e a query pedia só company e area.
-  //
-  // A Anna pediu os dois recortes. Com a consulta corrigida, eles funcionam
-  // de verdade aqui, que é a condição para aparecerem nesta lista.
-  // `marcaProduto` é a marca que a PESQUISA pergunta (Betnacional, Betfair,
-  // Cross Brand), e não a entidade do seletor do topo. O cruzamento
-  // 'area+marca' já era gravado em toda onda; faltava a barra oferecer.
-  engagement: ['departamento', 'tempoCasa', 'modeloTrabalho', 'marcaProduto'],
+  engagement: ['departamento'],
   recruitment: ['departamento'],
-  // Única que lê pessoa a pessoa com todas as dimensões.
-  attrition: TODOS,
-  // Meu Time agora aceita estreitar dentro do próprio escopo: um gestor de
-  // duas áreas consegue olhar uma de cada vez. Mesma base do Comp Ratio, então
-  // aceita as mesmas seis dimensões.
-  team: ['departamento', 'level', 'tipoContrato', 'jobFamily', 'tempoCasa', 'faixaSalarial'],
-
+  attrition: ['departamento'],
+  team: ['departamento'],
   // Tem busca própria por pessoa; filtro de área não acrescenta.
   individual: [],
 };
@@ -184,32 +155,15 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
  * o problema que a separação por aba resolveu.
  */
 const FILTERS_BY_SUBTAB: Record<string, FilterKey[]> = {
-  // Compensação: Salários lê a série (só departamento recorta); Comp Ratio lê
-  // o comp_ratio, que é por pessoa e aceita as quatro dimensões. Sem esta
-  // distinção, os filtros de pessoa apareceriam em Salários sem efeito.
+  // Reduzidas junto com as abas, em 10/09.
   custos: ['departamento'],
-  compratio: ['departamento', 'level', 'tipoContrato', 'jobFamily', 'tempoCasa', 'faixaSalarial'],
+  compratio: ['departamento'],
   movimentacoes: ['departamento'],
-
-  // ------------------------------------------------------------------
-  // EXPERIÊNCIA: AS TRÊS SUB-ABAS NÃO RECORTAM IGUAL
-  // ------------------------------------------------------------------
-  // Faltavam aqui, então herdavam os três filtros da aba -- e dois deles não
-  // existem fora de Engajamento. Achado na revisão pré-lançamento.
-  //
-  //   engajamento .. os três funcionam. `survey_cut_scores` e
-  //                  `survey_driver_scores` guardam área, tempo de casa,
-  //                  modelo e os cruzamentos entre eles.
-  //   onboarding ... só área. A pesquisa é fatiada por `department`,
-  //                  `overall` e `cohort_month`. Tempo de casa ali seria vazio
-  //                  de sentido: quem está em onboarding tem 0-3 meses por
-  //                  definição. Modelo não foi perguntado.
-  //   inclusao ..... NENHUM. `experience_distributions` não tem coluna de
-  //                  recorte -- é distribuição da empresa inteira, e o
-  //                  servidor não a filtra por nada. O seletor de área
-  //                  aparecia e não fazia efeito algum.
-  engajamento: ['departamento', 'tempoCasa', 'modeloTrabalho', 'marcaProduto'],
+  engajamento: ['departamento'],
   onboarding: ['departamento'],
+  // `experience_distributions` não tem coluna de recorte: o servidor não a
+  // filtra por nada, nem por área. Esta continua vazia por um motivo próprio,
+  // que não é o desligamento geral dos filtros.
   inclusao: [],
 };
 
@@ -336,10 +290,14 @@ export const RECORTES_EXCLUSIVOS: FilterKey[] = ['level', 'tempoCasa', 'jobFamil
  * Atrição fica de FORA: ela lê pessoa a pessoa, com o cruzamento real, e não
  * passa por `applySeriesFilter`. Compensação e Meu Time também -- mesma razão.
  */
-export const ABAS_QUE_APLICAM_RECORTE: DashboardTab[] = ['overview', 'dei', 'demographics'];
+// Vazia desde 10/09: nenhuma aba oferece recorte de dimensão. Os componentes
+// continuam chamando `useRecorteDeSerie`, que não encontra nada oferecido e
+// devolve a série intacta -- é assim que voltar um filtro volta a funcionar
+// sozinho, sem religar fiação.
+export const ABAS_QUE_APLICAM_RECORTE: DashboardTab[] = [];
 
 /** As abas que leem pessoa a pessoa: recortam de verdade, por outro caminho. */
-export const ABAS_PESSOA_A_PESSOA: DashboardTab[] = ['attrition', 'comp', 'team'];
+export const ABAS_PESSOA_A_PESSOA: DashboardTab[] = [];
 
 /**
  * Abas cujo recorte acontece no SERVIDOR, na própria server function.
@@ -353,7 +311,7 @@ export const ABAS_PESSOA_A_PESSOA: DashboardTab[] = ['attrition', 'comp', 'team'
  * de "não recorta". Sem ela, o teste acusaria Engajamento e a resposta seria
  * silenciá-lo -- que é como uma verificação boa vira ruído e depois some.
  */
-export const ABAS_FILTRADAS_NO_SERVIDOR: DashboardTab[] = ['engagement'];
+export const ABAS_FILTRADAS_NO_SERVIDOR: DashboardTab[] = [];
 
 /**
  * Os perfis DEIXARAM de se excluir. Esta lista ficou vazia de propósito.
