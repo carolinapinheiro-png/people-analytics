@@ -167,6 +167,18 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       // Somar por departamento é aritmética: cada marca traz a sua quebra, e
       // uma pessoa está em exatamente uma delas.
       dept_breakdown: mergeDeptBreakdown(n.dept_breakdown, b.dept_breakdown, f.dept_breakdown),
+      // ------------------------------------------------------------------
+      // AS TRÊS QUEBRAS NOVAS SOMAM PELA MESMA ARITMÉTICA
+      // ------------------------------------------------------------------
+      // Mesma função, mesma razão: uma pessoa está em exatamente uma família,
+      // um vínculo e uma faixa de tempo, em exatamente uma marca. Esquecer de
+      // somá-las aqui repetiria, letra por letra, o que aconteceu ontem com
+      // `family_base`: a quebra cheia no banco, a visão Combinada -- que é a
+      // padrão -- sem ela, e o meu próprio aviso acusando o Convenia de não
+      // ter o dado.
+      family_breakdown: mergeDeptBreakdown(n.family_breakdown, b.family_breakdown, f.family_breakdown),
+      contract_breakdown: mergeDeptBreakdown(n.contract_breakdown, b.contract_breakdown, f.contract_breakdown),
+      tenure_breakdown: mergeDeptBreakdown(n.tenure_breakdown, b.tenure_breakdown, f.tenure_breakdown),
     };
   }
   return data.find(d => d.month === month && d.brand === brand) || { month } as MonthRecord;

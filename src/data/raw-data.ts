@@ -73,6 +73,15 @@ export interface MonthRecord {
    *  tenure_base, demographics{age,race,marital,origin}, race_cross } }. Permite
    *  o applyDeptFilter trocar os blocos de dimensao pela fatia do depto. */
   dept_breakdown?: Record<string, DeptBreakdownRecord>;
+  /** As MESMAS dimensoes do dept_breakdown, recortadas por Job Type Family,
+   *  por vinculo e por faixa de tempo de casa. Sem elas, recortar por essas
+   *  tres chaves so devolvia headcount -- genero, raca e demograficos saiam
+   *  suprimidos, e os filtros ficavam esmaecidos em Demograficos e DEI.
+   *  A chave de `tenure_breakdown` e a da serie ("1-2a"), nao a do seletor.
+   *  `undefined` = linha gravada antes da migracao 20260910030000. */
+  family_breakdown?: Record<string, DeptBreakdownRecord>;
+  contract_breakdown?: Record<string, DeptBreakdownRecord>;
+  tenure_breakdown?: Record<string, DeptBreakdownRecord>;
   /** Marcado pelo applyDeptFilter: true quando o recorte por departamento usou a
    *  quebra EXATA (dept_breakdown), false quando caiu no rateio proporcional.
    *  Quem for recortar por outra dimensao em cima precisa saber a diferenca --

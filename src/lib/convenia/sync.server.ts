@@ -2376,6 +2376,12 @@ export async function executarSyncConvenia(
         // segunda e nunca escrevia a de verdade.
         dept_data: l.dept_data,
         dept_breakdown: l.dept_breakdown,
+        // As mesmas dimensoes recortadas pelas outras tres chaves, para
+        // Demograficos e DEI honrarem job family, contrato e tempo de casa.
+        // Migracao 20260910030000.
+        family_breakdown: l.family_breakdown,
+        contract_breakdown: l.contract_breakdown,
+        tenure_breakdown: l.tenure_breakdown,
         gender_female: l.gender_female,
         gender_male: l.gender_male,
         gender_female_pct: l.gender_female_pct,

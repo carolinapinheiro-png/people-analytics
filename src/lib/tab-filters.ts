@@ -129,9 +129,25 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   // sao DERIVADAS de `hire` e `salary` no servidor (ver person-bands.ts), com os
   // mesmos cortes usados nos desligados.
   comp: ['departamento', 'level', 'tipoContrato', 'jobFamily', 'tempoCasa', 'faixaSalarial'],
-  // Leem a série do contexto (já com applyDeptFilter).
-  dei: ['departamento'],
-  demographics: ['departamento'],
+  // ------------------------------------------------------------------
+  // AS TRÊS DIMENSÕES ENTRARAM EM 10/09 -- COM A QUEBRA, NÃO ANTES
+  // ------------------------------------------------------------------
+  // Estas duas abas ofereciam só departamento, e o motivo escrito na tela
+  // ("a série só guarda a quebra por departamento") era verdade: a série
+  // tinha `family_base` e companhia, que são a CONTAGEM por faixa. Sabia que
+  // 145 pessoas eram "Customer Operations" e não sabia o gênero, a raça nem a
+  // idade dessas 145 -- então `applySeriesFilter` devolvia
+  // `demographics: undefined`, e desenhar isso seria gráfico vazio.
+  //
+  // A carga passou a gravar `family_breakdown`, `contract_breakdown` e
+  // `tenure_breakdown`: a mesma estrutura do `dept_breakdown`, com outra
+  // chave (migração 20260910030000). Com a composição gravada, os três
+  // recortam de verdade -- que é a condição desta lista desde o começo.
+  //
+  // `level` continua FORA: nível não ganhou quebra própria. Um seletor de
+  // nível aqui apareceria ativo e devolveria demográficos vazios.
+  dei: ['departamento', 'jobFamily', 'tipoContrato', 'tempoCasa'],
+  demographics: ['departamento', 'jobFamily', 'tipoContrato', 'tempoCasa'],
   // Filtradas no servidor, cada uma na própria server function.
   span: ['departamento'],
   // ------------------------------------------------------------------

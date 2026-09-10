@@ -169,6 +169,21 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
     avg_salary_non_leaders: deptInfo.avg_salary_non_leaders,
     dept_data: { [deptName]: deptInfo },
     dept_breakdown: db ? { [deptName]: db } : undefined,
+    // ------------------------------------------------------------------
+    // O CRUZAMENTO QUE NAO EXISTE NAO PODE SOBREVIVER AO RECORTE DE AREA
+    // ------------------------------------------------------------------
+    // `family_breakdown` e companhia sao da EMPRESA, nao deste departamento --
+    // a serie guarda "quem e Data & Analytics" e "quem e de Technology", nunca
+    // o cruzamento dos dois. Sem esta linha, o spread de `record` acima os
+    // carregaria intactos, e escolher "Technology + Data & Analytics" mostraria
+    // o Data da empresa inteira sob o rotulo de Technology.
+    //
+    // Zerando aqui, `applySeriesFilter` cai no regime antigo e declara os
+    // demograficos como suprimidos -- que e a verdade sobre um cruzamento que
+    // ninguem calculou.
+    family_breakdown: undefined,
+    contract_breakdown: undefined,
+    tenure_breakdown: undefined,
   };
   if (!db) return base;
 

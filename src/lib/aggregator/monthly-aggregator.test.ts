@@ -648,9 +648,82 @@ test('applySeriesFilter: dimensoes sem valor exato saem indefinidas, nao zeradas
   ] as never[];
   const r = applySeriesFilter(meses, [], 'level', 'L4');
   // undefined obriga quem desenha a tratar; zero passaria por medicao.
+  // `level` continua assim de proposito: e a unica das quatro dimensoes que
+  // NAO ganhou quebra propria em 10/09.
   assert.equal(r.months[0].demographics, undefined);
   assert.equal(r.months[0].race_cross, undefined);
   assert.equal(r.suppressed.length > 0, true);
+});
+
+// ---------------------------------------------------------------------------
+// A QUEBRA POR FAMILIA, VINCULO E TEMPO DE CASA (10/09)
+// ---------------------------------------------------------------------------
+// Ate aqui, recortar por qualquer uma das tres devolvia headcount e apagava o
+// resto -- a serie tinha a CONTAGEM por faixa e nao a composicao dentro dela.
+// Com `family_breakdown` e companhia gravados, a fatia passa a responder com o
+// que e dela. Estes testes cobram as duas metades: que venha, e que venha a
+// DELA, e nao a da empresa.
+
+test('applySeriesFilter: a fatia devolve a composicao DELA, nao a da empresa', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter.ts');
+  const meses = [{
+    month: '2026-01',
+    headcount: 100,
+    gender_female: 40,           // empresa: 40%
+    family_base: { Data: 20 },
+    family_breakdown: {
+      Data: {
+        gender_female: 15, gender_male: 5, leaders: 3, leader_female: 2,
+        level_base: { L4: 12 }, tenure_base: {}, family_base: {}, contract_base: {},
+        demographics: { age: { '25-34': 18 }, race: {}, marital: {}, origin: {} },
+        race_cross: { Parda: { total: 9, female: 6, leaders: 1, female_leaders: 1 } },
+      },
+    },
+  }] as never[];
+
+  const r = applySeriesFilter(meses, [], 'jobFamily', 'Data');
+  const m = r.months[0];
+  assert.equal(m.headcount, 20);
+  // 15, e nao 40 nem 8 (=40 rateado por 20%): o numero e contado, nao estimado.
+  assert.equal(m.gender_female, 15);
+  assert.equal(m.leaders, 3);
+  assert.deepEqual(m.demographics?.age, { '25-34': 18 });
+  assert.equal(m.race_cross?.Parda?.total, 9);
+  // A base da PROPRIA dimensao sai de fora: seria um mapa de uma chave so,
+  // igual ao headcount, desenhado como se fosse distribuicao.
+  assert.equal(m.family_base, undefined);
+  assert.deepEqual(m.level_base, { L4: 12 });
+});
+
+test('applySeriesFilter: o que a quebra nao cobre continua declarado como suprimido', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter.ts');
+  const meses = [{
+    month: '2026-01', headcount: 100, family_base: { Data: 20 },
+    family_breakdown: { Data: {
+      gender_female: 15, gender_male: 5, leaders: 3, leader_female: 2,
+      level_base: {}, tenure_base: {}, family_base: {}, contract_base: {},
+      demographics: { age: {}, race: {}, marital: {}, origin: {} }, race_cross: {},
+    } },
+  }] as never[];
+  const r = applySeriesFilter(meses, [], 'jobFamily', 'Data');
+  // Encolheu, mas nao esvaziou: entradas, promocoes e salarios seguem fora do
+  // recorte. Uma lista que dissesse "nada suprimido" seria a nota virando
+  // mentira -- o erro simetrico do gráfico vazio.
+  assert.ok(!r.suppressed.includes('demográficos'));
+  assert.ok(!r.suppressed.includes('gênero e DEI'));
+  assert.ok(r.suppressed.includes('entradas'));
+  assert.ok(r.suppressed.includes('promoções'));
+});
+
+test('applySeriesFilter: mes anterior a migracao nao finge ter a quebra', async () => {
+  const { applySeriesFilter } = await import('../../data/series-filter.ts');
+  // Linha gravada antes de 10/09: tem `family_base`, nao tem `family_breakdown`.
+  const meses = [{ month: '2025-06', headcount: 80, family_base: { Data: 12 } }] as never[];
+  const r = applySeriesFilter(meses, [], 'jobFamily', 'Data');
+  assert.equal(r.months[0].headcount, 12, 'o headcount, esse a serie antiga tem');
+  assert.equal(r.months[0].demographics, undefined, 'a composicao, nao');
+  assert.ok(r.suppressed.includes('demográficos'),
+    'sem a quebra, a supressao antiga tem de voltar -- senao a tela promete o que nao tem');
 });
 
 test('applySeriesFilter: sem recorte devolve a serie intacta', async () => {

@@ -111,6 +111,21 @@ test('Custos & Bandas oferece só área; Comp Ratio oferece as seis', () => {
 });
 
 test('uma aba sem sub-aba declarada cai na lista da aba', () => {
-  assert.deepEqual(filtersForTab('dei', null), ['departamento']);
-  assert.deepEqual(filtersForTab('demographics', 'inexistente'), ['departamento']);
+  // Os quatro desde 10/09: a carga passou a gravar a COMPOSIÇÃO por família,
+  // vínculo e tempo de casa, e não só a contagem por faixa. Antes daquilo esta
+  // lista era `['departamento']` -- e estava certa, porque recortar por família
+  // devolvia demográficos vazios.
+  const QUATRO = ['departamento', 'jobFamily', 'tipoContrato', 'tempoCasa'];
+  assert.deepEqual(filtersForTab('dei', null), QUATRO);
+  assert.deepEqual(filtersForTab('demographics', 'inexistente'), QUATRO);
+});
+
+test('level NÃO entra em Demográficos e DEI -- nível não ganhou quebra', () => {
+  // A assimetria é deliberada e fácil de desfazer sem querer. Família, vínculo
+  // e tempo de casa têm `*_breakdown` gravado; nível tem só `level_base`, a
+  // contagem. Oferecer `level` aqui seria um seletor ativo devolvendo
+  // demográficos vazios -- exatamente o que os outros três deixaram de ser.
+  for (const aba of ['dei', 'demographics'] as const) {
+    assert.ok(!filtersForTab(aba, null).includes('level'), `${aba} ofereceu level sem a quebra`);
+  }
 });

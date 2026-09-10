@@ -196,6 +196,25 @@ export interface LinhaMensal {
    * escrito e esperando por ele desde sempre.
    */
   dept_breakdown: Record<string, DeptBreakdownPorArea>;
+  /**
+   * As MESMAS dimensões do `dept_breakdown`, recortadas por família, vínculo e
+   * faixa de tempo de casa.
+   *
+   * Existem porque a série guardava só a CONTAGEM por faixa (`family_base` e
+   * companhia): sabia quantas pessoas eram "Data & Analytics" e não sabia quem
+   * eram. Com isso, recortar por família em Demográficos ou DEI devolvia
+   * `demographics: undefined` -- e os três filtros ficavam esmaecidos.
+   *
+   * Mesmo formato do `dept_breakdown` de propósito: quem consome usa o mesmo
+   * código para os quatro recortes.
+   *
+   * A chave de `tenure_breakdown` é a da série ("1-2a"), e não o rótulo do
+   * seletor ("1-2 anos") -- a tradução entre os dois vocabulários vive em
+   * `series-filter.ts`, onde já vivia.
+   */
+  family_breakdown: Record<string, DeptBreakdownPorArea>;
+  contract_breakdown: Record<string, DeptBreakdownPorArea>;
+  tenure_breakdown: Record<string, DeptBreakdownPorArea>;
   /** Quantas das pessoas presentes no mês são gestoras. */
   leaders: number;
   leaders_pct: number | null;
@@ -598,15 +617,36 @@ export function reconstruirSerie(
     // quando o grupo passa do piso, e isso não dá para decidir no meio do laço.
     const salPorArea: Record<string, { lideres: number[]; demais: number[] }> = {};
 
-    // As MESMAS contas da linha, por área. É o que faz o filtro de
-    // departamento recortar gênero e liderança de verdade.
-    const porArea: Record<string, DeptBreakdownPorArea> = {};
-    const areaDe_ = (a: string): DeptBreakdownPorArea => (porArea[a] ??= {
+    // ------------------------------------------------------------------
+    // AS MESMAS CONTAS, EM QUATRO RECORTES
+    // ------------------------------------------------------------------
+    // Isto era só `porArea`, e é o que faz o filtro de departamento recortar
+    // gênero e liderança DE VERDADE em Demográficos e DEI.
+    //
+    // Família, vínculo e tempo de casa tinham apenas a CONTAGEM por faixa
+    // (`family_base` e companhia): a série sabia quantas pessoas eram "Data &
+    // Analytics" e não sabia quem elas eram. Por isso os três filtros ficavam
+    // esmaecidos nas duas abas, e `applySeriesFilter` devolvia
+    // `demographics: undefined` -- a resposta honesta para um dado que não
+    // existia.
+    //
+    // Agora a MESMA pessoa é somada em quatro baldes de uma vez. O laço é um
+    // só de propósito: quatro cópias do mesmo bloco divergem no primeiro campo
+    // novo que alguém acrescentar em três delas e esquecer na quarta.
+    const vazio = (): DeptBreakdownPorArea => ({
       gender_female: 0, gender_male: 0, leaders: 0, leader_female: 0,
       level_base: {}, tenure_base: {}, family_base: {}, contract_base: {},
       demographics: { age: {}, race: {}, marital: {}, origin: {} },
       race_cross: {},
     });
+    const porArea: Record<string, DeptBreakdownPorArea> = {};
+    const porFamilia: Record<string, DeptBreakdownPorArea> = {};
+    const porVinculo: Record<string, DeptBreakdownPorArea> = {};
+    const porTempoDeCasa: Record<string, DeptBreakdownPorArea> = {};
+    const baldeDe = (
+      mapa: Record<string, DeptBreakdownPorArea>,
+      chave: string,
+    ): DeptBreakdownPorArea => (mapa[chave] ??= vazio());
 
     let headcount = 0, joiners = 0, leavers = 0, leaders = 0;
     let gF = 0, gM = 0, lidF = 0, generoConhecido = 0, racaConhecida = 0;
@@ -633,20 +673,46 @@ export function reconstruirSerie(
       if (presente) {
         headcount++;
         bump(x.area, 'hc');
-        // A MESMA pessoa entra na conta da empresa e na da área dela. Duas
-        // linhas por conta, e não uma segunda passada: separar as duas somas
-        // é como elas divergem.
-        const A = areaDe_(x.area);
+
+        // ------------------------------------------------------------
+        // AS QUATRO CHAVES DESTA PESSOA, ANTES DE QUALQUER SOMA
+        // ------------------------------------------------------------
+        // Família, vínculo e faixa de tempo eram calculados no meio do laço,
+        // depois das somas de gênero e raça. Agora vêm primeiro, porque são o
+        // ENDEREÇO da pessoa nos quatro recortes -- e não dá para somar antes
+        // de saber onde.
+        //
+        // "Não informado" é categoria, e não ausência: a soma de cada recorte
+        // tem de bater com o headcount, senão o filtro mostra menos gente do
+        // que existe e ninguém percebe.
+        const familia = (x.p.jobFamily ?? '').trim() || 'Não informado';
+        // Vínculo CRU, como o Convenia escreve. A tradução para CLT/PJ é de
+        // quem casa com a banda salarial, não daqui: vínculo novo que o RH
+        // criar aparece com o próprio nome, em vez de virar "CLT" em silêncio.
+        const vinculo = (x.p.relationship ?? '').trim() || 'Não informado';
+        const faixa = faixaTempoDeCasa(x.entrada!, mes);
+
+        // A MESMA pessoa entra na conta da empresa e nos quatro recortes. Uma
+        // linha por balde, e não uma segunda passada: separar as somas é como
+        // elas divergem.
+        const A = baldeDe(porArea, x.area);
+        const baldes: DeptBreakdownPorArea[] = [
+          A,
+          baldeDe(porFamilia, familia),
+          baldeDe(porVinculo, vinculo),
+          baldeDe(porTempoDeCasa, faixa),
+        ];
 
         const ehGestor = gestores.has(x.p.id);
-        if (ehGestor) { leaders++; A.leaders++; }
+        if (ehGestor) { leaders++; for (const B of baldes) B.leaders++; }
 
         if (x.p.genero) {
           generoConhecido++;
           if (x.p.genero === 'F') {
-            gF++; A.gender_female++;
-            if (ehGestor) { lidF++; A.leader_female++; }
-          } else { gM++; A.gender_male++; }
+            gF++;
+            for (const B of baldes) B.gender_female++;
+            if (ehGestor) { lidF++; for (const B of baldes) B.leader_female++; }
+          } else { gM++; for (const B of baldes) B.gender_male++; }
         }
 
         const raca = (x.p.raca ?? '').trim();
@@ -657,10 +723,12 @@ export function reconstruirSerie(
           if (x.p.genero === 'F') porRaca[raca].female++;
           if (ehGestor) porRaca[raca].leaders++;
 
-          const rc = (A.race_cross[raca] ??= { total: 0, female: 0, leaders: 0, female_leaders: 0 });
-          rc.total++;
-          if (x.p.genero === 'F') { rc.female++; if (ehGestor) rc.female_leaders++; }
-          if (ehGestor) rc.leaders++;
+          for (const B of baldes) {
+            const rc = (B.race_cross[raca] ??= { total: 0, female: 0, leaders: 0, female_leaders: 0 });
+            rc.total++;
+            if (x.p.genero === 'F') { rc.female++; if (ehGestor) rc.female_leaders++; }
+            if (ehGestor) rc.leaders++;
+          }
         }
 
         if (typeof x.p.salary === 'number' && x.p.salary > 0) {
@@ -672,27 +740,14 @@ export function reconstruirSerie(
         const uf = x.p.uf?.trim();
         if (uf) state_mix[uf] = (state_mix[uf] ?? 0) + 1;
 
-        const faixa = faixaTempoDeCasa(x.entrada!, mes);
         tenure_base[faixa] = (tenure_base[faixa] ?? 0) + 1;
-        A.tenure_base[faixa] = (A.tenure_base[faixa] ?? 0) + 1;
-
-        // ------------------------------------------------------------
-        // FAMÍLIA E VÍNCULO: SEM VALOR NÃO É UMA CATEGORIA VAZIA
-        // ------------------------------------------------------------
-        // "Não informado" entra como faixa própria, e não some da conta: a
-        // soma de `family_base` tem de bater com o headcount, senão o recorte
-        // por família mostra menos gente do que existe e ninguém percebe. É a
-        // mesma regra do tempo de casa, que nunca deixa pessoa de fora.
-        const familia = (x.p.jobFamily ?? '').trim() || 'Não informado';
         family_base[familia] = (family_base[familia] ?? 0) + 1;
-        A.family_base[familia] = (A.family_base[familia] ?? 0) + 1;
-
-        // Vínculo CRU, como o Convenia escreve. A tradução para CLT/PJ é de
-        // quem casa com a banda salarial, não daqui: vínculo novo que o RH
-        // criar aparece com o próprio nome, em vez de virar "CLT" em silêncio.
-        const vinculo = (x.p.relationship ?? '').trim() || 'Não informado';
         contract_base[vinculo] = (contract_base[vinculo] ?? 0) + 1;
-        A.contract_base[vinculo] = (A.contract_base[vinculo] ?? 0) + 1;
+        for (const B of baldes) {
+          B.tenure_base[faixa] = (B.tenure_base[faixa] ?? 0) + 1;
+          B.family_base[familia] = (B.family_base[familia] ?? 0) + 1;
+          B.contract_base[vinculo] = (B.contract_base[vinculo] ?? 0) + 1;
+        }
 
         // ------------------------------------------------------------
         // NÍVEL, ESTADO CIVIL E UF NATAL
@@ -707,15 +762,18 @@ export function reconstruirSerie(
         // da origem, filtra o rótulo antes de desenhar o top 10.
         const nivel = (x.p.nivel ?? '').trim() || 'NA';
         level_base[nivel] = (level_base[nivel] ?? 0) + 1;
-        A.level_base[nivel] = (A.level_base[nivel] ?? 0) + 1;
 
         const civil = (x.p.marital ?? '').trim() || 'Não informado';
         porEstadoCivil[civil] = (porEstadoCivil[civil] ?? 0) + 1;
-        A.demographics.marital[civil] = (A.demographics.marital[civil] ?? 0) + 1;
 
         const natal = (x.p.origem ?? '').trim() || 'Não informado';
         porOrigem[natal] = (porOrigem[natal] ?? 0) + 1;
-        A.demographics.origin[natal] = (A.demographics.origin[natal] ?? 0) + 1;
+
+        for (const B of baldes) {
+          B.level_base[nivel] = (B.level_base[nivel] ?? 0) + 1;
+          B.demographics.marital[civil] = (B.demographics.marital[civil] ?? 0) + 1;
+          B.demographics.origin[natal] = (B.demographics.origin[natal] ?? 0) + 1;
+        }
 
         // Cota legal: `null` (ninguém respondeu) NÃO entra como "não".
         if (x.p.pcd != null) {
@@ -727,7 +785,7 @@ export function reconstruirSerie(
         const idade = faixaEtaria(x.p.birth_date, mes);
         if (idade) {
           porIdade[idade] = (porIdade[idade] ?? 0) + 1;
-          A.demographics.age[idade] = (A.demographics.age[idade] ?? 0) + 1;
+          for (const B of baldes) B.demographics.age[idade] = (B.demographics.age[idade] ?? 0) + 1;
         }
 
         // A MESMA raça que alimenta `race_cross`, aqui só contada.
@@ -737,7 +795,7 @@ export function reconstruirSerie(
         const racaDemo = (x.p.raca ?? '').trim();
         if (racaDemo) {
           porRacaDemo[racaDemo] = (porRacaDemo[racaDemo] ?? 0) + 1;
-          A.demographics.race[racaDemo] = (A.demographics.race[racaDemo] ?? 0) + 1;
+          for (const B of baldes) B.demographics.race[racaDemo] = (B.demographics.race[racaDemo] ?? 0) + 1;
         }
       }
 
@@ -768,6 +826,12 @@ export function reconstruirSerie(
       attrition_rate: expostos > 0 ? Math.round((leavers / expostos) * 1000) / 10 : null,
       dept_data: dept,
       dept_breakdown: porArea,
+      // As mesmas dimensões, recortadas pelas outras três chaves. É o que
+      // permite Demográficos e DEI honrarem job family, contrato e tempo de
+      // casa em vez de exibirem o seletor esmaecido.
+      family_breakdown: porFamilia,
+      contract_breakdown: porVinculo,
+      tenure_breakdown: porTempoDeCasa,
       leaders,
       leaders_pct: headcount > 0 ? Math.round((leaders / headcount) * 1000) / 10 : null,
       avg_salary_leaders: media(salLideres),

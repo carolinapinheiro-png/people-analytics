@@ -90,7 +90,19 @@ export interface SeriesFilterResult {
   valorDesconhecido: boolean;
 }
 
-const SUPRIMIDO = [
+/**
+ * O que um recorte SEM quebra gravada não consegue mostrar.
+ *
+ * Era uma lista fixa, aplicada aos quatro recortes. Deixou de ser: família,
+ * vínculo e tempo de casa ganharam a quebra completa (migração 20260910030000)
+ * e passaram a devolver gênero, liderança e demográficos EXATOS. Só `level`
+ * continua sem -- e linhas gravadas antes da migração também.
+ *
+ * A lista tinha de encolher junto com a limitação. Uma nota que continua
+ * dizendo "não temos isto" depois de passar a ter é pior do que nota nenhuma:
+ * a próxima pessoa acredita nela e não vai conferir.
+ */
+const SUPRIMIDO_SEM_QUEBRA = [
   'entradas',
   'gênero e DEI',
   'liderança',
@@ -98,6 +110,9 @@ const SUPRIMIDO = [
   'salários',
   'demográficos',
 ];
+
+/** Com a quebra gravada, só estes três continuam fora do recorte. */
+const SUPRIMIDO_COM_QUEBRA = ['entradas', 'promoções', 'salários'];
 
 /**
  * Mapeia a faixa de tempo de casa da série (chaves do tenure_base, ex.: "1-2a")
@@ -194,6 +209,27 @@ export function applySeriesFilter(
     const hc = base?.[chaveHc] ?? 0;
     const saidas = saidasPorMes.get(m.month) ?? 0;
 
+    // ------------------------------------------------------------------
+    // A COMPOSICAO DA FATIA, QUANDO ELA FOI GRAVADA
+    // ------------------------------------------------------------------
+    // Ate 10/09 este bloco zerava genero e apagava `demographics` para TODOS
+    // os recortes: a serie so tinha a contagem por faixa, nunca a composicao
+    // dentro dela. A carga passou a gravar `family_breakdown`,
+    // `contract_breakdown` e `tenure_breakdown` -- a mesma estrutura do
+    // `dept_breakdown`, com outra chave (migracao 20260910030000).
+    //
+    // `level` continua de fora: nivel nao ganhou quebra propria, e inventar
+    // uma composicao para ele seria o rateio que este arquivo existe para
+    // recusar.
+    //
+    // `undefined` (e nao `{}`) quando a quebra nao existe naquela linha: mes
+    // gravado antes da migracao tem de se declarar nao-calculado, nao vazio.
+    const quebra =
+      key === 'jobFamily' ? m.family_breakdown?.[escolhido]
+      : key === 'tipoContrato' ? m.contract_breakdown?.[escolhido]
+      : key === 'tempoCasa' ? m.tenure_breakdown?.[chaveHc]
+      : undefined;
+
     return {
       ...m,
       headcount: hc,
@@ -202,19 +238,27 @@ export function applySeriesFilter(
       // Zerar seria mentira; o consumidor precisa saber que não há valor.
       // Undefined obriga quem desenha a tratar o caso -- zero passaria batido.
       joiners: 0,
-      gender_female: 0,
-      gender_male: 0,
-      leaders: 0,
       promotions: 0,
-      level_base: undefined,
-      tenure_base: undefined,
-      family_base: undefined,
-      contract_base: undefined,
-      demographics: undefined,
-      race_cross: undefined,
       dept_breakdown: undefined,
       leader_dept: undefined,
       raise_events: undefined,
+      // Estes cinco vêm da quebra quando ela existe. Sem quebra, seguem o
+      // comportamento antigo -- que é o correto para `level` e para qualquer
+      // linha anterior à migração.
+      gender_female: quebra?.gender_female ?? 0,
+      gender_male: quebra?.gender_male ?? 0,
+      leaders: quebra?.leaders ?? 0,
+      leader_female: quebra?.leader_female ?? 0,
+      demographics: quebra?.demographics,
+      race_cross: quebra?.race_cross,
+      // As bases DENTRO da fatia: os levels de quem é "Data & Analytics", por
+      // exemplo. A base da própria dimensão escolhida sai de fora -- ela seria
+      // um mapa de uma chave só, igual ao headcount, e desenharia uma barra
+      // solitária com cara de distribuição.
+      level_base: key === 'level' ? undefined : quebra?.level_base,
+      tenure_base: key === 'tempoCasa' ? undefined : quebra?.tenure_base,
+      family_base: key === 'jobFamily' ? undefined : quebra?.family_base,
+      contract_base: key === 'tipoContrato' ? undefined : quebra?.contract_base,
     };
   });
 
@@ -229,12 +273,17 @@ export function applySeriesFilter(
     return b != null && c in b;
   });
 
+  // A quebra existe em ALGUM mês? Se nenhum tem, o recorte segue no regime
+  // antigo e a tela precisa saber -- não adianta prometer demográficos que só
+  // aparecerão depois da próxima gravação.
+  const temQuebra = out.some((m) => m.demographics != null);
+
   return {
     months: out,
     active: true,
     valorDesconhecido,
     label: `${labelPrefix}: ${escolhido}`,
-    suppressed: SUPRIMIDO,
+    suppressed: temQuebra ? SUPRIMIDO_COM_QUEBRA : SUPRIMIDO_SEM_QUEBRA,
     unreliable,
   };
 }
