@@ -9,6 +9,7 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { COLORS } from '@/lib/colors';
+import { marcaDeEmpresa } from '@/lib/convenia/marca';
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -18,15 +19,18 @@ const BRAND_COLORS: Record<string, string> = {
   Porto: COLORS.flutter,
 };
 
-// De-para marca -> empresas do comp_ratio (mesmo do agregador). Flutter nao tem
-// dado de comp. "combined" soma NSX + Betfair.
-const NSX_COS = ['NSX BRASIL RECIFE', 'NSX BRASIL SÃO PAULO', 'NSX MARECHAL'];
-const BRAND_COMPANIES: Record<string, string[]> = {
-  NSX: NSX_COS,
-  'Betfair BR': ['NSX BETFAIR BRASIL S.A.'],
-  'Flutter International': [],
-  combined: [...NSX_COS, 'NSX BETFAIR BRASIL S.A.'],
-};
+// ATE 11/09/2026 este de-para era uma lista fixa de razoes sociais em
+// MAIÚSCULAS ('NSX BRASIL RECIFE', 'NSX BETFAIR BRASIL S.A.'...), escrita
+// quando o `comp_ratio` ainda vinha de planilha -- e a mesma lista duplicada
+// no OverviewTab. Desde que a carga passou a vir do Convenia, a grafia real
+// do campo `Empresa` virou "NSX Brasil Recife", "Betfair", "Flutter
+// International", e a lista velha parou de casar com quase tudo: os cards
+// desta aba (CLT/PJ, comp-ratio por área, bandas de senioridade) ficaram
+// presos contando só o resto de linhas antigas de planilha, sem erro nenhum
+// na tela.
+//
+// `marcaDeEmpresa` é o de-para único e testado que já resolve isso -- ver o
+// comentário em OverviewTab.tsx para o número que expôs o problema.
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend, AreaChart, Area
@@ -118,10 +122,11 @@ export default function SalaryTab() {
 
   const contractMix = useMemo(() => {
     if (!comp) return null;
-    const set = new Set(BRAND_COMPANIES[brand] ?? BRAND_COMPANIES.combined);
     const acc: Record<string, { n: number; salSum: number; salN: number }> = {};
     comp.contracts.forEach((c) => {
-      if (!set.has(c.company)) return;
+      const marca = marcaDeEmpresa(c.company);
+      if (!marca) return;
+      if (brand !== 'combined' && marca !== brand) return;
       const a = (acc[c.contract] = acc[c.contract] ?? { n: 0, salSum: 0, salN: 0 });
       a.n += c.n; a.salSum += c.sal_sum; a.salN += c.sal_n;
     });
@@ -133,10 +138,11 @@ export default function SalaryTab() {
 
   const areaComp = useMemo(() => {
     if (!comp) return null;
-    const set = new Set(BRAND_COMPANIES[brand] ?? BRAND_COMPANIES.combined);
     const acc: Record<string, { n: number; crSum: number; crN: number }> = {};
     comp.areas.forEach((a) => {
-      if (!set.has(a.company)) return;
+      const marca = marcaDeEmpresa(a.company);
+      if (!marca) return;
+      if (brand !== 'combined' && marca !== brand) return;
       const x = (acc[a.area] = acc[a.area] ?? { n: 0, crSum: 0, crN: 0 });
       x.n += a.n; x.crSum += a.cr_sum; x.crN += a.cr_n;
     });
@@ -157,7 +163,6 @@ export default function SalaryTab() {
   ];
   const levelBands = useMemo(() => {
     if (!comp) return null;
-    const set = new Set(BRAND_COMPANIES[brand] ?? BRAND_COMPANIES.combined);
     const bandOf = (lvl: string) => {
       const m = lvl.toUpperCase().match(/L?(\d+)/);
       const n = m ? Number(m[1]) : null;
@@ -165,7 +170,9 @@ export default function SalaryTab() {
     };
     const acc: Record<string, { n: number; crSum: number; crN: number; salSum: number; salN: number }> = {};
     comp.levels.forEach((l) => {
-      if (!set.has(l.company)) return;
+      const marca = marcaDeEmpresa(l.company);
+      if (!marca) return;
+      if (brand !== 'combined' && marca !== brand) return;
       const band = bandOf(l.level);
       if (!band) return;
       const x = (acc[band] = acc[band] ?? { n: 0, crSum: 0, crN: 0, salSum: 0, salN: 0 });

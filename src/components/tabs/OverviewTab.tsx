@@ -5,14 +5,21 @@ import { getExperienceData } from '@/lib/experience.functions';
 import { getHeadcountMix, type HeadcountMix } from '@/lib/comp.functions';
 import { calcTurnover, promoRate, mLabel, fmt } from '@/data/helpers';
 import { FAIXAS_TEMPO_DE_CASA } from '@/lib/convenia/pessoas';
+import { marcaDeEmpresa } from '@/lib/convenia/marca';
 
-const NSX_COS = ['NSX BRASIL RECIFE', 'NSX BRASIL SÃO PAULO', 'NSX MARECHAL'];
-const BRAND_COMPANIES: Record<string, string[]> = {
-  NSX: NSX_COS,
-  'Betfair BR': ['NSX BETFAIR BRASIL S.A.'],
-  'Flutter International': [],
-  combined: [...NSX_COS, 'NSX BETFAIR BRASIL S.A.'],
-};
+// ATE 11/09/2026 este de-para era uma lista fixa de razoes sociais em
+// MAIÚSCULAS ('NSX BRASIL RECIFE', 'NSX BETFAIR BRASIL S.A.'...), escrita
+// quando o `comp_ratio` ainda vinha de planilha. Depois que a carga passou a
+// vir do Convenia (ver `comp-ratio-convenia.ts`), a grafia real do campo
+// `Empresa` virou "NSX Brasil Recife", "Betfair", "Flutter International" --
+// e a lista velha parou de casar com quase tudo. O card ficou preso contando
+// só as poucas linhas remanescentes da planilha antiga (por isso "19 / 16"
+// com a empresa toda tendo 636 pessoas), sem erro nenhum na tela: `set.has`
+// simplesmente nunca achava a maior parte das linhas.
+//
+// `marcaDeEmpresa` é o de-para único e testado que já resolve isso (fragmento,
+// sem acento, sem case) para o resto do painel -- reaproveitado aqui em vez de
+// mantido como uma segunda lista que pode voltar a divergir da grafia real.
 // A régua vem de pessoas.ts, o único lugar que a define. A lista que estava
 // aqui usava outro vocabulário ('0-3m', '1-2a') e nenhuma chave batia com a
 // série -- `tb[k]` dava 0 em todas as faixas e o KPI ficava permanentemente em
@@ -133,9 +140,17 @@ export default function OverviewTab() {
   }, [fetchComp, filters.departamento]);
   const contractMix = (() => {
     if (!comp) return null;
-    const set = new Set(BRAND_COMPANIES[brand] ?? BRAND_COMPANIES.combined);
     const acc: Record<string, number> = {};
-    comp.contracts.forEach((c) => { if (set.has(c.company)) acc[c.contract] = (acc[c.contract] ?? 0) + c.n; });
+    comp.contracts.forEach((c) => {
+      const marca = marcaDeEmpresa(c.company);
+      // Linha sem marca reconhecida (cadastro incompleto) fica fora dos dois
+      // agregados -- de "combined" e de qualquer marca especifica -- e nao
+      // some silenciosamente: entra na diferenca entre `total` aqui e o
+      // headcount do card ao lado, que e onde da para notar.
+      if (!marca) return;
+      if (brand !== 'combined' && marca !== brand) return;
+      acc[c.contract] = (acc[c.contract] ?? 0) + c.n;
+    });
     const total = Object.values(acc).reduce((s, n) => s + n, 0);
     return { clt: acc['CLT'] ?? 0, pj: acc['PJ'] ?? 0, total };
   })();
