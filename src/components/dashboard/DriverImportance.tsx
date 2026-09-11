@@ -48,11 +48,17 @@ import { perguntasNoRecorte } from '@/lib/drill';
 
 const fmt2 = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Ordem escolhida para bater com a posição espacial dos quadrantes no
+// gráfico (topo-esquerda → topo-direita → baixo-esquerda → baixo-direita), e
+// não pela "importância" do rótulo. Os cards abaixo do gráfico são gerados a
+// partir de `Object.keys(QUADRANTES)` num grid de 2 colunas, então a ordem
+// aqui É a ordem de leitura na tela -- mudar a ordem dos cards sem mudar esta
+// lista os desalinha de novo do gráfico.
 const QUADRANTES = {
-  prioridade: {
-    label: 'Prioridade',
-    desc: 'Menos gente concorda que na pergunta mediana, e forte associação com engajamento. É onde um ponto ganho tende a render mais.',
-    color: COLORS.danger,
+  base: {
+    label: 'Base tranquila',
+    desc: 'Concordância alta e associação fraca. Nada a fazer por ora.',
+    color: COLORS.info,
   },
   sustentar: {
     label: 'Sustentar',
@@ -64,10 +70,10 @@ const QUADRANTES = {
     desc: 'Concordância baixa e associação fraca. Problema real, só que não é o que separa engajado de desengajado. Merece conversa própria, com outro indicador.',
     color: COLORS.warning,
   },
-  base: {
-    label: 'Base tranquila',
-    desc: 'Concordância alta e associação fraca. Nada a fazer por ora.',
-    color: COLORS.info,
+  prioridade: {
+    label: 'Prioridade',
+    desc: 'Menos gente concorda que na pergunta mediana, e forte associação com engajamento. É onde um ponto ganho tende a render mais.',
+    color: COLORS.danger,
   },
 } as const;
 
