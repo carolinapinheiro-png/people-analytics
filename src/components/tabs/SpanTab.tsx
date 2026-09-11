@@ -11,8 +11,9 @@ import { COLORS } from '@/lib/colors';
 import { useDashboard } from '@/data/DashboardContext';
 
 /**
- * Span de controle calculado da cadeia real de reporte (Talent Mobility),
- * nao mais fabricado. So agregados; sem nomes individuais.
+ * Span de controle calculado AO VIVO da cadeia real de reporte
+ * (org_pessoas), a cada carregamento da aba -- ver span.functions.ts.
+ * So agregados; sem nomes individuais.
  */
 
 const fmt1 = (n: number | null | undefined) =>
@@ -65,13 +66,14 @@ export default function SpanTab() {
           Span de Controle
         </h2>
         <p className="text-sm text-muted-foreground">
-          Calculado da cadeia real de reporte do Talent Mobility (jul/2026). Só agregados — sem nomes.
+          Calculado ao vivo, direto da cadeia de reporte do Convenia — atualiza sozinho a cada
+          sincronização. Só agregados — sem nomes.
         </p>
       </div>
 
       <div className="rounded-lg border border-border/50 bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
         <strong>Gestor ≠ Líder.</strong> Aqui &quot;gestor&quot; é quem tem pelo menos um reporte direto na
-        cadeia ({fmt1(overall?.managers)} pessoas, sobre {fmt1(overall?.actives)} ativos do Talent Mobility).
+        cadeia ({fmt1(overall?.managers)} pessoas, sobre {fmt1(overall?.actives)} ativos).
         No DEI/Overview, &quot;líder&quot; é quem está marcado como liderança no cadastro (flag
         &quot;Liderança?&quot;) — populações e critérios diferentes, por isso os números não batem (ex.: ~130
         líderes marcados no consolidado × {fmt1(overall?.managers)} gestores com reportes).
@@ -149,8 +151,13 @@ export default function SpanTab() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Span médio geral de {fmt1(overall?.avg_span)} reports por gestor. Operation e Porto concentram
-        os maiores times; Legal & Compliance e Commercial, os mais enxutos.
+        Span médio geral de {fmt1(overall?.avg_span)} reports por gestor.
+        {depts.length > 1 && depts[0].scope !== depts[depts.length - 1].scope && (
+          <>
+            {' '}{depts[0].scope} concentra os maiores times; {depts[depts.length - 1].scope}, os
+            mais enxutos.
+          </>
+        )}
       </p>
     </div>
   );
