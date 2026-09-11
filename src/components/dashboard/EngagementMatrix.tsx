@@ -71,25 +71,31 @@ interface Ponto {
 }
 
 const QUADRANTES = {
-  cuidar: {
-    label: "Manter e aprender",
-    desc: "Engajamento acima da mediana e risco abaixo. É onde vale entender o que está funcionando para tentar repetir.",
-    color: COLORS.success,
+  // Ordem escolhida para bater com a posição espacial dos quadrantes no
+  // gráfico (topo-esquerda → topo-direita → baixo-esquerda → baixo-direita),
+  // e não pela "importância" do rótulo. Os cards abaixo do gráfico são
+  // gerados a partir de `Object.keys(QUADRANTES)` num grid de 2 colunas, então
+  // a ordem aqui É a ordem de leitura na tela -- mudar a ordem dos cards sem
+  // mudar esta lista os desalinha de novo do gráfico.
+  agir: {
+    label: "Agir primeiro",
+    desc: "Engajamento abaixo da mediana e risco acima. Combinação que costuma virar saída nos meses seguintes.",
+    color: COLORS.danger,
   },
   vigiar: {
     label: "Engajado, mas de saída",
     desc: "Gostam da empresa e mesmo assim pensam em sair. Quase sempre é carreira ou remuneração, não clima.",
     color: COLORS.warning,
   },
-  agir: {
-    label: "Agir primeiro",
-    desc: "Engajamento abaixo da mediana e risco acima. Combinação que costuma virar saída nos meses seguintes.",
-    color: COLORS.danger,
-  },
   ouvir: {
     label: "Baixo engajamento, risco contido",
     desc: "Insatisfação sem intenção de sair. Tende a aparecer como queda de entrega antes de aparecer como turnover.",
     color: COLORS.info,
+  },
+  cuidar: {
+    label: "Manter e aprender",
+    desc: "Engajamento acima da mediana e risco abaixo. É onde vale entender o que está funcionando para tentar repetir.",
+    color: COLORS.success,
   },
 } as const;
 
