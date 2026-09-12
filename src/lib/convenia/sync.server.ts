@@ -155,8 +155,14 @@ const VERSAO_DETALHE = 5;
  * 2: passa a guardar nome, cargo, salário, `Level`, `Job Type Family`, gênero
  *    e raça -- tudo o que a aba de Desligamentos lia da planilha manual, e que
  *    já vinha nesta mesma resposta.
+ * 3: passa a guardar `vinculo` (CLT/PJ/Sócio, cru do `relationship` do
+ *    detalhe) -- último campo que faltava para a aba de Desligamentos parar
+ *    de ler `leavers` (planilha manual) e passar a ler `convenia_leavers`
+ *    direto. Mesma resposta de novo; nenhuma requisição a mais. Sobe a
+ *    versão para reenfileirar os já lidos, senão `vinculo` fica vazio para
+ *    sempre em quem já tinha `detalhe_versao` 2.
  */
-const VERSAO_DESLIGADO = 2;
+const VERSAO_DESLIGADO = 3;
 
 /**
  * O Convenia devolve salário ora como número, ora como string no formato
@@ -1023,6 +1029,10 @@ export async function executarSyncConvenia(
                   typeof det.gender === 'string' ? det.gender : (det.gender as { name?: string })?.name,
                 );
                 const racaSaida = (det.ethnicity as { name?: string } | null)?.name ?? null;
+                // Cru (CLT/Pessoa Jurídica/Sócio), como o resto do arquivo lê
+                // vínculo -- a tradução para rótulo de UI, se um dia precisar,
+                // é de quem exibe, não daqui.
+                const vinculoSaida = textoDe(det.relationship);
 
                 // SÓ GUARDA O QUE SERVE. Cachear um nulo transformaria uma
                 // falha temporária em permanente: a pessoa nunca mais seria
@@ -1056,7 +1066,12 @@ export async function executarSyncConvenia(
                   job_type_family: familiaSaida,
                   genero: generoSaida,
                   raca: racaSaida,
+                  vinculo: vinculoSaida,
                   detalhe_versao: VERSAO_DESLIGADO,
+                  // Marca esta linha como tocada agora -- é o que permite o
+                  // selo de frescor da aba de Desligamentos distinguir "sync
+                  // rodou e não achou ninguém novo" de "sync parou de rodar".
+                  fetched_at: new Date().toISOString(),
                 }, { onConflict: 'convenia_id' });
               } catch {
                 // Uma pessoa que falha não derruba a carga. Ela fica sem

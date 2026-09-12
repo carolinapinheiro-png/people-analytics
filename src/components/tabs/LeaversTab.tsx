@@ -297,7 +297,7 @@ export default function LeaversTab() {
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <ChartCard title="Por Tipo de Desligamento" subtitle="'Outros' = tipos fora de voluntário/involuntário/acordo">
+        <ChartCard title="Por Tipo de Desligamento" subtitle="'Outros' = tudo fora de voluntário/involuntário (acordo, fim de contrato, etc.)">
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie

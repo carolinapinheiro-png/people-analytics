@@ -49,6 +49,15 @@ interface Spec {
   source: string;
   expectedDays: number;
   note?: string;
+  /**
+   * Quando "última carga" não é a data mais recente em `table` -- por exemplo
+   * `convenia_leavers` só é TOCADA quando alguém se desliga, então uma semana
+   * sem saída pareceria sync parada mesmo com o job rodando direitinho toda
+   * segunda. Aqui a data vem de outra tabela (o log de sincronização),
+   * filtrada pelo provedor certo; `table`/`column` continuam valendo só para
+   * a contagem de linhas.
+   */
+  dateFrom?: { table: string; column: string; filterColumn: string; filterValue: string };
 }
 
 const SPECS: Spec[] = [
@@ -79,11 +88,21 @@ const SPECS: Spec[] = [
   },
   {
     key: 'leavers',
-    table: 'leavers',
-    column: 'created_at',
+    table: 'convenia_leavers',
+    column: 'dismissal_date',
     label: 'Desligamentos individuais',
-    source: 'Carga manual',
-    expectedDays: 40,
+    source: 'Convenia — sincronização semanal automática',
+    // 10 dias: o job roda toda segunda (ver cron.job `sync-convenia-semanal`).
+    // A data em si vem do LOG de sync, não da tabela de desligados -- ver
+    // `dateFrom`: sem saída na semana, `convenia_leavers` não é tocada, e
+    // isso não pode se ler como "a sincronização parou".
+    expectedDays: 10,
+    dateFrom: {
+      table: 'integration_sync_log',
+      column: 'finished_at',
+      filterColumn: 'provider',
+      filterValue: 'convenia',
+    },
   },
   {
     key: 'work_model',
@@ -138,14 +157,23 @@ export const getDataFreshness = createServerFn({ method: 'GET' })
         const { count } = await db
           .from(s.table)
           .select('*', { count: 'exact', head: true });
-        const { data } = await db
-          .from(s.table)
-          .select(s.column)
-          .order(s.column, { ascending: false })
-          .limit(1)
-          .maybeSingle();
 
-        const raw = (data as Record<string, string> | null)?.[s.column] ?? null;
+        // A data de "ultima carga" normalmente vem da mesma tabela contada
+        // acima; quando nao vem (ver `dateFrom`), a consulta troca de tabela
+        // e ganha um filtro -- por exemplo, so as execucoes do Convenia no
+        // log de sincronizacao, e nao as do InHire que moram no mesmo log.
+        const alvo = s.dateFrom ?? { table: s.table, column: s.column };
+        let consultaData = db
+          .from(alvo.table)
+          .select(alvo.column)
+          .order(alvo.column, { ascending: false })
+          .limit(1);
+        if (s.dateFrom) {
+          consultaData = consultaData.eq(s.dateFrom.filterColumn, s.dateFrom.filterValue);
+        }
+        const { data } = await consultaData.maybeSingle();
+
+        const raw = (data as Record<string, string> | null)?.[alvo.column] ?? null;
         const ageDays = raw ? Math.floor((now - new Date(raw).getTime()) / 86_400_000) : null;
         return {
           key: s.key,
