@@ -45,20 +45,32 @@ export interface SpanRow {
 }
 
 type OrgRow = { convenia_id: string; supervisor_id: string | null; department: string | null };
-type StatusRow = { convenia_id: string; status: string | null };
 
 /**
- * Quem está fora do headcount ativo. Mesma régua que `sync.server.ts` usa
- * para popular a população do comp-ratio a partir de `org_pessoas`: status
- * "Desligado" no cadastro.
+ * Quem está fora do headcount ativo.
  *
- * `org_pessoas` é upsert-only -- ninguém a apaga quando a pessoa sai (ver a
- * migração `20260814200000_org_pessoas.sql`). Sem este filtro, quem saiu
- * meses atrás continuaria contando como ativo e como gestor aqui para
- * sempre, porque a linha dele nunca é tocada de novo.
+ * A PRIMEIRA VERSÃO checava `convenia_pessoas.status != 'Desligado'` -- e não
+ * excluía NINGUÉM: em 646 pessoas de `org_pessoas`, o status vem só como
+ * "Ativo", "Em férias" ou nulo. Nunca "Desligado". O campo só é atualizado
+ * quando a pessoa aparece na LISTAGEM DE ATIVOS do Convenia naquela
+ * sincronização -- quando ela sai, a linha simplesmente para de ser tocada
+ * e o status fica congelado no último valor que tinha. `org_pessoas` é
+ * upsert-only pelo mesmo motivo (ver a migração `20260814200000`): ninguém
+ * apaga quem sai, então sem um filtro que funcione de verdade, quem saiu
+ * meses atrás continua contando como ativo, e até como gestor, para sempre.
+ *
+ * A régua que realmente funciona é a mesma que a série mensal usa para
+ * headcount (ver `reconstruirSerie` em pessoas.ts): não confiar em nenhum
+ * campo de status, e sim checar se a pessoa está na listagem de DESLIGADOS
+ * (`convenia_leavers`). Testado contra o headcount oficial de set/2026 (636):
+ * o filtro por status devolvia 646 ativos; por ausência em `convenia_leavers`,
+ * 640 -- os 4 que sobram são desligamentos recentes que a listagem do
+ * Convenia ainda não capturou, e se resolvem sozinhos na sincronização
+ * semanal seguinte (mesma defasagem que já existe no resto da carga).
  */
-const ativo = (status: string | null | undefined) =>
-  String(status ?? '').trim().toLowerCase() !== 'desligado';
+function paraAtivo(orgRow: OrgRow, desligados: Set<string>) {
+  return !desligados.has(orgRow.convenia_id);
+}
 
 const SEM_DEPTO = 'SEM DEPTO';
 const deptoDe = (v: string | null) => normalizeDept(v) || SEM_DEPTO;
@@ -80,21 +92,21 @@ export const getSpanSnapshot = createServerFn({ method: 'GET' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
 
-    const [{ data: orgData, error: orgErr }, { data: statusData, error: statusErr }] =
+    const [{ data: orgData, error: orgErr }, { data: leaverData, error: leaverErr }] =
       await Promise.all([
         db.from('org_pessoas').select('convenia_id, supervisor_id, department'),
-        db.from('convenia_pessoas').select('convenia_id, status'),
+        db.from('convenia_leavers').select('convenia_id'),
       ]);
     if (orgErr) throw new Error(`Falha ao carregar o organograma: ${orgErr.message}`);
-    if (statusErr) throw new Error(`Falha ao carregar o cadastro: ${statusErr.message}`);
+    if (leaverErr) throw new Error(`Falha ao carregar os desligados: ${leaverErr.message}`);
 
     const orgRows = (orgData ?? []) as OrgRow[];
-    const statusPorId = new Map<string, string | null>(
-      ((statusData ?? []) as StatusRow[]).map((r) => [String(r.convenia_id), r.status]),
+    const desligados = new Set(
+      (leaverData as Array<{ convenia_id: string }> ?? []).map((r) => String(r.convenia_id)),
     );
 
     const ativos = orgRows
-      .filter((r) => ativo(statusPorId.get(String(r.convenia_id))))
+      .filter((r) => paraAtivo(r, desligados))
       .map((r) => ({
         id: String(r.convenia_id),
         supervisorId: r.supervisor_id ? String(r.supervisor_id) : null,
