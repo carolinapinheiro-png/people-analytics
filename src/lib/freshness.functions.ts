@@ -162,16 +162,20 @@ export const getDataFreshness = createServerFn({ method: 'GET' })
         // acima; quando nao vem (ver `dateFrom`), a consulta troca de tabela
         // e ganha um filtro -- por exemplo, so as execucoes do Convenia no
         // log de sincronizacao, e nao as do InHire que moram no mesmo log.
+        //
+        // FILTRO ANTES de order/limit -- na primeira versão vinha depois, e
+        // o selo de Desligamentos aparecia como "sem registro de carga"
+        // mesmo com sync rodando. Mesma convenção já usada em
+        // experience.functions.ts (`.eq(...).order(...)`); não inverter.
         const alvo = s.dateFrom ?? { table: s.table, column: s.column };
-        let consultaData = db
-          .from(alvo.table)
-          .select(alvo.column)
-          .order(alvo.column, { ascending: false })
-          .limit(1);
+        let consultaData = db.from(alvo.table).select(alvo.column);
         if (s.dateFrom) {
           consultaData = consultaData.eq(s.dateFrom.filterColumn, s.dateFrom.filterValue);
         }
-        const { data } = await consultaData.maybeSingle();
+        const { data } = await consultaData
+          .order(alvo.column, { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
         const raw = (data as Record<string, string> | null)?.[alvo.column] ?? null;
         const ageDays = raw ? Math.floor((now - new Date(raw).getTime()) / 86_400_000) : null;
