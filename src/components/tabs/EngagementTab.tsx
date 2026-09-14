@@ -285,9 +285,25 @@ function EngagementSection({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center gap-2">
+        <button
+          type="button"
+          onClick={baixarPdf}
+          disabled={exportando}
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {exportando
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : <Download className="h-3.5 w-3.5" />}
+          {exportando ? 'Gerando PDF…' : 'Baixar PDF'}
+        </button>
         <FreshnessBadge dataset="engagement" />
       </div>
+
+      {/* Tudo que entra no PDF fica dentro deste bloco: a exportação captura o
+          DOM já filtrado, então o recorte ativo vem de graça. */}
+      <div ref={exportRef} className="space-y-4">
+
 
       {/* ------------------------------------------------------------------
           FILTRO DE PERFIL ATIVO: A TELA VIRA A DAQUELE GRUPO
