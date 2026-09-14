@@ -2156,11 +2156,12 @@ export async function executarSyncConvenia(
       const { montarCompRatio, resumoDaCarga } = await import('@/lib/comp-ratio-convenia');
       const { valorDe, lerCustomFields: ler } = await import('./custom-fields');
 
-      const [cadRes, orgRes, bandasRes] = await Promise.all([
+      const [cadRes, orgRes, bandasRes, leaversRes] = await Promise.all([
         db.from('convenia_pessoas')
           .select('convenia_id, salary, team, job_title, hiring_date, status, custom_fields, relationship, empresa, detalhe_versao'),
         db.from('org_pessoas').select('convenia_id, nome, department'),
         db.from('salary_bands').select('job_family, contract, level, minimum, midpoint, maximum'),
+        db.from('convenia_leavers').select('convenia_id'),
       ]);
 
       const bandas = ((bandasRes.data ?? []) as Array<Record<string, unknown>>).map((b) => ({
@@ -2171,6 +2172,9 @@ export async function executarSyncConvenia(
         ((orgRes.data ?? []) as Array<{ convenia_id: string; nome: string | null; department: string | null }>)
           .map((o) => [o.convenia_id, o]),
       );
+      const desligados = new Set(
+        ((leaversRes.data ?? []) as Array<{ convenia_id: string }>).map((r) => String(r.convenia_id)),
+      );
 
       // ------------------------------------------------------------------
       // A POPULAÇÃO É O ORGANOGRAMA, NÃO A TABELA INTEIRA
@@ -2180,12 +2184,19 @@ export async function executarSyncConvenia(
       // listagem. A primeira prévia deu "0 de 809 com faixa" por isso: 809 é a
       // tabela inteira, e a resposta certa nem os incluía.
       //
-      // `org_pessoas` é reescrito a cada carga com quem está ativo hoje --
-      // 636 pessoas. É essa a população do comp-ratio, e usá-la também faz o
-      // denominador do aviso ser o número que a pessoa reconhece na tela.
+      // `org_pessoas` é upsert-only e NÃO se resume a quem está ativo hoje --
+      // acumula todo mundo que já apareceu ativo alguma vez (646 pessoas em
+      // set/2026, não 636). O filtro por `status != 'Desligado'` que existia
+      // aqui não excluía NINGUÉM: nesta base o campo só vem como "Ativo", "Em
+      // férias" ou nulo -- ele é escrito pela listagem de ATIVOS, e quando a
+      // pessoa sai a linha simplesmente para de ser tocada. Mesmo bug do
+      // Span de Controle (ver span.functions.ts), mesma correção: a régua boa
+      // é ausência em `convenia_leavers`, a mesma que a série mensal usa para
+      // headcount. Testado: 6 das 646 pessoas de `org_pessoas` já tinham
+      // saída registrada e ainda apareciam com comp-ratio.
       const cadastro = ((cadRes.data ?? []) as Array<Record<string, unknown>>)
         .filter((c) => org.has(String(c.convenia_id)))
-        .filter((c) => String(c.status ?? '').toLowerCase() !== 'desligado');
+        .filter((c) => !desligados.has(String(c.convenia_id)));
 
       const linhas = montarCompRatio(cadastro.map((c) => {
         const campos = ler(c.custom_fields);

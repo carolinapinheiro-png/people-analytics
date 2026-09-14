@@ -80,10 +80,18 @@ const SPECS: Spec[] = [
   {
     key: 'comp_ratio',
     table: 'comp_ratio',
-    column: 'created_at',
+    // `atualizado_em`, não `created_at`. `created_at` é preenchido só no
+    // INSERT (default now()) e nunca mais tocado -- lido, o selo ia ficar
+    // atrasado para sempre mesmo com a carga rodando toda semana, porque a
+    // maioria das linhas já existia de antes. `atualizado_em` é escrito em
+    // TODO upsert (ver sync.server.ts), inclusive quando o valor não muda.
+    column: 'atualizado_em',
     label: 'Comp ratio e faixas',
-    source: 'Base de remuneração — carga manual',
-    expectedDays: 120,
+    source: 'Convenia — sincronização semanal automática',
+    // 10 dias: mesma cadência do Convenia (cron.job `sync-convenia-semanal`).
+    // Passou a ser gravada a cada carga em set/2026; a planilha que alimentava
+    // antes parou em junho.
+    expectedDays: 10,
     note: 'Não cobre a área de HR nem parte da diretoria.',
   },
   {
