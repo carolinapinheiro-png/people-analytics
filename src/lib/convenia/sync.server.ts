@@ -1701,29 +1701,20 @@ export async function executarSyncConvenia(
       // Enquanto falta gente, isto PEDE uma ação (rodar de novo) e fica em
       // pendência. Quando fecha, vira recibo: informa e não cobra nada.
       // ------------------------------------------------------------------
-      // AS DUAS BASES DE DESLIGADOS, LADO A LADO
+      // AS DUAS BASES DE DESLIGADOS -- COMPARAÇÃO REMOVIDA EM set/2026
       // ------------------------------------------------------------------
-      // A aba de Desligamentos lê `leavers` (planilha, manual) e a carga grava
-      // `convenia_leavers`. Ninguém comparava as duas, e a diferença -- 138
-      // contra 65 -- só apareceu porque o selo de frescor reclamou.
+      // Este bloco comparava `convenia_leavers` (o que a carga grava) com
+      // `leavers` (planilha manual que a aba de Desligamentos lia) e avisava
+      // toda vez que os dois números divergissem -- o "dois números na mesma
+      // frase" que impede uma fonte de envelhecer em silêncio.
       //
-      // Enquanto a aba não migrar, a comparação fica aqui: dois números na
-      // mesma frase é o que impede uma fonte de envelhecer em silêncio.
-      try {
-        const [cl, lv] = await Promise.all([
-          db.from('convenia_leavers').select('convenia_id'),
-          db.from('leavers').select('id'),
-        ]);
-        const nConvenia = ((cl.data ?? []) as unknown[]).length;
-        const nPlanilha = ((lv.data ?? []) as unknown[]).length;
-        if (nConvenia !== nPlanilha) {
-          avisos.push(
-            `Desligados: o Convenia conhece ${nConvenia} e a planilha que a aba LE tem ${nPlanilha}. `
-            + 'A aba de Desligamentos ainda desenha a planilha -- a migracao depende das colunas '
-            + 'novas (salario, level, job family) terminarem de preencher.',
-          );
-        }
-      } catch { /* comparar e diagnostico; falhar aqui nao pode custar a carga */ }
+      // A aba migrou: `leavers.functions.ts` lê `convenia_leavers` direto,
+      // não mais a planilha (ver leavers.functions.ts). `leavers` continua
+      // no banco, mas congelada -- ninguém a escreve nem a lê mais. Manter
+      // esta comparação agora faria o oposto do que ela existia para fazer:
+      // como a planilha nunca mais muda e `convenia_leavers` só cresce, os
+      // dois números NUNCA MAIS vão bater, e o aviso dispararia em toda
+      // carga, para sempre -- viraria ruído, não sinal.
 
       const linhaCobertura =
         `Promocoes: historico salarial lido de ${lidosAlcancaveis} de ${totalPessoas} pessoas`

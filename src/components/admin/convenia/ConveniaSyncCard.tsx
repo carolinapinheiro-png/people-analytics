@@ -44,18 +44,23 @@ export function ConveniaSyncCard() {
         <div className="flex-1">
           <h3 className="text-base font-semibold">Rodar a carga</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Lê o cadastro do Convenia e grava: organograma, cargo, empresa, escritório e os
-            campos que os reports usam. Calcula também headcount, entradas, saídas e atrição
-            de cada mês, e grava como uma <strong>terceira série</strong> (<code>convenia</code>),
+            Lê o cadastro do Convenia e grava: cadastro base (nome, salário, custom fields) e
+            desligados -- sempre, mesmo em prévia. Calcula também comp-ratio e a evolução CLT/PJ
+            da NSX (gravam ao confirmar). Ao confirmar, grava ainda o <strong>organograma</strong>
+            {' '}(camada, cargo, empresa, escritório) e a <strong>série mensal</strong> (headcount,
+            entradas, saídas, atrição) como uma <strong>terceira série</strong> (<code>convenia</code>),
             ao lado da congelada e da reconstruída — nada é sobrescrito.
           </p>
-          {/* O cadastro grava na simulação também, e isso não é óbvio pelo nome
-              do botão. Quem lê "simular" espera que nada aconteça, e depois não
-              entende por que as colunas encheram. Só a SÉRIE MENSAL espera
-              confirmação -- ela é a que reescreve histórico. */}
+          {/* O cadastro base (convenia_pessoas) e os desligados gravam na simulação
+              também, e isso não é óbvio pelo nome do botão. Quem lê "simular" espera
+              que nada aconteça, e depois não entende por que as colunas encheram.
+              Organograma, série mensal, comp-ratio e evolução CLT/PJ esperam
+              confirmação -- são os que reescrevem histórico ou recalculam estrutura. */}
           <p className="mt-2 text-xs text-muted-foreground">
-            "Simular" já grava o cadastro das pessoas — é leitura barata e reversível. O que
-            espera confirmação é a <strong>série mensal</strong>, que reescreve histórico.
+            "Simular" já grava o cadastro base e os desligados — é leitura barata e reversível.
+            Comp-ratio e evolução CLT/PJ aparecem calculados na prévia, mas só gravam ao
+            confirmar -- junto com o <strong>organograma</strong> e a <strong>série mensal</strong>,
+            que reescrevem histórico.
           </p>
 
           <div className="mt-4 flex gap-2">
