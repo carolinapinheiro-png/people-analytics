@@ -1,5 +1,11 @@
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+// `html2canvas` puro não entende oklch()/oklab() -- e o Tailwind v4 deste
+// projeto usa esse formato por padrão em quase toda cor, inclusive no espaço
+// de interpolação dos gradientes ("in oklab"). Tentar reescrever cor por cor
+// no clone era perseguição sem fim; `html2canvas-pro` é o mesmo motor com
+// suporte nativo a oklch/oklab/lab/lch, então a captura não precisa saber
+// que o tema usa esse formato.
+import html2canvas from 'html2canvas-pro';
 import logoUrl from '@/assets/flutter-logo.webp';
 import { semFiltro, valorFiltro } from '@/lib/filtro-sentinela';
 
@@ -124,45 +130,6 @@ function desenharCapa(pdf: jsPDF, opts: ExportOpts, logo: string | null) {
   );
 }
 
-// Resolve oklch()/oklab() para rgb() usando o próprio browser: atribuir a
-// fillStyle de um canvas 2d converte a cor, e lê-la de volta já vem em rgb().
-function paraRgb(cor: string): string {
-  const ctx = document.createElement('canvas').getContext('2d');
-  if (!ctx) return cor;
-  try {
-    ctx.fillStyle = '#000';
-    ctx.fillStyle = cor;
-    return ctx.fillStyle as string;
-  } catch {
-    return cor;
-  }
-}
-
-// html2canvas não entende oklch()/oklab() (usados por alguns tokens do tema,
-// ex. --border no modo escuro) e quebra a captura. Isto varre o DOM CLONADO
-// que o html2canvas usa internamente (nunca a tela visível) e substitui
-// qualquer cor computada nesse formato por rgb() equivalente.
-function converterOklch(clonedDoc: Document) {
-  const PROPS = [
-    'color', 'background-color', 'border-top-color', 'border-right-color',
-    'border-bottom-color', 'border-left-color', 'outline-color',
-    'fill', 'stroke', 'stop-color',
-  ];
-  const view = clonedDoc.defaultView;
-  if (!view) return;
-
-  const nos = clonedDoc.querySelectorAll<HTMLElement>('*');
-  nos.forEach((no) => {
-    const computado = view.getComputedStyle(no);
-    for (const prop of PROPS) {
-      const valor = computado.getPropertyValue(prop);
-      if (valor && (valor.includes('oklch(') || valor.includes('oklab('))) {
-        no.style.setProperty(prop, paraRgb(valor), 'important');
-      }
-    }
-  });
-}
-
 export async function exportEngagementPdf(
   element: HTMLElement,
   opts: ExportOpts = {},
@@ -173,7 +140,6 @@ export async function exportEngagementPdf(
     useCORS: true,
     logging: false,
     windowWidth: element.scrollWidth,
-    onclone: converterOklch,
   });
 
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
