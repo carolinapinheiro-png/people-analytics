@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Download, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { exportEngagementPdf } from "@/lib/export-pdf";
 import { useServerFn } from "@tanstack/react-start";
 import {
   getExperienceData,
@@ -283,11 +286,59 @@ function EngagementSection({
 
   const janela = cross ? janelaLabel(cross.janelaInicio, cross.janelaFim) : "";
 
+  // ------------------------------------------------------------------
+  // EXPORTAÇÃO PARA PDF
+  // ------------------------------------------------------------------
+  // A captura é do DOM visível: não reimplementa filtro nenhum, e o que o
+  // líder recebe é literalmente a tela que a pessoa estava olhando. O bloco
+  // "Detalhe e metodologia" fechado sai de fora de propósito -- ele é a
+  // resposta a "como chegaram nesse número", não o relatório.
+  const exportRef = useRef<HTMLDivElement>(null);
+  const [exportando, setExportando] = useState(false);
+
+  const baixarPdf = async () => {
+    const el = exportRef.current;
+    if (!el || exportando) return;
+    setExportando(true);
+    try {
+      await exportEngagementPdf(el, {
+        departamento: deptSel,
+        tempoCasa: filters.tempoCasa,
+        modeloTrabalho: filters.modeloTrabalho,
+        marcaProduto: filters.marcaProduto,
+        ondaLabel: survey?.label ?? null,
+        janela,
+      });
+    } catch (e) {
+      toast.error('Não foi possível gerar o PDF', {
+        description: e instanceof Error ? e.message : 'Tente novamente.',
+      });
+    } finally {
+      setExportando(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center gap-2">
+        <button
+          type="button"
+          onClick={baixarPdf}
+          disabled={exportando}
+          className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {exportando
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : <Download className="h-3.5 w-3.5" />}
+          {exportando ? 'Gerando PDF…' : 'Baixar PDF'}
+        </button>
         <FreshnessBadge dataset="engagement" />
       </div>
+
+      {/* Tudo que entra no PDF fica dentro deste bloco: a exportação captura o
+          DOM já filtrado, então o recorte ativo vem de graça. */}
+      <div ref={exportRef} className="space-y-4">
+
 
       {/* ------------------------------------------------------------------
           FILTRO DE PERFIL ATIVO: A TELA VIRA A DAQUELE GRUPO
@@ -792,6 +843,7 @@ function EngagementSection({
       </Detalhe>
       </>
       )}
+      </div>
     </div>
   );
 }
