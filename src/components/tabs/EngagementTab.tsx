@@ -293,8 +293,9 @@ function EngagementSection({
   // ------------------------------------------------------------------
   // A captura é do DOM visível: não reimplementa filtro nenhum, e o que o
   // líder recebe é literalmente a tela que a pessoa estava olhando. O bloco
-  // "Detalhe e metodologia" fechado sai de fora de propósito -- ele é a
-  // resposta a "como chegaram nesse número", não o relatório.
+  // "Detalhe e metodologia" sempre entra no PDF, mesmo recolhido na tela: o
+  // handler abre o accordion, espera o layout assentar, captura, e restaura
+  // o estado original.
   const exportRef = useRef<HTMLDivElement>(null);
   const [exportando, setExportando] = useState(false);
 
