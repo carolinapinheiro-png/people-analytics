@@ -2307,6 +2307,84 @@ export async function executarSyncConvenia(
       );
     }
 
+    // ======================================================================
+    // EVOLUÇÃO CLT/PJ, A PARTIR DO CONVENIA
+    // ======================================================================
+    // `contract_mix_monthly` tinha uma série fixa (jan/2025-jul/2026, só
+    // NSX), gravada uma vez em 30/07/2026 -- e sem jeito de crescer: a
+    // importação que a alimentava foi removida em 12/08.
+    //
+    // O vínculo (`convenia_pessoas.relationship`) hoje tem cobertura de 100%
+    // entre os ativos, nas cinco empresas -- inclusive Betfair e Flutter
+    // International, que a nota original de `marca.ts` dizia não ter série
+    // confiável (vinha de Workday, antes da unificação de bases em 01/09).
+    //
+    // O QUE ISTO NÃO FAZ: reescrever o passado. `relationship` é o vínculo
+    // ATUAL de cada pessoa, não o que ela tinha em cada mês passado -- essa
+    // informação não sobrevive em nenhuma tabela viva. Por isso esta carga
+    // grava só o MÊS CORRENTE, sobrescrevendo-o a cada execução -- mesmo
+    // padrão da série mensal, que também recalcula o mês corrente do zero a
+    // cada sincronização. jan/2025-jul/2026 continuam congelados como
+    // estavam; agosto/2026 fica como um buraco real na série, porque não há
+    // como reconstruí-lo sem inventar vínculo que ninguém registrou.
+    try {
+      const { montarEvolucaoCLTPJ } = await import('@/lib/contract-mix-convenia');
+      const mesAtual = `${new Date().toISOString().slice(0, 7)}-01`;
+
+      const [orgResCM, cadResCM, leaversResCM] = await Promise.all([
+        db.from('org_pessoas').select('convenia_id'),
+        db.from('convenia_pessoas').select('convenia_id, relationship, empresa'),
+        db.from('convenia_leavers').select('convenia_id'),
+      ]);
+
+      const ativosIdsCM = new Set(
+        ((orgResCM.data ?? []) as Array<{ convenia_id: string }>).map((r) => String(r.convenia_id)),
+      );
+      const desligadosCM = new Set(
+        ((leaversResCM.data ?? []) as Array<{ convenia_id: string }>).map((r) => String(r.convenia_id)),
+      );
+
+      // Mesma régua do Span e do Comp-ratio: ativo é quem está em
+      // `org_pessoas` e não tem saída conhecida em `convenia_leavers` -- não
+      // um campo de status, que nesta base nunca vem "Desligado".
+      const ativosCM = ((cadResCM.data ?? []) as Array<{
+        convenia_id: string; relationship: string | null; empresa: string | null;
+      }>).filter((c) => ativosIdsCM.has(String(c.convenia_id)) && !desligadosCM.has(String(c.convenia_id)));
+
+      const diaDoMesCM = Math.floor(new Date(mesAtual).getTime() / 86_400_000);
+      const { linhas: linhasBaseCM, semMarca: semMarcaCM } = montarEvolucaoCLTPJ(ativosCM, diaDoMesCM);
+      // Só NSX, por enquanto: o gráfico (SalaryTab.tsx) soma por (mês,
+      // contrato) sem considerar marca -- gravar Betfair e Flutter
+      // International faria as três se sobrescreverem no mesmo mês em vez de
+      // somar. `montarEvolucaoCLTPJ` já calcula as três (cobertura de vínculo
+      // é 100% nas cinco empresas agora); o recorte para uma é decisão de
+      // quem grava, não da função pura -- ampliar depois é tirar este filtro
+      // e ajustar a agregação da tela, não recalcular nada aqui.
+      const linhasCM = linhasBaseCM
+        .filter((l) => l.brand === 'NSX')
+        .map((l) => ({ month: mesAtual, ...l, loaded_at: new Date().toISOString() }));
+
+      if (confirm && linhasCM.length) {
+        const { error } = await db.from('contract_mix_monthly')
+          .upsert(linhasCM as never, { onConflict: 'month,brand,contract' });
+        if (error) throw new Error(error.message);
+      }
+
+      avisos.push(
+        `Evolução CLT/PJ${confirm ? '' : ' (prévia, não gravada)'}: `
+        + `${ativosCM.length - semMarcaCM} de ${ativosCM.length} ativos classificados em `
+        + `${mesAtual.slice(0, 7)} (todas as marcas); só NSX é gravada nesta tabela`
+        + (semMarcaCM ? ` — ${semMarcaCM} sem \`Empresa\` reconhecida, não entraram em nenhuma marca.` : '.'),
+      );
+    } catch (e) {
+      // Mesma filosofia do comp-ratio: falhar aqui não pode derrubar o resto
+      // da carga. O que fica parado é só a Evolução CLT/PJ.
+      const msgCM = e instanceof Error ? e.message : String(e);
+      avisos.push(
+        `Evolução CLT/PJ não atualizada: ${msgCM}. O resto da carga entrou normalmente.`,
+      );
+    }
+
     const out: ResumoSyncConvenia = {
       gravado: false,
       genero: {

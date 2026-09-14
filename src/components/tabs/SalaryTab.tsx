@@ -104,9 +104,14 @@ export default function SalaryTab() {
     return { groups, rows };
   }, [roleSplit, roleDim]);
 
-  const CONTRACT_ORDER = ['CLT', 'PJ', 'Aprendiz', 'Estatutário/Sócio'];
+  // 'Outros' entrou quando a série passou a ser gravada ao vivo do Convenia
+  // (set/2026): vínculos raros (ex.: "Contrato Intermitente") que não têm
+  // categoria própria caem aqui em vez de sumir da soma. Hoje só aparece se
+  // alguém da NSX tiver um desses vínculos -- a série congelada nunca tinha.
+  const CONTRACT_ORDER = ['CLT', 'PJ', 'Aprendiz', 'Estatutário/Sócio', 'Outros'];
   const CONTRACT_COLORS: Record<string, string> = {
     CLT: COLORS.nsx, PJ: COLORS.flutter, Aprendiz: COLORS.purple, 'Estatutário/Sócio': COLORS.orange,
+    Outros: COLORS.gray500,
   };
   const contractTrend = useMemo(() => {
     if (!contractSeries || contractSeries.length === 0) return [];

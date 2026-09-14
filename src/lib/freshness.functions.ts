@@ -74,8 +74,12 @@ const SPECS: Spec[] = [
     table: 'contract_mix_monthly',
     column: 'loaded_at',
     label: 'Evolução CLT/PJ',
-    source: 'Talent Mobility (mesma importação)',
-    expectedDays: 40,
+    source: 'Convenia — mês corrente automático; histórico (jan/2025-jul/2026) congelado',
+    // 10 dias: a carga grava (sobrescreve) o mês corrente a cada
+    // sincronização semanal. Diferente de monthly_metrics, isto NÃO
+    // reconstrói o passado -- só o mês em que a carga está rodando.
+    expectedDays: 10,
+    note: 'Vínculo é o ATUAL de cada pessoa, não o de cada mês passado — ago/2026 ficou sem dado.',
   },
   {
     key: 'comp_ratio',
