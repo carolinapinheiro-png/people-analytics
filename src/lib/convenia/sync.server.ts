@@ -161,8 +161,15 @@ const VERSAO_DETALHE = 5;
  *    direto. Mesma resposta de novo; nenhuma requisição a mais. Sobe a
  *    versão para reenfileirar os já lidos, senão `vinculo` fica vazio para
  *    sempre em quem já tinha `detalhe_versao` 2.
+ * 4: `empresa`/`marca` passam a vir do campo `Empresa` do cadastro da PRÓPRIA
+ *    pessoa (`empresaDe(det)` + `marcaDeEmpresa`), com o token só como
+ *    reserva -- antes vinham sempre do token que estava sendo sincronizado
+ *    na hora (`f.empresa`/`f.marca`), e todo desligado sem cadastro ativo
+ *    entrava com a marca de quem quer que estivesse sendo lido no momento,
+ *    não a dele. Mesma resposta de novo. Sobe a versão para corrigir
+ *    retroativamente quem já foi gravado com a marca errada.
  */
-const VERSAO_DESLIGADO = 3;
+const VERSAO_DESLIGADO = 4;
 
 /**
  * O Convenia devolve salário ora como número, ora como string no formato
@@ -1034,6 +1041,27 @@ export async function executarSyncConvenia(
                 // é de quem exibe, não daqui.
                 const vinculoSaida = textoDe(det.relationship);
 
+                // A EMPRESA É DO CADASTRO, NÃO DO TOKEN QUE ACHOU A PESSOA
+                // ------------------------------------------------------------
+                // Esta pessoa não está no cadastro de ativos desta rodada --
+                // é por isso que se está buscando o detalhe dela agora. Mas o
+                // detalhe traz o campo `Empresa` dela mesma, do jeito que a
+                // série mensal já lê via `empresaDe`/`marcaDeEmpresa` (ver
+                // `marca.ts`). Gravar `f.empresa`/`f.marca` (a empresa do
+                // TOKEN desta rodada do loop) faria todo desligado sem
+                // cadastro ativo entrar como se fosse da empresa que estava
+                // sendo sincronizada no momento -- não da empresa dele. Um
+                // desligado da Betfair, resolvido durante a rodada do token
+                // NSX Recife (a ordem dos tokens não tem nada a ver com quem
+                // é de quem), gravaria como NSX para sempre.
+                //
+                // Cai para o token só quando o cadastro não tem o campo --
+                // mesma régua de `marcaDeEmpresa`, que também prefere o
+                // cadastro e só recorre ao token quando o valor não casa com
+                // nenhuma marca conhecida.
+                const empresaSaida = empresaDe(det) ?? f.empresa;
+                const marcaSaida = marcaDeEmpresa(empresaSaida) ?? f.marca;
+
                 // SÓ GUARDA O QUE SERVE. Cachear um nulo transformaria uma
                 // falha temporária em permanente: a pessoa nunca mais seria
                 // buscada, e a série carregaria o buraco para sempre.
@@ -1052,8 +1080,8 @@ export async function executarSyncConvenia(
 
                 await db.from('convenia_leavers').upsert({
                   convenia_id: s.id,
-                  empresa: f.empresa,
-                  marca: f.marca,
+                  empresa: empresaSaida,
+                  marca: marcaSaida,
                   hiring_month: mesAdmissao,
                   dismissal_month: mesDe(s.data),
                   department: area,
