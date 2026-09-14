@@ -301,8 +301,20 @@ function EngagementSection({
   const baixarPdf = async () => {
     const el = exportRef.current;
     if (!el || exportando) return;
+
+    // O PDF sempre leva o "Detalhe e metodologia", mesmo que o usuário esteja
+    // olhando a tela com ele recolhido. Abrimos, esperamos o layout assentar,
+    // capturamos, e devolvemos ao estado anterior para não mudar a tela.
+    const estavaAberto = detalheAberto;
+    if (!estavaAberto) {
+      setDetalheAberto(true);
+    }
+
     setExportando(true);
     try {
+      await new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), 0);
+      });
       await exportEngagementPdf(el, {
         departamento: deptSel,
         tempoCasa: filters.tempoCasa,
@@ -317,6 +329,9 @@ function EngagementSection({
       });
     } finally {
       setExportando(false);
+      if (!estavaAberto) {
+        setDetalheAberto(false);
+      }
     }
   };
 
