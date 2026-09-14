@@ -428,7 +428,7 @@ function EngagementSection({
                 : "."}
             </p>
           )}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div data-pdf-block="true" className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KpiCard
               label="eNPS"
               value={fmt1(foco.enps)}
@@ -886,7 +886,7 @@ function EngagementSection({
  */
 function TituloBloco({ titulo, resumo }: { titulo: string; resumo: string }) {
   return (
-    <div className="pt-6 pb-1 first:pt-0">
+    <div data-pdf-block="true" className="pt-6 pb-1 first:pt-0">
       <h3 className="text-sm font-semibold uppercase tracking-wider">{titulo}</h3>
       <p className="text-xs text-muted-foreground">{resumo}</p>
     </div>

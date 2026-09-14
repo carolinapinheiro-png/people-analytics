@@ -33,7 +33,7 @@ export default function ChartCard({
 }: ChartCardProps) {
   const a = ajuda ? AJUDA_GRAFICOS[ajuda] : null;
   return (
-    <div className={cn('bg-card border border-border rounded-lg p-4', className)}>
+    <div data-pdf-block="true" className={cn('bg-card border border-border rounded-lg p-4', className)}>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-center gap-2 min-w-0">
           {Icon && <Icon className="h-4 w-4 shrink-0 text-[hsl(var(--flutter))]" />}

@@ -15,6 +15,22 @@ import { semFiltro, valorFiltro } from '@/lib/filtro-sentinela';
  * A imagem sai do DOM já renderizado, então os filtros ativos vêm de graça --
  * não há lógica de filtro duplicada aqui. A capa existe para que o PDF, longe
  * da tela, ainda diga de qual recorte ele fala.
+ *
+ * ------------------------------------------------------------------
+ * A PAGINAÇÃO RESPEITA OS CARTÕES
+ * ------------------------------------------------------------------
+ * A primeira versão fatiava a imagem em alturas fixas, sem olhar pro que
+ * tinha dentro -- um cartão de gráfico podia sair com a metade de cima numa
+ * página e a de baixo na seguinte. Lido fora da tela, isso parece defeito,
+ * mesmo a informação estando toda lá.
+ *
+ * Os componentes que não podem ser cortados marcam a própria raiz com
+ * `data-pdf-block="true"` (ChartCard, o grid de KPIs, EngagementReading,
+ * SurveyTimeline, TituloBloco). Antes de fatiar, esta função lê a posição de
+ * cada um desses blocos e empurra o corte de página para ANTES do bloco --
+ * ele inteiro migra pra próxima página -- a menos que o bloco sozinho já seja
+ * maior que uma página inteira, caso em que não tem corte que resolva e ele é
+ * atravessado mesmo (ver `pontosDeCorte`).
  */
 
 export type ExportOpts = {
@@ -28,6 +44,12 @@ export type ExportOpts = {
 
 const A4 = { w: 210, h: 297 };
 const MARGEM = 12;
+const ESCALA = 2;
+// Espaço reservado em cada página de CONTEÚDO para o cabeçalho (título curto
+// + número de página) e o rodapé (data de geração). A capa não usa isto --
+// ela tem o próprio layout, desenhado à parte.
+const CABECALHO_H = 11;
+const RODAPE_H = 7;
 
 function rotulo(v: string | null | undefined): string {
   return valorFiltro(v) ?? 'Todos';
@@ -45,6 +67,13 @@ function slug(v: string): string {
 function dataArquivo(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+function tituloCurto(opts: ExportOpts): string {
+  const area = rotulo(opts.departamento);
+  return area === 'Todos'
+    ? 'Relatório de Engajamento — Flutter Brazil'
+    : `Relatório de Engajamento — ${area}`;
 }
 
 async function carregarLogo(): Promise<string | null> {
@@ -130,13 +159,82 @@ function desenharCapa(pdf: jsPDF, opts: ExportOpts, logo: string | null) {
   );
 }
 
+// Cabeçalho repetido em toda página de conteúdo: título curto à esquerda,
+// número de página à direita, com uma linha fina separando do gráfico.
+function desenharCabecalho(
+  pdf: jsPDF,
+  opts: ExportOpts,
+  pagina: number,
+  totalPaginas: number,
+) {
+  const y = MARGEM + 3;
+  pdf.setFontSize(9);
+  pdf.setTextColor(90, 90, 90);
+  pdf.text(tituloCurto(opts), MARGEM, y);
+  pdf.text(`Página ${pagina} de ${totalPaginas}`, A4.w - MARGEM, y, { align: 'right' });
+  pdf.setDrawColor(225, 225, 225);
+  pdf.line(MARGEM, y + 3, A4.w - MARGEM, y + 3);
+}
+
+// Rodapé repetido: só a data de geração, discreta -- quem recebe o PDF fora
+// do contexto do Slack (ou impresso) ainda sabe de quando é o número.
+function desenharRodape(pdf: jsPDF, dataGeracao: string) {
+  const y = A4.h - MARGEM + 4;
+  pdf.setFontSize(7.5);
+  pdf.setTextColor(150, 150, 150);
+  pdf.text(`Gerado em ${dataGeracao}`, MARGEM, y);
+  pdf.text('People Analytics — Flutter Brazil', A4.w - MARGEM, y, { align: 'right' });
+}
+
+type Bloco = { top: number; bottom: number };
+
+// Posição (em px do canvas capturado, já multiplicada pela escala) de cada
+// elemento marcado com `data-pdf-block`, relativa ao topo do elemento
+// exportado -- é com esses limites que os cortes de página desviam.
+function blocosProtegidos(element: HTMLElement, escala: number): Bloco[] {
+  const raiz = element.getBoundingClientRect();
+  return Array.from(element.querySelectorAll<HTMLElement>('[data-pdf-block]')).map((no) => {
+    const r = no.getBoundingClientRect();
+    return {
+      top: (r.top - raiz.top) * escala,
+      bottom: (r.bottom - raiz.top) * escala,
+    };
+  });
+}
+
+// Onde cortar a imagem entre páginas. Parte de fatias de altura fixa
+// (`fatiaMaxPx`) e, sempre que um corte cairia DENTRO de um bloco protegido,
+// empurra o corte para o topo do bloco -- ele inteiro migra pra próxima
+// página. Só não empurra quando isso deixaria a página atual vazia demais
+// (bloco maior que a própria página, ou colado no topo dela): nesse caso o
+// bloco é atravessado mesmo, por não caber inteiro em página nenhuma.
+function pontosDeCorte(alturaTotalPx: number, fatiaMaxPx: number, blocos: Bloco[]): number[] {
+  const pontos = [0];
+  let atual = 0;
+  while (atual < alturaTotalPx) {
+    let proximo = Math.min(atual + fatiaMaxPx, alturaTotalPx);
+    const bloco = blocos.find((b) => proximo > b.top && proximo < b.bottom);
+    if (bloco && bloco.top - atual > fatiaMaxPx * 0.25) {
+      proximo = bloco.top;
+    }
+    if (proximo <= atual) proximo = Math.min(atual + fatiaMaxPx, alturaTotalPx);
+    pontos.push(proximo);
+    atual = proximo;
+  }
+  return pontos;
+}
+
 export async function exportEngagementPdf(
   element: HTMLElement,
   opts: ExportOpts = {},
 ): Promise<void> {
+  // Medido ANTES da captura: depois que `html2canvas` clona o elemento pra
+  // um iframe fora da tela, a posição na tela real é a que importa aqui.
+  const blocos = blocosProtegidos(element, ESCALA);
+
   const canvas = await html2canvas(element, {
     backgroundColor: '#ffffff',
-    scale: 2,
+    scale: ESCALA,
     useCORS: true,
     logging: false,
     windowWidth: element.scrollWidth,
@@ -147,13 +245,22 @@ export async function exportEngagementPdf(
   desenharCapa(pdf, opts, logo);
 
   const larguraUtil = A4.w - MARGEM * 2;
-  const alturaUtil = A4.h - MARGEM * 2;
+  const alturaConteudoUtil = A4.h - MARGEM * 2 - CABECALHO_H - RODAPE_H;
   // Quantos pixels da imagem cabem numa página, na escala em que ela entra.
   const pxPorMm = canvas.width / larguraUtil;
-  const fatiaPx = Math.floor(alturaUtil * pxPorMm);
+  const fatiaMaxPx = Math.floor(alturaConteudoUtil * pxPorMm);
 
-  for (let topo = 0; topo < canvas.height; topo += fatiaPx) {
-    const altura = Math.min(fatiaPx, canvas.height - topo);
+  const cortes = pontosDeCorte(canvas.height, fatiaMaxPx, blocos)
+    .filter((v, i, arr) => i === 0 || v > arr[i - 1]); // descarta fatias de altura zero
+
+  const dataGeracao = new Date().toLocaleString('pt-BR');
+  const totalPaginas = cortes.length - 1;
+
+  for (let i = 0; i < totalPaginas; i++) {
+    const topo = cortes[i];
+    const baixo = cortes[i + 1];
+    const altura = baixo - topo;
+
     const fatia = document.createElement('canvas');
     fatia.width = canvas.width;
     fatia.height = altura;
@@ -164,16 +271,18 @@ export async function exportEngagementPdf(
     ctx.drawImage(canvas, 0, topo, canvas.width, altura, 0, 0, canvas.width, altura);
 
     pdf.addPage();
+    desenharCabecalho(pdf, opts, i + 1, totalPaginas);
     pdf.addImage(
       fatia.toDataURL('image/jpeg', 0.92),
       'JPEG',
       MARGEM,
-      MARGEM,
+      MARGEM + CABECALHO_H,
       larguraUtil,
       altura / pxPorMm,
       undefined,
       'FAST',
     );
+    desenharRodape(pdf, dataGeracao);
   }
 
   const area = semFiltro(opts.departamento)

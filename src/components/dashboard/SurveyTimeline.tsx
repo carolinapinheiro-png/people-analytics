@@ -77,7 +77,7 @@ export default function SurveyTimeline({ ondas }: { ondas?: OndaResumo[] }) {
   const semDado = lista.filter((o) => estadoDe(o) === 'vazia');
 
   return (
-    <div className="rounded-lg border border-border bg-card p-4">
+    <div data-pdf-block="true" className="rounded-lg border border-border bg-card p-4">
       <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
         De onde vem este número
       </p>

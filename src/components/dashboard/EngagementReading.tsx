@@ -234,6 +234,7 @@ export default function EngagementReading({
 
   return (
     <div
+      data-pdf-block="true"
       className="rounded-xl border border-border/80 p-5 md:p-6 shadow-sm ring-1 ring-border/40"
       style={{
         background:
