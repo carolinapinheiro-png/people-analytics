@@ -792,6 +792,7 @@ function EngagementSection({
       </Detalhe>
       </>
       )}
+      </div>
     </div>
   );
 }
