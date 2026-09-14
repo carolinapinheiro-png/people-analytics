@@ -284,6 +284,8 @@ function EngagementSection({
     }, 0);
   };
 
+  const [detalheAberto, setDetalheAberto] = useState(false);
+
   const janela = cross ? janelaLabel(cross.janelaInicio, cross.janelaFim) : "";
 
   // ------------------------------------------------------------------
