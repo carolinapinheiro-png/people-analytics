@@ -283,6 +283,38 @@ function EngagementSection({
 
   const janela = cross ? janelaLabel(cross.janelaInicio, cross.janelaFim) : "";
 
+  // ------------------------------------------------------------------
+  // EXPORTAÇÃO PARA PDF
+  // ------------------------------------------------------------------
+  // A captura é do DOM visível: não reimplementa filtro nenhum, e o que o
+  // líder recebe é literalmente a tela que a pessoa estava olhando. O bloco
+  // "Detalhe e metodologia" fechado sai de fora de propósito -- ele é a
+  // resposta a "como chegaram nesse número", não o relatório.
+  const exportRef = useRef<HTMLDivElement>(null);
+  const [exportando, setExportando] = useState(false);
+
+  const baixarPdf = async () => {
+    const el = exportRef.current;
+    if (!el || exportando) return;
+    setExportando(true);
+    try {
+      await exportEngagementPdf(el, {
+        departamento: deptSel,
+        tempoCasa: filters.tempoCasa,
+        modeloTrabalho: filters.modeloTrabalho,
+        marcaProduto: filters.marcaProduto,
+        ondaLabel: survey?.label ?? null,
+        janela,
+      });
+    } catch (e) {
+      toast.error('Não foi possível gerar o PDF', {
+        description: e instanceof Error ? e.message : 'Tente novamente.',
+      });
+    } finally {
+      setExportando(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center gap-2">
