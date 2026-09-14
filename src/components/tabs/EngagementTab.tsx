@@ -732,6 +732,8 @@ function EngagementSection({
       <Detalhe
         titulo="Detalhe e metodologia"
         resumo="como a pesquisa evoluiu, tabela por área, e se ela antecipou as saídas"
+        open={detalheAberto}
+        onOpenChange={setDetalheAberto}
       >
         {/* A história vem primeiro: ela explica metade das ressalvas que
             apareceriam depois, e responde a pergunta que sempre abre a conversa
