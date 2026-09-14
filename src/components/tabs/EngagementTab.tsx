@@ -284,6 +284,8 @@ function EngagementSection({
     }, 0);
   };
 
+  const [detalheAberto, setDetalheAberto] = useState(false);
+
   const janela = cross ? janelaLabel(cross.janelaInicio, cross.janelaFim) : "";
 
   // ------------------------------------------------------------------
@@ -291,16 +293,29 @@ function EngagementSection({
   // ------------------------------------------------------------------
   // A captura é do DOM visível: não reimplementa filtro nenhum, e o que o
   // líder recebe é literalmente a tela que a pessoa estava olhando. O bloco
-  // "Detalhe e metodologia" fechado sai de fora de propósito -- ele é a
-  // resposta a "como chegaram nesse número", não o relatório.
+  // "Detalhe e metodologia" sempre entra no PDF, mesmo recolhido na tela: o
+  // handler abre o accordion, espera o layout assentar, captura, e restaura
+  // o estado original.
   const exportRef = useRef<HTMLDivElement>(null);
   const [exportando, setExportando] = useState(false);
 
   const baixarPdf = async () => {
     const el = exportRef.current;
     if (!el || exportando) return;
+
+    // O PDF sempre leva o "Detalhe e metodologia", mesmo que o usuário esteja
+    // olhando a tela com ele recolhido. Abrimos, esperamos o layout assentar,
+    // capturamos, e devolvemos ao estado anterior para não mudar a tela.
+    const estavaAberto = detalheAberto;
+    if (!estavaAberto) {
+      setDetalheAberto(true);
+    }
+
     setExportando(true);
     try {
+      await new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), 0);
+      });
       await exportEngagementPdf(el, {
         departamento: deptSel,
         tempoCasa: filters.tempoCasa,
@@ -315,6 +330,9 @@ function EngagementSection({
       });
     } finally {
       setExportando(false);
+      if (!estavaAberto) {
+        setDetalheAberto(false);
+      }
     }
   };
 
@@ -715,6 +733,8 @@ function EngagementSection({
       <Detalhe
         titulo="Detalhe e metodologia"
         resumo="como a pesquisa evoluiu, tabela por área, e se ela antecipou as saídas"
+        open={detalheAberto}
+        onOpenChange={setDetalheAberto}
       >
         {/* A história vem primeiro: ela explica metade das ressalvas que
             apareceriam depois, e responde a pergunta que sempre abre a conversa

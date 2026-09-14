@@ -19,24 +19,42 @@ import { cn } from '@/lib/utils';
  * alguém sempre duvida. Remover empurraria a pergunta para fora do painel, e a
  * resposta viraria um print no Slack sem contexto nenhum. O `resumo` no
  * cabeçalho existe para que dê para decidir se vale abrir sem abrir.
+ *
+ * Pode ser controlado externamente via `open` + `onOpenChange` — útil quando
+ * outra ação (como exportar PDF) precisa abrir o bloco momentaneamente sem
+ * tirar o controle do usuário na tela.
  */
 export default function Detalhe({
   titulo,
   resumo,
   children,
   defaultOpen = false,
+  open,
+  onOpenChange,
 }: {
   titulo: string;
   /** Uma linha dizendo o que tem dentro, para não precisar abrir para descobrir. */
   resumo?: string;
   children: ReactNode;
   defaultOpen?: boolean;
+  open?: boolean;
+  onOpenChange?: (v: boolean) => void;
 }) {
-  const [aberto, setAberto] = useState(defaultOpen);
+  const [abertoInterno, setAbertoInterno] = useState(defaultOpen);
+  const aberto = open !== undefined ? open : abertoInterno;
+
+  const toggle = () => {
+    const novo = !aberto;
+    if (open === undefined) {
+      setAbertoInterno(novo);
+    }
+    onOpenChange?.(novo);
+  };
+
   return (
     <div className="rounded-lg border border-dashed border-border bg-muted/25">
       <button
-        onClick={() => setAberto((v) => !v)}
+        onClick={toggle}
         className={cn(
           'w-full flex items-center gap-2.5 p-3 text-left transition-colors hover:bg-muted/50',
           aberto && 'border-b border-border',
