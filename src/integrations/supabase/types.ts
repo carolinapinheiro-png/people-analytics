@@ -384,6 +384,7 @@ export type Database = {
           nome: string | null
           raca: string | null
           salary: number | null
+          vinculo: string | null
           voluntary: boolean | null
         }
         Insert: {
@@ -405,6 +406,7 @@ export type Database = {
           nome?: string | null
           raca?: string | null
           salary?: number | null
+          vinculo?: string | null
           voluntary?: boolean | null
         }
         Update: {
@@ -426,6 +428,7 @@ export type Database = {
           nome?: string | null
           raca?: string | null
           salary?: number | null
+          vinculo?: string | null
           voluntary?: boolean | null
         }
         Relationships: []
