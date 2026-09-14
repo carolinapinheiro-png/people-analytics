@@ -2304,7 +2304,9 @@ export async function executarSyncConvenia(
         );
       }
       avisos.push(
-        `Comp-ratio${confirm ? '' : ' (prévia, não gravado)'}: ${r.comRatio} de ${r.total} com faixa. `
+        `Comp-ratio${confirm ? '' : ' (prévia, não gravado)'}: ${r.comRatio} de ${r.total} com `
+        + 'faixa (todas as marcas — esta base não é a mesma contagem do "no cadastro" por '
+        + 'empresa acima, que só olha esta execução desta empresa). '
         + (r.porMotivo.length
           ? `Sem faixa: ${r.porMotivo.map((m) => `${m.n} — ${m.motivo}`).join(' | ')}`
           : 'Todos resolveram.')

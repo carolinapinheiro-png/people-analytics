@@ -44,25 +44,14 @@ export function ConveniaSyncCard() {
         <div className="flex-1">
           <h3 className="text-base font-semibold">Rodar a carga</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Lê o cadastro do Convenia e grava: cadastro base (nome, salário, custom fields) e
-            desligados -- sempre, mesmo em prévia. Calcula também comp-ratio e a evolução CLT/PJ
-            da NSX (gravam ao confirmar). Ao confirmar, grava ainda o <strong>organograma</strong>
-            {' '}(camada, cargo, empresa, escritório) e a <strong>série mensal</strong> (headcount,
-            entradas, saídas, atrição) como uma <strong>terceira série</strong> (<code>convenia</code>),
-            ao lado da congelada e da reconstruída — nada é sobrescrito.
+            "Simular" já grava o cadastro base (nome, salário, custom fields) e os desligados —
+            leitura barata e reversível, mesmo em prévia. Confirmar grava também o{' '}
+            <strong>organograma</strong> (camada, cargo, empresa, escritório), o comp-ratio, a
+            evolução CLT/PJ e a <strong>série mensal</strong> (headcount, entradas, saídas,
+            atrição) como uma <strong>terceira série</strong> (<code>convenia</code>), ao lado da
+            congelada e da reconstruída — nada é sobrescrito, mas organograma e série mensal
+            reescrevem histórico.
           </p>
-          {/* O cadastro base (convenia_pessoas) e os desligados gravam na simulação
-              também, e isso não é óbvio pelo nome do botão. Quem lê "simular" espera
-              que nada aconteça, e depois não entende por que as colunas encheram.
-              Organograma, série mensal, comp-ratio e evolução CLT/PJ esperam
-              confirmação -- são os que reescrevem histórico ou recalculam estrutura. */}
-          <p className="mt-2 text-xs text-muted-foreground">
-            "Simular" já grava o cadastro base e os desligados — é leitura barata e reversível.
-            Comp-ratio e evolução CLT/PJ aparecem calculados na prévia, mas só gravam ao
-            confirmar -- junto com o <strong>organograma</strong> e a <strong>série mensal</strong>,
-            que reescrevem histórico.
-          </p>
-
           <div className="mt-4 flex gap-2">
             <Button onClick={() => rodarSync(false)} disabled={sincronizando} variant="outline" size="sm">
               <RefreshCw className={`mr-2 h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} />
