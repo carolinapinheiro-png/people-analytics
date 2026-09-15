@@ -162,7 +162,19 @@ export function diasDeCasa(hiringMonth: string | null, dismissalDate: string | n
  * sincronizações semanais.
  */
 export function paraLeaverRow(r: ConveniaLeaverRow): LeaverRow {
-  const salario = r.salary != null ? Number(r.salary) : null;
+  // O `salary` do detalhe de DESLIGADO vem do Convenia em CENTAVOS -- ao
+  // contrário do cadastro de ATIVOS (`convenia_pessoas.salary`), que já vem
+  // em reais. Sem dividir por 100, todo salário não-nulo ultrapassa 50 mil e
+  // cai em "50k+" em `salaryBand()`, que foi exatamente o sintoma: só duas
+  // barras no gráfico de Desligamentos por Faixa Salarial (50k+ e Não
+  // informado), quando o real era um por faixa.
+  //
+  // Medido em 15/09 contra `convenia_pessoas` (mesma população, mesma
+  // empresa): a mediana de `convenia_leavers.salary` é 792.000 -- R$7.920,00
+  // se centavos, R$792.000,00/mês se reais. A segunda opção não existe nesta
+  // empresa. Nos valores baixos a mesma conta aparece: "120000" vira
+  // R$1.200,00 (estágio, plausível) contra R$120.000,00/mês (não).
+  const salario = r.salary != null ? Number(r.salary) / 100 : null;
   const meses = mesesDeCasa(r.hiring_month, r.dismissal_date);
   const tipo = r.dismissal_type ? ROTULO_TIPO[classificarSaida(r.dismissal_type)] : null;
   const depto = r.department ? normalizeDept(r.department) : null;

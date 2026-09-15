@@ -21,7 +21,10 @@ const base: ConveniaLeaverRow = {
   dismissal_month: '2026-09',
   dismissal_date: '2026-09-10',
   dismissal_type: 'Demissão fora do contrato de experiência - Pedido do Empregado',
-  salary: 5500,
+  // Em CENTAVOS, como o Convenia realmente manda no detalhe de desligado --
+  // R$5.500,00. Ver o teste dedicado logo abaixo e o comentário em
+  // `paraLeaverRow`.
+  salary: 550000,
   level: 'L2',
   job_type_family: 'Customer Operations',
   genero: 'F',
@@ -68,6 +71,27 @@ test('faixa_salarial deriva do salário, igual a person-bands.ts', () => {
   assert.equal(paraLeaverRow(base).faixa_salarial, '5k-8k');
   assert.equal(paraLeaverRow({ ...base, salary: null }).faixa_salarial, 'Não informado');
 });
+
+// ---------------------------------------------------------------------------
+// O SALÁRIO DO DESLIGADO VEM EM CENTAVOS -- O DO ATIVO, EM REAIS
+// ---------------------------------------------------------------------------
+// Achado em 15/09 pela Carolina: o gráfico "Desligamentos por Faixa
+// Salarial" só mostrava duas barras (50k+ e Não informado), quando havia
+// gente em praticamente todas as faixas naquele mês.
+//
+// `convenia_leavers.salary` vem em centavos; `convenia_pessoas.salary` (o
+// cadastro de ativos, que alimenta Comp Ratio e Meu Time) já vem em reais --
+// as duas fontes do Convenia usam unidades diferentes para o mesmo campo.
+// Sem dividir por 100, qualquer salário não-nulo passa de R$50.000 e cai
+// direto em "50k+": um estagiário de R$1.200,00 apareceria classificado
+// junto com a diretoria.
+test('salario converte centavos do Convenia para reais', () => {
+  assert.equal(paraLeaverRow({ ...base, salary: 120000 }).salario, 1200);
+  assert.equal(paraLeaverRow({ ...base, salary: 120000 }).faixa_salarial, 'Até 3k');
+  assert.equal(paraLeaverRow({ ...base, salary: 7506720 }).salario, 75067.2);
+  assert.equal(paraLeaverRow({ ...base, salary: 7506720 }).faixa_salarial, '50k+');
+});
+
 
 test('campos ainda não lidos pelo detalhe do Convenia vêm null, não inventados', () => {
   const parcial = paraLeaverRow({
