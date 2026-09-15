@@ -274,6 +274,14 @@ export function applySeriesFilter(
       tenure_base: key === 'tempoCasa' ? undefined : quebra?.tenure_base,
       family_base: key === 'jobFamily' ? undefined : quebra?.family_base,
       contract_base: key === 'tipoContrato' ? undefined : quebra?.contract_base,
+      // Nenhum destes quatro recortes tem "modelo de trabalho" como dimensão
+      // própria (não existe `key === 'modeloTrabalho'` aqui), então este
+      // nunca precisa virar `undefined` por ser a própria dimensão escolhida,
+      // como os quatro acima. Sem quebra (nível, ou linha anterior à
+      // migração), fica `undefined` -- mesmo regime de `family_base` e
+      // `contract_base` alguns linhas acima: dado não calculado se declara
+      // ausente, não herda o número da empresa inteira sob o recorte.
+      work_model_base: quebra?.work_model_base,
     };
   });
 

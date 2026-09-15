@@ -233,6 +233,12 @@ function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
     tenure_base: db.tenure_base,
     family_base: db.family_base,
     contract_base: db.contract_base,
+    // Mesmo esquecimento de nascença que `compose-metrics.ts` teve com este
+    // campo (15/09): sem esta linha, `...base` deixava passar o
+    // `work_model_base` da EMPRESA INTEIRA sob o filtro de UM departamento --
+    // outra área aparecendo sob o rótulo errado, igual ao "PCD e Aprendiz não
+    // se movem" que a nota acima descreve para as cotas legais.
+    work_model_base: db.work_model_base,
     demographics: db.demographics,
     race_cross: db.race_cross,
     leader_dept: { [deptName]: { leaders: db.leaders, female: db.leader_female } },
