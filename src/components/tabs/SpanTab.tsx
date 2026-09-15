@@ -9,6 +9,8 @@ import {
 import { Network, Users, UserCog, GitBranch } from 'lucide-react';
 import { COLORS } from '@/lib/colors';
 import { useDashboard } from '@/data/DashboardContext';
+import AvisoPeriodo from '@/components/dashboard/AvisoPeriodo';
+import { PERIODO_INDISPONIVEL } from '@/lib/periodo';
 
 /**
  * Span de controle calculado AO VIVO da cadeia real de reporte
@@ -70,6 +72,8 @@ export default function SpanTab() {
           sincronização. Só agregados — sem nomes.
         </p>
       </div>
+
+      <AvisoPeriodo motivo={PERIODO_INDISPONIVEL.span} />
 
       <div className="rounded-lg border border-border/50 bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
         <strong>Gestor ≠ Líder.</strong> Aqui &quot;gestor&quot; é quem tem pelo menos um reporte direto na

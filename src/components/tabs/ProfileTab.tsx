@@ -12,6 +12,8 @@ import { COLORS } from '@/lib/colors';
 import {
   Search, User, Clock, TrendingUp, Layers, Scale, Building2, Users,
 } from 'lucide-react';
+import AvisoPeriodo from '@/components/dashboard/AvisoPeriodo';
+import { PERIODO_INDISPONIVEL } from '@/lib/periodo';
 
 const fmt1 = (n: number | null | undefined) =>
   n == null ? '—' : n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -88,6 +90,8 @@ export default function ProfileTab() {
           <strong> faixa + comp-ratio</strong> — nunca o valor nominal. Cada consulta é registrada em log de acesso.
         </p>
       </div>
+
+      <AvisoPeriodo motivo={PERIODO_INDISPONIVEL.individual} />
 
       {/* Busca */}
       <Card>

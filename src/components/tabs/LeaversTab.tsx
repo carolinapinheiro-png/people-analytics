@@ -24,6 +24,7 @@ import {
 import { useState, useMemo, useEffect } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { getCompAggregates, type CompAggregates } from '@/lib/comp.functions';
+import { usePeriodo } from '@/data/use-periodo';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 import { passaFiltro } from '@/lib/filtro-sentinela';
 
@@ -67,9 +68,11 @@ function avgTenureMonths(records: LeaverRecord[]): number {
 }
 
 export default function LeaversTab() {
-  // Filtro de ano agora e GLOBAL (TopBar). Aqui so consumimos activeYear para
-  // filtrar os desligados individuais pelo mes de desligamento.
+  // Mês, trimestre e ano são GLOBAIS (TopBar) -- `usePeriodo()` resolve os
+  // três de uma vez (ver `src/lib/periodo.ts`), mesma régua que o resto do
+  // painel usa.
   const { leavers, filters, brand, currentMonth, currentData, activeYear, allMonthsData } = useDashboard();
+  const periodo = usePeriodo();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -131,28 +134,36 @@ export default function LeaversTab() {
   // ano inteiro. Duas populações na mesma tela, sem nada dizendo qual era
   // qual. `mes_desligamento` é 'AAAA-MM', então o mesmo período que recorta a
   // série recorta a lista -- ver `src/lib/periodo.ts`.
+  // ------------------------------------------------------------------
+  // O FILTRO NÃO-TEMPORAL, SEPARADO DO RECORTE DE PERÍODO
+  // ------------------------------------------------------------------
+  // Departamento, job family, contrato etc. são os mesmos para a lista (que
+  // usa `periodo.contem`, período exato) e para a tendência mensal logo
+  // abaixo (que usa `periodo.ateOFim`, história até o fim do período -- um
+  // gráfico cortado a um único mês deixa de ser gráfico). Escrito uma vez só,
+  // para as duas leituras nunca divergirem no critério que não é de tempo.
+  const passaOutrosFiltros = (r: LeaverRecord) => {
+    if (!passaFiltro(filters.departamento, r.departamento)) return false;
+    if (!passaFiltro(filters.jobFamily, r.job_family)) return false;
+    if (!passaFiltro(filters.tempoCasa, r.tempo_casa_faixa)) return false;
+    if (!passaFiltro(filters.tipoContrato, r.vinculo)) return false;
+    if (!passaFiltro(filters.faixaSalarial, r.faixa_salarial)) return false;
+    if (!passaFiltro(filters.tipoDesligamento, r.tipo_desligamento_agrupado)) return false;
+    if (!passaFiltro(filters.level, r.level)) return false;
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      return (
+        r.nome.toLowerCase().includes(term) ||
+        r.cargo.toLowerCase().includes(term) ||
+        r.departamento.toLowerCase().includes(term)
+      );
+    }
+    return true;
+  };
+
   const filteredLeavers = useMemo(() => {
-    return leavers.filter(r => {
-      if (!periodo.contem(r.mes_desligamento)) return false;
-      // 'Todos', vazio e espaços = sem seleção (ver `filtro-sentinela.ts`).
-      if (!passaFiltro(filters.departamento, r.departamento)) return false;
-      if (!passaFiltro(filters.jobFamily, r.job_family)) return false;
-      if (!passaFiltro(filters.tempoCasa, r.tempo_casa_faixa)) return false;
-      if (!passaFiltro(filters.tipoContrato, r.vinculo)) return false;
-      if (!passaFiltro(filters.faixaSalarial, r.faixa_salarial)) return false;
-      if (!passaFiltro(filters.tipoDesligamento, r.tipo_desligamento_agrupado)) return false;
-      if (!passaFiltro(filters.level, r.level)) return false;
-      if (searchTerm) {
-        const term = searchTerm.toLowerCase();
-        return (
-          r.nome.toLowerCase().includes(term) ||
-          r.cargo.toLowerCase().includes(term) ||
-          r.departamento.toLowerCase().includes(term)
-        );
-      }
-      return true;
-    });
-  }, [leavers, filters, searchTerm, activeYear]);
+    return leavers.filter(r => periodo.contem(r.mes_desligamento) && passaOutrosFiltros(r));
+  }, [leavers, filters, searchTerm, periodo]);
 
   const totalLeavers = filteredLeavers.length;
   const avgTenure = avgTenureMonths(filteredLeavers);
@@ -187,31 +198,45 @@ export default function LeaversTab() {
 
   // Evolucao mensal empilhada por tipo (voluntario x involuntario x outros) --
   // a "visao mes a mes classificando" pedida pela diretora.
+  //
+  // USA `ateOFim`, NÃO `filteredLeavers` -- um gráfico de "mês a mês" cortado
+  // a um único mês vira uma barra solta. A história do ano (ou do trimestre
+  // corrente) até o mês escolhido é o que sustenta a leitura de tendência;
+  // os outros filtros (departamento, contrato etc.) continuam valendo.
   const monthlyData = useMemo(() => {
     const m = new Map<string, { voluntario: number; involuntario: number; outros: number }>();
-    filteredLeavers.forEach(r => {
-      const cur = m.get(r.mes_desligamento) || { voluntario: 0, involuntario: 0, outros: 0 };
-      if (r.tipo_desligamento_agrupado === 'Voluntário') cur.voluntario++;
-      else if (r.tipo_desligamento_agrupado === 'Involuntário') cur.involuntario++;
-      else cur.outros++;
-      m.set(r.mes_desligamento, cur);
-    });
+    leavers
+      .filter(r => periodo.ateOFim(r.mes_desligamento) && passaOutrosFiltros(r))
+      .forEach(r => {
+        const cur = m.get(r.mes_desligamento) || { voluntario: 0, involuntario: 0, outros: 0 };
+        if (r.tipo_desligamento_agrupado === 'Voluntário') cur.voluntario++;
+        else if (r.tipo_desligamento_agrupado === 'Involuntário') cur.involuntario++;
+        else cur.outros++;
+        m.set(r.mes_desligamento, cur);
+      });
     return Array.from(m.entries())
       .map(([month, v]) => ({ month, ...v }))
       .sort((a, b) => a.month.localeCompare(b.month));
-  }, [filteredLeavers]);
+  }, [leavers, filters, searchTerm, periodo]);
 
-  // Taxa de atricao ACUMULADA do periodo (pergunta da Carolina): total de saidas
-  // da serie ÷ HC medio do periodo -- distinta da media das taxas mensais. Usa a
-  // serie mensal (allMonthsData, ja filtrada por activeYear no contexto).
-  const seriesLeavers = allMonthsData.reduce((s, d) => s + (d.leavers || 0), 0);
-  const avgHcPeriod = allMonthsData.length
-    ? allMonthsData.reduce((s, d) => s + (d.headcount || 0), 0) / allMonthsData.length
+  // Taxa de atricao ACUMULADA do periodo (pergunta da Carolina): total de
+  // saidas ÷ HC medio do periodo -- distinta da media das taxas mensais.
+  //
+  // O PERIODO É O MESMO DE `filteredLeavers`: um mês, um trimestre, ou o ano
+  // inteiro em "Todos os anos". Até 15/09 isto somava sempre o ano inteiro de
+  // `allMonthsData`, mesmo com um mês ou trimestre específico selecionado.
+  const periodoSerie = useMemo(
+    () => allMonthsData.filter((d) => periodo.contem(d.month)),
+    [allMonthsData, periodo],
+  );
+  const seriesLeavers = periodoSerie.reduce((s, d) => s + (d.leavers || 0), 0);
+  const avgHcPeriod = periodoSerie.length
+    ? periodoSerie.reduce((s, d) => s + (d.headcount || 0), 0) / periodoSerie.length
     : 0;
   const accAttrition = avgHcPeriod > 0 ? (seriesLeavers / avgHcPeriod) * 100 : 0;
 
   const kpis = [
-    { label: 'Total Desligados', value: fmt(totalLeavers), color: COLORS.danger, icon: UserX, sub: activeYear ? `acumulado ${activeYear}` : 'todos os anos' },
+    { label: 'Total Desligados', value: fmt(totalLeavers), color: COLORS.danger, icon: UserX, sub: periodo.tipo === 'todos' ? 'todos os anos' : `em ${periodo.label}` },
     { label: 'Atrição acumulada', value: `${accAttrition.toFixed(1)}%`, color: COLORS.orange, icon: TrendingUp, sub: `${seriesLeavers} saídas ÷ HC médio ${Math.round(avgHcPeriod)}` },
     { label: 'Voluntários', value: `${fmt(voluntary)} (${pctTot(voluntary).toFixed(0)}%)`, color: COLORS.info, icon: LogOut },
     { label: 'Involuntários', value: `${fmt(involuntary)} (${pctTot(involuntary).toFixed(0)}%)`, color: COLORS.orange, icon: AlertTriangle },
@@ -229,8 +254,8 @@ export default function LeaversTab() {
             Análise de Desligamentos
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {totalLeavers} desligamentos{activeYear ? ` em ${activeYear}` : ' (todos os anos)'} · dados reais ·
-            {' '}filtro de ano no topo
+            {totalLeavers} desligamentos{periodo.tipo === 'todos' ? ' (todos os anos)' : ` em ${periodo.label}`} · dados reais ·
+            {' '}mês, trimestre e ano no topo recortam esta aba
           </p>
         </div>
         <div className="relative">

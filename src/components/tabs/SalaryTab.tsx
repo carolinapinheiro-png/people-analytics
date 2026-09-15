@@ -4,6 +4,7 @@ import { useDashboard } from '@/data/DashboardContext';
 import { getCompAggregates, type CompAggregates, getCompByLevelRole, type CompByRole } from '@/lib/comp.functions';
 import { getContractMix, type ContractMixRow } from '@/lib/contract-mix.functions';
 import { mLabel, shortDept, fmtC } from '@/data/helpers';
+import { CARTAO_SEM_PERIODO } from '@/lib/periodo';
 import KpiCard from '@/components/dashboard/KpiCard';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -411,6 +412,7 @@ export default function SalaryTab() {
           </div>
           <p className="text-[11px] text-muted-foreground mt-2">
             Faixas não sobrepostas por nível. O split líder × IC e gestor × IC dentro do nível está logo abaixo.
+            {' '}{CARTAO_SEM_PERIODO.bandas}
           </p>
         </ChartCard>
       )}
@@ -477,6 +479,7 @@ export default function SalaryTab() {
             na cadeia; "líder" = flag do cadastro. Mediana (mais robusta que a média). Só grupos com <strong>n≥3</strong>
             aparecem com valor. Leitura útil: em L4/L5 o IC costuma ter mediana <strong>acima</strong> do gestor — reflete
             engenheiros sênior/staff (PJ) vs. coordenadores de operação. Só NSX (população do arquivo de comp).
+            {' '}{CARTAO_SEM_PERIODO.bandas}
           </p>
         </ChartCard>
       )}

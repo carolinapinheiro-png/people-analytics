@@ -13,6 +13,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { isGlobalProfile } from '@/lib/permissions';
 import { camadaDe, descreverRecorte } from '@/lib/comp-scope';
 import EquidadeCompRatio from '@/components/dashboard/EquidadeCompRatio';
+import AvisoPeriodo from '@/components/dashboard/AvisoPeriodo';
+import { CARTAO_SEM_PERIODO } from '@/lib/periodo';
 
 /**
  * CompRatio individual (587 ativos). Dado sensivel: vem da server function
@@ -180,6 +182,8 @@ export default function CompRatioTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end"><FreshnessBadge dataset="comp_ratio" /></div>
+
+      <AvisoPeriodo motivo={CARTAO_SEM_PERIODO.compRatio} />
 
       {avisoRecorte && (
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">

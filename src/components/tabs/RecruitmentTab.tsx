@@ -17,7 +17,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { getRecruitment, type RecruitmentData, type RecruitmentOpen } from '@/lib/recruitment.functions';
 import { useDashboard } from '@/data/DashboardContext';
+import { usePeriodo } from '@/data/use-periodo';
+import { CARTAO_SEM_PERIODO } from '@/lib/periodo';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
+import AvisoPeriodo from '@/components/dashboard/AvisoPeriodo';
 import { COLORS } from '@/lib/colors';
 import TaSatisfactionSection from '@/components/dashboard/TaSatisfactionSection';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -34,7 +37,17 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
  *  - o inicio da medicao, vindo do servidor (antes dele "zero" seria mentira; a
  *    verdade e "nao medido"). DEPOIS dele, mes sem fechamento e zero de verdade
  *    -- por isso o eixo do grafico e continuo e preenche as lacunas;
- *  - que esta aba NAO responde ao filtro de ano do topo.
+ *  - que "Vagas abertas" e "Congeladas" sao foto do dia (o InHire nao guarda
+ *    versao mensal de status), e nao mudam com mes/trimestre/ano -- so os
+ *    cartoes de fechamento, TTH e candidaturas recortam.
+ *
+ * ATE 15/09 a aba inteira ignorava ano e mes ("mostra sempre o periodo
+ * completo desde o inicio"). O grafico de evolucao mensal continua indo do
+ * inicio da medicao ate o FIM do periodo escolhido (`periodo.ateOFim`) -- um
+ * grafico de tendencia cortado a um unico mes deixa de ser grafico. Os
+ * cartoes e tabelas que resumem um numero so (fechadas, TTH, candidaturas,
+ * cruzamento) recortam pelo periodo exato (`periodo.contem`), do mesmo jeito
+ * que o resto do painel.
  */
 
 const fmt1 = (n: number | null | undefined) =>
@@ -50,6 +63,7 @@ export default function RecruitmentTab() {
   const [error, setError] = useState<string | null>(null);
   const fn = useServerFn(getRecruitment);
   const { data: months, filters } = useDashboard();
+  const periodo = usePeriodo();
 
   useEffect(() => {
     let alive = true;
@@ -80,13 +94,14 @@ export default function RecruitmentTab() {
     // o grafico mostraria os quatro grudados como se fossem consecutivos, com a
     // linha de TTH ligando janeiro a marco. Depois do inicio da medicao, mes sem
     // fechamento e ZERO de verdade, entao entra como zero.
-    const out: Array<{ mes: string; fechadas: number; tth: number | null }> = [];
+    const out: Array<{ k: string; mes: string; fechadas: number; tth: number | null }> = [];
     const [y0, m0] = data.seriesStart.slice(0, 7).split('-').map(Number);
     const [y1, m1] = data.seriesEnd.slice(0, 7).split('-').map(Number);
     for (let y = y0, m = m0; y < y1 || (y === y1 && m <= m1); m === 12 ? ((y += 1), (m = 1)) : (m += 1)) {
       const k = `${y}-${String(m).padStart(2, '0')}`;
       const e = byMonth.get(k);
       out.push({
+        k,
         mes: monthLabel(k),
         fechadas: e?.fechadas ?? 0,
         // TTH so existe se houve fechamento. null vira buraco na linha, nao zero:
@@ -94,13 +109,26 @@ export default function RecruitmentTab() {
         tth: e && e.fechadas ? Math.round(e.somaTth / e.fechadas) : null,
       });
     }
-    return out;
-  }, [data]);
+    // O período do topo recorta ATÉ onde o gráfico vai (`periodo.ateOFim`),
+    // não a um mês só -- uma tendência cortada a um único ponto deixa de ser
+    // gráfico. Com um ano em escopo, mantém a história daquele ano até o
+    // mês/trimestre escolhido; com "Todos os anos", a série completa de
+    // sempre. Ver a nota em `src/lib/periodo.ts`.
+    return out.filter((r) => periodo.ateOFim(r.k)).map(({ k, ...rest }) => rest);
+  }, [data, periodo]);
+
+  // Recorte exato do período (mês selecionado, trimestre, ou o ano inteiro em
+  // "Todos os anos") -- alimenta os cartões e tabelas que resumem UM número,
+  // ao contrário do gráfico de tendência acima, que usa `ateOFim`.
+  const monthlyEmPeriodo = useMemo(
+    () => data?.monthly.filter((r) => periodo.contem(r.month)) ?? [],
+    [data, periodo],
+  );
 
   const porDepto = useMemo(() => {
     if (!data) return [];
     const m = new Map<string, { dept: string; fechadas: number; somaTth: number; cand: number }>();
-    for (const r of data.monthly) {
+    for (const r of monthlyEmPeriodo) {
       const e = m.get(r.department) ?? { dept: r.department, fechadas: 0, somaTth: 0, cand: 0 };
       e.fechadas += r.closed_jobs;
       if (r.tth_avg != null) e.somaTth += Number(r.tth_avg) * r.closed_jobs;
@@ -116,7 +144,7 @@ export default function RecruitmentTab() {
         porVaga: e.fechadas ? Math.round(e.cand / e.fechadas) : 0,
       }))
       .sort((a, b) => (b.tth ?? 0) - (a.tth ?? 0));
-  }, [data]);
+  }, [data, monthlyEmPeriodo]);
 
   const abertas = useMemo(() => {
     if (!data) return { jobs: 0, positions: 0, congeladas: 0, envelhecidas: [] as RecruitmentOpen[] };
@@ -201,8 +229,9 @@ export default function RecruitmentTab() {
         <span>
           Foto de {data.asOf ? new Date(data.asOf + 'T12:00').toLocaleDateString('pt-BR') : '—'} — o
           painel do InHire é tempo real; este é a última carga, então pequenas diferenças entre os
-          dois são esperadas. Esta aba mostra sempre o período completo desde {desde} e{' '}
-          <strong>não responde ao filtro de ano</strong> do topo.
+          dois são esperadas. Fechadas, TTH e candidaturas recortam por{' '}
+          <strong>{periodo.tipo === 'todos' ? `todo o período desde ${desde}` : periodo.label}</strong>{' '}
+          — vagas abertas e congeladas continuam sendo a foto do dia (ver aviso abaixo).
         </span>
         {!data.global && data.scopeDepartments.length > 0 && (
           <Badge variant="outline" className="text-[10px]">
@@ -210,6 +239,8 @@ export default function RecruitmentTab() {
           </Badge>
         )}
       </div>
+
+      <AvisoPeriodo motivo={CARTAO_SEM_PERIODO.vagasAbertas} />
 
       <Tabs defaultValue="funil" className="space-y-4">
         <TabsList>
@@ -229,7 +260,7 @@ export default function RecruitmentTab() {
           // "fora do SLA" lia como "estourou o prazo". Congelada é o oposto: o
           // relógio para, por decisão. A cadeira segue vazia — daí o alerta.
           { label: 'Congeladas', value: abertas.congeladas, icon: Snowflake, note: 'relógio parado' },
-          { label: 'Fechadas no período', value: totalFechadas, icon: Briefcase, note: `desde ${desde}` },
+          { label: 'Fechadas no período', value: totalFechadas, icon: Briefcase, note: periodo.tipo === 'todos' ? `desde ${desde}` : periodo.label },
           { label: 'TTH médio', value: tthGeral == null ? '—' : `${tthGeral}d`, icon: Clock, note: 'dias ativos' },
           {
             label: 'Candidaturas',
@@ -323,7 +354,7 @@ export default function RecruitmentTab() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Intensidade de contratação</CardTitle>
             <CardDescription className="text-xs">
-              Vagas fechadas desde {desde} como % do headcount <em>atual</em> da área — o cruzamento
+              Vagas fechadas {periodo.tipo === 'todos' ? `desde ${desde}` : `em ${periodo.label}`} como % do headcount <em>atual</em> da área — o cruzamento
               que o InHire não faz, porque ele não conhece o seu quadro. Atenção: é um fluxo de
               vários meses dividido por uma foto de hoje, então serve para comparar áreas entre si,
               não como taxa de um período.

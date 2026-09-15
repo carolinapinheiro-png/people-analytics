@@ -9,6 +9,8 @@ import {
 } from 'recharts';
 import { Users, Layers, Scale, Building2, UserCog, Briefcase } from 'lucide-react';
 import { useDashboard } from '@/data/DashboardContext';
+import AvisoPeriodo from '@/components/dashboard/AvisoPeriodo';
+import { PERIODO_INDISPONIVEL } from '@/lib/periodo';
 
 const PIE = [COLORS.flutter, COLORS.nsx, COLORS.betfair, COLORS.purple, COLORS.orange, COLORS.info, COLORS.success, COLORS.danger];
 const fmt1 = (n: number | null | undefined) =>
@@ -61,9 +63,11 @@ export default function TeamTab() {
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
           Foto atual do seu time (escopo: <strong>{scopeText}</strong>). Só agregados; sem nomes.
-          Não inclui gênero/raça/idade (não disponíveis por time) nem série temporal — é um retrato do mês.
+          Não inclui gênero/raça/idade (não disponíveis por time) nem série temporal — é um retrato do momento.
         </p>
       </div>
+
+      <AvisoPeriodo motivo={PERIODO_INDISPONIVEL.team} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard label="Headcount do time" value={String(snap.headcount)} color={COLORS.flutter} icon={Users} />
