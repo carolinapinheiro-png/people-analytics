@@ -149,6 +149,14 @@ export function getMonthData(data: MonthRecord[], month: string, brand: string):
       // defeito é interno é pior que não ter instrumento.
       family_base: mergeLevels(n.family_base, b.family_base, f.family_base),
       contract_base: mergeLevels(n.contract_base, b.contract_base, f.contract_base),
+      // A SEXTA VEZ, NO MESMO LUGAR -- ver os dois comentários grandes acima
+      // (dept_breakdown e family_breakdown/contract_breakdown/tenure_breakdown):
+      // mesma aritmética, mesmo esquecimento. Quem achou desta vez foi a
+      // Carolina, três "ainda não" depois de eu ter corrigido a tradução em
+      // `compose-metrics.ts` e achado mais dois vazamentos -- e a visão
+      // Combinada, que é a que abre por padrão, seguia sem o campo em
+      // nenhum dos dois.
+      work_model_base: mergeLevels(n.work_model_base, b.work_model_base, f.work_model_base),
       demographics: mergeDemographics(n.demographics, b.demographics, f.demographics),
       race_cross: mergeRaceCross(n.race_cross, b.race_cross, f.race_cross),
       // ------------------------------------------------------------------
@@ -317,6 +325,9 @@ function mergeDeptBreakdown(
         // Mesma omissão da linha mensal, um nível abaixo: sem estas duas
         // aqui, a quebra por ÁREA da visão combinada perde família e vínculo.
         family_base: {}, contract_base: {},
+        // E a mesma omissão de novo, com work_model_base (15/09) -- ver a
+        // nota grande em getMonthData, algumas linhas acima neste arquivo.
+        work_model_base: {},
         demographics: { age: {}, race: {}, marital: {}, origin: {} },
         race_cross: {},
       });
@@ -331,6 +342,7 @@ function mergeDeptBreakdown(
       somarMapa(cur.tenure_base, v.tenure_base);
       somarMapa(cur.family_base ??= {}, v.family_base);
       somarMapa(cur.contract_base ??= {}, v.contract_base);
+      somarMapa(cur.work_model_base ??= {}, v.work_model_base);
       somarMapa(cur.demographics.age, v.demographics?.age);
       somarMapa(cur.demographics.race, v.demographics?.race);
       somarMapa(cur.demographics.marital, v.demographics?.marital);

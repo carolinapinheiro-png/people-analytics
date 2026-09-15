@@ -199,3 +199,41 @@ test('linha antiga sem entradas/saídas por área devolve undefined, não zero',
   ];
   assert.equal(getMonthData(dados, '2026-08', 'combined').dept_data.OPS.leavers, undefined);
 });
+
+// ---------------------------------------------------------------------------
+// work_model_base NA VISÃO COMBINADA -- A SEXTA VEZ NO MESMO LUGAR
+// ---------------------------------------------------------------------------
+// `getMonthData` já somava level_base/tenure_base/family_base/contract_base
+// para a visão Combinada (padrão do painel) e `mergeDeptBreakdown` já somava
+// a quebra por área -- mas nenhum dos dois foi atualizado quando
+// `work_model_base` entrou em 15/09. O card de Modelo de Trabalho ficava
+// vazio para todo mundo que abre o painel na visão padrão, mesmo com a carga
+// rodada, o dado certo no banco, e `compose-metrics.ts` já traduzindo o
+// campo -- porque a combinação das marcas o descartava um passo depois.
+// ---------------------------------------------------------------------------
+
+test('a visão combinada SOMA work_model_base entre as marcas', () => {
+  const dados = [
+    mes('NSX', { headcount: 90, work_model_base: { Remoto: 60, Presencial: 20 } }),
+    mes('Betfair BR', { headcount: 10, work_model_base: { Remoto: 5, Presencial: 5 } }),
+  ];
+  const c = getMonthData(dados, '2026-08', 'combined');
+  assert.equal(c.work_model_base?.Remoto, 65);
+  assert.equal(c.work_model_base?.Presencial, 25);
+});
+
+test('work_model_base soma também dentro da quebra por área combinada', () => {
+  const dados = [
+    mes('NSX', {
+      headcount: 90,
+      dept_breakdown: { TECH: db({ work_model_base: { Remoto: 40 } }) },
+    }),
+    mes('Betfair BR', {
+      headcount: 10,
+      dept_breakdown: { TECH: db({ work_model_base: { Remoto: 3, Presencial: 2 } }) },
+    }),
+  ];
+  const tech = getMonthData(dados, '2026-08', 'combined').dept_breakdown?.TECH;
+  assert.equal(tech?.work_model_base?.Remoto, 43);
+  assert.equal(tech?.work_model_base?.Presencial, 2);
+});
