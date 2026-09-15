@@ -90,6 +90,15 @@ const toMonthRecord = (r: MonthlyMetricRow): MonthRecord => {
       r.family_base && Object.keys(r.family_base).length > 0 ? r.family_base : undefined,
     contract_base:
       r.contract_base && Object.keys(r.contract_base).length > 0 ? r.contract_base : undefined,
+    // A QUARTA VEZ QUE A MESMA FORMA APARECE (ver o comentário grande acima,
+    // em `family_breakdown`/`contract_breakdown`/`tenure_breakdown`): coluna
+    // gravada, campo no tipo, gráfico lendo `curr.work_model_base` -- e
+    // esquecida bem aqui, a única linha que faz o dado atravessar de banco
+    // para tela. `curr.work_model_base` ficou `undefined` para todo mundo,
+    // sempre, e o card sumiu mesmo com a carga rodada e o dado certo no
+    // banco. Escrever no banco não é publicar -- nem a terceira vez ensina.
+    work_model_base:
+      r.work_model_base && Object.keys(r.work_model_base).length > 0 ? r.work_model_base : undefined,
     demographics:
       r.demographics && Object.keys(r.demographics).length > 0 ? r.demographics : undefined,
     race_cross:

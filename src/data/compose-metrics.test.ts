@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { diagnosticarSerie } from './compose-metrics';
+import { diagnosticarSerie, composeMonthlyMetrics } from './compose-metrics';
 import type { MonthlyMetricRow } from '@/lib/metrics.functions';
 
 const linha = (source: string, month: string): MonthlyMetricRow =>
@@ -40,4 +40,49 @@ test('o último mês é o maior, não o último da lista', () => {
     linha('convenia', '2025-01-01'),
   ]);
   assert.equal(d.ultimoMes, '2026-08');
+});
+
+// ---------------------------------------------------------------------------
+// A QUARTA VEZ NÃO PODE SER MUDA
+// ---------------------------------------------------------------------------
+// `toMonthRecord` traduz campo a campo entre a linha do banco e o que a tela
+// consome -- e coluna que não aparece ali simplesmente não existe para a
+// tela, por mais cheia que esteja no banco. Já aconteceu com
+// family_breakdown/contract_breakdown/tenure_breakdown (10/09) e de novo com
+// work_model_base (15/09): a coluna gravada, o tipo com o campo, o gráfico
+// lendo `curr.work_model_base` -- e ninguém adicionou a linha aqui. O card
+// simplesmente sumiu, mesmo com a carga rodada e o dado certo no banco.
+//
+// Este teste não substitui a atenção na próxima vez que um campo for
+// adicionado -- mas se alguém adicionar uma quebra nova (`Record<string,
+// number>` ou objeto por departamento) e esquecer de traduzi-la aqui, ele
+// falha em vez de o card sumir em silêncio.
+// ---------------------------------------------------------------------------
+
+test('toda quebra por faixa (*_base) sobrevive de MonthlyMetricRow a MonthRecord', () => {
+  const CAMPOS_BASE = [
+    'level_base', 'tenure_base', 'family_base', 'contract_base', 'work_model_base',
+  ] as const;
+  const row = {
+    source: 'convenia', month: '2026-08-01', brand: 'NSX',
+    ...Object.fromEntries(CAMPOS_BASE.map((c) => [c, { 'valor-sentinela': 1 }])),
+  } as unknown as MonthlyMetricRow;
+
+  const [rec] = composeMonthlyMetrics([row]);
+  for (const campo of CAMPOS_BASE) {
+    assert.ok(
+      (rec as unknown as Record<string, unknown>)[campo],
+      `${campo}: gravado no banco mas não chegou em MonthRecord -- falta a linha em toMonthRecord`,
+    );
+  }
+});
+
+test('work_model_base especificamente: o card de Demográficos lê daqui', () => {
+  const row = {
+    source: 'convenia', month: '2026-08-01', brand: 'NSX',
+    work_model_base: { Remoto: 250, Presencial: 140, 'Não informado': 166 },
+  } as unknown as MonthlyMetricRow;
+
+  const [rec] = composeMonthlyMetrics([row]);
+  assert.deepEqual(rec.work_model_base, { Remoto: 250, Presencial: 140, 'Não informado': 166 });
 });
