@@ -123,9 +123,17 @@ export default function LeaversTab() {
   // prometeria uma taxa que o tooltip nao tem como calcular.
   const temDenominador = Object.keys(activeByBand).length > 0;
 
+  // ------------------------------------------------------------------
+  // O PERÍODO DO TOPO RECORTA A LISTA, NÃO SÓ O ANO
+  // ------------------------------------------------------------------
+  // Até 15/09 aqui só passava o ano: escolher "julho" no topo mudava os
+  // cartões que vêm da série e deixava a lista, os gráficos e os KPIs com o
+  // ano inteiro. Duas populações na mesma tela, sem nada dizendo qual era
+  // qual. `mes_desligamento` é 'AAAA-MM', então o mesmo período que recorta a
+  // série recorta a lista -- ver `src/lib/periodo.ts`.
   const filteredLeavers = useMemo(() => {
     return leavers.filter(r => {
-      if (activeYear && !(r.mes_desligamento || '').startsWith(activeYear)) return false;
+      if (!periodo.contem(r.mes_desligamento)) return false;
       // 'Todos', vazio e espaços = sem seleção (ver `filtro-sentinela.ts`).
       if (!passaFiltro(filters.departamento, r.departamento)) return false;
       if (!passaFiltro(filters.jobFamily, r.job_family)) return false;
