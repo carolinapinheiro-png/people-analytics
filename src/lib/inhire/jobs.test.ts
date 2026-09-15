@@ -16,7 +16,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   aggregateJobs, canonDept, deptOf, isTalentPool, statusBucket, tempoDeFechamento,
-  metaSla,
+  metaSla, vagasParaDetalhar,
   type InhireJob,
 } from './jobs';
 
@@ -399,4 +399,39 @@ test('vaga aberta dentro do prazo não é estourada', () => {
   const r = aggregateJobs([j], '2026-08-10');
   assert.equal(r.open[0].with_sla_goal, 1);
   assert.equal(r.open[0].overdue_sla, 0);
+});
+
+// ------------------------------------------------- quais vagas detalhar
+
+test('detalhe: sem vagas, nada a buscar', () => {
+  const d = vagasParaDetalhar([]);
+  assert.deepEqual(d.ids, []);
+  assert.equal(d.motivo, null);
+});
+
+test('detalhe: departamento ausente na maioria busca TODAS as vagas, mesmo abertas', () => {
+  const semDept = job({ id: 'a', status: 'open', customFields_map: {} });
+  const comDept = job({ id: 'b', status: 'open' });
+  // 2 de 3 sem departamento (>50%) — dispara o motivo departamento-ausente.
+  const outraSemDept = job({ id: 'c', status: 'closed', customFields_map: {} });
+  const d = vagasParaDetalhar([semDept, comDept, outraSemDept]);
+  assert.deepEqual(new Set(d.ids), new Set(['a', 'b', 'c']));
+  assert.equal(d.motivo, 'departamento-ausente');
+});
+
+test('detalhe: departamento ok na maioria busca só as FECHADAS, não as abertas', () => {
+  const abertaComDept = job({ id: 'a', status: 'open' });
+  const fechadaComDept = job({ id: 'b', status: 'closed' });
+  const outraAbertaComDept = job({ id: 'c', status: 'open' });
+  const d = vagasParaDetalhar([abertaComDept, fechadaComDept, outraAbertaComDept]);
+  assert.deepEqual(d.ids, ['b']);
+  assert.equal(d.motivo, 'historico-vagas-fechadas');
+});
+
+test('detalhe: departamento ok e nenhuma fechada não busca nada', () => {
+  const a = job({ id: 'a', status: 'open' });
+  const b = job({ id: 'b', status: 'open' });
+  const d = vagasParaDetalhar([a, b]);
+  assert.deepEqual(d.ids, []);
+  assert.equal(d.motivo, null);
 });

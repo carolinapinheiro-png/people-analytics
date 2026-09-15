@@ -450,3 +450,41 @@ export function aggregateJobs(jobs: InhireJob[], asOf: string): AggregateResult 
 
   return { monthly, open, resumo };
 }
+
+export interface DecisaoDetalhe {
+  ids: string[];
+  motivo: 'departamento-ausente' | 'historico-vagas-fechadas' | null;
+}
+
+/**
+ * Quais vagas precisam do detalhe (`GET /jobs/:id`) para a agregação ficar
+ * completa, e por quê.
+ *
+ * A listagem lean PODE trazer departamento, vaga a vaga -- varia. Ela NUNCA
+ * traz `statusHistory`, para nenhuma vaga, com ou sem departamento. Por isso
+ * as duas necessidades são avaliadas em separado, e não uma como indício da
+ * outra: usar a falta de departamento como proxy da falta de histórico já
+ * escondeu o tempo de fechamento em silêncio uma vez (ver o relato do erro de
+ * 11/08/2026 em `tempoDeFechamento`).
+ *
+ * Ausência de departamento na maioria pede o detalhe de TODAS as vagas --
+ * a agregação por área depende de quase todas. Do contrário, só as FECHADAS
+ * precisam do detalhe, porque só elas usam `statusHistory` para calcular o
+ * tempo de fechamento; pedir o detalhe das abertas também seria gasto sem uso
+ * do balde de requisições que é compartilhado com o MCP do time.
+ */
+export function vagasParaDetalhar(jobs: InhireJob[]): DecisaoDetalhe {
+  if (!jobs.length) return { ids: [], motivo: null };
+
+  const semDept = jobs.filter((j) => deptOf(j) == null).length;
+  if (semDept > jobs.length * 0.5) {
+    return { ids: jobs.map((j) => j.id), motivo: 'departamento-ausente' };
+  }
+
+  const fechadas = jobs.filter((j) => statusBucket(j.status) === 'fechada');
+  if (fechadas.length) {
+    return { ids: fechadas.map((j) => j.id), motivo: 'historico-vagas-fechadas' };
+  }
+
+  return { ids: [], motivo: null };
+}

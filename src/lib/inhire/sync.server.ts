@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { aggregateJobs, deptOf, type InhireJob } from './jobs';
+import { aggregateJobs, vagasParaDetalhar, type InhireJob } from './jobs';
 import { extrairPagina, JOBS_PAGINATED } from './paths';
 
 /**
@@ -79,24 +79,32 @@ export async function executarSyncInhire(
       { limit: 100, aoAvisar: (a) => avisos.push(a) },
     );
 
-    // A listagem "lean" não traz departamento nem histórico de status; o
-    // detalhe traz os dois. Uma requisição por vaga, a 150ms -- ~7/s contra os
-    // 20/s sustentados, para não atrapalhar o MCP que o time usa.
-    const semDeptNaListagem = jobs.filter((j) => deptOf(j) == null).length;
+    // A listagem "lean" pode ou não trazer departamento, vaga a vaga; nunca
+    // traz `statusHistory`. `vagasParaDetalhar` decide, em separado, quais
+    // vagas precisam do detalhe e por quê -- ver a lógica e o histórico do
+    // erro de 11/08/2026 em jobs.ts.
+    const { ids: idsParaDetalhe, motivo } = vagasParaDetalhar(jobs);
+
     let detalhados = 0;
-    if (semDeptNaListagem > jobs.length * 0.5 && jobs.length <= 400) {
-      for (let i = 0; i < jobs.length; i++) {
+    if (idsParaDetalhe.length && jobs.length <= 400) {
+      const porId = new Map(jobs.map((j) => [j.id, j]));
+      for (let i = 0; i < idsParaDetalhe.length; i++) {
+        const id = idsParaDetalhe[i];
         try {
-          const det = await client.get<InhireJob>(`/jobs/${jobs[i].id}`);
-          jobs[i] = { ...jobs[i], ...det };
+          const det = await client.get<InhireJob>(`/jobs/${id}`);
+          const atual = porId.get(id);
+          if (atual) Object.assign(atual, det);
           detalhados++;
         } catch {
-          // Uma vaga que falha não derruba a carga; ela fica sem área e o
-          // resumo mostra quantas ficaram.
+          // Uma vaga que falha não derruba a carga; ela fica sem o dado extra
+          // e o resumo mostra quantas ficaram.
         }
-        if (i < jobs.length - 1) await new Promise((r) => setTimeout(r, 150));
+        if (i < idsParaDetalhe.length - 1) await new Promise((r) => setTimeout(r, 150));
       }
-      avisos.push(`A listagem resumida não traz o departamento — busquei o detalhe de ${detalhados} de ${jobs.length} vagas para recuperá-lo.`);
+      const motivoTexto = motivo === 'departamento-ausente'
+        ? 'a listagem resumida não traz o departamento'
+        : 'recuperar o histórico de status das vagas fechadas, para calcular o tempo de fechamento';
+      avisos.push(`Busquei o detalhe de ${detalhados} de ${idsParaDetalhe.length} vagas (${motivoTexto}).`);
     }
 
     const comHist = jobs.filter((j) => (j.statusHistory ?? []).length > 0).length;
