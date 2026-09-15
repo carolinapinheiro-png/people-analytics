@@ -64,6 +64,12 @@ export interface MonthRecord {
   family_base?: Record<string, number>;
   /** Contagem por vinculo, com o nome cru do Convenia ({ "CLT": n, ... }). */
   contract_base?: Record<string, number>;
+  /**
+   * Contagem por Modelo de Jornada de Trabalho, valor cru do Convenia
+   * ({ "Presencial": n, "Remoto sem registro de ponto": n, ... }). Substitui
+   * `work_model_snapshot` -- ver a migração 20260915000000.
+   */
+  work_model_base?: Record<string, number>;
   /** Demograficos ({ age, race, marital, origin }). */
   demographics?: {
     age?: Record<string, number>;
@@ -116,6 +122,7 @@ export interface DeptBreakdownRecord {
    *  combinado se declara nao-confiavel em vez de inventar. */
   family_base?: Record<string, number>;
   contract_base?: Record<string, number>;
+  work_model_base?: Record<string, number>;
   demographics: {
     age: Record<string, number>;
     race: Record<string, number>;

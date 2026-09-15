@@ -81,6 +81,14 @@ export interface DeptBreakdownPorArea {
    */
   family_base: Record<string, number>;
   contract_base: Record<string, number>;
+  /**
+   * Contagem por Modelo de Jornada de Trabalho ("Remoto", "Híbrido",
+   * "Presencial"), mesmo padrão de `family_base`/`contract_base`: contagem
+   * por faixa, mês a mês, dentro desta fatia. Substitui `work_model_snapshot`
+   * (uma foto única de jul/2026, parada) -- agora recorta por mês/trimestre/
+   * ano e por área/família/vínculo/tempo de casa, como o resto da série.
+   */
+  work_model_base: Record<string, number>;
   demographics: {
     age: Record<string, number>;
     race: Record<string, number>;
@@ -129,6 +137,19 @@ export interface PessoaConvenia {
   jobFamily?: string | null;
   /** `Level` do cadastro ("L0".."L9"). Atributo ATUAL, igual à família. */
   nivel?: string | null;
+  /**
+   * `Modelo de Jornada de Trabalho` do cadastro ("Remoto", "Híbrido",
+   * "Presencial"). Atributo ATUAL, igual à família e ao nível -- o Convenia
+   * não guarda o histórico de modelo, então quem mudou de regime aparece no
+   * atual também nos meses passados.
+   *
+   * Até 15/09 isto vinha de `work_model_snapshot`, uma foto ÚNICA (jul/2026)
+   * carregada à parte do Talent Mobility -- parada, e sem recortar por
+   * mês/trimestre/ano como o resto da série. O campo já estava no
+   * `custom_fields` do Convenia o tempo todo (mesmo lugar de `Level` e
+   * `Job Type Family`); só não estava sendo lido.
+   */
+  modeloTrabalho?: string | null;
   /** Estado civil, do detalhe ("Casado(a)"). */
   marital?: string | null;
   /** UF de NASCIMENTO (`natural_from_state_uf`) -- não é a de residência, que
@@ -279,6 +300,12 @@ export interface LinhaMensal {
   family_base: Record<string, number>;
   /** Contagem por vínculo, como o Convenia escreve ("CLT", "Pessoa Jurídica"). */
   contract_base: Record<string, number>;
+  /**
+   * Contagem por Modelo de Jornada de Trabalho ("Remoto", "Híbrido",
+   * "Presencial"). Ver a nota em `DeptBreakdownPorArea` -- substitui
+   * `work_model_snapshot`.
+   */
+  work_model_base: Record<string, number>;
   /**
    * Demográficos aninhados: `{ age, race }`.
    *
@@ -727,7 +754,7 @@ export function reconstruirSerie(
     const vazio = (): DeptBreakdownPorArea => ({
       gender_female: 0, gender_male: 0, leaders: 0, leader_female: 0,
       pcd: 0, pcd_conhecido: 0, apprentice: 0,
-      level_base: {}, tenure_base: {}, family_base: {}, contract_base: {},
+      level_base: {}, tenure_base: {}, family_base: {}, contract_base: {}, work_model_base: {},
       demographics: { age: {}, race: {}, marital: {}, origin: {} },
       race_cross: {},
     });
@@ -764,6 +791,7 @@ export function reconstruirSerie(
     const porOrigem: Record<string, number> = {};
     let pcd = 0, pcdConhecido = 0, aprendizes = 0;
     const contract_base: Record<string, number> = {};
+    const work_model_base: Record<string, number> = {};
     const porIdade: Record<string, number> = {};
     const porRacaDemo: Record<string, number> = {};
 
@@ -793,6 +821,7 @@ export function reconstruirSerie(
         // quem casa com a banda salarial, não daqui: vínculo novo que o RH
         // criar aparece com o próprio nome, em vez de virar "CLT" em silêncio.
         const vinculo = (x.p.relationship ?? '').trim() || 'Não informado';
+        const modeloTrabalho = (x.p.modeloTrabalho ?? '').trim() || 'Não informado';
         const faixa = faixaTempoDeCasa(x.entrada!, mes);
 
         // A MESMA pessoa entra na conta da empresa e nos quatro recortes. Uma
@@ -867,10 +896,12 @@ export function reconstruirSerie(
         tenure_base[faixa] = (tenure_base[faixa] ?? 0) + 1;
         family_base[familia] = (family_base[familia] ?? 0) + 1;
         contract_base[vinculo] = (contract_base[vinculo] ?? 0) + 1;
+        work_model_base[modeloTrabalho] = (work_model_base[modeloTrabalho] ?? 0) + 1;
         for (const B of baldes) {
           B.tenure_base[faixa] = (B.tenure_base[faixa] ?? 0) + 1;
           B.family_base[familia] = (B.family_base[familia] ?? 0) + 1;
           B.contract_base[vinculo] = (B.contract_base[vinculo] ?? 0) + 1;
+          B.work_model_base[modeloTrabalho] = (B.work_model_base[modeloTrabalho] ?? 0) + 1;
         }
 
         // ------------------------------------------------------------
@@ -973,6 +1004,7 @@ export function reconstruirSerie(
       tenure_base,
       family_base,
       contract_base,
+      work_model_base,
       level_base,
       pcd,
       pcd_conhecido: pcdConhecido,

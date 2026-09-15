@@ -314,6 +314,12 @@ export interface MonthlyMetricRow extends MetricSeriesRow {
   /** Contagem por Job Type Family e por vinculo ({ "CLT": n, ... }). */
   family_base: Record<string, number> | null;
   contract_base: Record<string, number> | null;
+  /**
+   * Contagem por Modelo de Jornada de Trabalho, valor cru do Convenia
+   * ({ "Presencial": n, "Remoto sem registro de ponto": n, ... }). Substitui
+   * `work_model_snapshot` -- ver a migração 20260915000000.
+   */
+  work_model_base: Record<string, number> | null;
   /** Demograficos ({ age, race, marital, origin }). */
   demographics: {
     age?: Record<string, number>;
@@ -393,10 +399,10 @@ export const getMonthlyMetrics = createServerFn({ method: 'GET' })
     const tabela = db.from('monthly_metrics');
     let q = (podeVerMovimentacoes
       ? tabela.select(
-        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, raise_events, pcd, apprentice, leader_dept, tenure_base, family_base, contract_base, demographics, race_cross, dept_breakdown, family_breakdown, contract_breakdown, tenure_breakdown, pcd_conhecido',
+        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, raise_events, pcd, apprentice, leader_dept, tenure_base, family_base, contract_base, work_model_base, demographics, race_cross, dept_breakdown, family_breakdown, contract_breakdown, tenure_breakdown, pcd_conhecido',
       )
       : tabela.select(
-        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, pcd, apprentice, leader_dept, tenure_base, family_base, contract_base, demographics, race_cross, dept_breakdown, family_breakdown, contract_breakdown, tenure_breakdown, pcd_conhecido',
+        'month, brand, source, quality_flag, headcount, joiners, leavers, attrition_rate, promotions, gender_female, gender_male, gender_female_pct, leaders, leader_female, leader_female_pct, leaders_pct, avg_salary_leaders, avg_salary_non_leaders, state_mix, dept_data, salary_band_attrition, exit_survey, level_base, pcd, apprentice, leader_dept, tenure_base, family_base, contract_base, work_model_base, demographics, race_cross, dept_breakdown, family_breakdown, contract_breakdown, tenure_breakdown, pcd_conhecido',
       ))
       .is('quality_flag', null)
       .order('month', { ascending: true });

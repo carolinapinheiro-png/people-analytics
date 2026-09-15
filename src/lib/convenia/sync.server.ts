@@ -624,6 +624,21 @@ export async function executarSyncConvenia(
           valorDeCampo(lerCustomFields(r.custom_fields), ['job type family']),
         ]),
     );
+    // Mesmo `custom_fields` já carregado nesta consulta -- nenhuma requisição
+    // a mais. Substitui `work_model_snapshot`, uma foto única de jul/2026
+    // carregada à parte do Talent Mobility, que não recortava por
+    // mês/trimestre/ano nem por departamento/família/vínculo.
+    //
+    // COBERTURA MEDIDA EM 15/09: 440 de 637 ativos (69%) têm o campo
+    // preenchido no Convenia -- os outros 197 entram como "Não informado" na
+    // série, igual ao resto das dimensões deste arquivo (nunca ratear).
+    const modeloTrabalhoPorId = new Map<string, string | null>(
+      (linhasDoCadastro)
+        .map((r) => [
+          r.convenia_id,
+          valorDeCampo(lerCustomFields(r.custom_fields), ['modelo de jornada de trabalho', 'modelo de trabalho']),
+        ]),
+    );
     // `exato`: existe `WorkDay Level` no mesmo cadastro, com outra escala
     // (N-3..N-6 Above). Sem isto, a pirâmide de senioridade misturaria as
     // duas réguas e ninguém notaria pelo desenho.
@@ -969,6 +984,7 @@ export async function executarSyncConvenia(
           // "Não informado" -- visível, em vez de sumir do headcount.
           jobFamily: familiaPorId.get(p.id) ?? null,
           nivel: nivelPorId.get(p.id) ?? null,
+          modeloTrabalho: modeloTrabalhoPorId.get(p.id) ?? null,
           marital: estadoCivilPorId.get(p.id) ?? null,
           origem: origemPorId.get(p.id) ?? null,
           pcd: pcdPorId.get(p.id) ?? null,
@@ -2552,6 +2568,11 @@ export async function executarSyncConvenia(
         // esmaecidos nas abas de série -- que era a situação até 09/09.
         family_base: l.family_base,
         contract_base: l.contract_base,
+        // Modelo de Jornada de Trabalho ("Remoto", "Híbrido", "Presencial"),
+        // mesmo padrão de `family_base`/`contract_base`. Migração
+        // 20260915000000 -- substitui `work_model_snapshot`, a foto única de
+        // jul/2026 que não recortava por período nem por departamento.
+        work_model_base: l.work_model_base,
         // Promoções e movimentações, calculadas do histórico salarial. Enquanto
         // a fila de leitura não zera, o número é PARCIAL -- e o aviso de
         // cobertura, montado junto com ele, diz de quantas pessoas ele saiu.

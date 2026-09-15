@@ -9,9 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { Users, MapPin, Cake, ShieldCheck, Globe, GraduationCap, Laptop } from 'lucide-react';
-import { useState, useEffect } from 'react';
-import { useServerFn } from '@tanstack/react-start';
-import { getWorkModel, type WorkModelRow } from '@/lib/work-model.functions';
+import { useState, useEffect, useMemo } from 'react';
 import { FAIXAS_TEMPO_DE_CASA } from '@/lib/convenia/pessoas';
 
 const WORK_MODEL_ORDER = ['Remoto', 'Híbrido', 'Presencial', 'Não informado'];
@@ -94,38 +92,56 @@ export default function DemographicsTab() {
   const { currentData: curr, cut } = useRecorteDeSerie('demographics');
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
 
-  // Modelo de trabalho: agregado dos ativos (Talent Mobility). E company-wide,
-  // nao filtra por marca -- por isso vem do server, nao da serie mensal.
-  const fetchWorkModel = useServerFn(getWorkModel);
-  const [workModel, setWorkModel] = useState<WorkModelRow[] | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    fetchWorkModel({ data: { department: filters.departamento } })
-      .then((d) => { if (!cancelled) setWorkModel(d as WorkModelRow[]); })
-      .catch(() => { if (!cancelled) setWorkModel([]); });
-    return () => { cancelled = true; };
-    // `filters.departamento` na lista: sem ele o gráfico congelava no primeiro
-    // valor e passava a mostrar uma área com o rótulo de outra.
-  }, [fetchWorkModel, filters.departamento]);
-
-  const wmOverall = (workModel ?? [])
-    .filter((r) => r.scope_type === 'overall')
-    .map((r) => ({ name: r.model, value: r.n }))
-    .sort((a, b) => WORK_MODEL_ORDER.indexOf(a.name) - WORK_MODEL_ORDER.indexOf(b.name));
-  const wmTotal = wmOverall.reduce((s, r) => s + r.value, 0);
-  const wmByDept = (() => {
-    const m: Record<string, Record<string, number>> = {};
-    (workModel ?? []).filter((r) => r.scope_type === 'department').forEach((r) => {
-      (m[r.scope] ??= {})[r.model] = r.n;
+  // ------------------------------------------------------------------
+  // MODELO DE TRABALHO -- AGORA AO VIVO, DA SÉRIE MENSAL
+  // ------------------------------------------------------------------
+  // Até 15/09 isto vinha de `getWorkModel`/`work_model_snapshot`: uma foto
+  // ÚNICA de jul/2026, carregada à parte do Talent Mobility, que não recortava
+  // por mês/trimestre/ano nem respondia aos outros filtros da barra.
+  //
+  // O campo já vem no `custom_fields` do Convenia -- mesmo lugar de `Level` e
+  // `Job Type Family` -- e passou a entrar em `work_model_base` na
+  // reconstrução mensal (ver `pessoas.ts`). Não é mais uma chamada à parte:
+  // `curr` já é a mesma série recortada (mês, marca, departamento, família,
+  // contrato, tempo de casa) que alimenta todo o resto desta aba.
+  //
+  // AGRUPAMENTO: o Convenia distingue "Remoto sem registro de ponto" de
+  // "Remoto com registro de ponto" -- os dois viram "Remoto" aqui, na tela,
+  // não na série (que guarda o valor cru, como `contract_base` guarda
+  // "Pessoa Jurídica" em vez de traduzir para "PJ").
+  const agruparModelo = (bruto: string): string => {
+    if (bruto.toLowerCase().startsWith('remoto')) return 'Remoto';
+    return WORK_MODEL_ORDER.includes(bruto) ? bruto : bruto || 'Não informado';
+  };
+  const wmOverall = useMemo(() => {
+    const acc: Record<string, number> = {};
+    Object.entries(curr.work_model_base || {}).forEach(([bruto, n]) => {
+      const m = agruparModelo(bruto);
+      acc[m] = (acc[m] ?? 0) + n;
     });
-    return Object.entries(m)
-      .map(([dept, models]) => ({
-        dept,
-        total: Object.values(models).reduce((s, v) => s + v, 0),
-        ...models,
-      }))
+    return WORK_MODEL_ORDER
+      .map((name) => ({ name, value: acc[name] ?? 0 }))
+      .filter((r) => r.value > 0);
+  }, [curr]);
+  const wmTotal = wmOverall.reduce((s, r) => s + r.value, 0);
+  const wmSemInfo = wmOverall.find((r) => r.name === 'Não informado')?.value ?? 0;
+  const wmByDept = useMemo(() => {
+    return Object.entries(curr.dept_breakdown || {})
+      .map(([dept, b]) => {
+        const models: Record<string, number> = {};
+        Object.entries(b.work_model_base || {}).forEach(([bruto, n]) => {
+          const m = agruparModelo(bruto);
+          models[m] = (models[m] ?? 0) + n;
+        });
+        return {
+          dept,
+          total: Object.values(models).reduce((s, v) => s + v, 0),
+          ...models,
+        };
+      })
+      .filter((d) => d.total > 0)
       .sort((a, b) => b.total - a.total);
-  })();
+  }, [curr]);
   const wmRemotoPct = wmTotal > 0 ? (wmOverall.find((r) => r.name === 'Remoto')?.value ?? 0) / wmTotal * 100 : 0;
   const dg = curr.demographics || {};
   const hc = curr.headcount || 0;
@@ -261,10 +277,10 @@ export default function DemographicsTab() {
         />
       </div>
 
-      {/* Modelo de trabalho (company-wide, Talent Mobility) */}
+      {/* Modelo de trabalho -- ao vivo, da série mensal (ver work_model_base) */}
       {wmTotal > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ChartCard title="Modelo de trabalho" subtitle={`Retrato atual · ${wmTotal} ativos · ${wmRemotoPct.toFixed(0)}% remoto`} icon={Laptop}>
+          <ChartCard title="Modelo de trabalho" subtitle={`${mLabel(currentMonth)} · ${wmTotal} ativos · ${wmRemotoPct.toFixed(0)}% remoto`} icon={Laptop}>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={wmOverall} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2}>
@@ -275,9 +291,13 @@ export default function DemographicsTab() {
               </PieChart>
             </ResponsiveContainer>
             <p className="text-[11px] text-muted-foreground mt-1">
-              <strong>Foto retroativa</strong> (retrato de jul/2026, consolidado — todas as marcas): não há série histórica de
-              modelo de trabalho, então este retrato único vale para todo o período, sem variar com o filtro de ano/mês.
-              Fonte: Talent Mobility ("Modelo de Jornada de Trabalho"); "Remoto" agrupa com e sem registro de ponto.
+              Direto do cadastro do Convenia ("Modelo de Jornada de Trabalho", o mesmo campo de <em>Level</em> e{' '}
+              <em>Job Type Family</em>) — recorta por mês, trimestre, ano, departamento, família, vínculo e tempo de casa,
+              como o resto da série. "Remoto" agrupa com e sem registro de ponto.
+              {wmSemInfo > 0 && (
+                <> <strong>{wmSemInfo} de {wmTotal}</strong> ativos sem o campo preenchido no Convenia entram como
+                  "Não informado" — não são rateados entre as outras categorias.</>
+              )}
             </p>
           </ChartCard>
 

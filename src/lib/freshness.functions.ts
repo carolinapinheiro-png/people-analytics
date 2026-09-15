@@ -67,6 +67,10 @@ const SPECS: Spec[] = [
     column: 'updated_at',
     label: 'Série mensal (headcount, atrição, DEI)',
     source: 'Talent Mobility, pela tela de importação',
+    // Modelo de trabalho (Demográficos) passou a viver aqui em 15/09 --
+    // `work_model_base`, lido do custom_fields do Convenia como o resto da
+    // série. Deixou de ter entrada própria (`work_model`, que apontava para
+    // `work_model_snapshot`, retirada de uso).
     expectedDays: 40,
   },
   {
@@ -115,15 +119,6 @@ const SPECS: Spec[] = [
       filterColumn: 'provider',
       filterValue: 'convenia',
     },
-  },
-  {
-    key: 'work_model',
-    table: 'work_model_snapshot',
-    column: 'loaded_at',
-    label: 'Modelo de trabalho',
-    source: 'Talent Mobility — foto única',
-    expectedDays: 180,
-    note: 'Foto retroativa: não há série histórica deste campo.',
   },
   {
     key: 'engagement',

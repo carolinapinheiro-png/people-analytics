@@ -443,6 +443,48 @@ test('demographics vem aninhado em age e race, que é o que a tela lê', () => {
   assert.ok(Object.values(d.age).some((v) => v > 0), 'idade não pode vir vazia');
 });
 
+// ---------------------------------------------------------------------------
+// MODELO DE TRABALHO -- SUBSTITUI `work_model_snapshot`
+// ---------------------------------------------------------------------------
+// Até 15/09 "Modelo de Trabalho" vinha de uma foto única (jul/2026) do Talent
+// Mobility, parada e sem recortar por mês/trimestre/ano nem por departamento.
+// O campo já vinha no `custom_fields` do Convenia -- mesmo lugar de `Level` e
+// `Job Type Family` -- e passou a entrar na reconstrução mensal, no mesmo
+// padrão de `family_base`/`contract_base`: contagem por faixa, mês a mês,
+// tanto na empresa inteira quanto em cada balde (área, família, vínculo,
+// tempo de casa).
+// ---------------------------------------------------------------------------
+
+test('work_model_base conta por modelo, com "Não informado" como categoria', () => {
+  const pessoas = [
+    p({ id: '1', hiring_date: '2026-01-01', department: { name: 'Tech' }, modeloTrabalho: 'Remoto' }),
+    p({ id: '2', hiring_date: '2026-01-01', department: { name: 'Tech' }, modeloTrabalho: 'Presencial' }),
+    // Sem o campo preenchido -- é o caso mais comum hoje (197 de 637 ativos).
+    p({ id: '3', hiring_date: '2026-01-01', department: { name: 'Tech' } }),
+  ];
+  const m = reconstruirSerie(pessoas, 'NSX', '2026-01').linhas[0];
+  assert.equal(m.work_model_base['Remoto'], 1);
+  assert.equal(m.work_model_base['Presencial'], 1);
+  assert.equal(m.work_model_base['Não informado'], 1);
+  // A soma bate com o headcount -- nenhuma pessoa se perde, nenhuma é
+  // ratada.
+  const soma = Object.values(m.work_model_base).reduce((a, b) => a + b, 0);
+  assert.equal(soma, m.headcount);
+});
+
+test('work_model_base entra também no recorte por área', () => {
+  const pessoas = [
+    p({ id: '1', hiring_date: '2026-01-01', department: { name: 'Tech' }, modeloTrabalho: 'Remoto' }),
+    p({ id: '2', hiring_date: '2026-01-01', department: { name: 'Ops' }, modeloTrabalho: 'Presencial' }),
+  ];
+  const dept = reconstruirSerie(pessoas, 'NSX', '2026-01').linhas[0].dept_breakdown;
+  assert.equal(dept['TECH'].work_model_base['Remoto'], 1);
+  assert.equal(dept['OPS'].work_model_base['Presencial'], 1);
+  // Uma área não vê o modelo de trabalho da outra.
+  assert.equal(dept['TECH'].work_model_base['Presencial'] ?? 0, 0);
+});
+
+
 test('a faixa mais nova é "<25", o rótulo que a tela e a série antiga usam', () => {
   // Com '18-24', a MESMA faixa vira duas categorias ao comparar as séries, e
   // o gráfico a ordena antes de todas as outras (AGE_ORDER não a reconhece).
