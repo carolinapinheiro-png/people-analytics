@@ -48,6 +48,15 @@ export interface RecruitmentOpen {
   avg_age_days: number | null;
 }
 
+/**
+ * `open` carrega o HISTÓRICO inteiro de fotos semanais (uma linha por
+ * as_of/depto/status), não só a mais recente -- é o material bruto da série
+ * mensal de vagas abertas. Quem lê isto NUNCA deve somar `open` direto: isso
+ * soma a mesma vaga uma vez por semana em que ela apareceu. Escolha uma foto
+ * primeiro com `asOfNoCorte`/`linhasDoSnapshot` de `lib/inhire/openSnapshots`
+ * (para um número de instante) ou agregue com `serieMensal` (para uma série).
+ */
+
 export interface RecruitmentData {
   global: boolean;
   scopeDepartments: string[];
@@ -82,13 +91,15 @@ export const getRecruitment = createServerFn({ method: 'GET' })
 
     // `recruitment_open_snapshot` guarda UMA linha por depto/status a cada
     // sincronização -- é assim que a série histórica de vagas abertas passa a
-    // existir (ver comentário em sync.server.ts). Sem filtrar pelo `as_of`
-    // mais recente, a consulta abaixo trazia TODAS as fotos acumuladas, e o
-    // card de "Vagas abertas" somava a mesma vaga uma vez por semana em que
-    // ela apareceu -- 8 fotos acumuladas viraram um número ~8x maior que o
-    // real. `asOf` sai desta mesma consulta, então a data mostrada na tela
-    // batia com a foto errada (a mais antiga do lote, por acaso da ordenação
-    // por departamento) e não com a mais recente.
+    // existir (ver comentário em sync.server.ts). Traz TODO o histórico aqui
+    // de propósito (16/09/2026: passou a alimentar o gráfico de evolução);
+    // quem lê `open` precisa escolher uma foto com `lib/inhire/openSnapshots`
+    // antes de somar -- nunca reduzir `open` direto (ver o aviso no tipo).
+    //
+    // `asOf` (a data mostrada no topo da aba) continua vindo de uma consulta
+    // separada por max(as_of): é sobre TODA a base, sem o filtro de escopo
+    // que `open` leva abaixo -- um gestor sem vaga aberta no time dele ainda
+    // precisa saber de quando é o retrato.
     const { data: ultimaFoto } = await db
       .from('recruitment_open_snapshot')
       .select('as_of')
@@ -101,12 +112,9 @@ export const getRecruitment = createServerFn({ method: 'GET' })
       db.from('recruitment_monthly')
         .select('month, department, closed_jobs, tth_avg, tth_median, applications')
         .order('month', { ascending: true }),
-      latestAsOf
-        ? db.from('recruitment_open_snapshot')
-            .select('as_of, department, status, jobs, positions, applications, avg_age_days')
-            .eq('as_of', latestAsOf)
-            .order('department', { ascending: true })
-        : Promise.resolve({ data: [] as RecruitmentOpen[], error: null }),
+      db.from('recruitment_open_snapshot')
+        .select('as_of, department, status, jobs, positions, applications, avg_age_days')
+        .order('as_of', { ascending: true }),
     ]);
     if (mErr) throw new Error(`Falha ao carregar recrutamento: ${mErr.message}`);
     if (oErr) throw new Error(`Falha ao carregar vagas abertas: ${oErr.message}`);

@@ -16,6 +16,7 @@ import { Briefcase, Clock, Users, AlertTriangle, Snowflake, GitBranch, Gauge } f
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getRecruitment, type RecruitmentData, type RecruitmentOpen } from '@/lib/recruitment.functions';
+import { asOfNoCorte, linhasDoSnapshot, normalizaStatus, serieMensal } from '@/lib/inhire/openSnapshots';
 import { useDashboard } from '@/data/DashboardContext';
 import { usePeriodo } from '@/data/use-periodo';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
@@ -144,17 +145,52 @@ export default function RecruitmentTab() {
       .sort((a, b) => (b.tth ?? 0) - (a.tth ?? 0));
   }, [data, monthlyEmPeriodo]);
 
+  // `data.open` é o HISTÓRICO inteiro de fotos semanais, não só a mais
+  // recente (ver o aviso no tipo RecruitmentOpen) -- então primeiro escolhe
+  // UMA foto (a última dentro do período em escopo) antes de somar qualquer
+  // coisa. Reduzir `data.open` direto soma a mesma vaga uma vez por semana em
+  // que ela apareceu; comparar `status` sem normalizar erra a foto antiga de
+  // 04/08 (maiúscula) contra as de 11/08 em diante (minúsculas) -- as duas
+  // armadilhas que já se materializaram aqui (16/09/2026).
+  const corteMes = periodo.tipo === 'todos' ? null : periodo.fim;
+  const snapshotAtual = useMemo(() => {
+    const asOf = asOfNoCorte(data?.open ?? [], corteMes);
+    return linhasDoSnapshot(data?.open ?? [], asOf);
+  }, [data, corteMes]);
+
   const abertas = useMemo(() => {
     if (!data) return { jobs: 0, positions: 0, congeladas: 0, envelhecidas: [] as RecruitmentOpen[] };
-    const ab = data.open.filter((o) => o.status === 'Aberta');
-    const cg = data.open.filter((o) => o.status === 'Congelada');
+    const ab = snapshotAtual.filter((o) => normalizaStatus(o.status) === 'aberta');
+    const cg = snapshotAtual.filter((o) => normalizaStatus(o.status) === 'congelada');
     return {
       jobs: ab.reduce((s, o) => s + o.jobs, 0),
       positions: ab.reduce((s, o) => s + o.positions, 0),
       congeladas: cg.reduce((s, o) => s + o.jobs, 0),
-      envelhecidas: [...data.open].sort((a, b) => (b.avg_age_days ?? 0) - (a.avg_age_days ?? 0)).slice(0, 4),
+      envelhecidas: [...snapshotAtual].sort((a, b) => (b.avg_age_days ?? 0) - (a.avg_age_days ?? 0)).slice(0, 4),
     };
-  }, [data]);
+  }, [data, snapshotAtual]);
+
+  // Evolução mensal de vagas abertas/congeladas. `serieMensal` já reduz cada
+  // mês à ÚLTIMA foto dele (nunca soma fotos da mesma vaga); aqui só agrega
+  // por mês (somando departamentos, já filtrados por escopo no servidor) e
+  // recorta pelo mesmo `ateOFim` do gráfico de fechamentos -- histórico até o
+  // fim do período, não um mês isolado. Não existe ponto antes da primeira
+  // foto real (04/08/2026): a série nasce ali, não em jan/2026 como a de
+  // fechamentos -- eixos diferentes, começos diferentes.
+  const serieAbertas = useMemo(() => {
+    if (!data?.open.length) return [];
+    const porMes = new Map<string, { aberta: number; congelada: number }>();
+    for (const p of serieMensal(data.open)) {
+      const e = porMes.get(p.month) ?? { aberta: 0, congelada: 0 };
+      if (p.status === 'aberta') e.aberta += p.jobs;
+      else if (p.status === 'congelada') e.congelada += p.jobs;
+      porMes.set(p.month, e);
+    }
+    return [...porMes.entries()]
+      .filter(([mes]) => periodo.ateOFim(mes))
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([mes, v]) => ({ mes: monthLabel(mes), ...v }));
+  }, [data, periodo]);
 
   // O cruzamento que so existe aqui: quanto o time contratou contra quanto ele
   // perdeu, no mesmo periodo e no mesmo departamento.
@@ -308,6 +344,32 @@ export default function RecruitmentTab() {
         </CardContent>
       </Card>
 
+      {serieAbertas.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Evolução de vagas abertas e congeladas</CardTitle>
+            <CardDescription className="text-xs">
+              Uma foto por mês (a última sincronização daquele mês) -- não é quantas abriram, é
+              quantas estavam abertas no fim de cada mês. A série começa em ago/2026, quando o
+              acesso à API do InHire foi liberado; meses antes disso não têm foto guardada.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={220}>
+              <ComposedChart data={serieAbertas} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" vertical={false} />
+                <XAxis dataKey="mes" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} />
+                <Tooltip contentStyle={{ fontSize: 12 }} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Line type="monotone" dataKey="aberta" name="Abertas" stroke={COLORS.flutter} strokeWidth={2} dot={{ r: 2 }} />
+                <Line type="monotone" dataKey="congelada" name="Congeladas" stroke={COLORS.warning} strokeWidth={2} dot={{ r: 2 }} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
@@ -403,10 +465,10 @@ export default function RecruitmentTab() {
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-medium">{o.department}</span>
                   <Badge
-                    variant={o.status === 'Congelada' ? 'outline' : 'secondary'}
+                    variant={normalizaStatus(o.status) === 'congelada' ? 'outline' : 'secondary'}
                     className="text-[10px]"
                   >
-                    {o.status}
+                    {normalizaStatus(o.status) === 'congelada' ? 'Congelada' : 'Aberta'}
                   </Badge>
                 </div>
                 <p className="text-xl font-medium mt-0.5">{o.avg_age_days ?? '—'}d</p>
