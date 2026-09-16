@@ -155,8 +155,17 @@ export async function executarSyncInhire(
 
     // Idempotente: uma vaga fechada em março continua fechada em março, então
     // recarregar o histórico inteiro corrige em vez de duplicar.
+    //
+    // `loaded_at` vai explícito em CADA linha, não só no default da coluna --
+    // o default só entra no INSERT; num upsert que colide (mês corrente,
+    // recarregado toda semana), a cláusula é um UPDATE e o default não é
+    // reaplicado. Sem isto aqui, o selo de frescor lia a data do primeiro
+    // dia em que o mês apareceu, não a da última carga -- mesmo padrão do
+    // `atualizado_em` em comp_ratio (ver convenia/sync.server.ts).
     if (monthly.length) {
-      const { error } = await db.from('recruitment_monthly').upsert(monthly, { onConflict: 'month,department' });
+      const agora = new Date().toISOString();
+      const linhas = monthly.map((m) => ({ ...m, loaded_at: agora }));
+      const { error } = await db.from('recruitment_monthly').upsert(linhas, { onConflict: 'month,department' });
       if (error) throw new Error(`Falha ao gravar a série mensal: ${error.message}`);
     }
     // A foto é do INSTANTE, e por isso carrega a data: é assim que a série

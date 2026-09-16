@@ -80,13 +80,33 @@ export const getRecruitment = createServerFn({ method: 'GET' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const db = supabaseAdmin as unknown as UntypedClient;
 
+    // `recruitment_open_snapshot` guarda UMA linha por depto/status a cada
+    // sincronização -- é assim que a série histórica de vagas abertas passa a
+    // existir (ver comentário em sync.server.ts). Sem filtrar pelo `as_of`
+    // mais recente, a consulta abaixo trazia TODAS as fotos acumuladas, e o
+    // card de "Vagas abertas" somava a mesma vaga uma vez por semana em que
+    // ela apareceu -- 8 fotos acumuladas viraram um número ~8x maior que o
+    // real. `asOf` sai desta mesma consulta, então a data mostrada na tela
+    // batia com a foto errada (a mais antiga do lote, por acaso da ordenação
+    // por departamento) e não com a mais recente.
+    const { data: ultimaFoto } = await db
+      .from('recruitment_open_snapshot')
+      .select('as_of')
+      .order('as_of', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const latestAsOf = (ultimaFoto as { as_of?: string } | null)?.as_of ?? null;
+
     const [{ data: mRows, error: mErr }, { data: oRows, error: oErr }] = await Promise.all([
       db.from('recruitment_monthly')
         .select('month, department, closed_jobs, tth_avg, tth_median, applications')
         .order('month', { ascending: true }),
-      db.from('recruitment_open_snapshot')
-        .select('as_of, department, status, jobs, positions, applications, avg_age_days')
-        .order('department', { ascending: true }),
+      latestAsOf
+        ? db.from('recruitment_open_snapshot')
+            .select('as_of, department, status, jobs, positions, applications, avg_age_days')
+            .eq('as_of', latestAsOf)
+            .order('department', { ascending: true })
+        : Promise.resolve({ data: [] as RecruitmentOpen[], error: null }),
     ]);
     if (mErr) throw new Error(`Falha ao carregar recrutamento: ${mErr.message}`);
     if (oErr) throw new Error(`Falha ao carregar vagas abertas: ${oErr.message}`);
@@ -111,8 +131,9 @@ export const getRecruitment = createServerFn({ method: 'GET' })
     const seriesStart = all.length ? all[0].month : null;
     const seriesEnd = all.length ? all[all.length - 1].month : null;
     // A data da foto tambem vem da base inteira: um gestor sem vaga aberta ainda
-    // precisa saber de quando e o retrato.
-    const asOf = allOpen.length ? String(allOpen[0].as_of).slice(0, 10) : null;
+    // precisa saber de quando e o retrato. `latestAsOf` já é o max(as_of) --
+    // computado antes de filtrar por escopo, não precisa passar por `allOpen`.
+    const asOf = latestAsOf ? String(latestAsOf).slice(0, 10) : null;
 
     return {
       global,
