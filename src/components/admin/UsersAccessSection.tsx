@@ -860,17 +860,27 @@ export default function UsersAccessSection({
               distribuicao", que e para o que ele serve.
           ------------------------------------------------------------------ */}
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            {/* Chips com a MESMA chave da etiqueta do card: perfil atribuído
-                (`id:<uuid>`) primeiro, na ordem da lista de perfis; depois os
-                rótulos derivados de quem não tem perfil atribuído. */}
-            {[
-              ...perfis
-                .map((pf) => ({ chave: `id:${pf.id}`, rotulo: pf.nome }))
-                .filter((c) => (porPerfil[c.chave] ?? 0) > 0),
-              ...ACCESS_PROFILES
-                .map((p) => ({ chave: p as string, rotulo: PROFILE_LABELS[p] }))
-                .filter((c) => (porPerfil[c.chave] ?? 0) > 0),
-            ].map(({ chave: p, rotulo }) => {
+            {/* Chips agrupados pelo NOME que a etiqueta mostra. O perfil
+                atribuído "Admin" e o admin sem perfil atribuído aparecem
+                igual no card -- então são um chip só, com a soma. A chave do
+                chip é a lista das chaves de `porPerfil` que ele junta. */}
+            {Object.values(
+              [
+                ...perfis.map((pf) => ({ chave: `id:${pf.id}`, rotulo: pf.nome })),
+                ...ACCESS_PROFILES.map((p) => ({ chave: p as string, rotulo: PROFILE_LABELS[p] })),
+              ]
+                .filter((c) => (porPerfil[c.chave] ?? 0) > 0)
+                .reduce<Record<string, { chaves: string[]; rotulo: string; total: number }>>(
+                  (acc, c) => {
+                    const g = (acc[c.rotulo] ??= { chaves: [], rotulo: c.rotulo, total: 0 });
+                    g.chaves.push(c.chave);
+                    g.total += porPerfil[c.chave] ?? 0;
+                    return acc;
+                  },
+                  {},
+                ),
+            ).map(({ chaves, rotulo, total }) => {
+              const p = chaves.join(',');
               const ativo = profileFilter === p;
               return (
                 <button
@@ -884,7 +894,7 @@ export default function UsersAccessSection({
                       : 'border-border text-muted-foreground hover:text-foreground hover:bg-secondary'
                   }`}
                 >
-                  {rotulo} · {porPerfil[p]}
+                  {rotulo} · {total}
                 </button>
               );
             })}

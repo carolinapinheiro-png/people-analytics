@@ -88,10 +88,20 @@ export const GetAllowedEmailsSchema = z.object({
   limit: z.number().int().min(5).max(100).default(20),
   /** Filtros da lista. Vazio = sem filtro. Busca por e-mail nao basta com 100+ linhas. */
   /**
-   * `id:<uuid>` = perfil atribuído (profile_id); senão, rótulo derivado de
-   * quem NÃO tem perfil atribuído. Mesma chave que `porPerfil` devolve.
+   * Lista de chaves separadas por vírgula. `id:<uuid>` = perfil atribuído
+   * (profile_id); `admin`, `hr_leader`... = rótulo derivado de quem NÃO tem
+   * perfil atribuído. O formato é travado porque as chaves entram numa string
+   * de filtro do PostgREST.
    */
-  profile: z.string().trim().max(60).default(''),
+  profile: z
+    .string()
+    .trim()
+    .max(400)
+    .regex(
+      /^((id:[0-9a-f-]{36}|[a-z_]{1,40})(,(id:[0-9a-f-]{36}|[a-z_]{1,40}))*)?$/,
+      'Filtro de perfil inválido',
+    )
+    .default(''),
   department: z.string().trim().max(80).default(''),
 });
 

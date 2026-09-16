@@ -155,13 +155,19 @@ export const getAllowedEmails = createServerFn({ method: 'POST' })
     // (`id:<uuid>`) quando existe; o rótulo derivado só vale para cadastro
     // avulso. Filtrar pelo derivado punha "HR Analyst" e "Business Partner"
     // dentro de "Department Leader" -- nome que a etiqueta nunca mostra.
-    if (data.profile.startsWith('id:')) {
-      const perfilId = data.profile.slice(3);
-      countQuery = countQuery.eq('profile_id', perfilId as never);
-      itemsQuery = itemsQuery.eq('profile_id', perfilId as never);
-    } else if (data.profile) {
-      countQuery = countQuery.eq('profile', data.profile as never).is('profile_id', null);
-      itemsQuery = itemsQuery.eq('profile', data.profile as never).is('profile_id', null);
+    // Aceita várias chaves separadas por vírgula: o chip "Admin" junta quem
+    // tem o perfil atribuído "Admin" e quem é admin sem perfil atribuído.
+    const chaves = data.profile.split(',').map((c) => c.trim()).filter(Boolean);
+    if (chaves.length > 0) {
+      const ids = chaves.filter((c) => c.startsWith('id:')).map((c) => c.slice(3));
+      const derivados = chaves.filter((c) => !c.startsWith('id:'));
+      const partes: string[] = [];
+      if (ids.length) partes.push(`profile_id.in.(${ids.join(',')})`);
+      if (derivados.length) {
+        partes.push(`and(profile.in.(${derivados.join(',')}),profile_id.is.null)`);
+      }
+      countQuery = countQuery.or(partes.join(','));
+      itemsQuery = itemsQuery.or(partes.join(','));
     }
     if (data.department) {
       countQuery = countQuery.contains('departments', [data.department]);
