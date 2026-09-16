@@ -87,7 +87,11 @@ export const GetAllowedEmailsSchema = z.object({
   page: z.number().int().min(1).default(1),
   limit: z.number().int().min(5).max(100).default(20),
   /** Filtros da lista. Vazio = sem filtro. Busca por e-mail nao basta com 100+ linhas. */
-  profile: z.string().trim().max(40).default(''),
+  /**
+   * `id:<uuid>` = perfil atribuído (profile_id); senão, rótulo derivado de
+   * quem NÃO tem perfil atribuído. Mesma chave que `porPerfil` devolve.
+   */
+  profile: z.string().trim().max(60).default(''),
   department: z.string().trim().max(80).default(''),
 });
 

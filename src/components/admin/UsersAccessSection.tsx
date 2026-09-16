@@ -860,7 +860,17 @@ export default function UsersAccessSection({
               distribuicao", que e para o que ele serve.
           ------------------------------------------------------------------ */}
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
-            {ACCESS_PROFILES.filter((p) => (porPerfil[p] ?? 0) > 0).map((p) => {
+            {/* Chips com a MESMA chave da etiqueta do card: perfil atribuído
+                (`id:<uuid>`) primeiro, na ordem da lista de perfis; depois os
+                rótulos derivados de quem não tem perfil atribuído. */}
+            {[
+              ...perfis
+                .map((pf) => ({ chave: `id:${pf.id}`, rotulo: pf.nome }))
+                .filter((c) => (porPerfil[c.chave] ?? 0) > 0),
+              ...ACCESS_PROFILES
+                .map((p) => ({ chave: p as string, rotulo: PROFILE_LABELS[p] }))
+                .filter((c) => (porPerfil[c.chave] ?? 0) > 0),
+            ].map(({ chave: p, rotulo }) => {
               const ativo = profileFilter === p;
               return (
                 <button
@@ -874,7 +884,7 @@ export default function UsersAccessSection({
                       : 'border-border text-muted-foreground hover:text-foreground hover:bg-secondary'
                   }`}
                 >
-                  {PROFILE_LABELS[p]} · {porPerfil[p]}
+                  {rotulo} · {porPerfil[p]}
                 </button>
               );
             })}

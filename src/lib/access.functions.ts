@@ -151,9 +151,17 @@ export const getAllowedEmails = createServerFn({ method: 'POST' })
     // Filtros da lista. Com 100+ linhas, buscar por e-mail so ajuda quem ja
     // sabe o e-mail -- e a pergunta comum e outra: "quem sao os dept leaders?",
     // "quem enxerga COMMERCIAL?".
-    if (data.profile) {
-      countQuery = countQuery.eq('profile', data.profile as never);
-      itemsQuery = itemsQuery.eq('profile', data.profile as never);
+    // O filtro usa a MESMA chave da etiqueta do card: perfil atribuído
+    // (`id:<uuid>`) quando existe; o rótulo derivado só vale para cadastro
+    // avulso. Filtrar pelo derivado punha "HR Analyst" e "Business Partner"
+    // dentro de "Department Leader" -- nome que a etiqueta nunca mostra.
+    if (data.profile.startsWith('id:')) {
+      const perfilId = data.profile.slice(3);
+      countQuery = countQuery.eq('profile_id', perfilId as never);
+      itemsQuery = itemsQuery.eq('profile_id', perfilId as never);
+    } else if (data.profile) {
+      countQuery = countQuery.eq('profile', data.profile as never).is('profile_id', null);
+      itemsQuery = itemsQuery.eq('profile', data.profile as never).is('profile_id', null);
     }
     if (data.department) {
       countQuery = countQuery.contains('departments', [data.department]);
@@ -175,10 +183,15 @@ export const getAllowedEmails = createServerFn({ method: 'POST' })
     // Contagem por perfil no topo, sempre da base INTEIRA -- nao do filtro.
     // Um contador que muda junto com o filtro nao responde "como esta a
     // distribuicao", que e para o que ele serve.
-    const { data: todos } = await supabaseAdmin.from('allowed_emails').select('profile');
+    // Chave = `id:<profile_id>` para quem tem perfil atribuído, rótulo
+    // derivado para quem não tem -- igual à etiqueta e ao filtro acima.
+    const { data: todos } = await supabaseAdmin
+      .from('allowed_emails')
+      .select('profile, profile_id');
     const porPerfil: Record<string, number> = {};
-    for (const r of (todos ?? []) as Array<{ profile: string }>) {
-      porPerfil[r.profile] = (porPerfil[r.profile] ?? 0) + 1;
+    for (const r of (todos ?? []) as Array<{ profile: string; profile_id: string | null }>) {
+      const chave = r.profile_id ? `id:${r.profile_id}` : r.profile;
+      porPerfil[chave] = (porPerfil[chave] ?? 0) + 1;
     }
 
     return {
