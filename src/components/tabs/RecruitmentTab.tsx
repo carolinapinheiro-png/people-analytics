@@ -18,9 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { getRecruitment, type RecruitmentData, type RecruitmentOpen } from '@/lib/recruitment.functions';
 import { useDashboard } from '@/data/DashboardContext';
 import { usePeriodo } from '@/data/use-periodo';
-import { CARTAO_SEM_PERIODO } from '@/lib/periodo';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
-import AvisoPeriodo from '@/components/dashboard/AvisoPeriodo';
 import { COLORS } from '@/lib/colors';
 import TaSatisfactionSection from '@/components/dashboard/TaSatisfactionSection';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -223,15 +221,18 @@ export default function RecruitmentTab() {
   return (
     <div className="space-y-4">
       <div className="flex justify-end"><FreshnessBadge dataset="recruitment" /></div>
-      {/* Honestidade de origem, no topo e nao no rodape. */}
+      {/* Honestidade de origem, no topo e nao no rodape. Uma frase só -- tinha
+          um aviso inline apontando para uma AvisoPeriodo logo abaixo repetindo
+          a mesma informação (foto do dia, não responde a mês/trimestre/ano);
+          irritava por dizer a mesma coisa duas vezes. */}
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <Badge variant="secondary" className="text-[10px]">InHire</Badge>
         <span>
-          Foto de {data.asOf ? new Date(data.asOf + 'T12:00').toLocaleDateString('pt-BR') : '—'} — o
-          painel do InHire é tempo real; este é a última carga, então pequenas diferenças entre os
-          dois são esperadas. Fechadas, TTH e candidaturas recortam por{' '}
-          <strong>{periodo.tipo === 'todos' ? `todo o período desde ${desde}` : periodo.label}</strong>{' '}
-          — vagas abertas e congeladas continuam sendo a foto do dia (ver aviso abaixo).
+          Foto de {data.asOf ? new Date(data.asOf + 'T12:00').toLocaleDateString('pt-BR') : '—'} — carga
+          semanal (o InHire é tempo real; esta é a última sincronização, pequenas diferenças são
+          esperadas). Fechadas, TTH e candidaturas recortam por{' '}
+          <strong>{periodo.tipo === 'todos' ? `todo o período desde ${desde}` : periodo.label}</strong>;
+          vagas abertas e congeladas são sempre a foto do dia, e não mudam com mês, trimestre ou ano.
         </span>
         {!data.global && data.scopeDepartments.length > 0 && (
           <Badge variant="outline" className="text-[10px]">
@@ -239,8 +240,6 @@ export default function RecruitmentTab() {
           </Badge>
         )}
       </div>
-
-      <AvisoPeriodo motivo={CARTAO_SEM_PERIODO.vagasAbertas} />
 
       <Tabs defaultValue="funil" className="space-y-4">
         <TabsList>
