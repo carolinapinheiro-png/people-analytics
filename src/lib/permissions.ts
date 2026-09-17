@@ -37,7 +37,6 @@ export const PROFILE_DESCRIPTIONS: Record<AccessProfile, string> = {
 
 export type DashboardTab =
   | 'overview'
-  | 'team'
   | 'dei'
   | 'comp'
   | 'demographics'
@@ -51,7 +50,6 @@ export type DashboardTab =
 /** Todas as abas que existem. Exportada para validar `extra_tabs` e o CSV. */
 export const ALL_TABS: DashboardTab[] = [
   'overview',
-  'team',
   'dei',
   'comp',
   'demographics',
@@ -364,13 +362,13 @@ export function isExtraTab(profile: AccessProfile, tab: DashboardTab): boolean {
  * de ter autorizado. Na tela isto vira um botao "sugerir abas".
  */
 export const ABAS_POR_RESPONSABILIDADE: Record<string, DashboardTab[]> = {
-  'Headcount & Movimentação': ['overview', 'team', 'demographics'],
+  'Headcount & Movimentação': ['overview', 'demographics'],
   'Turnover & Retenção': ['attrition', 'overview'],
   'Comp & Ben': ['comp'],
   DEI: ['dei', 'demographics'],
   'Engagement & Experiência': ['engagement'],
   Onboarding: ['engagement'],
-  'Estrutura & Span': ['span', 'team'],
+  'Estrutura & Span': ['span'],
   'Talent Mobility': ['recruitment', 'individual'],
 };
 

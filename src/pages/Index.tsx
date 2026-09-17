@@ -9,7 +9,6 @@ import SideNav from '@/components/layout/SideNav';
 import Breadcrumbs from '@/components/layout/Breadcrumbs';
 
 import OverviewTab from '@/components/tabs/OverviewTab';
-import TeamTab from '@/components/tabs/TeamTab';
 import CompensationTab from '@/components/tabs/CompensationTab';
 import ProfileTab from '@/components/tabs/ProfileTab';
 import DataTab from '@/components/tabs/DataTab';
@@ -142,7 +141,6 @@ function DashboardContent() {
         </div>
         <main className="p-4 md:p-6 max-w-[1600px] mx-auto">
           {activeTab === 'overview' && <OverviewTab />}
-          {activeTab === 'team' && <TeamTab />}
           {activeTab === 'recruitment' && <RecruitmentTab />}
           {activeTab === 'dei' && <DEITab />}
           {activeTab === 'comp' && <CompensationTab />}

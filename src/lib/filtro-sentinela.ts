@@ -9,7 +9,6 @@
  *
  *   dept-filter.ts     !d || d === 'Todos'          trata vazio, nulo e espaços
  *   comp.functions.ts  !t || t === 'Todos'          idem
- *   team.functions.ts  !t || t === 'Todos'          idem
  *   LeaversTab.tsx     f.departamento !== 'Todos'   NÃO trata vazio nem espaço
  *   UnwantedTab.tsx    idem, 7 linhas
  *   series-filter.ts   !key || !value || …          mistura duas checagens

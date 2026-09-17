@@ -1,6 +1,5 @@
 import {
   LayoutDashboard,
-  Users,
   UsersRound,
   HeartHandshake,
   Wallet,
@@ -39,7 +38,6 @@ export const GROUPS: NavGroup[] = [
     title: 'Visão geral',
     items: [
       { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-      { id: 'team', label: 'Meu Time', icon: Users },
     ],
   },
   {

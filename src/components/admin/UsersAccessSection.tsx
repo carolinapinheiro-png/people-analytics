@@ -61,7 +61,6 @@ import {
 /** Rotulos das abas, para os chips da previa. */
 export const TAB_LABELS: Record<DashboardTab, string> = {
   overview: 'Overview',
-  team: 'Meu Time',
   dei: 'DEI',
   comp: 'Salários',
   demographics: 'Demográficos',
@@ -1330,7 +1329,7 @@ export interface PerfilOpcao {
  * ===========================================================================
  * A tela anterior descrevia o resultado em DOIS lugares: um aviso dentro da
  * caixa de escopo ("a pessoa ainda não vê nada") e uma fila de chips dentro da
- * caixa de abas ("o que esta pessoa vai ver: Overview, Meu Time, DEI...").
+ * caixa de abas ("o que esta pessoa vai ver: Overview, DEI...").
  *
  * As duas frases estavam tecnicamente certas -- uma falava de escopo, a outra
  * de abas -- e apareciam ao mesmo tempo, dizendo o oposto uma da outra. Quem

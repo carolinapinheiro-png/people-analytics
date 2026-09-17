@@ -133,9 +133,6 @@ export function resolverPeriodo(opts: {
  *                exatamente por isso que a aba deixou de lê-la. Reconstruir o
  *                organograma de um mês passado exigiria uma carga nova, com
  *                supervisor por mês (ver a nota no fim deste arquivo).
- *   team ....... `comp_ratio` é a foto de salário/banda do momento da carga
- *                (`atualizado_em`), uma linha por pessoa ativa. Sem versão
- *                mensal.
  *   individual . mesmo dado de `comp_ratio`, pessoa a pessoa.
  *
  * Mostrar o seletor de mês ativo sobre esses números afirmaria uma coisa
@@ -144,7 +141,6 @@ export function resolverPeriodo(opts: {
  */
 export const PERIODO_INDISPONIVEL: Record<string, string> = {
   span: 'A cadeia de reporte (Convenia) é guardada só na versão atual — não existe organograma de meses passados, então mês, trimestre e ano não recortam esta aba.',
-  team: 'Salário, banda e comp ratio são a foto da última sincronização — a base não guarda versão mensal, então mês, trimestre e ano não recortam esta aba.',
   individual: 'O perfil individual sai da foto atual de cadastro e salário — não há versão mensal, então mês, trimestre e ano não recortam esta aba.',
 };
 

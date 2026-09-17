@@ -30,7 +30,7 @@ test('só departamento é oferecido, em toda aba e sub-aba', () => {
   // Ver a nota em FILTROS_FIXOS. Este teste é o contrato dessa decisão: se
   // alguém religar um filtro sem passar pela verificação de dado, ele quebra.
   const abas = ['overview', 'dei', 'demographics', 'span', 'recruitment',
-    'engagement', 'attrition', 'comp', 'team', 'data'] as const;
+    'engagement', 'attrition', 'comp', 'data'] as const;
   for (const aba of abas) {
     assert.deepEqual(filtersForTab(aba, null), ['departamento'], `${aba}`);
   }

@@ -5,7 +5,7 @@ import {
 } from './access-csv';
 
 const ABAS = [
-  'overview', 'team', 'dei', 'comp', 'demographics', 'engagement',
+  'overview', 'dei', 'comp', 'demographics', 'engagement',
   'span', 'attrition', 'recruitment', 'individual', 'data',
 ] as const;
 

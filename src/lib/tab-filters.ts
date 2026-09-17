@@ -142,7 +142,6 @@ export const FILTERS_BY_TAB: Record<DashboardTab, FilterKey[]> = {
   engagement: ['departamento'],
   recruitment: ['departamento'],
   attrition: ['departamento'],
-  team: ['departamento'],
   // Tem busca própria por pessoa; filtro de área não acrescenta.
   individual: [],
 };

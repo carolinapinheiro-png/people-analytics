@@ -23,7 +23,7 @@ test('engagement_viewer vê exatamente uma aba', () => {
 
 test('engagement_viewer não alcança nenhuma outra aba', () => {
   const outras = [
-    'overview', 'team', 'dei', 'comp', 'demographics',
+    'overview', 'dei', 'comp', 'demographics',
     'span', 'attrition', 'recruitment', 'individual', 'data',
   ] as const;
   for (const t of outras) {
@@ -88,7 +88,7 @@ test('todo perfil tem rótulo e descrição', () => {
 
 test('nenhum perfil enxerga aba fora da lista conhecida', () => {
   const CONHECIDAS = new Set([
-    'overview', 'team', 'dei', 'comp', 'demographics', 'engagement',
+    'overview', 'dei', 'comp', 'demographics', 'engagement',
     'span', 'attrition', 'recruitment', 'individual', 'data',
   ]);
   for (const p of ACCESS_PROFILES) {
@@ -141,7 +141,7 @@ test('o flag de dado individual sobrepoe o perfil nos dois sentidos', () => {
 
 test('responsabilidade sugere aba, e so sugere', () => {
   assert.deepEqual(sugerirAbas(['Comp & Ben']), ['comp']);
-  assert.deepEqual(sugerirAbas(['DEI', 'Estrutura & Span']), ['team', 'dei', 'demographics', 'span']);
+  assert.deepEqual(sugerirAbas(['DEI', 'Estrutura & Span']), ['dei', 'demographics', 'span']);
   assert.deepEqual(sugerirAbas([]), []);
   assert.deepEqual(sugerirAbas(['coisa que nao existe']), []);
 });
@@ -175,7 +175,7 @@ test('Salarios volta pela concessao individual, e so por ela', () => {
 test('tirar `comp` do padrao nao derrubou as outras abas do perfil', () => {
   // O jeito errado de fazer isto seria trocar a lista inteira e perder uma
   // aba sem querer.
-  for (const t of ['overview', 'team', 'dei', 'demographics', 'engagement', 'span', 'attrition', 'recruitment', 'individual'] as const) {
+  for (const t of ['overview', 'dei', 'demographics', 'engagement', 'span', 'attrition', 'recruitment', 'individual'] as const) {
     assert.equal(canSeeTab('dept_leader', t), true, `dept_leader perdeu ${t}`);
   }
 });

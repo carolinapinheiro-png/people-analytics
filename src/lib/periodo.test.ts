@@ -67,7 +67,6 @@ test('rotulos: formata mes e trimestre', () => {
 
 test('periodoAplicavel: as abas de foto do presente estao declaradas', () => {
   assert.equal(periodoAplicavel('span'), false);
-  assert.equal(periodoAplicavel('team'), false);
   assert.equal(periodoAplicavel('individual'), false);
   assert.equal(periodoAplicavel('overview'), true);
   assert.equal(periodoAplicavel('attrition'), true);
