@@ -2,25 +2,11 @@ import { useEffect, useState } from 'react';
 import { useServerFn } from '@tanstack/react-start';
 import { useDashboard } from '@/data/DashboardContext';
 import { getExperienceData } from '@/lib/experience.functions';
-import { getHeadcountMix, type HeadcountMix } from '@/lib/comp.functions';
 import { calcTurnover, promoRate, mLabel, fmt } from '@/data/helpers';
 import { panoramaDoPeriodo } from '@/lib/panorama';
 import { FAIXAS_TEMPO_DE_CASA } from '@/lib/convenia/pessoas';
-import { marcaDeEmpresa } from '@/lib/convenia/marca';
+import { cltPjDoMes, registroDoMes } from '@/lib/clt-pj-mes';
 
-// ATE 11/09/2026 este de-para era uma lista fixa de razoes sociais em
-// MAIÚSCULAS ('NSX BRASIL RECIFE', 'NSX BETFAIR BRASIL S.A.'...), escrita
-// quando o `comp_ratio` ainda vinha de planilha. Depois que a carga passou a
-// vir do Convenia (ver `comp-ratio-convenia.ts`), a grafia real do campo
-// `Empresa` virou "NSX Brasil Recife", "Betfair", "Flutter International" --
-// e a lista velha parou de casar com quase tudo. O card ficou preso contando
-// só as poucas linhas remanescentes da planilha antiga (por isso "19 / 16"
-// com a empresa toda tendo 636 pessoas), sem erro nenhum na tela: `set.has`
-// simplesmente nunca achava a maior parte das linhas.
-//
-// `marcaDeEmpresa` é o de-para único e testado que já resolve isso (fragmento,
-// sem acento, sem case) para o resto do painel -- reaproveitado aqui em vez de
-// mantido como uma segunda lista que pode voltar a divergir da grafia real.
 // A régua vem de pessoas.ts, o único lugar que a define. A lista que estava
 // aqui usava outro vocabulário ('0-3m', '1-2a') e nenhuma chave batia com a
 // série -- `tb[k]` dava 0 em todas as faixas e o KPI ficava permanentemente em
@@ -118,43 +104,9 @@ export default function OverviewTab() {
     return () => { cancelled = true; };
   }, [fetchExp, filters.departamento]);
 
-  // Composicao CLT/PJ (snapshot atual, contagem pura) para o quadro do HC.
-  //
-  // Vinha de `getCompAggregates`, que passou a exigir a aba Compensation. Quem
-  // nao tem a aba ficava com "…" para sempre nesta linha -- um carregamento que
-  // nunca termina se parece com lentidao, nao com falta de acesso, e ninguem
-  // abre chamado por uma tela lenta. Agora vem de `getHeadcountMix`, que so
-  // conta contrato e responde sob a permissao do proprio Overview.
-  const [comp, setComp] = useState<HeadcountMix | null>(null);
-  const [compErro, setCompErro] = useState<string | null>(null);
-  const fetchComp = useServerFn(getHeadcountMix);
-  useEffect(() => {
-    let cancelled = false;
-    fetchComp({ data: { department: filters.departamento } })
-      .then((d) => { if (!cancelled) setComp(d as HeadcountMix); })
-      // Engolir o erro deixava a linha em "…" indefinidamente. Guardar a
-      // mensagem custa uma linha e transforma "parece travado" em "deu erro".
-      .catch((e: unknown) => {
-        if (!cancelled) setCompErro(e instanceof Error ? e.message : 'erro');
-      });
-    return () => { cancelled = true; };
-  }, [fetchComp, filters.departamento]);
-  const contractMix = (() => {
-    if (!comp) return null;
-    const acc: Record<string, number> = {};
-    comp.contracts.forEach((c) => {
-      const marca = marcaDeEmpresa(c.company);
-      // Linha sem marca reconhecida (cadastro incompleto) fica fora dos dois
-      // agregados -- de "combined" e de qualquer marca especifica -- e nao
-      // some silenciosamente: entra na diferenca entre `total` aqui e o
-      // headcount do card ao lado, que e onde da para notar.
-      if (!marca) return;
-      if (brand !== 'combined' && marca !== brand) return;
-      acc[c.contract] = (acc[c.contract] ?? 0) + c.n;
-    });
-    const total = Object.values(acc).reduce((s, n) => s + n, 0);
-    return { clt: acc['CLT'] ?? 0, pj: acc['PJ'] ?? 0, total };
-  })();
+  // CLT/PJ do MÊS selecionado, da série -- mesma população do headcount ao
+  // lado e com recorte de departamento. Ver src/lib/clt-pj-mes.ts.
+  const contractMix = cltPjDoMes(registroDoMes(serieMensal, currentMonth));
 
   // Time que mais cresceu no mes (variacao de HC por depto vs mes anterior).
   const topGrowthDept = (() => {
@@ -540,14 +492,11 @@ export default function OverviewTab() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">CLT / PJ</span>
                 <span className="font-semibold">
-                  {contractMix && contractMix.total > 0
-                    ? `${contractMix.clt} / ${contractMix.pj}`
-                    : comp ? '—'
-                    // Tres estados distintos, e nao dois. "…" so significa
-                    // "ainda carregando"; falha vira "erro", nao um "…" que
-                    // dura para sempre.
-                    : compErro ? <span className="text-muted-foreground font-normal" title={compErro}>erro</span>
-                    : '…'}
+                  {contractMix
+                    ? <span title={contractMix.outros > 0 ? `+${contractMix.outros} com outro vínculo ou vínculo não informado neste mês` : undefined}>
+                        {contractMix.clt} / {contractMix.pj}
+                      </span>
+                    : <span className="text-muted-foreground font-normal" title="Sem quebra por vínculo para este mês/recorte na série">—</span>}
                 </span>
               </div>
               <div className="flex justify-between">
