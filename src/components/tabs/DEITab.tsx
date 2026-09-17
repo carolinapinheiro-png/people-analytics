@@ -27,6 +27,56 @@ import {
   BarChart3
 } from 'lucide-react';
 
+/**
+ * Donut de gênero com o percentual NO CENTRO.
+ *
+ * Antes: `Legend` do Recharts dentro do gráfico mais um bloco com `-mt-4`
+ * embaixo -- a legenda e o percentual se sobrepunham (17/09/2026). E o centro
+ * do donut, que é onde o número deve estar, ficava vazio.
+ *
+ * A legenda virou marcadores próprios embaixo, com a contagem de cada lado:
+ * o cartão passa a dizer quantas pessoas são, e não só a proporção.
+ */
+function DonutGenero({ data, pct, legenda, corDestaque }: {
+  data: { name: string; value: number }[];
+  pct: number;
+  legenda: string;
+  corDestaque: string;
+}) {
+  const cores = [COLORS.female, '#42a5f5'];
+  const total = data.reduce((t, d) => t + (d.value || 0), 0);
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative w-full" style={{ height: 180 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie data={data} innerRadius={58} outerRadius={78} dataKey="value" strokeWidth={0} startAngle={90} endAngle={-270}>
+              {data.map((d, i) => <Cell key={d.name} fill={cores[i]} />)}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        {/* No buraco do donut, sem encostar em nada. `pointer-events-none` para
+            não roubar o hover das fatias. */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className="text-2xl font-bold leading-none" style={{ color: corDestaque }}>
+            {total > 0 ? `${pct}%` : '—'}
+          </span>
+          <span className="text-[10px] text-muted-foreground mt-1 max-w-[90px] text-center leading-tight">{legenda}</span>
+        </div>
+      </div>
+      <div className="flex items-center justify-center gap-4 mt-2 text-xs">
+        {data.map((d, i) => (
+          <span key={d.name} className="flex items-center gap-1.5 text-muted-foreground">
+            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: cores[i] }} />
+            {d.name}
+            <span className="font-semibold text-foreground">{d.value}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function DEITab() {
   const { currentMonth, brand, filteredDeptKey, raceFilter, setRaceFilter } = useDashboard();
   // Mesma razão do DemographicsTab: o contexto só aplica o filtro de
@@ -289,35 +339,11 @@ export default function DEITab() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ChartCard title="Gênero — Geral" subtitle={`${curr.gender_female || 0} / ${curr.headcount || 0}`}>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={genderDonut} innerRadius={50} outerRadius={70} dataKey="value" strokeWidth={0}>
-                <Cell fill={COLORS.female} />
-                <Cell fill="#42a5f5" />
-              </Pie>
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="text-center -mt-4">
-            <span className="text-2xl font-bold" style={{ color: COLORS.female }}>{curr.gender_female_pct}%</span>
-            <span className="text-xs text-muted-foreground ml-1">feminino</span>
-          </div>
+          <DonutGenero data={genderDonut} pct={curr.gender_female_pct || 0} legenda="feminino" corDestaque={COLORS.female} />
         </ChartCard>
 
         <ChartCard title="Gênero — Liderança" subtitle={`${curr.leader_female || 0} / ${curr.leaders || 0}`}>
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie data={leaderDonut} innerRadius={50} outerRadius={70} dataKey="value" strokeWidth={0}>
-                <Cell fill={COLORS.female} />
-                <Cell fill="#42a5f5" />
-              </Pie>
-              <Legend wrapperStyle={{ fontSize: 10 }} />
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="text-center -mt-4">
-            <span className="text-2xl font-bold" style={{ color: COLORS.purple }}>{curr.leader_female_pct}%</span>
-            <span className="text-xs text-muted-foreground ml-1">líderes mulheres</span>
-          </div>
+          <DonutGenero data={leaderDonut} pct={curr.leader_female_pct || 0} legenda="líderes mulheres" corDestaque={COLORS.purple} />
         </ChartCard>
           </div>
         </>
