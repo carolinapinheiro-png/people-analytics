@@ -130,20 +130,6 @@ export default function TeamTab() {
             </ResponsiveContainer>
           </ChartCard>
         )}
-
-        {snap.byFamily.length > 1 && (
-          <ChartCard title="Por job type family" subtitle="Composição do time" icon={Briefcase}>
-            <ResponsiveContainer width="100%" height={Math.max(200, snap.byFamily.length * 30)}>
-              <BarChart data={snap.byFamily} layout="vertical" margin={{ left: 20, right: 12 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} className="opacity-30" />
-                <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                <YAxis type="category" dataKey="name" width={130} tick={{ fontSize: 9 }} />
-                <Tooltip />
-                <Bar dataKey="n" name="Pessoas" fill={COLORS.purple} radius={[0, 4, 4, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </ChartCard>
-        )}
       </div>
 
       <p className="text-[11px] text-muted-foreground">
