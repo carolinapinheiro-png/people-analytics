@@ -157,13 +157,11 @@ export default function DEITab() {
       value: `${(sel ? selPcdPct : ((curr.pcd || 0) / (curr.headcount || 1)) * 100).toFixed(1)}%`,
       color: COLORS.info,
       sub: sel
-        ? `${sel.pcd} de ${sel.total} pessoas ${raceFilter} · ${sel.pcd_conhecido} responderam o campo`
-        // A base explícita, como na linha com filtro de raça logo acima e como
-        // no card de Demográficos: sem ela, "0,8%" se lê como "0,8% da empresa
-        // é PCD" quando "Considera PCD" é respondido por poucos (17/09/2026).
-        : curr.pcd_conhecido
-          ? `${curr.pcd || 0} de ${curr.headcount || 0} · ${curr.pcd_conhecido} responderam o campo`
-          : `${curr.pcd || 0} de ${curr.headcount || 0} · base de quem respondeu não gravada`,
+        // Mesmo formato e mesmo denominador do card de Demográficos: o quadro.
+        // A cobertura do campo saiu daqui e virou a ressalva de piso no "?"
+        // (verbete `pcd` em metric-help.ts) -- ver 17/09/2026.
+        ? `${sel.pcd} de ${sel.total} pessoas ${raceFilter}`
+        : `${curr.pcd || 0} de ${curr.headcount || 0}`,
     },
     {
       label: sel ? `% Aprendiz · ${raceFilter}` : '% Aprendiz',

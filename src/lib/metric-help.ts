@@ -209,8 +209,9 @@ export const AJUDA = {
   // -------------------------------------------------------------- demografia
   pcd: {
     titulo: '% PCD',
-    oQueE: 'Pessoas com deficiência declaradas, sobre o quadro.',
-    cuidado: 'O campo é de preenchimento parcial na origem. O número é piso, não retrato: quem não declarou entra como não-PCD.',
+    oQueE: 'Pessoas com deficiência declaradas, sobre o quadro inteiro -- o mesmo cálculo em Demográficos e em DEI.',
+    comoLer: 'Quem está em branco no campo "Considera PCD" conta como não-PCD: é a leitura do RH (não é, não se identifica ou não quis declarar).',
+    cuidado: 'Enquanto o campo não estiver preenchido para todos, o número é PISO e não retrato -- ele só pode subir quando o cadastro fechar. Não existe uma segunda taxa "entre quem respondeu": ela mediria só quem preencheu.',
     formatar: pct,
   },
   naoBrancos: {

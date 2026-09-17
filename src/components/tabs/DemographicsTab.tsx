@@ -257,16 +257,29 @@ export default function DemographicsTab() {
             poucos. Numa cota legal, confundir "quase ninguém é PCD" com "quase
             ninguém respondeu" troca um problema de inclusão por um de
             cadastro. */}
+        {/* ------------------------------------------------------------------
+            DENOMINADOR = O QUADRO, IGUAL À ABA DEI (17/09/2026)
+
+            Este card dividia por `pcd_conhecido` (quem respondeu "Considera
+            PCD") e mostrava 6,3% enquanto a DEI mostrava 0,8% para o mesmo
+            mês -- mesma etiqueta, dois números, convidando à comparação
+            errada.
+
+            O RH confirmou que o branco significa "não é PCD", "não se
+            identifica" ou "não quis declarar" -- e não "ainda não
+            perguntamos". Então a taxa sobre quem respondeu media só o
+            subconjunto que preencheu, e não a empresa.
+
+            Segue sendo PISO, não retrato, enquanto a cobertura do campo não
+            fechar: quem não declarou entra como não-PCD. Essa ressalva está
+            no verbete `pcd` de metric-help.ts, no "?" do card.
+            ------------------------------------------------------------------ */}
         <KpiCard
           label="% PCD"
-          value={curr.pcd == null
-            ? '—'
-            : `${pctOf(curr.pcd, curr.pcd_conhecido || hc).toFixed(1)}%`}
+          value={curr.pcd == null ? '—' : `${pctOf(curr.pcd, hc).toFixed(1)}%`}
           sub={curr.pcd == null
             ? 'não calculado nesta fatia'
-            : curr.pcd_conhecido
-              ? `${curr.pcd} de ${curr.pcd_conhecido} que responderam`
-              : `${curr.pcd} · base de quem respondeu não gravada`}
+            : hc > 0 ? `${curr.pcd} de ${hc}` : `${curr.pcd} pessoas`}
           color={COLORS.warning} icon={ShieldCheck} help="pcd"
         />
         {/* O denominador aparece, como no card de PCD ao lado: com 1 casa
