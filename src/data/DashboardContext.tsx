@@ -80,6 +80,11 @@ interface DashboardState {
   prevData: MonthRecord | undefined;
   allMonthsData: MonthRecord[];
   /**
+   * Série MENSAL do ano em escopo, já com marca e departamento aplicados,
+   * mesmo na visão trimestral (onde `allMonthsData` vira trimestres).
+   */
+  serieMensal: MonthRecord[];
+  /**
    * A série ANTES do recorte de área. Serve para montar o catálogo de opções
    * dos filtros -- que não pode depender do que já está selecionado, senão
    * escolher um departamento apaga os outros do seletor.
@@ -521,7 +526,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       data, leavers, brand, setBrand, currentMonthIdx, setCurrentMonthIdx,
       activeTab, setActiveTab, activeSubTab, setActiveSubTab, raceFilter, setRaceFilter, view, setView, filters, setFilters,
       yearFilter, setYearFilter, availableYears, activeYear,
-      monthsOrder, currentMonth, currentData, prevData, allMonthsData,
+      monthsOrder, currentMonth, currentData, prevData, allMonthsData, serieMensal: monthlyAllData,
       serieSemRecorteDeArea,
       filteredDeptKey, dataLoading, dataError, serie, cobertura,
       leaversLoading, leaversError, reloadLeavers,

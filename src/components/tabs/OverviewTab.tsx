@@ -4,6 +4,7 @@ import { useDashboard } from '@/data/DashboardContext';
 import { getExperienceData } from '@/lib/experience.functions';
 import { getHeadcountMix, type HeadcountMix } from '@/lib/comp.functions';
 import { calcTurnover, promoRate, mLabel, fmt } from '@/data/helpers';
+import { panoramaDoPeriodo } from '@/lib/panorama';
 import { FAIXAS_TEMPO_DE_CASA } from '@/lib/convenia/pessoas';
 import { marcaDeEmpresa } from '@/lib/convenia/marca';
 
@@ -71,7 +72,7 @@ const CUT_LABELS: Record<SeriesFilterKey, string> = {
 };
 
 export default function OverviewTab() {
-  const { currentData, prevData, allMonthsData, currentMonth, brand, filters, leavers } =
+  const { currentData, prevData, allMonthsData, serieMensal, currentMonth, activeYear, view, brand, filters, leavers } =
     useDashboard();
 
   // Recorte de dimensao unica (nivel ou tempo de casa). A serie mensal guarda
@@ -178,16 +179,11 @@ export default function OverviewTab() {
   })();
 
   // Panorama do periodo (incorpora a antiga aba Trend na visao executiva).
-  const periodFirst = allMonthsData[0];
-  const periodLast = allMonthsData[allMonthsData.length - 1];
-  const hcGrowthPct = periodFirst?.headcount > 0 ? ((periodLast.headcount - periodFirst.headcount) / periodFirst.headcount) * 100 : 0;
-  const attritionVals = allMonthsData.map((d) => d.attrition_rate || 0);
-  const avgAttrition = attritionVals.length ? attritionVals.reduce((a, b) => a + b, 0) / attritionVals.length : 0;
-  const turnoverVals = allMonthsData.map((d, i) => calcTurnover(d, i > 0 ? allMonthsData[i - 1] : undefined));
-  const avgTurnover = turnoverVals.length ? turnoverVals.reduce((a, b) => a + b, 0) / turnoverVals.length : 0;
-  const periodYears = [...new Set(allMonthsData.map((d) => d.year))].sort();
+  // Acumulado do ano ATÉ o período selecionado -- ver src/lib/panorama.ts.
+  const panorama = panoramaDoPeriodo({ serieMensal, view, currentMonth, activeYear });
+  const periodYears = [...new Set(panorama.meses.map((d) => d.year))].sort();
   const yearlyStats = periodYears.map((year) => {
-    const yd = allMonthsData.filter((d) => d.year === year);
+    const yd = panorama.meses.filter((d) => d.year === year);
     return {
       year,
       avgHc: Math.round(yd.reduce((s, d) => s + (d.headcount || 0), 0) / yd.length),
@@ -195,27 +191,6 @@ export default function OverviewTab() {
     };
   });
   const attritionYoY = yearlyStats.length > 1 ? yearlyStats[yearlyStats.length - 1].avgAttr - yearlyStats[yearlyStats.length - 2].avgAttr : null;
-  // ------------------------------------------------------------------
-  // "NENHUMA PROMOÇÃO" E "NÃO CALCULADO" NÃO PODEM SER O MESMO ZERO
-  // ------------------------------------------------------------------
-  // A série do Convenia não lê o histórico salarial, então não sabe quem foi
-  // promovido -- e a tela mostrava 0, que é uma afirmação sobre a empresa.
-  // Quando NENHUM mês traz o número, a resposta certa é dizer que não foi
-  // calculado; quando algum traz, o total é dos meses que trazem.
-  const promocoesNaoCalculadas = allMonthsData.length > 0
-    && allMonthsData.every((d) => d.promotions == null);
-  const totalPromoPeriod = promocoesNaoCalculadas
-    ? null
-    : allMonthsData.reduce((s, d) => s + (d.promotions ?? 0), 0);
-
-  // Acumulado do periodo (pergunta da Carolina): total de saidas/entradas do
-  // periodo sobre o HC medio -- diferente da media das taxas mensais.
-  const totalLeaversPeriod = allMonthsData.reduce((s, d) => s + (d.leavers || 0), 0);
-  const totalJoinersPeriod = allMonthsData.reduce((s, d) => s + (d.joiners || 0), 0);
-  const avgHcPeriod = allMonthsData.length ? allMonthsData.reduce((s, d) => s + (d.headcount || 0), 0) / allMonthsData.length : 0;
-  const attritionAccum = avgHcPeriod > 0 ? (totalLeaversPeriod / avgHcPeriod) * 100 : 0;
-  const turnoverAccum = avgHcPeriod > 0 ? ((totalJoinersPeriod + totalLeaversPeriod) / 2 / avgHcPeriod) * 100 : 0;
-
   // Calculate narrative metrics
   const netGrowth = (curr.joiners || 0) - (curr.leavers || 0);
   const growthTrend = netGrowth > 0 ? 'positive' : netGrowth < 0 ? 'negative' : 'neutral';
@@ -250,7 +225,7 @@ export default function OverviewTab() {
       help: 'atricao' as const,
       val: (curr.attrition_rate || 0).toFixed(2) + '%',
       color: attritionTrend === 'high' ? COLORS.danger : attritionTrend === 'medium' ? COLORS.warning : COLORS.success,
-      sub: `saídas ÷ HC · média período ${avgAttrition.toFixed(1)}%`,
+      sub: `saídas ÷ HC · média período ${panorama.atricaoMediaMensal.toFixed(1)}%`,
       icon: Activity
     },
     {
@@ -360,7 +335,7 @@ export default function OverviewTab() {
     }
     
     // Attrition narrative (factual, sem rotulo de benchmark nao validado).
-    parts.push(`atrição de ${(curr.attrition_rate || 0).toFixed(1)}% no mês (média do período ${avgAttrition.toFixed(1)}%)`);
+    parts.push(`atrição de ${(curr.attrition_rate || 0).toFixed(1)}% no mês (média do período ${panorama.atricaoMediaMensal.toFixed(1)}%)`);
 
     // Gender narrative (factual).
     parts.push(`${curr.gender_female_pct || 0}% de mulheres no quadro`);
@@ -449,35 +424,40 @@ export default function OverviewTab() {
       </div>
 
       {/* Panorama do período (antiga aba Trend, agora na visão executiva) */}
-      <StorySection title="Panorama do Período" icon={Activity}>
+      <StorySection title={`Panorama do Período${panorama.rotulo ? ` · ${panorama.rotulo}` : ''}`} icon={Activity}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StoryMetric
             label="Crescimento no período"
-            value={`${hcGrowthPct >= 0 ? '+' : ''}${hcGrowthPct.toFixed(1)}%`}
-            subtext={`${periodFirst?.headcount || 0} → ${periodLast?.headcount || 0}`}
-            trendDirection={hcGrowthPct >= 0 ? 'up' : 'down'}
+            value={`${panorama.crescimentoPct >= 0 ? '+' : ''}${panorama.crescimentoPct.toFixed(1)}%`}
+            subtext={`${panorama.hcInicio} → ${panorama.hcFim}`}
+            trendDirection={panorama.crescimentoPct >= 0 ? 'up' : 'down'}
           />
           <StoryMetric
             label="Atrição acumulada"
-            value={`${attritionAccum.toFixed(1)}%`}
-            subtext={`${totalLeaversPeriod} saídas · média mensal ${avgAttrition.toFixed(1)}%`}
+            value={`${panorama.atricaoAcumulada.toFixed(1)}%`}
+            subtext={`${panorama.saidas} saídas · média mensal ${panorama.atricaoMediaMensal.toFixed(1)}%`}
             trendDirection={attritionYoY != null ? (attritionYoY <= 0 ? 'up' : 'down') : 'neutral'}
           />
           <StoryMetric
             label="Turnover acumulado"
-            value={`${turnoverAccum.toFixed(1)}%`}
-            subtext={`${totalJoinersPeriod} entradas / ${totalLeaversPeriod} saídas · média mensal ${avgTurnover.toFixed(1)}%`}
+            value={`${panorama.turnoverAcumulado.toFixed(1)}%`}
+            subtext={`${panorama.entradas} entradas / ${panorama.saidas} saídas · média mensal ${panorama.turnoverMediaMensal.toFixed(1)}%`}
           />
           <StoryMetric
             label="Promoções no período"
-            value={totalPromoPeriod == null ? '—' : String(totalPromoPeriod)}
-            subtext={totalPromoPeriod == null ? 'não calculado nesta série' : 'acumulado'}
+            value={panorama.promocoes == null ? '—' : String(panorama.promocoes)}
+            subtext={panorama.promocoes == null ? 'não calculado nesta série' : 'acumulado'}
           />
         </div>
         <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
-          <strong>Como é calculado.</strong> <em>Atrição acumulada</em> = total de saídas do período ÷ HC médio do período.
+          <strong>Qual período.</strong>{' '}
+          {activeYear
+            ? <>De janeiro até o fim do {view === 'quarterly' ? 'trimestre' : 'mês'} selecionado ({panorama.rotulo || 'sem dado'}).</>
+            : <>Com &quot;Todos os anos&quot;, a série inteira ({panorama.rotulo || 'sem dado'}).</>}{' '}
+          <strong>Como é calculado.</strong> <em>Crescimento</em> compara o headcount do primeiro e do último mês.{' '}
+          <em>Atrição acumulada</em> = total de saídas ÷ HC médio mensal do período.
           <em> Turnover acumulado</em> = (entradas + saídas) ÷ 2 ÷ HC médio. A <em>média mensal</em> é a média das taxas de cada mês —
-          útil para o ritmo recorrente, enquanto o acumulado mostra o total do período selecionado. A atrição{' '}
+          útil para o ritmo recorrente, enquanto o acumulado mostra o total do período. A atrição{' '}
           <em>não desejada</em> (estimativa de 65% das saídas, ainda sem classificação real na origem) fica detalhada na aba{' '}
           <strong>Atrição &amp; Desligamentos</strong>.
         </p>
@@ -625,7 +605,7 @@ export default function OverviewTab() {
         <StoryInsight type="neutral">
           Em {mLabel(currentMonth)}: {curr.joiners || 0} entradas e {curr.leavers || 0} saídas
           {' '}(atrição {(curr.attrition_rate || 0).toFixed(2)}%, turnover {tv}%). Média do período:
-          {' '}atrição {avgAttrition.toFixed(1)}%, turnover {avgTurnover.toFixed(1)}%.
+          {' '}atrição {panorama.atricaoMediaMensal.toFixed(1)}%, turnover {panorama.turnoverMediaMensal.toFixed(1)}%.
           {tv > 0 && ` No ritmo do mês, cerca de 1 em cada ${Math.round(100 / tv)} colaboradores é substituído.`}
           {' '}Para aprofundar as causas, ver a aba Atrição &amp; Desligamentos.
         </StoryInsight>
