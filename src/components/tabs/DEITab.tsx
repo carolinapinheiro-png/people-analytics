@@ -158,7 +158,12 @@ export default function DEITab() {
       color: COLORS.info,
       sub: sel
         ? `${sel.pcd} de ${sel.total} pessoas ${raceFilter} · ${sel.pcd_conhecido} responderam o campo`
-        : `${curr.pcd || 0} pessoas · campo pouco preenchido (subconta)`,
+        // A base explícita, como na linha com filtro de raça logo acima e como
+        // no card de Demográficos: sem ela, "0,8%" se lê como "0,8% da empresa
+        // é PCD" quando "Considera PCD" é respondido por poucos (17/09/2026).
+        : curr.pcd_conhecido
+          ? `${curr.pcd || 0} de ${curr.headcount || 0} · ${curr.pcd_conhecido} responderam o campo`
+          : `${curr.pcd || 0} de ${curr.headcount || 0} · base de quem respondeu não gravada`,
     },
     {
       label: sel ? `% Aprendiz · ${raceFilter}` : '% Aprendiz',
@@ -166,7 +171,7 @@ export default function DEITab() {
       color: COLORS.nsx,
       sub: sel
         ? `${sel.apprentice} de ${sel.total} pessoas ${raceFilter} (vínculo)`
-        : `${curr.apprentice || 0} aprendizes (vínculo)`,
+        : `${curr.apprentice || 0} de ${curr.headcount || 0} (vínculo)`,
     },
   ];
 
