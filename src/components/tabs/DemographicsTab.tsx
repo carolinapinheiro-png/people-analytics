@@ -269,10 +269,15 @@ export default function DemographicsTab() {
               : `${curr.pcd} · base de quem respondeu não gravada`}
           color={COLORS.warning} icon={ShieldCheck} help="pcd"
         />
+        {/* O denominador aparece, como no card de PCD ao lado: com 1 casa
+            decimal o percentual anda de 0,5% a 0,6% no ano inteiro, e sem a
+            base parece travado. O que se move é a contagem. */}
         <KpiCard
           label="% Aprendiz"
           value={curr.apprentice == null ? '—' : `${pctOf(curr.apprentice, hc).toFixed(1)}%`}
-          sub={curr.apprentice == null ? 'não calculado nesta fatia' : `${curr.apprentice} aprendizes`}
+          sub={curr.apprentice == null
+            ? 'não calculado nesta fatia'
+            : hc > 0 ? `${curr.apprentice} de ${hc}` : `${curr.apprentice} aprendizes`}
           color={COLORS.purple} icon={GraduationCap}
         />
       </div>
