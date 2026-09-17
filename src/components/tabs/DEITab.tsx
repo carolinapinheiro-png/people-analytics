@@ -405,9 +405,12 @@ export default function DEITab() {
                   >
                     <td className="p-2 font-medium">{r.race}</td>
                     <td className="p-2 text-right tabular-nums">{r.total}</td>
-                    <td className="p-2 text-right tabular-nums">{r.pctQuadro.toFixed(0)}%</td>
-                    <td className="p-2 text-right tabular-nums">{r.pctFemale.toFixed(0)}%</td>
-                    <td className="p-2 text-right tabular-nums font-semibold">{r.pctLead.toFixed(0)}%</td>
+                    {/* Uma casa decimal: com grupos pequenos, o inteiro escondia
+                        o movimento -- 1 pessoa indígena aparecia como "0% do
+                        quadro", e a linha inteira parecia parada mês a mês. */}
+                    <td className="p-2 text-right tabular-nums">{r.pctQuadro.toFixed(1)}%</td>
+                    <td className="p-2 text-right tabular-nums">{r.pctFemale.toFixed(1)}%</td>
+                    <td className="p-2 text-right tabular-nums font-semibold">{r.pctLead.toFixed(1)}%</td>
                   </tr>
                 ))}
               </tbody>
