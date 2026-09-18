@@ -37,6 +37,13 @@ export interface PessoaDoConvenia extends PessoaParaBanda {
   jobTitle?: string | null;
   hire?: string | null;
   empresa?: string | null;
+  /**
+   * Camada do organograma (`org_pessoas.camada`), derivada da cadeia de
+   * reporte. É a régua do ESCOPO DE VISIBILIDADE -- ver `comp-scope.ts` --,
+   * e NÃO o `WorkDay Level` do cadastro, que é outra escala e serve só ao
+   * relatório do WIL. As duas nunca se misturam.
+   */
+  camada?: string | null;
 }
 
 export interface Banda {
@@ -64,6 +71,16 @@ export interface LinhaCompRatio {
   quartile: string | null;
   band_family: string | null;
   band_midpoint: number | null;
+  /**
+   * A camada que o escopo de remuneração lê. Vinha do cartão manual de
+   * vínculo, que casava folha e organograma POR NOME e só rodava quando
+   * alguém lembrava -- em set/2026, 362 das 646 linhas estavam numa camada
+   * diferente da do organograma, e 75 estavam sem camada nenhuma (linha sem
+   * camada não aparece para quem não é perfil global). Aqui vem pelo
+   * `convenia_id`, na mesma carga que traz salário e faixa, e se corrige
+   * sozinha.
+   */
+  n_layer: string | null;
   /** `null` quando resolveu. Preenchido, diz POR QUE não há comp-ratio. */
   sem_banda: string | null;
 }
@@ -114,6 +131,7 @@ export function montarCompRatio(
       quartile: null,
       band_family: b.familia,
       band_midpoint: null,
+      n_layer: p.camada ?? null,
       sem_banda: b.motivo,
     };
 

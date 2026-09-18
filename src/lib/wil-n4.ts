@@ -20,6 +20,68 @@ import { ehNSX, type PessoaWIL } from './wil-location';
  */
 export const CAMADAS_N4 = ['N', 'N-1', 'N-2', 'N-3', 'N-4', 'EXCO EA'] as const;
 
+/**
+ * A camada do relatório, lida do campo `WorkDay Level` do Convenia.
+ *
+ * ===========================================================================
+ * POR QUE NÃO A CADEIA DE REPORTE
+ * ===========================================================================
+ * Esta aba era montada com `org_pessoas.camada`, que CALCULA a profundidade
+ * contando saltos de gestor. O grupo não usa esse número: quem lê o arquivo
+ * identifica a pessoa no organograma pelo `WorkDay Level` do cadastro, e é o
+ * campo preenchido no Convenia que dita quem entra na contagem (Carolina,
+ * 18/09/2026).
+ *
+ * As duas réguas não coincidem. Medido em set/2026, sobre as 646 pessoas do
+ * organograma: N-3 e N-4 quase batem (9 de 10, 26 de 39), mas a camada
+ * derivada N-4 inclui 13 pessoas que o WorkDay põe em outro lugar -- 9 delas
+ * em `N-6 Above`. Um terço daquela linha do arquivo entregue.
+ *
+ * ===========================================================================
+ * O BALDE DO FUNDO
+ * ===========================================================================
+ * `N-6 Above` são as pessoas de N-6 para baixo, juntas -- 612 dos 765
+ * cadastros preenchidos. Não é linha do relatório e não deve virar uma: a aba
+ * é de liderança, de N a N-4. Mas também NÃO é valor inválido, e é por isso
+ * que `entendido` existe separado de `camada`: "está fora do recorte" e "não
+ * sei ler isto" são coisas diferentes, e só a segunda merece aviso.
+ *
+ * `balde` marca os valores com sufixo. Hoje só existe `N-6 Above`, longe do
+ * corte. Se um dia aparecer `N-4 Above`, o balde cruzaria a linha de corte e
+ * a contagem viraria palpite -- aí quem chama tem de avisar, não adivinhar.
+ */
+export function camadaWorkday(valor: string | null | undefined): {
+  camada: string | null;
+  entendido: boolean;
+  balde: boolean;
+} {
+  const s = (valor ?? '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .trim().toUpperCase().replace(/\s+/g, ' ');
+  if (!s) return { camada: null, entendido: false, balde: false };
+
+  if (s === 'EXCO EA') return { camada: 'EXCO EA', entendido: true, balde: false };
+  if (s === 'N' || s === 'CEO') return { camada: 'N', entendido: true, balde: false };
+
+  // `N-6 Above`, `N 6 above`, `N-6`. O sufixo é opcional e não muda o número.
+  const m = /^N\s*[-–_ ]\s*(\d{1,2})(?:\s+(ABOVE|E ACIMA))?$/.exec(s);
+  if (!m) return { camada: null, entendido: false, balde: false };
+
+  const canonico = `N-${Number(m[1])}`;
+  const balde = Boolean(m[2]);
+  return {
+    camada: (CAMADAS_N4 as readonly string[]).includes(canonico) ? canonico : null,
+    entendido: true,
+    balde,
+  };
+}
+
+/** O balde cruza o corte da aba? Hoje nenhum cruza; se cruzar, é aviso. */
+export function baldeAmbiguo(valor: string | null | undefined): boolean {
+  const r = camadaWorkday(valor);
+  return r.balde && r.camada != null;
+}
+
 export interface LinhaN4 {
   camada: string;
   homensEmpregado: number;

@@ -32,6 +32,19 @@ export interface BaseWIL {
   familiasDesconhecidas: string[];
   /** Pessoas em camada mais funda que N-4. A aba não as conta. */
   abaixoDeN4: number;
+  /**
+   * Pessoas sem `WorkDay Level` legível no cadastro. Não entram em linha
+   * nenhuma da aba: o campo é o que dita a contagem. Em set/2026 são 12,
+   * todas abaixo do corte -- mas uma liderança aqui é linha faltando no
+   * arquivo entregue, e o número é o que faz isso aparecer.
+   */
+  semWorkdayLevel: number;
+  /**
+   * Valores de balde que cruzam o corte da aba -- um `N-4 Above`, digamos.
+   * Hoje vazio. Se encher, a contagem de liderança virou palpite e alguém
+   * precisa decidir a regra antes de o arquivo sair.
+   */
+  workdayAmbiguo: string[];
   /** A planilha inteira, em base64, para o navegador salvar como .xlsx. */
   xlsxBase64: string;
 }
@@ -85,7 +98,7 @@ export const baseWIL = createServerFn({ method: 'POST' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
     const { montarLocation, semFamilia, foraDoRecorte, familiaWIL }
       = await import('@/lib/wil-location');
-    const { montarN4, abaixoDeN4 } = await import('@/lib/wil-n4');
+    const { montarN4, abaixoDeN4, camadaWorkday, baldeAmbiguo } = await import('@/lib/wil-n4');
     const { montarDEI, ehSenior } = await import('@/lib/wil-dei');
     const { promovidosNoMes } = await import('@/lib/wil-promocoes');
     const { fontesConfiguradas } = await import('@/lib/convenia/fontes');
@@ -176,15 +189,25 @@ export const baseWIL = createServerFn({ method: 'POST' })
     const ids = ((cad ?? []) as Array<{ convenia_id: string }>).map((c) => c.convenia_id);
     const linhas = montarLocation(pessoas, ref);
 
-    // A camada vem do organograma, e nem todo mundo está nele.
-    const { data: org } = await db.from('org_pessoas').select('convenia_id, camada');
-    const camadaDe = new Map(
-      ((org ?? []) as Array<{ convenia_id: string; camada: string | null }>)
-        .map((o) => [o.convenia_id, o.camada]),
-    );
-    const comCamada = ((cad ?? []) as Array<{ convenia_id: string }>).map((c, i) => ({
-      ...pessoas[i], camada: camadaDe.get(c.convenia_id) ?? null,
-    }));
+    // ------------------------------------------------------------------
+    // A CAMADA VEM DO CAMPO, NÃO DA CADEIA
+    // ------------------------------------------------------------------
+    // Era `org_pessoas.camada`, derivada dos saltos de gestor. Quem lê o
+    // arquivo lá fora usa o `WorkDay Level` do cadastro, e é o campo
+    // preenchido no Convenia que dita quem entra na contagem. Ver a nota em
+    // wil-n4.ts.
+    //
+    // Quem está sem o campo não entra em linha nenhuma -- e por isso o número
+    // sai na resposta. Em set/2026 são 12 pessoas, todas abaixo do corte, mas
+    // uma liderança sem o campo sumiria da aba sem nada dizer, que é
+    // exatamente o modo de falhar que este relatório não pode ter.
+    const lidas = ((cad ?? []) as Array<{ custom_fields: unknown }>)
+      .map((c) => camadaWorkday(campo(c.custom_fields, 'WorkDay Level')));
+    const comCamada = pessoas.map((p, i) => ({ ...p, camada: lidas[i]?.camada ?? null }));
+    const semWorkdayLevel = lidas.filter((l) => !l.entendido).length;
+    const workdayAmbiguo = ((cad ?? []) as Array<{ custom_fields: unknown }>)
+      .map((c) => campo(c.custom_fields, 'WorkDay Level'))
+      .filter((v): v is string => v != null && baldeAmbiguo(v));
     const n4 = montarN4(comCamada, ref);
 
     // Família que o de-para não conhece é dita PELO VALOR, e não contada. Um
@@ -291,6 +314,8 @@ export const baseWIL = createServerFn({ method: 'POST' })
       semNacionalidade: pessoas.filter((pe) => pe.nacionalidades.length === 0).length,
       historicosLidos,
       abaixoDeN4: abaixoDeN4(comCamada),
+      semWorkdayLevel,
+      workdayAmbiguo,
       xlsxBase64,
     };
   });

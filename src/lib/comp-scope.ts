@@ -62,7 +62,18 @@ export interface EscopoComp {
 
 export interface LinhaComp {
   area?: string | null;
-  /** Camada N da pessoa da linha. Vem do "WorkDay Level". */
+  /**
+   * Camada N da pessoa da linha. Vem de `org_pessoas.camada` -- a CADEIA DE
+   * REPORTE do Convenia --, gravada pela carga em `comp_ratio.n_layer`.
+   *
+   * NÃO é o campo `WorkDay Level` do cadastro, apesar de as duas escalas
+   * usarem a mesma escrita `N-x`. O `WorkDay Level` é a régua que o grupo usa
+   * lá fora, tem um balde `N-6 Above` que junta tudo do fundo, e aqui no BR
+   * só o relatório do WIL o consome. Trocar a fonte SÓ DESTE LADO compararia
+   * declarado contra derivado: medido em set/2026, a cadeia põe 74 pessoas em
+   * N-5 que o WorkDay chama de `N-6 Above`, e a diferença viraria erro de
+   * visibilidade.
+   */
   n_layer?: string | number | null;
 }
 

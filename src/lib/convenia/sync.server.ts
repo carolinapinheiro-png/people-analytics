@@ -2194,7 +2194,7 @@ export async function executarSyncConvenia(
       const [cadRes, orgRes, bandasRes, leaversRes] = await Promise.all([
         db.from('convenia_pessoas')
           .select('convenia_id, salary, team, job_title, hiring_date, status, custom_fields, relationship, empresa, detalhe_versao'),
-        db.from('org_pessoas').select('convenia_id, nome, department'),
+        db.from('org_pessoas').select('convenia_id, nome, department, camada'),
         db.from('salary_bands').select('job_family, contract, level, minimum, midpoint, maximum'),
         db.from('convenia_leavers').select('convenia_id'),
       ]);
@@ -2204,7 +2204,7 @@ export async function executarSyncConvenia(
         minimum: Number(b.minimum), midpoint: Number(b.midpoint), maximum: Number(b.maximum),
       }));
       const org = new Map(
-        ((orgRes.data ?? []) as Array<{ convenia_id: string; nome: string | null; department: string | null }>)
+        ((orgRes.data ?? []) as Array<{ convenia_id: string; nome: string | null; department: string | null; camada: string | null }>)
           .map((o) => [o.convenia_id, o]),
       );
       const desligados = new Set(
@@ -2246,6 +2246,10 @@ export async function executarSyncConvenia(
           hire: (c.hiring_date as string | null) ?? null,
           empresa: (c.empresa as string | null) ?? null,
           vinculo: (c.relationship as string | null) ?? null,
+          // A camada do ESCOPO de remuneração, pelo `convenia_id`. Não é o
+          // `WorkDay Level` do cadastro -- esse é outra escala e só o
+          // relatório do WIL usa. Ver a nota em comp-scope.ts.
+          camada: o?.camada ?? null,
           // `exato`: existe `WorkDay Level` no mesmo cadastro, com outra
           // escala. Ver a nota em valorDe.
           level: valorDe(campos, ['level'], { exato: true }),

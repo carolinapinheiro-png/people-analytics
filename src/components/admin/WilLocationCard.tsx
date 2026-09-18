@@ -56,7 +56,13 @@ export function WilLocationCard() {
           ? ` ${r.semNacionalidade} pessoas sem nacionalidade no cadastro — a coluna conta valores distintos, então isso a subestima.`
           : '')
         + ` Histórico salarial lido de ${r.historicosLidos} pessoas em liderança sênior — é dele que saem as promoções.`
-        + ` N-4: ${r.n4.reduce((t, l) => t + l.homensEmpregado + l.homensContractor + l.mulheresEmpregado + l.mulheresContractor + l.semGenero, 0)} pessoas nas camadas N a N-4 — as de N-5 para baixo não entram nessa aba, por definição.`
+        + ` N-4: ${r.n4.reduce((t, l) => t + l.homensEmpregado + l.homensContractor + l.mulheresEmpregado + l.mulheresContractor + l.semGenero, 0)} pessoas nas camadas N a N-4 — as de N-5 para baixo não entram nessa aba, por definição. A camada vem do campo WorkDay Level do Convenia, e não da cadeia de reporte.`
+        + (r.semWorkdayLevel
+          ? ` ${r.semWorkdayLevel} pessoas estão sem WorkDay Level legível no cadastro e não entram em linha nenhuma da aba — se alguma delas for liderança, é linha faltando no arquivo.`
+          : '')
+        + (r.workdayAmbiguo.length
+          ? ` ATENÇÃO: valor de balde cruzando o corte da aba (${[...new Set(r.workdayAmbiguo)].join(', ')}) — a contagem de liderança não é confiável até alguém definir a regra.`
+          : '')
         + (r.familiasDesconhecidas.length
           ? ` Famílias não reconhecidas pelo de-para: ${r.familiasDesconhecidas.join(', ')}.`
           : ''),

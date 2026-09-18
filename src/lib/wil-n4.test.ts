@@ -1,6 +1,42 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { montarN4, CAMADAS_N4, type PessoaN4 } from './wil-n4';
+import { montarN4, CAMADAS_N4, camadaWorkday, baldeAmbiguo, type PessoaN4 } from './wil-n4';
+
+test('o balde do fundo é entendido, e não vira linha', () => {
+  // 612 dos 765 cadastros estão em `N-6 Above`. Devolver `entendido: false`
+  // aqui encheria o aviso de "sem WorkDay Level" com a empresa inteira.
+  const r = camadaWorkday('N-6 Above');
+  assert.equal(r.camada, null);
+  assert.equal(r.entendido, true);
+  assert.equal(r.balde, true);
+});
+
+test('as camadas do recorte saem canônicas', () => {
+  for (const v of ['N-2', 'n-2', ' N - 2 ', 'N 2']) {
+    assert.equal(camadaWorkday(v).camada, 'N-2', `falhou em ${JSON.stringify(v)}`);
+  }
+  assert.equal(camadaWorkday('N').camada, 'N');
+  assert.equal(camadaWorkday('EXCO EA').camada, 'EXCO EA');
+});
+
+test('fora do recorte e ilegível são coisas diferentes', () => {
+  // N-5 existe e está fora da aba: entendido, sem camada, sem aviso.
+  const fora = camadaWorkday('N-5');
+  assert.equal(fora.camada, null);
+  assert.equal(fora.entendido, true);
+
+  // Campo vazio ou escrito de um jeito que não sei ler tem de virar aviso --
+  // uma liderança aqui é linha faltando no arquivo que vai para fora.
+  for (const v of [null, '', '  ', 'Leadership', 'N-']) {
+    assert.equal(camadaWorkday(v).entendido, false, `deveria ser ilegível: ${JSON.stringify(v)}`);
+  }
+});
+
+test('balde que cruza o corte é sinalizado', () => {
+  // Hoje não existe. Se aparecer, contar N-4 vira palpite.
+  assert.equal(baldeAmbiguo('N-6 Above'), false);
+  assert.equal(baldeAmbiguo('N-4 Above'), true);
+});
 
 const p = (o: Partial<PessoaN4>): PessoaN4 => ({
   familia: 'Finance', empresa: 'NSX Brasil Recife', tipo: 'CLT', genero: 'M',
