@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 import { vincularCamadaComp } from '@/lib/comp.functions';
 
 interface Resultado {
-  gravado: boolean;
   total: number;
   casados: number;
   semCorrespondencia: string[];
@@ -17,26 +16,28 @@ interface Resultado {
 }
 
 /**
- * Liga a folha de remuneração ao organograma.
+ * Confere folha contra organograma. NÃO grava.
  *
- * A taxa de casamento é o número que decide se isto pode ser usado: 95% quer
- * dizer que a aba de Salários funciona para quase todo mundo; 60% quer dizer
- * que quatro em cada dez pessoas somem da tela sem que ninguém entenda por
- * quê. Por isso a prévia mostra a taxa antes de gravar, e não só depois.
+ * Isto gravava a camada, casando por nome. Quem escreve `n_layer` hoje é a
+ * carga do Convenia, pelo `convenia_id` -- e deixar os dois escrevendo no
+ * mesmo campo significava que um clique por hábito desfaria a camada certa
+ * sem erro nenhum na tela. Ver a nota em comp.functions.ts.
+ *
+ * O que sobra é o diagnóstico, que continua sendo útil: as linhas que a carga
+ * não toca (as que vieram da planilha e não têm `convenia_id`) aparecem aqui,
+ * com o motivo de não casarem.
  */
 export default function VinculoCamadaCard() {
   const rodar = useServerFn(vincularCamadaComp);
   const [r, setR] = useState<Resultado | null>(null);
   const [ocupado, setOcupado] = useState(false);
 
-  const executar = async (confirm: boolean) => {
+  const executar = async () => {
     setOcupado(true);
     try {
-      const res = (await rodar({ data: { confirm } })) as Resultado;
-      setR(res);
-      if (confirm) toast.success(`${res.casados} linha(s) receberam a camada N.`);
+      setR((await rodar({ data: {} })) as Resultado);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao vincular');
+      toast.error(e instanceof Error ? e.message : 'Falha ao conferir');
     } finally {
       setOcupado(false);
     }
@@ -49,19 +50,19 @@ export default function VinculoCamadaCard() {
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <Link2 className="h-5 w-5 text-muted-foreground" />
-          Camada N na folha de remuneração
+          Camada N na folha — conferência
         </CardTitle>
         <CardDescription>
-          Casa cada linha de salário com a pessoa no organograma do Convenia, pelo
-          nome, e grava a camada. É o que faz a aba de Salários mostrar alguma coisa
-          para quem não é HR Leader nem Admin.
+          Compara a folha de remuneração com o organograma, pelo nome, e mostra quem
+          não casa. Não grava nada: a camada é escrita pela sincronização do Convenia,
+          pelo elo de id.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-3">
-        <Button variant="outline" size="sm" onClick={() => executar(false)} disabled={ocupado}>
+        <Button variant="outline" size="sm" onClick={executar} disabled={ocupado}>
           <RefreshCw className={`mr-2 h-4 w-4 ${ocupado ? 'animate-spin' : ''}`} />
-          {ocupado ? 'Conferindo…' : 'Conferir antes de gravar'}
+          {ocupado ? 'Conferindo…' : 'Conferir'}
         </Button>
 
         {r && (
@@ -72,9 +73,9 @@ export default function VinculoCamadaCard() {
 
             {taxa < 90 && r.total > 0 && (
               <p className="text-[12px] text-muted-foreground">
-                Abaixo de 90% vale olhar as listas antes de gravar: cada linha que não
-                casa é uma pessoa que some da aba de Salários, e a tela não explica o
-                motivo para quem estiver olhando.
+                A taxa aqui não mede mais a saúde da aba de Salários — mede só o quanto
+                os nomes coincidem. As linhas que não casam são as que a sincronização
+                do Convenia não alcança: em geral, resíduo da planilha antiga.
               </p>
             )}
 
@@ -112,19 +113,13 @@ export default function VinculoCamadaCard() {
               </div>
             )}
 
-            {!r.gravado && r.casados > 0 && (
-              <Button onClick={() => executar(true)} disabled={ocupado}>
-                Gravar a camada em {r.casados} linha(s)
-              </Button>
-            )}
-            {r.gravado && <p className="text-[12px] text-muted-foreground">Gravado.</p>}
           </div>
         )}
 
         <p className="text-[11px] text-muted-foreground">
-          Quem não casa fica sem camada — e sem camada a linha não aparece para
-          ninguém que não seja perfil global. O erro cai sempre para o lado de
-          esconder.
+          A camada que controla o acesso é gravada pela sincronização do Convenia, pelo
+          elo de id. Esta tela só olha — gravar daqui, por nome, desfaria o que a carga
+          acertou, e sem erro nenhum aparecer.
         </p>
       </CardContent>
     </Card>

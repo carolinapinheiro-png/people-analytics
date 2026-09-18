@@ -568,27 +568,32 @@ export const getEmployeeProfile = createServerFn({ method: 'GET' })
   });
 
 /**
- * Preenche a camada N das linhas de remuneração a partir do organograma.
+ * CONFERÊNCIA: diz quem não casa entre a folha e o organograma, e não grava.
  *
  * ===========================================================================
- * A PONTE POSSÍVEL, COM A REGRA QUE A TORNA SEGURA
+ * POR QUE ISTO DEIXOU DE ESCREVER
  * ===========================================================================
- * `comp_ratio` veio de planilha e tem `name`; o organograma vem do Convenia e
- * tem `corporate_email`. O nome é o único campo em comum -- e nome é chave
- * ruim: homônimo existe, grafia varia.
+ * Esta função casava folha e organograma POR NOME e gravava `n_layer`. Era a
+ * única coisa que preenchia a camada, e nome é chave ruim: homônimo existe,
+ * grafia varia, e o casamento errado não gera erro -- gera linha invisível,
+ * ou pior, salário visível para quem não devia.
  *
- * A regra que compensa isso está em `vinculo-comp.ts`: na dúvida, NÃO casa.
- * Nome repetido de qualquer um dos lados fica sem camada, e sem camada a
- * linha não aparece para ninguém que não seja perfil global.
+ * Desde 18/09/2026 a carga do Convenia grava `n_layer` pelo `convenia_id`, na
+ * mesma rodada que traz salário e faixa (ver comp-ratio-convenia.ts). Se esta
+ * função continuasse gravando, um clique por hábito sobrescreveria camada
+ * certa com resultado de casamento por nome -- e ninguém veria: a tela some
+ * em silêncio, é esse o modo de falhar aqui.
  *
- * Sem `confirm` só diz o que faria. É o mesmo padrão dos outros importadores
- * do painel, e aqui pesa mais: um casamento errado não gera erro nenhum na
- * tela -- gera o salário de alguém aparecendo para quem não devia.
+ * O diagnóstico continua valendo, e é o motivo de ela não ter sido apagada:
+ * as 35 linhas que sobraram da planilha, sem `convenia_id`, a carga não toca.
+ * Saber QUAIS são e por que não casam é trabalho desta tela. Consertá-las é
+ * decisão humana, uma a uma -- várias são a mesma pessoa escrita de dois
+ * jeitos, e apagar em bloco erraria nas outras.
  */
 export const vincularCamadaComp = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => z.object({ confirm: z.boolean().default(false) }).parse(input ?? {}))
-  .handler(async ({ context, data }) => {
+  .validator(() => ({}))
+  .handler(async ({ context }) => {
     const { exigirAdmin } = await import('@/lib/escopo.server');
     await exigirAdmin(context.claims.email as string | undefined, 'vincular a camada N à folha');
 
@@ -614,16 +619,15 @@ export const vincularCamadaComp = createServerFn({ method: 'POST' })
 
     if (organograma.length === 0) {
       return {
-        gravado: false, total: linhas.length, casados: 0,
+        total: linhas.length, casados: 0,
         semCorrespondencia: [] as string[], ambiguos: [] as string[],
         semCamadaNaOrigem: [] as string[],
-        resumo: 'O organograma está vazio. Rode uma sincronização do Convenia primeiro — sem ela não há camada para vincular.',
+        resumo: 'O organograma está vazio. Rode uma sincronização do Convenia primeiro — sem ela não há camada para conferir.',
       };
     }
 
     const r = vincular(linhas, organograma);
-    const out = {
-      gravado: false,
+    return {
       total: linhas.length,
       casados: r.casados.length,
       // Amostra, não a lista inteira: são nomes de pessoas, e a tela precisa
@@ -633,68 +637,6 @@ export const vincularCamadaComp = createServerFn({ method: 'POST' })
       semCamadaNaOrigem: r.semCamadaNaOrigem.slice(0, 20),
       resumo: resumir(r, linhas.length),
     };
-
-    if (!data.confirm) return out;
-
-    // ------------------------------------------------------------------
-    // UPDATE, E NÃO UPSERT
-    // ------------------------------------------------------------------
-    // Isto era `upsert({ id, n_layer }, { onConflict: 'id' })`, e o upsert do
-    // PostgREST é um INSERT com fallback: o Postgres cobra as colunas
-    // obrigatórias da tabela, e `name` é NOT NULL. Estourava com
-    // "null value in column name violates not-null constraint" -- para linhas
-    // que JÁ EXISTEM e cujo nome ninguém queria tocar.
-    //
-    // Nunca tinha aparecido porque nunca tinha rodado: enquanto o casamento
-    // por nome dava 0%, `casados` vinha vazio e o laço não executava. O bug
-    // esperou o primeiro vínculo bem-sucedido para se manifestar -- 571
-    // linhas de uma vez.
-    //
-    // Agrupado por camada em vez de uma chamada por linha: são cinco ou seis
-    // camadas distintas contra 571 pessoas, então são cinco ou seis idas ao
-    // banco em vez de 571.
-    const porCamada = new Map<string, string[]>();
-    for (const c of r.casados) {
-      const lista = porCamada.get(c.camada) ?? [];
-      lista.push(c.id);
-      porCamada.set(c.camada, lista);
-    }
-
-    // Só as que casaram: quem não casou fica com n_layer nulo, que ESCONDE a
-    // linha -- o lado seguro do erro.
-    for (const [camada, ids] of porCamada) {
-      for (let i = 0; i < ids.length; i += 500) {
-        const { error } = await db
-          .from('comp_ratio')
-          .update({ n_layer: camada } as never)
-          .in('id', ids.slice(i, i + 500));
-        if (error) throw new Error(`Falha ao gravar a camada: ${error.message}`);
-      }
-    }
-
-    // ------------------------------------------------------------------
-    // O ELO, GRAVADO JUNTO
-    // ------------------------------------------------------------------
-    // A camada dá para agrupar -- são cinco ou seis valores para centenas de
-    // pessoas. O `convenia_id` é único por pessoa, então aqui é uma chamada
-    // por linha mesmo. São ~570 numa ação manual e confirmada, não num
-    // caminho de leitura, e é o preço de nunca mais casar por nome na hora de
-    // ler. Ver a migração 20260828160000.
-    //
-    // Falhar aqui NÃO derruba a camada que acabou de ser gravada: a camada é
-    // o que controla acesso, e ela já entrou. O elo é acessório, e o aviso
-    // conta quantos ficaram sem.
-    let elosGravados = 0;
-    for (const c of r.casados) {
-      if (!c.convenia_id) continue;
-      const { error } = await db
-        .from('comp_ratio')
-        .update({ convenia_id: c.convenia_id } as never)
-        .eq('id', c.id);
-      if (!error) elosGravados++;
-    }
-
-    return { ...out, gravado: true, elosGravados };
   });
 
 /**
