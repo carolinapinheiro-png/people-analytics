@@ -26,19 +26,29 @@ interface ChartCardProps {
    * silêncio é como as afirmações falsas chegaram à tela.
    */
   ajuda?: ChaveGrafico;
+  /**
+   * Nota de leitura do quadro ("absoluto · no tooltip, taxa..."), mostrada no
+   * "?" em vez de ao lado do título.
+   *
+   * O `subtitle` fica à direita com `shrink-0`: com texto longo ele espreme o
+   * título em três linhas e empurra a página para os lados (visto na aba de
+   * Desligamentos em 21/09). Nota de método cabe melhor atrás de um clique.
+   */
+  nota?: string;
 }
 
 export default function ChartCard({
-  title, subtitle, children, className, icon: Icon, ajuda,
+  title, subtitle, children, className, icon: Icon, ajuda, nota,
 }: ChartCardProps) {
   const a = ajuda ? AJUDA_GRAFICOS[ajuda] : null;
+  const temAjuda = !!a || !!nota;
   return (
     <div data-pdf-block="true" className={cn('bg-card border border-border rounded-lg p-4', className)}>
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-center gap-2 min-w-0">
           {Icon && <Icon className="h-4 w-4 shrink-0 text-[hsl(var(--flutter))]" />}
           <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">{title}</span>
-          {a && (
+          {temAjuda && (
             <Popover>
               <PopoverTrigger asChild>
                 <button
@@ -51,10 +61,17 @@ export default function ChartCard({
               </PopoverTrigger>
               <PopoverContent align="start" className="w-[320px] space-y-2 text-sm">
                 <div className="font-semibold normal-case">{title}</div>
-                <p className="text-muted-foreground leading-relaxed">{a.responde}</p>
-                <p className="text-muted-foreground leading-relaxed border-t border-border/60 pt-2">
-                  <strong className="text-foreground">Cuidado:</strong> {a.cuidado}
-                </p>
+                {a && <p className="text-muted-foreground leading-relaxed">{a.responde}</p>}
+                {nota && (
+                  <p className={'text-muted-foreground leading-relaxed' + (a ? ' border-t border-border/60 pt-2' : '')}>
+                    {nota}
+                  </p>
+                )}
+                {a && (
+                  <p className="text-muted-foreground leading-relaxed border-t border-border/60 pt-2">
+                    <strong className="text-foreground">Cuidado:</strong> {a.cuidado}
+                  </p>
+                )}
               </PopoverContent>
             </Popover>
           )}

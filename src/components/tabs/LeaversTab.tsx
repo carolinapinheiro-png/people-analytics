@@ -475,7 +475,7 @@ export default function LeaversTab() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard
           title="Desligamentos por Faixa Salarial"
-          subtitle={
+          nota={
             modo === 'taxa'
               ? temDenominador
                 ? '% das pessoas ativas hoje em cada faixa que saíram · no tooltip, o absoluto'
@@ -500,7 +500,7 @@ export default function LeaversTab() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Desligamentos por Tempo de Casa" subtitle="Tempo de casa na data da saída · sempre absoluto (não há HC por faixa de tempo)">
+        <ChartCard title="Desligamentos por Tempo de Casa" nota="Tempo de casa na data da saída · sempre absoluto (não há HC por faixa de tempo)">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={tenureData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -518,7 +518,7 @@ export default function LeaversTab() {
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Por Tipo de Desligamento" subtitle="'Outros' = tudo fora de voluntário/involuntário (acordo, fim de contrato, etc.)">
+        <ChartCard title="Por Tipo de Desligamento" nota="'Outros' = tudo fora de voluntário/involuntário (acordo, fim de contrato, etc.)">
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
               <Pie
@@ -546,7 +546,7 @@ export default function LeaversTab() {
         {mostraEmpresa && (
           <ChartCard
             title="Por Empresa (base Convenia)"
-            subtitle="Sempre absoluto: desde a unificação de 05/09/2026 os ativos estão todos na base NSX Recife, então não há HC por empresa para calcular taxa"
+            nota="Sempre absoluto: desde a unificação de 05/09/2026 os ativos estão todos na base NSX Recife, então não há HC por empresa para calcular taxa"
           >
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={empresaData} layout="vertical" margin={{ left: 20 }}>
@@ -566,7 +566,7 @@ export default function LeaversTab() {
         {comMotivo.length > 0 && (
           <ChartCard
             title="Por Motivo"
-            subtitle={`${comMotivo.length} de ${totalDist} saídas com motivo no Convenia · top 10 · no tooltip, % das que têm motivo`}
+            nota={`${comMotivo.length} de ${totalDist} saídas com motivo no Convenia · top 10 · no tooltip, % das que têm motivo`}
           >
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={motivoData} layout="vertical" margin={{ left: 20 }}>
@@ -585,7 +585,7 @@ export default function LeaversTab() {
 
         <ChartCard
           title="Por Departamento"
-          subtitle={modo === 'taxa' ? '% do HC atual do depto que saiu · top 8 por nº de saídas' : 'Absoluto · no tooltip, % sobre o HC do depto'}
+          nota={modo === 'taxa' ? '% do HC atual do depto que saiu · top 8 por nº de saídas' : 'Absoluto · no tooltip, % sobre o HC do depto'}
         >
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={deptData.slice(0, 8)} layout="vertical" margin={{ left: 20 }}>
@@ -600,7 +600,7 @@ export default function LeaversTab() {
 
         <ChartCard
           title="Por Level"
-          subtitle={modo === 'taxa' ? '% do HC atual do nível que saiu · no tooltip, o absoluto' : 'Absoluto · no tooltip, % sobre o HC do nível'}
+          nota={modo === 'taxa' ? '% do HC atual do nível que saiu · no tooltip, o absoluto' : 'Absoluto · no tooltip, % sobre o HC do nível'}
         >
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={levelData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
@@ -615,7 +615,7 @@ export default function LeaversTab() {
       </div>
 
       {/* Evolução mensal empilhada por tipo */}
-      <ChartCard title="Evolução Mensal de Desligamentos" subtitle="Mês a mês até o período do topo, classificado por tipo · não muda com a janela dos quadros acima">
+      <ChartCard title="Evolução Mensal de Desligamentos" nota="Mês a mês até o período do topo, classificado por tipo · não muda com a janela dos quadros acima">
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={monthlyData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
