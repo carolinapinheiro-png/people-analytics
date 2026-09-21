@@ -241,6 +241,12 @@ export default function LeaversTab() {
   const deptHC: Record<string, number> = {};
   for (const [k, v] of Object.entries(currentData?.dept_data || {})) deptHC[k.toUpperCase().trim()] = v.hc;
   const levelHC = (currentData?.level_base || {}) as Record<string, number>;
+  // HC por faixa de tempo de casa no mês de referência -- a série grava com
+  // os MESMOS rótulos de `tempo_casa_faixa` ('0-3 meses', '1-2 anos'...).
+  const tenureHC = (currentData?.tenure_base || {}) as Record<string, number>;
+  // Tipo e motivo não têm grupo de ativos próprio: a base é o HC médio do
+  // período inteiro, a mesma do cartão de atrição voluntária.
+  const hcTotal = taxaDoPeriodo(serieTodosOsAnos, mesesAtuais)?.hcMedio ?? 0;
 
   const addShare = (rows: { name: string; value: number }[]) =>
     rows.map(d => ({ ...d, pctTot: pctDist(d.value) }));
@@ -254,10 +260,10 @@ export default function LeaversTab() {
     });
 
   const salaryBandData = comTaxa(countBy(distLeavers, 'faixa_salarial', SALARY_BAND_ORDER), n => activeByBand[n] ?? 0);
-  const tenureData = addShare(countBy(distLeavers, 'tempo_casa_faixa', TENURE_ORDER));
+  const tenureData = comTaxa(countBy(distLeavers, 'tempo_casa_faixa', TENURE_ORDER), n => tenureHC[n] ?? 0);
   const levelData = comTaxa(countBy(distLeavers, 'level', LEVEL_ORDER), n => levelHC[n] ?? 0);
   const deptData = comTaxa(countBy(distLeavers, 'departamento'), n => deptHC[n.toUpperCase().trim()] ?? 0);
-  const typeData = countBy(distLeavers, 'tipo_desligamento_agrupado');
+  const typeData = comTaxa(countBy(distLeavers, 'tipo_desligamento_agrupado'), () => hcTotal);
   const empresaData = addShare(countBy(distLeavers, 'empresa'));
   // Com uma empresa só no recorte (Betfair, International) o quadro é uma
   // barra única -- não informa nada.
@@ -265,7 +271,16 @@ export default function LeaversTab() {
   // Motivo: só quem tem. "Não informado" não vira barra -- com a cobertura
   // parcial do começo, seria a maior barra do quadro e não diria nada.
   const comMotivo = distLeavers.filter(r => r.motivo_desligamento);
-  const motivoData = addShare(countBy(comMotivo, 'motivo_desligamento')).slice(0, 10);
+  const motivoData = comTaxa(countBy(comMotivo, 'motivo_desligamento'), () => hcTotal).slice(0, 10);
+  const tooltipSobreHcTotal = (_v: number, _n: string, item: any) => {
+    const p = item.payload;
+    return [
+      p.pctHC != null
+        ? `${p.value} · ${p.pctHC.toFixed(2)}% do HC médio (${Math.round(p.hc)})`
+        : `${p.value} desligados`,
+      p.name ?? 'Desligados',
+    ];
+  };
 
   // No modo taxa, a barra é `pctHC`; grupo sem denominador fica sem barra
   // (e o tooltip explica), em vez de virar zero.
@@ -475,17 +490,19 @@ export default function LeaversTab() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Desligamentos por Tempo de Casa" nota="Tempo de casa na data da saída · sempre absoluto (não há HC por faixa de tempo)">
+        <ChartCard
+          title="Desligamentos por Tempo de Casa"
+          nota={modo === 'taxa'
+            ? 'Saídas com aquele tempo de casa ÷ ativos na mesma faixa no mês de referência · no tooltip, o absoluto'
+            : 'Tempo de casa na data da saída · no tooltip, a taxa sobre os ativos da faixa'}
+        >
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={tenureData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
               <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
-              <YAxis {...eixoContagem} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number, _n: string, item: any) => [`${value} · ${item.payload.pctTot.toFixed(0)}% do total`, 'Desligados']}
-              />
-              <Bar dataKey="value" name="Desligados" fill={COLORS.nsx} radius={[4, 4, 0, 0]} />
+              <YAxis {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
+              <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }} formatter={tooltipTaxa} />
+              <Bar dataKey={chaveBarra} name="Desligados" fill={COLORS.nsx} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -493,35 +510,55 @@ export default function LeaversTab() {
 
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Por Tipo de Desligamento" nota="'Outros' = tudo fora de voluntário/involuntário (acordo, fim de contrato, etc.)">
+        <ChartCard
+          title="Por Tipo de Desligamento"
+          nota={"'Outros' = tudo fora de voluntário/involuntário (acordo, fim de contrato, etc.)"
+            + (modo === 'taxa' ? ' · em % do HC médio do período' : '')}
+        >
           <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie
-                data={typeData}
-                cx="50%"
-                cy="45%"
-                innerRadius={42}
-                outerRadius={66}
-                paddingAngle={3}
-                dataKey="value"
-              >
-                {typeData.map((_, idx) => (
-                  <Cell key={`cell-${idx}`} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number, name: string) => [`${value} desligados`, name]}
-              />
-              <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />
-            </PieChart>
+            {modo === 'taxa' ? (
+              // Em taxa, pizza não serve: as fatias somariam a atrição total,
+              // não 100%. Barras mostram o tamanho de cada tipo sobre o HC.
+              <BarChart data={typeData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
+                <YAxis {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
+                <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }} formatter={tooltipSobreHcTotal} />
+                <Bar dataKey="pctHC" name="Desligados" radius={[4, 4, 0, 0]}>
+                  {typeData.map((_, idx) => (
+                    <Cell key={`cell-${idx}`} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            ) : (
+              <PieChart>
+                <Pie
+                  data={typeData}
+                  cx="50%"
+                  cy="45%"
+                  innerRadius={42}
+                  outerRadius={66}
+                  paddingAngle={3}
+                  dataKey="value"
+                >
+                  {typeData.map((_, idx) => (
+                    <Cell key={`cell-${idx}`} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
+                  formatter={(value: number, name: string) => [`${value} desligados`, name]}
+                />
+                <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />
+              </PieChart>
+            )}
           </ResponsiveContainer>
         </ChartCard>
 
         {mostraEmpresa && (
           <ChartCard
             title="Por Empresa (base Convenia)"
-            nota="Sempre absoluto: desde a unificação de 05/09/2026 os ativos estão todos na base NSX Recife, então não há HC por empresa para calcular taxa"
+            nota="Sempre em nº de saídas: a série não guarda HC por empresa, e os rótulos não batem (desligados antigos vêm com o nome da base, como 'NSX São Paulo'; os novos, com o campo Empresa do cadastro, como 'NSX Brasil São Paulo')"
           >
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={empresaData} layout="vertical" margin={{ left: 20 }}>
@@ -541,18 +578,21 @@ export default function LeaversTab() {
         {comMotivo.length > 0 && (
           <ChartCard
             title="Por Motivo"
-            nota={`${comMotivo.length} de ${totalDist} saídas com motivo no Convenia · top 10 · no tooltip, % das que têm motivo`}
+            nota={`${comMotivo.length} de ${totalDist} saídas com motivo no Convenia · top 10`
+              + (modo === 'taxa' ? ' · em % do HC médio do período' : ' · no tooltip, % das que têm motivo')}
           >
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={motivoData} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                <XAxis type="number" {...eixoContagem} tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
+                <XAxis type="number" {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
                 <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={140} />
                 <Tooltip
                   contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
-                  formatter={(value: number) => [`${value} · ${((value / comMotivo.length) * 100).toFixed(0)}% das saídas com motivo`, 'Desligados']}
+                  formatter={modo === 'taxa'
+                    ? tooltipSobreHcTotal
+                    : (value: number) => [`${value} · ${((value / comMotivo.length) * 100).toFixed(0)}% das saídas com motivo`, 'Desligados']}
                 />
-                <Bar dataKey="value" name="Desligados" fill={COLORS.teal} radius={[0, 4, 4, 0]} />
+                <Bar dataKey={chaveBarra} name="Desligados" fill={COLORS.teal} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
