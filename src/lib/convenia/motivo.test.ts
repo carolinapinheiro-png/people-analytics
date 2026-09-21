@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { motivoDesligamento, formaDoBloco, blocoSemTextoLivre } from './pessoas';
+import { motivoDesligamento, formaDoBloco, blocoSemTextoLivre, classificarSaida } from './pessoas';
 
 test('motivo: aceita string ou objeto com title/name, em qualquer das chaves candidatas', () => {
   assert.equal(motivoDesligamento({ motive: { id: 3, title: 'Proposta de outra empresa' } }), 'Proposta de outra empresa');
@@ -34,4 +34,10 @@ test('bruto: observação é trocada, a chave fica, o resto passa intacto', () =
   assert.deepEqual(b.motive, { title: 'X' });
   assert.equal(b.date, '2026-09-10');
   assert.equal(blocoSemTextoLivre('x'), null);
+});
+
+test('quebra de estágio segue quem tomou a decisão, e não cai em outra', () => {
+  assert.equal(classificarSaida('Quebra do Contrato de Estágio por parte do Empregado'), 'voluntaria');
+  assert.equal(classificarSaida('Quebra do Contrato de Estágio por parte do Empregador'), 'involuntaria');
+  assert.equal(classificarSaida('Término de Contrato de Estágio'), 'outra');
 });

@@ -647,12 +647,17 @@ export function classificarSaida(tipo: string | null | undefined): TipoSaida {
   //
   // Por isso o EMPREGADOR é testado antes -- o caso mais específico primeiro,
   // sempre, quando um termo é prefixo do outro.
+  //
+  // "Por parte do Empregador/Empregado" é a grafia dos rótulos de ESTÁGIO no
+  // formulário do Convenia (lista completa conferida em 21/09) -- sem ela,
+  // quebra de estágio caía em "outra" dos dois lados.
   if (t.includes('pelo empregador') || t.includes('pedido da empresa')
-      || t.includes('justa causa')) {
+      || t.includes('justa causa') || t.includes('por parte do empregador')) {
     return 'involuntaria';
   }
   if (t.includes('pedido do empregado') || t.includes('pedido do colaborador')
-      || t.includes('pelo empregado') || t.includes('pedido de demissao')) {
+      || t.includes('pelo empregado') || t.includes('pedido de demissao')
+      || t.includes('por parte do empregado')) {
     return 'voluntaria';
   }
   // Acordo, fim de contrato, suspensão, "Outros": nem uma nem outra.
