@@ -2212,6 +2212,29 @@ export async function executarSyncConvenia(
       );
 
       // ------------------------------------------------------------------
+      // A CAMADA DESTA RODADA, NÃO A DA ANTERIOR
+      // ------------------------------------------------------------------
+      // `org_pessoas` só é regravado no FIM da carga (ver "ORGANOGRAMA",
+      // abaixo). Lida do banco aqui, a camada é a da semana passada: na carga
+      // de 21/09/2026 a folha foi gravada às 09:30:10 e o organograma às
+      // 09:30:13, e 43 pessoas que tinham trocado de gestor naquela semana
+      // ficaram com a camada velha até a rodada seguinte.
+      //
+      // A cadeia de reporte já está inteira em `orgTodos` desde o começo da
+      // carga, e a conta é a mesma função que o organograma usa -- então a
+      // camada sai daqui, igual à que vai ser gravada três segundos depois.
+      // Se a listagem veio vazia (falha no Convenia), cai no valor guardado:
+      // melhor a camada da semana passada do que nenhuma, porque nenhuma
+      // esconde a linha de todo mundo.
+      const camadaFresca = new Map<string, string | null>();
+      if (orgTodos.length) {
+        const { calcularCamadas } = await import('@/lib/organograma');
+        for (const c of calcularCamadas(orgTodos)) camadaFresca.set(String(c.id), c.camada ?? null);
+      }
+      const camadaDe = (id: string) =>
+        camadaFresca.size ? (camadaFresca.get(id) ?? null) : (org.get(id)?.camada ?? null);
+
+      // ------------------------------------------------------------------
       // A POPULAÇÃO É O ORGANOGRAMA, NÃO A TABELA INTEIRA
       // ------------------------------------------------------------------
       // `convenia_pessoas` acumula TODO MUNDO que já passou pela carga --
@@ -2249,7 +2272,7 @@ export async function executarSyncConvenia(
           // A camada do ESCOPO de remuneração, pelo `convenia_id`. Não é o
           // `WorkDay Level` do cadastro -- esse é outra escala e só o
           // relatório do WIL usa. Ver a nota em comp-scope.ts.
-          camada: o?.camada ?? null,
+          camada: camadaDe(String(c.convenia_id)),
           // `exato`: existe `WorkDay Level` no mesmo cadastro, com outra
           // escala. Ver a nota em valorDe.
           level: valorDe(campos, ['level'], { exato: true }),
