@@ -186,6 +186,46 @@ export const getConveniaDiagnostico = createServerFn({ method: 'GET' })
         const deslig = await sondar('Desligados', EMPLOYEES_DISMISSED);
         base.sondas = [ativos, deslig];
 
+        // ------------------------------------------------------------------
+        // ONDE MORA A "CATEGORIA DE DESLIGAMENTO"
+        // ------------------------------------------------------------------
+        // O formulário de desligamento do Convenia tem um campo "Categoria de
+        // desligamento" (Voluntário / Involuntário / Outros), escolhido à mão
+        // pelo RH numa lista fechada -- a classificação oficial. O bloco
+        // `dismissal` da LISTAGEM não o traz (chaves medidas em 21/09: type,
+        // motive, termination_notice, dismissal_step, date...). Esta sonda
+        // abre o DETALHE de um desligado e publica só os caminhos de chave --
+        // e, dos campos personalizados, só os NOMES -- para achar onde está.
+        try {
+          const { EMPLOYEE_DETAIL } = await import('@/lib/convenia/paths');
+          const pg = await client.get<unknown>(EMPLOYEES_DISMISSED, { per_page: 1, page: 1 });
+          const primeiro = extrairPagina<Record<string, unknown>>(pg).itens[0];
+          if (primeiro?.id) {
+            const det = await client.get<{ data?: Record<string, unknown> } & Record<string, unknown>>(
+              EMPLOYEE_DETAIL(String(primeiro.id)),
+            );
+            const corpo = (det?.data ?? det) as Record<string, unknown>;
+            const nomesPersonalizados = Array.isArray(corpo.custom_fields)
+              ? (corpo.custom_fields as Array<Record<string, unknown>>)
+                  .map((c) => String(c.name ?? c.label ?? c.title ?? c.custom_field_name ?? '?'))
+                  .map((n) => `custom_fields[${n}]`)
+              : [];
+            base.sondas.push({
+              recurso: 'Desligado (detalhe de 1 pessoa — só nomes de campo)',
+              camposVistos: [...chavesDe(corpo), ...nomesPersonalizados],
+              total: null,
+              quantidade: 1,
+              erro: null,
+            });
+          }
+        } catch (e) {
+          base.sondas.push({
+            recurso: 'Desligado (detalhe de 1 pessoa — só nomes de campo)',
+            camposVistos: [], total: null, quantidade: 0,
+            erro: e instanceof Error ? e.message : String(e),
+          });
+        }
+
         const tem = (s: Sonda, frags: string[]) =>
           s.camposVistos.some((c) => frags.some((x) => semAcento(c).includes(x)));
 
