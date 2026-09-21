@@ -34,4 +34,8 @@ export interface LeaverRecord {
   mes_desligamento: string;
   ano_desligamento: string;
   tipo_desligamento_agrupado: string;
+  /** Mesma chave do `brand` do topo ('NSX', 'Betfair BR', 'Flutter International'). */
+  marca: string | null;
+  /** Base Convenia de origem: NSX Recife, NSX São Paulo, NSX Marechal, Betfair... */
+  empresa: string | null;
 }

@@ -145,6 +145,43 @@ export const AJUDA = {
     inverso: true,
   },
   /**
+   * O cartão da aba de Desligamentos NÃO é `atricao` acima: lá o denominador
+   * é o HC médio do período escolhido no topo (mês, trimestre ou ano), não o
+   * HC do fim do mês. Com um verbete só, o "?" explicaria uma conta diferente
+   * da que o cartão faz.
+   */
+  atricaoPeriodo: {
+    titulo: 'Taxa de atrição do período',
+    oQueE: 'Saídas do período escolhido no topo ÷ headcount médio dos meses do período.',
+    comoLer: 'Abaixo do número vêm a mesma taxa ANUALIZADA (levada a 12 meses) e o acumulado do ano até o mês escolhido. Metas e mercado costumam falar em taxa anual — compare com a anualizada.',
+    cuidado: 'Não compare a taxa de um mês com uma meta anual: 1,9% no mês é ~23% no ano. A variação ao lado é em pontos percentuais (p.p.) contra o período anterior de mesmo tamanho.',
+    formatar: pct,
+    inverso: true,
+  },
+  atricaoVoluntaria: {
+    titulo: 'Atrição voluntária',
+    oQueE: 'Saídas por iniciativa da pessoa ÷ headcount médio do período.',
+    comoLer: 'É o número que se compara com o mercado. O "% das saídas" diz a composição; esta taxa diz o tamanho.',
+    cuidado: 'Um mês com poucas saídas pode ter 80% voluntárias e ainda assim uma taxa voluntária baixa.',
+    formatar: pct,
+    inverso: true,
+  },
+  turnoverPrecoce: {
+    titulo: 'Saída precoce',
+    oQueE: 'Parcela das saídas do período que aconteceu nos primeiros 12 meses de casa (e, em destaque, nos primeiros 3).',
+    comoLer: 'Número alto costuma apontar para recrutamento, expectativa do cargo ou onboarding — não para remuneração ou carreira.',
+    cuidado: 'A admissão vem do Convenia com granularidade de mês, então "até 3 meses" pode incluir alguém com 3 meses e poucos dias. Quem não tem admissão cadastrada fica fora da conta.',
+    formatar: pct,
+    inverso: true,
+  },
+  tempoCasaMediana: {
+    titulo: 'Tempo de casa (mediana)',
+    oQueE: 'O tempo de casa de quem está no meio da lista de desligados do período. A média vem ao lado.',
+    comoLer: 'Com poucas saídas no mês, uma pessoa de muitos anos puxa a média para cima; a mediana não se mexe.',
+    cuidado: 'Quem ainda não teve a admissão lida do Convenia fica fora das duas contas (antes entrava como zero dia de casa).',
+    formatar: cru,
+  },
+  /**
    * As três faixas viviam soltas no UnwantedTab como BENCHMARK_TARGET,
    * BENCHMARK_MARKET e BENCHMARK_CRITICAL, pintando o número com
    * `text-green-400` escrito à mão em vez de `toneDe()`. Eram o único lugar do

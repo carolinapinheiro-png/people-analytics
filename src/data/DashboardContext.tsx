@@ -92,6 +92,12 @@ interface DashboardState {
    * Não use para desenhar número: ela ignora o filtro de departamento.
    */
   serieSemRecorteDeArea: MonthRecord[];
+  /**
+   * Série mensal da marca, COM o recorte de área e SEM o recorte de ano.
+   * Para comparar com o mesmo período do ano anterior -- `serieMensal` já vem
+   * restrita ao ano em escopo, e aí "setembro do ano passado" não existe nela.
+   */
+  serieTodosOsAnos: MonthRecord[];
   filteredDeptKey: string | null;
   /** A serie mensal agora vem do banco (nao mais do mock), entao tem carga. */
   dataLoading: boolean;
@@ -478,6 +484,11 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
     return filteredDeptKey ? raw.map(r => applyDeptFilter(r, filteredDeptKey)) : raw;
   }, [serieSemRecorteDeArea, filteredDeptKey]);
 
+  const serieTodosOsAnos = useMemo(() => {
+    const raw = getAllMonthsForBrand(data, brand);
+    return filteredDeptKey ? raw.map(r => applyDeptFilter(r, filteredDeptKey)) : raw;
+  }, [data, brand, filteredDeptKey]);
+
   // Aggregate to quarterly if needed
   const allMonthsData = useMemo(() => {
     if (view === 'quarterly') {
@@ -527,7 +538,7 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
       activeTab, setActiveTab, activeSubTab, setActiveSubTab, raceFilter, setRaceFilter, view, setView, filters, setFilters,
       yearFilter, setYearFilter, availableYears, activeYear,
       monthsOrder, currentMonth, currentData, prevData, allMonthsData, serieMensal: monthlyAllData,
-      serieSemRecorteDeArea,
+      serieSemRecorteDeArea, serieTodosOsAnos,
       filteredDeptKey, dataLoading, dataError, serie, cobertura,
       leaversLoading, leaversError, reloadLeavers,
     }}>

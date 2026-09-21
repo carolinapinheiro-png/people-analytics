@@ -42,6 +42,10 @@ export interface LeaverRow {
   mes_desligamento: string | null;
   ano_desligamento: string | null;
   tipo_desligamento_agrupado: string | null;
+  /** 'NSX' | 'Betfair BR' | 'Flutter International' -- mesma chave do `brand` do topo. */
+  marca: string | null;
+  /** Base Convenia de origem (NSX Recife, NSX São Paulo, ...). */
+  empresa: string | null;
 }
 
 /** Cliente sem o generic de Database, so para as tabelas ainda nao geradas. */
@@ -117,6 +121,8 @@ export interface ConveniaLeaverRow {
   genero: string | null;
   raca: string | null;
   vinculo: string | null;
+  marca: string | null;
+  empresa: string | null;
 }
 
 /** 'voluntaria'/'involuntaria'/'outra' (ver classificarSaida) -> rótulo da tela. */
@@ -205,6 +211,8 @@ export function paraLeaverRow(r: ConveniaLeaverRow): LeaverRow {
     mes_desligamento: r.dismissal_month,
     ano_desligamento: r.dismissal_month ? r.dismissal_month.slice(0, 4) : null,
     tipo_desligamento_agrupado: tipo,
+    marca: r.marca ?? null,
+    empresa: r.empresa ?? null,
   };
 }
 
@@ -219,7 +227,7 @@ export const listLeavers = createServerFn({ method: 'GET' })
     const db = supabaseAdmin as unknown as UntypedClient;
     const { data: rawRows, error } = await db
       .from('convenia_leavers')
-      .select('convenia_id, nome, cargo, department, hiring_month, dismissal_month, dismissal_date, dismissal_type, salary, level, job_type_family, genero, raca, vinculo')
+      .select('convenia_id, nome, cargo, department, hiring_month, dismissal_month, dismissal_date, dismissal_type, salary, level, job_type_family, genero, raca, vinculo, marca, empresa')
       .order('dismissal_date', { ascending: false });
 
     if (error) throw new Error(`Falha ao carregar desligados: ${error.message}`);

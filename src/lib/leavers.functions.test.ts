@@ -30,7 +30,15 @@ const base: ConveniaLeaverRow = {
   genero: 'F',
   raca: 'Parda',
   vinculo: 'CLT',
+  marca: 'NSX',
+  empresa: 'NSX São Paulo',
 };
+
+test('marca e empresa passam adiante -- o filtro de marca e o quadro por empresa dependem delas', () => {
+  const row = paraLeaverRow(base);
+  assert.equal(row.marca, 'NSX');
+  assert.equal(row.empresa, 'NSX São Paulo');
+});
 
 test('mesesDeCasa conta meses inteiros entre admissão e desligamento', () => {
   assert.equal(mesesDeCasa('2024-03', '2026-09-10'), 30);

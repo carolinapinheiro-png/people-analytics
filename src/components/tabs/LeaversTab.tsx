@@ -20,6 +20,9 @@ import {
   UserX,
   BarChart3,
   Search,
+  UserMinus,
+  Hourglass,
+  EyeOff,
 } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { useServerFn } from '@tanstack/react-start';
@@ -27,6 +30,11 @@ import { getCompAggregates, type CompAggregates } from '@/lib/comp.functions';
 import { usePeriodo } from '@/data/use-periodo';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 import { passaFiltro } from '@/lib/filtro-sentinela';
+import Delta from '@/components/dashboard/Delta';
+import {
+  taxaDoPeriodo, deltaPP, deslocarMeses, mesesDoAnoAte, ultimos12,
+  mediana, mesesDeCasaValidos, turnoverPrecoce,
+} from '@/lib/desligamentos-kpis';
 
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
@@ -63,18 +71,52 @@ function avgSalary(records: LeaverRecord[]): number {
   return valid.length > 0 ? valid.reduce((sum, r) => sum + r.salario, 0) / valid.length : 0;
 }
 
-function avgTenureMonths(records: LeaverRecord[]): number {
-  return records.length > 0 ? records.reduce((sum, r) => sum + (r.tempo_casa_dias || 0), 0) / records.length / 30.44 : 0;
+/** Seletor de duas posições, no canto do quadro. */
+function Alternar<T extends string>({ valor, opcoes, onChange, titulo }: {
+  valor: T;
+  opcoes: Array<{ v: T; rotulo: string; desabilitado?: string }>;
+  onChange: (v: T) => void;
+  titulo: string;
+}) {
+  return (
+    <div role="group" aria-label={titulo} className="inline-flex rounded-md border border-border bg-secondary/40 p-0.5 text-[11px]">
+      {opcoes.map((o) => (
+        <button
+          key={o.v}
+          type="button"
+          disabled={!!o.desabilitado}
+          title={o.desabilitado}
+          onClick={() => onChange(o.v)}
+          className={
+            'rounded px-2 py-0.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ' +
+            (valor === o.v ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')
+          }
+        >
+          {o.rotulo}
+        </button>
+      ))}
+    </div>
+  );
 }
+
+const pctFmt = (n: number | null | undefined, casas = 1) => (n == null ? '—' : `${n.toFixed(casas)}%`);
 
 export default function LeaversTab() {
   // Mês, trimestre e ano são GLOBAIS (TopBar) -- `usePeriodo()` resolve os
   // três de uma vez (ver `src/lib/periodo.ts`), mesma régua que o resto do
   // painel usa.
-  const { leavers, filters, brand, currentMonth, currentData, activeYear, allMonthsData } = useDashboard();
+  const { leavers, filters, brand, currentMonth, currentData, serieTodosOsAnos } = useDashboard();
   const periodo = usePeriodo();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const [searchTerm, setSearchTerm] = useState('');
+  // 12 saídas num mês não sustentam um recorte por faixa salarial: cada barra
+  // é uma ou duas pessoas, e o desenho muda inteiro de um mês para o outro.
+  // Os quadros de distribuição ganham a opção de olhar os 12 meses que
+  // terminam no período escolhido; os cartões continuam no período.
+  const [janela, setJanela] = useState<'periodo' | 'ltm'>('periodo');
+  // Absoluto acompanha o tamanho de cada grupo (a faixa mais povoada sempre
+  // perde mais gente). A taxa sobre os ativos do grupo é a leitura de risco.
+  const [modo, setModo] = useState<'abs' | 'taxa'>('abs');
 
   // Ativos por faixa salarial (snapshot atual, agregado leve) -> denominador da
   // taxa de atricao por faixa (#23). Company-wide, coerente com a lista de
@@ -143,6 +185,14 @@ export default function LeaversTab() {
   // gráfico cortado a um único mês deixa de ser gráfico). Escrito uma vez só,
   // para as duas leituras nunca divergirem no critério que não é de tempo.
   const passaOutrosFiltros = (r: LeaverRecord) => {
+    // A MARCA DO TOPO TAMBÉM RECORTA A LISTA
+    //
+    // Até 21/09 a lista era sempre a da empresa inteira, e a taxa vinha da
+    // série DA MARCA: com "NSX" no topo, "Total desligados" contava Betfair
+    // e International, e a atrição dividia saídas de uma população pelo HC
+    // de outra. `marca` vem de `convenia_leavers` com os mesmos valores do
+    // `brand` (ver `fontes.ts`).
+    if (brand !== 'combined' && r.marca !== brand) return false;
     if (!passaFiltro(filters.departamento, r.departamento)) return false;
     if (!passaFiltro(filters.jobFamily, r.job_family)) return false;
     if (!passaFiltro(filters.tempoCasa, r.tempo_casa_faixa)) return false;
@@ -163,13 +213,50 @@ export default function LeaversTab() {
 
   const filteredLeavers = useMemo(() => {
     return leavers.filter(r => periodo.contem(r.mes_desligamento) && passaOutrosFiltros(r));
-  }, [leavers, filters, searchTerm, periodo]);
+  }, [leavers, filters, searchTerm, periodo, brand]);
+
+  // Meses do período em escopo e o último deles -- base de todas as
+  // comparações. Em "todos os anos" não há período anterior a comparar.
+  const temPeriodo = periodo.tipo !== 'todos';
+  const mesesAtuais = temPeriodo ? periodo.meses : serieTodosOsAnos.filter((d) => (d.headcount || 0) > 0).map((d) => d.month);
+  const fimDoPeriodo = (temPeriodo ? periodo.meses[periodo.meses.length - 1] : undefined) ?? currentMonth;
+  const mesesAnteriores = temPeriodo ? deslocarMeses(periodo.meses, -periodo.meses.length) : [];
+  const nomeAnterior = periodo.tipo === 'trimestre' ? 'o trimestre anterior' : 'o mês anterior';
+
+  // Janela dos quadros de distribuição.
+  const mesesLtm = useMemo(() => new Set(ultimos12(fimDoPeriodo)), [fimDoPeriodo]);
+  const usaLtm = temPeriodo && janela === 'ltm';
+  const distLeavers = useMemo(
+    () => (usaLtm
+      ? leavers.filter(r => mesesLtm.has(r.mes_desligamento) && passaOutrosFiltros(r))
+      : filteredLeavers),
+    [usaLtm, leavers, mesesLtm, filteredLeavers, filters, searchTerm, brand],
+  );
+  const totalDist = distLeavers.length;
+  const rotuloJanela = usaLtm ? '12 meses até ' + fimDoPeriodo.split('-').reverse().join('/') : periodo.label;
 
   const totalLeavers = filteredLeavers.length;
-  const avgTenure = avgTenureMonths(filteredLeavers);
   const involuntary = filteredLeavers.filter(r => r.tipo_desligamento_agrupado === 'Involuntário').length;
   const voluntary = filteredLeavers.filter(r => r.tipo_desligamento_agrupado === 'Voluntário').length;
   const pctTot = (v: number) => (totalLeavers > 0 ? (v / totalLeavers) * 100 : 0);
+  const pctDist = (v: number) => (totalDist > 0 ? (v / totalDist) * 100 : 0);
+
+  const mesesCasa = mesesDeCasaValidos(filteredLeavers.map(r => r.tempo_casa_dias));
+  const tenureMedia = mesesCasa.length ? mesesCasa.reduce((a, b) => a + b, 0) / mesesCasa.length : null;
+  const tenureMediana = mediana(mesesCasa);
+  const precoce = turnoverPrecoce(filteredLeavers.map(r => r.tempo_casa_dias));
+
+  // Mesmos filtros, período anterior -- só a contagem, para o delta do total.
+  const totalAnterior = useMemo(() => {
+    if (!temPeriodo) return null;
+    const alvo = new Set(mesesAnteriores);
+    return leavers.filter(r => alvo.has(r.mes_desligamento) && passaOutrosFiltros(r)).length;
+  }, [temPeriodo, mesesAnteriores.join(), leavers, filters, searchTerm, brand]);
+
+  // O perfil sem acesso a dado individual recebe a lista com o nome trocado
+  // por "Confidencial" (o mascaramento é no servidor -- ver listLeavers). Sem
+  // dizer isso na tela, a coluna de nomes parece um defeito.
+  const nomesOcultos = leavers.length > 0 && leavers.every(r => r.nome === 'Confidencial');
 
   // Denominadores de ATIVOS para o "% sobre o HC" (significancia relativa: uma
   // area pequena com poucas saidas pode pesar mais que uma grande). HC atual do
@@ -179,22 +266,40 @@ export default function LeaversTab() {
   const levelHC = (currentData?.level_base || {}) as Record<string, number>;
 
   const addShare = (rows: { name: string; value: number }[]) =>
-    rows.map(d => ({ ...d, pctTot: pctTot(d.value) }));
+    rows.map(d => ({ ...d, pctTot: pctDist(d.value) }));
+  // `pctHC` é a taxa sobre os ativos do grupo HOJE (snapshot). Na janela de
+  // 12 meses isso é uma aproximação -- o grupo pode ter mudado de tamanho --
+  // e o tooltip diz "ativos hoje" para não fingir outra coisa.
+  const comTaxa = (rows: { name: string; value: number }[], hcDe: (n: string) => number) =>
+    rows.map(d => {
+      const hc = hcDe(d.name);
+      return { ...d, pctTot: pctDist(d.value), hc, pctHC: hc > 0 ? (d.value / hc) * 100 : null };
+    });
 
-  const salaryBandData = countBy(filteredLeavers, 'faixa_salarial', SALARY_BAND_ORDER).map((d) => {
-    const hc = activeByBand[d.name] ?? 0;
-    return { ...d, pctTot: pctTot(d.value), hc, pctHC: hc > 0 ? (d.value / hc) * 100 : null };
-  });
-  const tenureData = addShare(countBy(filteredLeavers, 'tempo_casa_faixa', TENURE_ORDER));
-  const levelData = countBy(filteredLeavers, 'level', LEVEL_ORDER).map(d => {
-    const hc = levelHC[d.name] ?? 0;
-    return { ...d, pctTot: pctTot(d.value), hc, pctHC: hc > 0 ? (d.value / hc) * 100 : null };
-  });
-  const deptData = countBy(filteredLeavers, 'departamento').map(d => {
-    const hc = deptHC[d.name.toUpperCase().trim()] ?? 0;
-    return { ...d, pctTot: pctTot(d.value), hc, pctHC: hc > 0 ? (d.value / hc) * 100 : null };
-  });
-  const typeData = countBy(filteredLeavers, 'tipo_desligamento_agrupado');
+  const salaryBandData = comTaxa(countBy(distLeavers, 'faixa_salarial', SALARY_BAND_ORDER), n => activeByBand[n] ?? 0);
+  const tenureData = addShare(countBy(distLeavers, 'tempo_casa_faixa', TENURE_ORDER));
+  const levelData = comTaxa(countBy(distLeavers, 'level', LEVEL_ORDER), n => levelHC[n] ?? 0);
+  const deptData = comTaxa(countBy(distLeavers, 'departamento'), n => deptHC[n.toUpperCase().trim()] ?? 0);
+  const typeData = countBy(distLeavers, 'tipo_desligamento_agrupado');
+  const empresaData = addShare(countBy(distLeavers, 'empresa'));
+  // Com uma empresa só no recorte (Betfair, International) o quadro é uma
+  // barra única -- não informa nada.
+  const mostraEmpresa = empresaData.length > 1;
+
+  // No modo taxa, a barra é `pctHC`; grupo sem denominador fica sem barra
+  // (e o tooltip explica), em vez de virar zero.
+  const chaveBarra = modo === 'taxa' ? 'pctHC' : 'value';
+  const eixoContagem = { allowDecimals: false, domain: [0, 'auto'] as [number, 'auto'] };
+  const eixoBarra = modo === 'taxa'
+    ? { allowDecimals: true, domain: [0, 'auto'] as [number, 'auto'], tickFormatter: (v: number) => `${v}%` }
+    : eixoContagem;
+  const tooltipTaxa = (value: number, _n: string, item: any) => {
+    const p = item.payload;
+    const base = p.pctHC != null
+      ? `${p.value} · ${p.pctHC.toFixed(1)}% dos ${p.hc} ativos hoje`
+      : `${p.value} · ${p.pctTot.toFixed(0)}% do total (sem HC do grupo)`;
+    return [base, 'Desligados'];
+  };
 
   // Evolucao mensal empilhada por tipo (voluntario x involuntario x outros) --
   // a "visao mes a mes classificando" pedida pela diretora.
@@ -217,30 +322,78 @@ export default function LeaversTab() {
     return Array.from(m.entries())
       .map(([month, v]) => ({ month, ...v }))
       .sort((a, b) => a.month.localeCompare(b.month));
-  }, [leavers, filters, searchTerm, periodo]);
+  }, [leavers, filters, searchTerm, periodo, brand]);
 
-  // Taxa de atricao ACUMULADA do periodo (pergunta da Carolina): total de
-  // saidas ÷ HC medio do periodo -- distinta da media das taxas mensais.
+  // ------------------------------------------------------------------
+  // TAXA DO PERÍODO, COM O NOME CERTO E COM COMPARAÇÃO
+  // ------------------------------------------------------------------
+  // Saídas ÷ HC médio dos meses do período (mês, trimestre ou tudo), da
+  // série da marca com o recorte de área. Era rotulada "acumulada" mesmo
+  // com um mês só no topo. Ver `lib/desligamentos-kpis.ts`.
   //
-  // O PERIODO É O MESMO DE `filteredLeavers`: um mês, um trimestre, ou o ano
-  // inteiro em "Todos os anos". Até 15/09 isto somava sempre o ano inteiro de
-  // `allMonthsData`, mesmo com um mês ou trimestre específico selecionado.
-  const periodoSerie = useMemo(
-    () => allMonthsData.filter((d) => periodo.contem(d.month)),
-    [allMonthsData, periodo],
-  );
-  const seriesLeavers = periodoSerie.reduce((s, d) => s + (d.leavers || 0), 0);
-  const avgHcPeriod = periodoSerie.length
-    ? periodoSerie.reduce((s, d) => s + (d.headcount || 0), 0) / periodoSerie.length
-    : 0;
-  const accAttrition = avgHcPeriod > 0 ? (seriesLeavers / avgHcPeriod) * 100 : 0;
+  // `serieTodosOsAnos`, e não `allMonthsData`: esta vem restrita ao ano em
+  // escopo (e agregada na visão trimestral), e aí o mesmo período do ano
+  // passado não existia para comparar. A série mensal completa serve às
+  // três visões com a mesma conta.
+  const taxaAtual = taxaDoPeriodo(serieTodosOsAnos, mesesAtuais);
+  const taxaAnterior = temPeriodo ? taxaDoPeriodo(serieTodosOsAnos, mesesAnteriores) : null;
+  const taxaAnoPassado = temPeriodo ? taxaDoPeriodo(serieTodosOsAnos, deslocarMeses(periodo.meses, -12)) : null;
+  const taxaYtd = temPeriodo ? taxaDoPeriodo(serieTodosOsAnos, mesesDoAnoAte(fimDoPeriodo)) : null;
+  const anoPassado = Number(fimDoPeriodo.slice(0, 4)) - 1;
+  const hcMedio = taxaAtual?.hcMedio ?? 0;
+  const taxaDe = (n: number) => (hcMedio > 0 ? (n / hcMedio) * 100 : null);
+
+  const rotuloTaxa = periodo.tipo === 'mes' ? 'Atrição do mês' : periodo.tipo === 'trimestre' ? 'Atrição do trimestre' : 'Atrição (todos os anos)';
+  const dYoY = deltaPP(taxaAtual, taxaAnoPassado);
+  const subTaxa = taxaAtual
+    ? [
+        `${taxaAtual.saidas} saídas ÷ HC médio ${Math.round(taxaAtual.hcMedio)}`,
+        temPeriodo && taxaAtual.nMeses < 12 ? `anualizada ${pctFmt(taxaAtual.anualizada)}` : null,
+        taxaYtd && taxaYtd.nMeses > taxaAtual.nMeses ? `acum. ${fimDoPeriodo.slice(0, 4)} ${pctFmt(taxaYtd.taxa)}` : null,
+        dYoY != null ? `vs ${anoPassado}: ${dYoY > 0 ? '+' : ''}${dYoY.toFixed(1)} p.p.` : null,
+      ].filter(Boolean).join(' · ')
+    : 'sem headcount na série para este período';
 
   const kpis = [
-    { label: 'Total Desligados', value: fmt(totalLeavers), color: COLORS.danger, icon: UserX, sub: periodo.tipo === 'todos' ? 'todos os anos' : `em ${periodo.label}` },
-    { label: 'Atrição acumulada', value: `${accAttrition.toFixed(1)}%`, color: COLORS.orange, icon: TrendingUp, sub: `${seriesLeavers} saídas ÷ HC médio ${Math.round(avgHcPeriod)}` },
-    { label: 'Voluntários', value: `${fmt(voluntary)} (${pctTot(voluntary).toFixed(0)}%)`, color: COLORS.info, icon: LogOut },
-    { label: 'Involuntários', value: `${fmt(involuntary)} (${pctTot(involuntary).toFixed(0)}%)`, color: COLORS.orange, icon: AlertTriangle },
-    { label: 'Tempo Médio de Casa', value: `${avgTenure.toFixed(1)}m`, color: COLORS.nsx, icon: Clock },
+    {
+      label: 'Total Desligados', value: fmt(totalLeavers), color: COLORS.danger, icon: UserX,
+      sub: temPeriodo ? `em ${periodo.label}` : 'todos os anos',
+      delta: totalAnterior != null
+        ? <Delta v={totalLeavers - totalAnterior} invertido periodo={nomeAnterior} />
+        : undefined,
+    },
+    {
+      label: rotuloTaxa, value: pctFmt(taxaAtual?.taxa), color: COLORS.orange, icon: TrendingUp,
+      help: 'atricaoPeriodo' as const, helpValue: taxaAtual?.taxa ?? null,
+      sub: subTaxa,
+      delta: temPeriodo ? <Delta v={deltaPP(taxaAtual, taxaAnterior)} invertido periodo={`${nomeAnterior} (em p.p.)`} /> : undefined,
+    },
+    {
+      label: 'Atrição voluntária', value: pctFmt(taxaDe(voluntary)), color: COLORS.info, icon: LogOut,
+      help: 'atricaoVoluntaria' as const, helpValue: taxaDe(voluntary),
+      sub: `${fmt(voluntary)} saídas · ${pctTot(voluntary).toFixed(0)}% dos desligamentos`,
+    },
+    {
+      // Cor neutra de propósito: desligamento involuntário não é, por si,
+      // sinal de problema -- pode ser gestão de desempenho funcionando. O
+      // âmbar/vermelho fica para o que é alerta de fato (atrição não desejada).
+      label: 'Involuntários', value: `${fmt(involuntary)} (${pctTot(involuntary).toFixed(0)}%)`, color: COLORS.purple, icon: UserMinus,
+      sub: `${pctFmt(taxaDe(involuntary))} do HC médio`,
+    },
+    {
+      label: 'Tempo de casa', value: tenureMediana != null ? `${tenureMediana.toFixed(1)}m` : '—', color: COLORS.nsx, icon: Clock,
+      help: 'tempoCasaMediana' as const,
+      sub: tenureMedia != null
+        ? `mediana · média ${tenureMedia.toFixed(1)}m${mesesCasa.length < totalLeavers ? ` · ${mesesCasa.length} de ${totalLeavers} com admissão` : ''}`
+        : 'sem data de admissão',
+    },
+    {
+      label: 'Saída precoce', value: pctFmt(precoce.pct12m, 0), color: COLORS.warning, icon: Hourglass,
+      help: 'turnoverPrecoce' as const, helpValue: precoce.pct12m,
+      sub: precoce.n
+        ? `${precoce.ate12m} de ${precoce.n} com menos de 1 ano · ${precoce.ate3m} até 3 meses`
+        : 'sem data de admissão',
+    },
   ];
 
   return (
@@ -254,15 +407,15 @@ export default function LeaversTab() {
             Análise de Desligamentos
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {totalLeavers} desligamentos{periodo.tipo === 'todos' ? ' (todos os anos)' : ` em ${periodo.label}`} · dados reais ·
-            {' '}mês, trimestre e ano no topo recortam esta aba
+            {totalLeavers} desligamentos{periodo.tipo === 'todos' ? ' (todos os anos)' : ` em ${periodo.label}`}
+            {brand !== 'combined' ? ` · ${brand}` : ''} · marca, mês, trimestre e ano no topo recortam esta aba
           </p>
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Buscar colaborador, cargo ou departamento..."
+            placeholder={nomesOcultos ? 'Buscar cargo ou departamento...' : 'Buscar colaborador, cargo ou departamento...'}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="bg-secondary border border-border rounded pl-9 pr-3 py-1.5 text-sm text-foreground w-full md:w-[320px] focus:outline-none focus:ring-1"
@@ -272,52 +425,83 @@ export default function LeaversTab() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         {kpis.map((kpi, idx) => (
           <KpiCard key={idx} {...kpi} />
         ))}
       </div>
+
+      {/* Controles dos quadros de distribuição */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
+        <p className="text-xs text-muted-foreground">
+          Quadros abaixo: <span className="text-foreground font-medium">{totalDist} desligamentos</span> em {rotuloJanela}
+          {usaLtm ? ' · os cartões acima seguem no período do topo' : ''}
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          {temPeriodo && (
+            <Alternar
+              titulo="Janela dos quadros"
+              valor={janela}
+              onChange={setJanela}
+              opcoes={[
+                { v: 'periodo', rotulo: periodo.tipo === 'trimestre' ? 'Trimestre' : 'Mês' },
+                { v: 'ltm', rotulo: 'Últimos 12 meses' },
+              ]}
+            />
+          )}
+          <Alternar
+            titulo="Métrica das barras"
+            valor={modo}
+            onChange={setModo}
+            opcoes={[
+              { v: 'abs', rotulo: 'Nº de saídas' },
+              { v: 'taxa', rotulo: '% sobre ativos' },
+            ]}
+          />
+        </div>
+      </div>
+      {totalDist > 0 && totalDist < 20 && (
+        <p className="-mt-3 text-[11px] text-muted-foreground">
+          Poucas saídas na janela: cada barra é uma ou duas pessoas e o desenho muda muito de um período para o outro.
+          {temPeriodo && !usaLtm ? ' "Últimos 12 meses" dá uma leitura mais estável.' : ''}
+        </p>
+      )}
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard
           title="Desligamentos por Faixa Salarial"
           subtitle={
-            temDenominador
-              ? 'Absoluto · no tooltip, taxa sobre os ativos da faixa'
-              : semAcesso
-                ? 'Absoluto · no tooltip, % do total — a taxa sobre os ativos da faixa exige acesso a Compensation'
-                : 'Absoluto · no tooltip, % do total'
+            modo === 'taxa'
+              ? temDenominador
+                ? '% das pessoas ativas hoje em cada faixa que saíram · no tooltip, o absoluto'
+                : semAcesso
+                  ? 'A taxa sobre os ativos da faixa exige acesso a Compensation — sem barras neste modo'
+                  : 'Sem o HC por faixa, não há taxa — sem barras neste modo'
+              : temDenominador
+                ? 'Absoluto · no tooltip, taxa sobre os ativos da faixa'
+                : semAcesso
+                  ? 'Absoluto · no tooltip, % do total — a taxa sobre os ativos da faixa exige acesso a Compensation'
+                  : 'Absoluto · no tooltip, % do total'
           }
         >
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={salaryBandData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
               <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
-              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number, _n: string, item: any) => {
-                  const p = item.payload;
-                  return [
-                    p.pctHC != null
-                      ? `${value} · ${p.pctHC.toFixed(1)}% dos ${p.hc} ativos na faixa`
-                      : `${value} · ${p.pctTot.toFixed(0)}% do total`,
-                    'Desligados',
-                  ];
-                }}
-              />
-              <Bar dataKey="value" name="Desligados" fill={brandColor} radius={[4, 4, 0, 0]} />
+              <YAxis {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
+              <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }} formatter={tooltipTaxa} />
+              <Bar dataKey={chaveBarra} name="Desligados" fill={brandColor} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Desligamentos por Tempo de Casa" subtitle="Permanência média na empresa">
+        <ChartCard title="Desligamentos por Tempo de Casa" subtitle="Tempo de casa na data da saída · sempre absoluto (não há HC por faixa de tempo)">
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={tenureData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
               <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
-              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
+              <YAxis {...eixoContagem} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
               <Tooltip
                 contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
                 formatter={(value: number, _n: string, item: any) => [`${value} · ${item.payload.pctTot.toFixed(0)}% do total`, 'Desligados']}
@@ -329,7 +513,7 @@ export default function LeaversTab() {
       </div>
 
       {/* Charts Row 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard title="Por Tipo de Desligamento" subtitle="'Outros' = tudo fora de voluntário/involuntário (acordo, fim de contrato, etc.)">
           <ResponsiveContainer width="100%" height={240}>
             <PieChart>
@@ -355,45 +539,59 @@ export default function LeaversTab() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Por Departamento" subtitle="Absoluto · no tooltip, % sobre o HC do depto">
+        {mostraEmpresa && (
+          <ChartCard
+            title="Por Empresa (base Convenia)"
+            subtitle="Sempre absoluto: desde a unificação de 05/09/2026 os ativos estão todos na base NSX Recife, então não há HC por empresa para calcular taxa"
+          >
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={empresaData} layout="vertical" margin={{ left: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis type="number" {...eixoContagem} tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
+                <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={110} />
+                <Tooltip
+                  contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
+                  formatter={(value: number, _n: string, item: any) => [`${value} · ${item.payload.pctTot.toFixed(0)}% do total`, 'Desligados']}
+                />
+                <Bar dataKey="value" name="Desligados" fill={COLORS.flutter} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        )}
+
+        <ChartCard
+          title="Por Departamento"
+          subtitle={modo === 'taxa' ? '% do HC atual do depto que saiu · top 8 por nº de saídas' : 'Absoluto · no tooltip, % sobre o HC do depto'}
+        >
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={deptData.slice(0, 8)} layout="vertical" margin={{ left: 20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-              <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
+              <XAxis type="number" {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
               <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={90} />
-              <Tooltip
-                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number, _n: string, item: any) => {
-                  const p = item.payload;
-                  return [p.pctHC != null ? `${value} · ${p.pctHC.toFixed(1)}% do HC (${p.hc} ativos)` : `${value} · ${p.pctTot.toFixed(0)}% do total`, 'Desligados'];
-                }}
-              />
-              <Bar dataKey="value" name="Desligados" fill={COLORS.purple} radius={[0, 4, 4, 0]} />
+              <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }} formatter={tooltipTaxa} />
+              <Bar dataKey={chaveBarra} name="Desligados" fill={COLORS.purple} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Por Level" subtitle="Absoluto · no tooltip, % sobre o HC do nível">
+        <ChartCard
+          title="Por Level"
+          subtitle={modo === 'taxa' ? '% do HC atual do nível que saiu · no tooltip, o absoluto' : 'Absoluto · no tooltip, % sobre o HC do nível'}
+        >
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={levelData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
               <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
-              <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
-                formatter={(value: number, _n: string, item: any) => {
-                  const p = item.payload;
-                  return [p.pctHC != null ? `${value} · ${p.pctHC.toFixed(1)}% do HC (${p.hc} ativos)` : `${value} · ${p.pctTot.toFixed(0)}% do total`, 'Desligados'];
-                }}
-              />
-              <Bar dataKey="value" name="Desligados" fill={COLORS.betfair} radius={[4, 4, 0, 0]} />
+              <YAxis {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
+              <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }} formatter={tooltipTaxa} />
+              <Bar dataKey={chaveBarra} name="Desligados" fill={COLORS.betfair} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
       </div>
 
       {/* Evolução mensal empilhada por tipo */}
-      <ChartCard title="Evolução Mensal de Desligamentos" subtitle="Mês a mês, classificado por tipo">
+      <ChartCard title="Evolução Mensal de Desligamentos" subtitle="Mês a mês até o período do topo, classificado por tipo · não muda com a janela dos quadros acima">
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={monthlyData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -402,7 +600,7 @@ export default function LeaversTab() {
               tick={{ fill: 'var(--chart-tick)', fontSize: 10 }}
               tickFormatter={(v) => mLabel(v)}
             />
-            <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
+            <YAxis {...eixoContagem} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
             <Tooltip
               contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
               labelFormatter={(label) => mLabel(String(label))}
@@ -422,6 +620,12 @@ export default function LeaversTab() {
             <BarChart3 className="h-5 w-5" style={{ color: brandColor }} />
             Lista de Desligados
           </CardTitle>
+          {nomesOcultos && (
+            <p className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
+              <EyeOff className="h-3.5 w-3.5 shrink-0" />
+              Nomes e salários ficam ocultos no seu perfil de acesso — os números da aba contam todas as pessoas do seu escopo.
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           <div className="overflow-auto max-h-[500px]">

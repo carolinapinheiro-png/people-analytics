@@ -179,6 +179,16 @@ export const getDataFreshness = createServerFn({ method: 'GET' })
         if (s.dateFrom) {
           consultaData = consultaData.eq(s.dateFrom.filterColumn, s.dateFrom.filterValue);
         }
+        // NULL NÃO É "A CARGA MAIS RECENTE"
+        //
+        // Em ordem decrescente o Postgres põe NULL PRIMEIRO. Uma execução do
+        // Convenia que ainda está rodando -- ou que morreu no meio, sem chegar
+        // ao `encerrar` -- deixa `finished_at` nulo, e esse nulo ganhava o
+        // `limit(1)` e o selo dizia "sem registro de carga" mesmo com syncs
+        // anteriores concluídos (selo visto assim em 21/09, na aba de
+        // Desligamentos). Uma data nula nunca é a última carga, em tabela
+        // nenhuma.
+        consultaData = consultaData.not(alvo.column, 'is', null);
         const { data } = await consultaData
           .order(alvo.column, { ascending: false })
           .limit(1)
