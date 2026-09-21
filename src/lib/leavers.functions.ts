@@ -204,7 +204,9 @@ export function paraLeaverRow(r: ConveniaLeaverRow): LeaverRow {
       : null,
     tipo_desligamento: r.dismissal_type,
     // Vem do bloco `dismissal` da listagem desde 21/09 (ver sync.server.ts).
-    // Quem saiu por uma base já aposentada não tem mais listagem para reler.
+    // Em 21/09 os 35 desligados gravados pelas bases antigas (SP, Marechal,
+    // Betfair) NÃO vinham na listagem de desligados de Recife (147 itens, todos
+    // com outros ids), então ficam sem motivo até isso ser esclarecido.
     motivo_desligamento: r.dismissal_motive ?? null,
     data_desligamento: r.dismissal_date,
     data_admissao: r.hiring_month ? `${r.hiring_month}-01` : null,
