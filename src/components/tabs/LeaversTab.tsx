@@ -1,4 +1,5 @@
-import { useDashboard } from '@/data/DashboardContext';
+import { useDashboard, applyDeptFilter } from '@/data/DashboardContext';
+import { getAllMonthsForBrand } from '@/data/helpers';
 import { LeaverRecord } from '@/data/leaver-types';
 import { fmt, fmtC, mLabel } from '@/data/helpers';
 import KpiCard from '@/components/dashboard/KpiCard';
@@ -78,7 +79,7 @@ export default function LeaversTab() {
   // três de uma vez (ver `src/lib/periodo.ts`), mesma régua que o resto do
   // painel usa.
   const {
-    leavers, filters, brand, currentMonth, currentData, serieTodosOsAnos,
+    leavers, filters, brand, currentMonth, currentData, serieTodosOsAnos, data, filteredDeptKey,
     janelaDeslig, metricaDeslig: modo,
   } = useDashboard();
   const periodo = usePeriodo();
@@ -264,10 +265,26 @@ export default function LeaversTab() {
   const levelData = comTaxa(countBy(distLeavers, 'level', LEVEL_ORDER), n => levelHC[n] ?? 0);
   const deptData = comTaxa(countBy(distLeavers, 'departamento'), n => deptHC[n.toUpperCase().trim()] ?? 0);
   const typeData = comTaxa(countBy(distLeavers, 'tipo_desligamento_agrupado'), () => hcTotal);
-  const empresaData = addShare(countBy(distLeavers, 'empresa'));
+  // ------------------------------------------------------------------
+  // POR MARCA, NÃO POR EMPRESA
+  // ------------------------------------------------------------------
+  // Era "Por Empresa (base Convenia)": NSX Recife, NSX São Paulo, NSX
+  // Marechal... que são todas a marca NSX -- a quebra não dizia nada que a
+  // marca não diga, e não tinha HC para virar taxa. Por marca tem: a série
+  // guarda headcount por marca, e a taxa sai com a mesma conta do cartão
+  // (saídas ÷ HC médio do período, com o recorte de área da barra).
+  const hcPorMarca = useMemo(() => {
+    const out: Record<string, number> = {};
+    for (const m of ['NSX', 'Betfair BR', 'Flutter International']) {
+      const serie = getAllMonthsForBrand(data, m).map(r => (filteredDeptKey ? applyDeptFilter(r, filteredDeptKey) : r));
+      out[m] = taxaDoPeriodo(serie, mesesAtuais)?.hcMedio ?? 0;
+    }
+    return out;
+  }, [data, filteredDeptKey, mesesAtuais.join()]);
+  const empresaData = comTaxa(countBy(distLeavers, 'marca'), n => hcPorMarca[n] ?? 0);
   // Com uma empresa só no recorte (Betfair, International) o quadro é uma
   // barra única -- não informa nada.
-  const mostraEmpresa = empresaData.length > 1;
+  const mostraEmpresa = brand === 'combined' && empresaData.length > 1;
   // Motivo: só quem tem. "Não informado" não vira barra -- com a cobertura
   // parcial do começo, seria a maior barra do quadro e não diria nada.
   const comMotivo = distLeavers.filter(r => r.motivo_desligamento);
@@ -557,19 +574,30 @@ export default function LeaversTab() {
 
         {mostraEmpresa && (
           <ChartCard
-            title="Por Empresa (base Convenia)"
-            nota="Sempre em nº de saídas: a série não guarda HC por empresa, e os rótulos não batem (desligados antigos vêm com o nome da base, como 'NSX São Paulo'; os novos, com o campo Empresa do cadastro, como 'NSX Brasil São Paulo')"
+            title="Por Marca"
+            nota={modo === 'taxa'
+              ? 'Saídas da marca ÷ HC médio da marca no período · no tooltip, o absoluto'
+              : 'Nº de saídas · no tooltip, a taxa sobre o HC médio da marca no período'}
           >
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={empresaData} layout="vertical" margin={{ left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-                <XAxis type="number" {...eixoContagem} tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
-                <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={110} />
+                <XAxis type="number" {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
+                <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={120} />
                 <Tooltip
                   contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
-                  formatter={(value: number, _n: string, item: any) => [`${value} · ${item.payload.pctTot.toFixed(0)}% do total`, 'Desligados']}
+                  formatter={(_v: number, _n: string, item: any) => {
+                    const p = item.payload;
+                    return [p.pctHC != null
+                      ? `${p.value} · ${p.pctHC.toFixed(1)}% do HC médio (${Math.round(p.hc)})`
+                      : `${p.value} · sem HC da marca no período`, 'Desligados'];
+                  }}
                 />
-                <Bar dataKey="value" name="Desligados" fill={COLORS.flutter} radius={[0, 4, 4, 0]} />
+                <Bar dataKey={chaveBarra} name="Desligados" radius={[0, 4, 4, 0]}>
+                  {empresaData.map((d) => (
+                    <Cell key={d.name} fill={BRAND_COLORS[d.name] || COLORS.flutter} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>

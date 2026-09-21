@@ -136,7 +136,7 @@ const DashboardContext = createContext<DashboardState | null>(null);
  * When a departamento filter is active, we scale the MonthRecord
  * proportionally based on that department's share of headcount.
  */
-function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
+export function applyDeptFilter(record: MonthRecord, dept: string): MonthRecord {
   const deptEntry = Object.entries(record.dept_data || {}).find(
     ([k]) => k.toUpperCase() === dept.toUpperCase()
   );
