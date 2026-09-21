@@ -124,7 +124,6 @@ export default function DemographicsTab() {
       .filter((r) => r.value > 0);
   }, [curr]);
   const wmTotal = wmOverall.reduce((s, r) => s + r.value, 0);
-  const wmSemInfo = wmOverall.find((r) => r.name === 'Não informado')?.value ?? 0;
   const wmByDept = useMemo(() => {
     return Object.entries(curr.dept_breakdown || {})
       .map(([dept, b]) => {
@@ -308,15 +307,6 @@ export default function DemographicsTab() {
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
-            <p className="text-[11px] text-muted-foreground mt-1">
-              Direto do cadastro do Convenia ("Modelo de Jornada de Trabalho", o mesmo campo de <em>Level</em> e{' '}
-              <em>Job Type Family</em>) — recorta por mês, trimestre, ano, departamento, família, vínculo e tempo de casa,
-              como o resto da série. "Remoto" agrupa com e sem registro de ponto.
-              {wmSemInfo > 0 && (
-                <> <strong>{wmSemInfo} de {wmTotal}</strong> ativos sem o campo preenchido no Convenia entram como
-                  "Não informado" — não são rateados entre as outras categorias.</>
-              )}
-            </p>
           </ChartCard>
 
           <ChartCard title="Modelo por departamento" subtitle="% dentro de cada área" icon={Users}>
