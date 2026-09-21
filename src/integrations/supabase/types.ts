@@ -371,6 +371,8 @@ export type Database = {
           department: string | null
           detalhe_versao: number | null
           dismissal_date: string | null
+          dismissal_motive: string | null
+          dismissal_raw: Json | null
           dismissal_month: string | null
           dismissal_type: string | null
           empresa: string
@@ -393,6 +395,8 @@ export type Database = {
           department?: string | null
           detalhe_versao?: number | null
           dismissal_date?: string | null
+          dismissal_motive?: string | null
+          dismissal_raw?: Json | null
           dismissal_month?: string | null
           dismissal_type?: string | null
           empresa: string
@@ -415,6 +419,8 @@ export type Database = {
           department?: string | null
           detalhe_versao?: number | null
           dismissal_date?: string | null
+          dismissal_motive?: string | null
+          dismissal_raw?: Json | null
           dismissal_month?: string | null
           dismissal_type?: string | null
           empresa?: string

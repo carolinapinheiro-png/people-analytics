@@ -664,6 +664,67 @@ export function ehVoluntaria(tipo: string | null | undefined): boolean {
   return classificarSaida(tipo) === 'voluntaria';
 }
 
+/**
+ * O MOTIVO do desligamento (ex.: "Proposta de outra empresa"), que não é o
+ * TIPO ("Pedido de demissão"). O Convenia tem o campo; a carga só lia
+ * `dismissal.type` e `dismissal.date` e descartava o resto do bloco.
+ *
+ * ------------------------------------------------------------------
+ * OS NOMES ABAIXO SÃO PALPITES ATÉ SEREM MEDIDOS
+ * ------------------------------------------------------------------
+ * A mesma armadilha do histórico salarial (`date_from`): o nome da chave não
+ * se deduz. Por isso a carga grava o bloco `dismissal` INTEIRO em
+ * `convenia_leavers.dismissal_raw` e publica as chaves dele no aviso -- se o
+ * motivo morar numa chave que não está aqui, ele não se perde: está no bruto,
+ * e a correção é trocar esta lista e reprocessar a coluna, sem nova chamada à
+ * API.
+ *
+ * Só chaves de CATEGORIA. Campo de texto livre (observação, comentário) fica
+ * de fora de propósito: é onde alguém escreve o que não deveria virar barra
+ * de gráfico -- saúde, conflito, nome de colega.
+ */
+const CHAVES_MOTIVO = ['motive', 'reason', 'dismissal_reason', 'dismissal_motive', 'motivo', 'cause'] as const;
+
+export function motivoDesligamento(bloco: unknown): string | null {
+  if (!bloco || typeof bloco !== 'object') return null;
+  const o = bloco as Record<string, unknown>;
+  for (const k of CHAVES_MOTIVO) {
+    const v = textoDe(o[k]);
+    if (v) return v;
+  }
+  return null;
+}
+
+/**
+ * O bloco `dismissal` sem os campos de texto livre, para gravar como bruto.
+ * Guardar o bruto protege contra descartar na ingestão o que depois faz
+ * falta; guardar a observação que o RH escreveu à mão não serve a nenhum
+ * gráfico e é o campo mais provável de ter dado sensível. A chave fica (com
+ * o valor trocado), para a forma do bloco continuar legível.
+ */
+const TEXTO_LIVRE = /^(observ|coment|comment|note|obs$|description$|descri)/i;
+
+export function blocoSemTextoLivre(bloco: unknown): Record<string, unknown> | null {
+  if (!bloco || typeof bloco !== 'object' || Array.isArray(bloco)) return null;
+  return Object.fromEntries(
+    Object.entries(bloco as Record<string, unknown>).map(([k, v]) =>
+      [k, TEXTO_LIVRE.test(k) && typeof v === 'string' && v.trim() ? '[texto livre omitido]' : v]),
+  );
+}
+
+/**
+ * As chaves do bloco, com um nível de aninhamento ("type.title"), para o
+ * aviso da carga dizer onde o motivo está -- em vez de alguém adivinhar.
+ */
+export function formaDoBloco(bloco: unknown): string {
+  if (!bloco || typeof bloco !== 'object') return '(vazio)';
+  return Object.entries(bloco as Record<string, unknown>)
+    .map(([k, v]) => (v && typeof v === 'object' && !Array.isArray(v)
+      ? `${k}{${Object.keys(v as object).join(',')}}`
+      : k))
+    .join(', ');
+}
+
 
 /**
  * Reconstrói a série mensal.

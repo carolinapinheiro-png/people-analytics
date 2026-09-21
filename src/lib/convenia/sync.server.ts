@@ -329,14 +329,14 @@ export async function executarSyncConvenia(
     const { fontesConfiguradas } = await import('./fontes');
     const { ConveniaClient } = await import('./client.server');
     const { EMPLOYEES, EMPLOYEES_DISMISSED, EMPLOYEE_DETAIL, SALARIO_HISTORICO } = await import('./paths');
-    const { mesDe, ehVoluntaria, normalizarGenero, textoDe, ufDe, dataISO, semSensiveis } = await import('./pessoas');
+    const { mesDe, ehVoluntaria, normalizarGenero, textoDe, ufDe, dataISO, semSensiveis, motivoDesligamento, formaDoBloco, blocoSemTextoLivre } = await import('./pessoas');
 
     // O cache do que já foi resolvido. Uma pessoa desligada não muda de data
     // de admissão nem de área, então buscar de novo seria expor cadastro
     // pessoal para reconfirmar um dado imutável.
     const { data: jaResolvidos } = await db
       .from('convenia_leavers')
-      .select('convenia_id, hiring_month, department, dismissal_month, marca, dismissal_date, detalhe_versao');
+      .select('convenia_id, hiring_month, department, dismissal_month, marca, dismissal_date, detalhe_versao, dismissal_raw, dismissal_motive');
     // ------------------------------------------------------------------
     // O CACHE SÓ VALE SE FOI ESCRITO PELO CÓDIGO DE HOJE
     // ------------------------------------------------------------------
@@ -359,6 +359,18 @@ export async function executarSyncConvenia(
         .map((r) => [r.convenia_id, r.dismissal_date]),
     );
     let datasDeSaidaGravadas = 0;
+    /**
+     * Quem já tem o bloco `dismissal` guardado, e com qual motivo. Só é
+     * regravado quem não tem bruto ainda, ou quem tem bruto e ficou sem
+     * motivo mas a leitura de hoje acha um (a lista de chaves em
+     * `motivoDesligamento` mudou) -- depois da primeira carga, quase zero.
+     */
+    const brutoDeSaida = new Map<string, { temBruto: boolean; motivo: string | null }>(
+      ((jaResolvidos ?? []) as { convenia_id: string; dismissal_raw: unknown; dismissal_motive: string | null }[])
+        .map((r) => [r.convenia_id, { temBruto: r.dismissal_raw != null, motivo: r.dismissal_motive }]),
+    );
+    let blocosGravados = 0;
+    let motivosLidos = 0;
 
     // ------------------------------------------------------------------
     // GÊNERO, EM LOTES
@@ -859,8 +871,44 @@ export async function executarSyncConvenia(
         });
         const saidas = deslBrutos.map((b) => {
           const d = (b.dismissal ?? {}) as { date?: string; type?: { title?: string } };
-          return { id: String(b.id ?? ''), data: d.date ?? null, tipo: d.type?.title ?? null };
+          return { id: String(b.id ?? ''), data: d.date ?? null, tipo: d.type?.title ?? null, bloco: b.dismissal ?? null };
         });
+
+        // ------------------------------------------------------------------
+        // O BLOCO `dismissal` INTEIRO, E A FORMA DELE NO AVISO
+        // ------------------------------------------------------------------
+        // Até 21/09 só `type.title` e `date` sobreviviam; o MOTIVO do
+        // desligamento (que o Convenia tem) era descartado aqui, na ingestão
+        // -- o padrão que o `bruto` de `convenia_pessoas` já resolveu para os
+        // ativos. Grava sem texto livre (ver `blocoSemTextoLivre`).
+        //
+        // A forma vai para o aviso enquanto nenhum motivo tiver sido lido:
+        // se a chave não for nenhuma das de `motivoDesligamento`, o aviso diz
+        // qual é, e o motivo continua no bruto esperando a correção.
+        const primeiroBloco = saidas.find((x) => x.bloco)?.bloco;
+        const motivosNestaEmpresa = saidas.filter((x) => motivoDesligamento(x.bloco)).length;
+        if (primeiroBloco && motivosNestaEmpresa === 0) {
+          avisos.push(`${f.empresa}: motivo de desligamento não encontrado no bloco \`dismissal\` da listagem. Chaves do bloco: ${formaDoBloco(primeiroBloco)}`);
+        }
+        for (const x of saidas) {
+          if (!x.id || !x.bloco) continue;
+          const atual = brutoDeSaida.get(x.id);
+          if (!atual) continue; // ainda não está em convenia_leavers; entra pelo caminho do detalhe
+          const motivo = motivoDesligamento(x.bloco);
+          // Já guardado e nada novo a acrescentar: não toca.
+          if (atual.temBruto && (motivo == null || motivo === atual.motivo)) continue;
+          const { error } = await db.from('convenia_leavers')
+            .update({ dismissal_raw: blocoSemTextoLivre(x.bloco), dismissal_motive: motivo })
+            .eq('convenia_id', x.id);
+          if (error) {
+            avisos.push(`${f.empresa}: bloco de desligamento nao gravou -- ${error.message}`);
+            break;
+          }
+          brutoDeSaida.set(x.id, { temBruto: true, motivo });
+          blocosGravados++;
+          if (motivo) motivosLidos++;
+          if (semTempo()) break;
+        }
 
         linha.ativos = pessoas.length;
         linha.desligados = saidas.length;
@@ -1103,6 +1151,8 @@ export async function executarSyncConvenia(
                   department: area,
                   dismissal_type: s.tipo,
                   voluntary: ehVoluntaria(s.tipo),
+                  dismissal_raw: blocoSemTextoLivre(s.bloco),
+                  dismissal_motive: motivoDesligamento(s.bloco),
                   nome: nomeCompleto(det),
                   cargo: cargoDe(det),
                   salary: normalizarSalario(det.salary),
@@ -1561,6 +1611,12 @@ export async function executarSyncConvenia(
       avisos.push(
         `${datasDeSaidaGravadas} datas de desligamento gravadas nesta carga. ` +
         'Elas alimentam End Employment Date e Leaver Date no Talent Mobility.',
+      );
+    }
+    if (blocosGravados > 0) {
+      avisos.push(
+        `${blocosGravados} blocos de desligamento guardados nesta carga, ${motivosLidos} com motivo. ` +
+        'O motivo alimenta o quadro "Por Motivo" da aba de Desligamentos.',
       );
     }
 

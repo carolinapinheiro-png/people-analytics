@@ -285,6 +285,10 @@ export default function LeaversTab() {
   // Com uma empresa só no recorte (Betfair, International) o quadro é uma
   // barra única -- não informa nada.
   const mostraEmpresa = empresaData.length > 1;
+  // Motivo: só quem tem. "Não informado" não vira barra -- com a cobertura
+  // parcial do começo, seria a maior barra do quadro e não diria nada.
+  const comMotivo = distLeavers.filter(r => r.motivo_desligamento);
+  const motivoData = addShare(countBy(comMotivo, 'motivo_desligamento')).slice(0, 10);
 
   // No modo taxa, a barra é `pctHC`; grupo sem denominador fica sem barra
   // (e o tooltip explica), em vez de virar zero.
@@ -559,6 +563,26 @@ export default function LeaversTab() {
           </ChartCard>
         )}
 
+        {comMotivo.length > 0 && (
+          <ChartCard
+            title="Por Motivo"
+            subtitle={`${comMotivo.length} de ${totalDist} saídas com motivo no Convenia · top 10 · no tooltip, % das que têm motivo`}
+          >
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={motivoData} layout="vertical" margin={{ left: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+                <XAxis type="number" {...eixoContagem} tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
+                <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={140} />
+                <Tooltip
+                  contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
+                  formatter={(value: number) => [`${value} · ${((value / comMotivo.length) * 100).toFixed(0)}% das saídas com motivo`, 'Desligados']}
+                />
+                <Bar dataKey="value" name="Desligados" fill={COLORS.teal} radius={[0, 4, 4, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </ChartCard>
+        )}
+
         <ChartCard
           title="Por Departamento"
           subtitle={modo === 'taxa' ? '% do HC atual do depto que saiu · top 8 por nº de saídas' : 'Absoluto · no tooltip, % sobre o HC do depto'}
@@ -640,6 +664,7 @@ export default function LeaversTab() {
                   <th className="text-left p-2">Tempo de Casa</th>
                   <th className="text-left p-2">Data Deslig.</th>
                   <th className="text-left p-2">Tipo</th>
+                  <th className="text-left p-2">Motivo</th>
                 </tr>
               </thead>
               <tbody>
@@ -665,6 +690,7 @@ export default function LeaversTab() {
                         {leaver.tipo_desligamento_agrupado}
                       </span>
                     </td>
+                    <td className="p-2 text-muted-foreground">{leaver.motivo_desligamento || '—'}</td>
                   </tr>
                 ))}
               </tbody>

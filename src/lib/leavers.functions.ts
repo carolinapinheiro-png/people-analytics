@@ -123,6 +123,7 @@ export interface ConveniaLeaverRow {
   vinculo: string | null;
   marca: string | null;
   empresa: string | null;
+  dismissal_motive?: string | null;
 }
 
 /** 'voluntaria'/'involuntaria'/'outra' (ver classificarSaida) -> rótulo da tela. */
@@ -202,7 +203,9 @@ export function paraLeaverRow(r: ConveniaLeaverRow): LeaverRow {
       ? new Date(r.dismissal_date).toLocaleDateString('pt-BR', { timeZone: 'UTC' })
       : null,
     tipo_desligamento: r.dismissal_type,
-    motivo_desligamento: null,
+    // Vem do bloco `dismissal` da listagem desde 21/09 (ver sync.server.ts).
+    // Quem saiu por uma base já aposentada não tem mais listagem para reler.
+    motivo_desligamento: r.dismissal_motive ?? null,
     data_desligamento: r.dismissal_date,
     data_admissao: r.hiring_month ? `${r.hiring_month}-01` : null,
     tempo_casa_dias: diasDeCasa(r.hiring_month, r.dismissal_date),
@@ -227,7 +230,7 @@ export const listLeavers = createServerFn({ method: 'GET' })
     const db = supabaseAdmin as unknown as UntypedClient;
     const { data: rawRows, error } = await db
       .from('convenia_leavers')
-      .select('convenia_id, nome, cargo, department, hiring_month, dismissal_month, dismissal_date, dismissal_type, salary, level, job_type_family, genero, raca, vinculo, marca, empresa')
+      .select('convenia_id, nome, cargo, department, hiring_month, dismissal_month, dismissal_date, dismissal_type, salary, level, job_type_family, genero, raca, vinculo, marca, empresa, dismissal_motive')
       .order('dismissal_date', { ascending: false });
 
     if (error) throw new Error(`Falha ao carregar desligados: ${error.message}`);
