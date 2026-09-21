@@ -244,7 +244,11 @@ export const listLeavers = createServerFn({ method: 'GET' })
     const scoped = rows.filter((r) => isInScope(scope, r.departamento, r.job_family));
     const visible = podeVerIndividual
       ? scoped
-      : scoped.map((r) => ({ ...r, nome: 'Confidencial', salario: null, faixa_salarial: null }));
+      // O motivo do Convenia é TEXTO LIVRE escrito pelo RH ("desligamento sem
+      // justa causa por baixo desempenho..."), não uma categoria -- medido em
+      // 21/09. Com nome oculto e um recorte pequeno, a frase identifica a
+      // pessoa e o porquê. Sai junto com o nome.
+      : scoped.map((r) => ({ ...r, nome: 'Confidencial', salario: null, faixa_salarial: null, motivo_desligamento: null }));
 
     // O log e requisito, nao efeito colateral opcional: se ele falhar, a
     // consulta falha junto. Devolver o dado sem registrar quem o viu
