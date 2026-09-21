@@ -62,6 +62,17 @@ interface DashboardState {
    * 4 KPIs leem.
    */
   raceFilter: string;
+  /**
+   * Controles da aba de Desligamentos que moram na barra de filtros, como o
+   * de Raça no DEI: não são `FilterKey` (não recortam a série nem outras
+   * abas), mas valem para a aba inteira -- cartões, quadros e evolução.
+   * `janela`: o período do topo, ou os 12 meses que terminam nele.
+   * `metrica`: número de saídas, ou taxa sobre os ativos.
+   */
+  janelaDeslig: 'periodo' | 'ltm';
+  setJanelaDeslig: (v: 'periodo' | 'ltm') => void;
+  metricaDeslig: 'abs' | 'taxa';
+  setMetricaDeslig: (v: 'abs' | 'taxa') => void;
   setRaceFilter: (r: string) => void;
   view: ViewType;
   setView: (v: ViewType) => void;
@@ -387,6 +398,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   );
   const [activeSubTab, setActiveSubTab] = useState<string | null>(null);
   const [raceFilter, setRaceFilter] = useState<string>('Todas');
+  const [janelaDeslig, setJanelaDeslig] = useState<'periodo' | 'ltm'>('periodo');
+  const [metricaDeslig, setMetricaDeslig] = useState<'abs' | 'taxa'>('abs');
 
   // Restaura aba/sub-aba do ultimo acesso. Feito em efeito (nao no init do
   // useState) porque no SSR nao existe localStorage e o HTML divergiria.
@@ -535,7 +548,8 @@ export function DashboardProvider({ children }: { children: React.ReactNode }) {
   return (
     <DashboardContext.Provider value={{
       data, leavers, brand, setBrand, currentMonthIdx, setCurrentMonthIdx,
-      activeTab, setActiveTab, activeSubTab, setActiveSubTab, raceFilter, setRaceFilter, view, setView, filters, setFilters,
+      activeTab, setActiveTab, activeSubTab, setActiveSubTab, raceFilter, setRaceFilter,
+      janelaDeslig, setJanelaDeslig, metricaDeslig, setMetricaDeslig, view, setView, filters, setFilters,
       yearFilter, setYearFilter, availableYears, activeYear,
       monthsOrder, currentMonth, currentData, prevData, allMonthsData, serieMensal: monthlyAllData,
       serieSemRecorteDeArea, serieTodosOsAnos,

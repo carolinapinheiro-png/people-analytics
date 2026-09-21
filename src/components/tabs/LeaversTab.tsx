@@ -71,52 +71,23 @@ function avgSalary(records: LeaverRecord[]): number {
   return valid.length > 0 ? valid.reduce((sum, r) => sum + r.salario, 0) / valid.length : 0;
 }
 
-/** Seletor de duas posições, no canto do quadro. */
-function Alternar<T extends string>({ valor, opcoes, onChange, titulo }: {
-  valor: T;
-  opcoes: Array<{ v: T; rotulo: string; desabilitado?: string }>;
-  onChange: (v: T) => void;
-  titulo: string;
-}) {
-  return (
-    <div role="group" aria-label={titulo} className="inline-flex rounded-md border border-border bg-secondary/40 p-0.5 text-[11px]">
-      {opcoes.map((o) => (
-        <button
-          key={o.v}
-          type="button"
-          disabled={!!o.desabilitado}
-          title={o.desabilitado}
-          onClick={() => onChange(o.v)}
-          className={
-            'rounded px-2 py-0.5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed ' +
-            (valor === o.v ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')
-          }
-        >
-          {o.rotulo}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 const pctFmt = (n: number | null | undefined, casas = 1) => (n == null ? '—' : `${n.toFixed(casas)}%`);
 
 export default function LeaversTab() {
   // Mês, trimestre e ano são GLOBAIS (TopBar) -- `usePeriodo()` resolve os
   // três de uma vez (ver `src/lib/periodo.ts`), mesma régua que o resto do
   // painel usa.
-  const { leavers, filters, brand, currentMonth, currentData, serieTodosOsAnos } = useDashboard();
+  const {
+    leavers, filters, brand, currentMonth, currentData, serieTodosOsAnos,
+    janelaDeslig, metricaDeslig: modo,
+  } = useDashboard();
   const periodo = usePeriodo();
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
   const [searchTerm, setSearchTerm] = useState('');
-  // 12 saídas num mês não sustentam um recorte por faixa salarial: cada barra
-  // é uma ou duas pessoas, e o desenho muda inteiro de um mês para o outro.
-  // Os quadros de distribuição ganham a opção de olhar os 12 meses que
-  // terminam no período escolhido; os cartões continuam no período.
-  const [janela, setJanela] = useState<'periodo' | 'ltm'>('periodo');
-  // Absoluto acompanha o tamanho de cada grupo (a faixa mais povoada sempre
-  // perde mais gente). A taxa sobre os ativos do grupo é a leitura de risco.
-  const [modo, setModo] = useState<'abs' | 'taxa'>('abs');
+  // Janela e métrica vêm da barra de filtros (ver FilterBar) e valem para a
+  // aba inteira: cartões, quadros e evolução mensal. Até 21/09 eram botões
+  // no meio da aba que só mexiam nos quadros de distribuição -- e a tela
+  // mostrava duas populações, com um aviso explicando qual era qual.
 
   // Ativos por faixa salarial (snapshot atual, agregado leve) -> denominador da
   // taxa de atricao por faixa (#23). Company-wide, coerente com a lista de
@@ -211,35 +182,41 @@ export default function LeaversTab() {
     return true;
   };
 
-  const filteredLeavers = useMemo(() => {
-    return leavers.filter(r => periodo.contem(r.mes_desligamento) && passaOutrosFiltros(r));
-  }, [leavers, filters, searchTerm, periodo, brand]);
-
-  // Meses do período em escopo e o último deles -- base de todas as
-  // comparações. Em "todos os anos" não há período anterior a comparar.
-  const temPeriodo = periodo.tipo !== 'todos';
-  const mesesAtuais = temPeriodo ? periodo.meses : serieTodosOsAnos.filter((d) => (d.headcount || 0) > 0).map((d) => d.month);
-  const fimDoPeriodo = (temPeriodo ? periodo.meses[periodo.meses.length - 1] : undefined) ?? currentMonth;
-  const mesesAnteriores = temPeriodo ? deslocarMeses(periodo.meses, -periodo.meses.length) : [];
-  const nomeAnterior = periodo.tipo === 'trimestre' ? 'o trimestre anterior' : 'o mês anterior';
-
-  // Janela dos quadros de distribuição.
-  const mesesLtm = useMemo(() => new Set(ultimos12(fimDoPeriodo)), [fimDoPeriodo]);
-  const usaLtm = temPeriodo && janela === 'ltm';
-  const distLeavers = useMemo(
-    () => (usaLtm
-      ? leavers.filter(r => mesesLtm.has(r.mes_desligamento) && passaOutrosFiltros(r))
-      : filteredLeavers),
-    [usaLtm, leavers, mesesLtm, filteredLeavers, filters, searchTerm, brand],
+  // ------------------------------------------------------------------
+  // O ESCOPO DE MESES DA ABA
+  // ------------------------------------------------------------------
+  // Mês/trimestre do topo, ou os 12 meses que terminam nele. `null` = todos
+  // os meses ("Todos os anos" no topo, sem janela de 12 meses).
+  const usaLtm = janelaDeslig === 'ltm';
+  const fimDoPeriodo = (periodo.tipo !== 'todos' ? periodo.meses[periodo.meses.length - 1] : undefined) ?? currentMonth;
+  const chaveEscopo = usaLtm ? `ltm:${fimDoPeriodo}` : periodo.tipo === 'todos' ? 'todos' : periodo.meses.join();
+  const mesesEscopo = useMemo<string[] | null>(
+    () => (usaLtm ? ultimos12(fimDoPeriodo) : periodo.tipo === 'todos' ? null : periodo.meses),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [chaveEscopo],
   );
-  const totalDist = distLeavers.length;
-  const rotuloJanela = usaLtm ? '12 meses até ' + fimDoPeriodo.split('-').reverse().join('/') : periodo.label;
+  const escopoSet = useMemo(() => (mesesEscopo ? new Set(mesesEscopo) : null), [mesesEscopo]);
+  const noEscopo = (ym: string | null | undefined) => (escopoSet ? escopoSet.has(String(ym ?? '')) : true);
+  const temPeriodo = mesesEscopo != null;
+  const rotuloEscopo = usaLtm ? `12 meses até ${mLabel(fimDoPeriodo)}` : periodo.label;
+
+  const filteredLeavers = useMemo(() => {
+    return leavers.filter(r => noEscopo(r.mes_desligamento) && passaOutrosFiltros(r));
+  }, [leavers, filters, searchTerm, escopoSet, brand]);
+
+  const mesesAtuais = mesesEscopo ?? serieTodosOsAnos.filter((d) => (d.headcount || 0) > 0).map((d) => d.month);
+  const mesesAnteriores = mesesEscopo ? deslocarMeses(mesesEscopo, -mesesEscopo.length) : [];
+  const nomeAnterior = usaLtm ? 'os 12 meses anteriores' : periodo.tipo === 'trimestre' ? 'o trimestre anterior' : 'o mês anterior';
+
+  // Os quadros usam a mesma população dos cartões.
+  const distLeavers = filteredLeavers;
 
   const totalLeavers = filteredLeavers.length;
   const involuntary = filteredLeavers.filter(r => r.tipo_desligamento_agrupado === 'Involuntário').length;
   const voluntary = filteredLeavers.filter(r => r.tipo_desligamento_agrupado === 'Voluntário').length;
   const pctTot = (v: number) => (totalLeavers > 0 ? (v / totalLeavers) * 100 : 0);
-  const pctDist = (v: number) => (totalDist > 0 ? (v / totalDist) * 100 : 0);
+  const totalDist = totalLeavers;
+  const pctDist = pctTot;
 
   const mesesCasa = mesesDeCasaValidos(filteredLeavers.map(r => r.tempo_casa_dias));
   const tenureMedia = mesesCasa.length ? mesesCasa.reduce((a, b) => a + b, 0) / mesesCasa.length : null;
@@ -312,10 +289,17 @@ export default function LeaversTab() {
   // a um único mês vira uma barra solta. A história do ano (ou do trimestre
   // corrente) até o mês escolhido é o que sustenta a leitura de tendência;
   // os outros filtros (departamento, contrato etc.) continuam valendo.
+  // Na janela de 12 meses a evolução mostra exatamente esses 12; no período
+  // do topo, a história até o fim dele (`ateOFim`). Em "% sobre ativos",
+  // cada barra é saídas do tipo ÷ HC daquele mês.
+  const hcDoMes = useMemo(
+    () => new Map(serieTodosOsAnos.map((d) => [d.month, d.headcount || 0])),
+    [serieTodosOsAnos],
+  );
   const monthlyData = useMemo(() => {
     const m = new Map<string, { voluntario: number; involuntario: number; outros: number }>();
     leavers
-      .filter(r => periodo.ateOFim(r.mes_desligamento) && passaOutrosFiltros(r))
+      .filter(r => (usaLtm ? noEscopo(r.mes_desligamento) : periodo.ateOFim(r.mes_desligamento)) && passaOutrosFiltros(r))
       .forEach(r => {
         const cur = m.get(r.mes_desligamento) || { voluntario: 0, involuntario: 0, outros: 0 };
         if (r.tipo_desligamento_agrupado === 'Voluntário') cur.voluntario++;
@@ -323,10 +307,16 @@ export default function LeaversTab() {
         else cur.outros++;
         m.set(r.mes_desligamento, cur);
       });
-    return Array.from(m.entries())
+    const rows = Array.from(m.entries())
       .map(([month, v]) => ({ month, ...v }))
       .sort((a, b) => a.month.localeCompare(b.month));
-  }, [leavers, filters, searchTerm, periodo, brand]);
+    if (modo !== 'taxa') return rows;
+    return rows.map((r) => {
+      const hc = hcDoMes.get(r.month) ?? 0;
+      const t = (n: number) => (hc > 0 ? Math.round((n / hc) * 1000) / 10 : null);
+      return { month: r.month, voluntario: t(r.voluntario), involuntario: t(r.involuntario), outros: t(r.outros) };
+    });
+  }, [leavers, filters, searchTerm, periodo, brand, usaLtm, escopoSet, modo, hcDoMes]);
 
   // ------------------------------------------------------------------
   // TAXA DO PERÍODO, COM O NOME CERTO E COM COMPARAÇÃO
@@ -341,13 +331,15 @@ export default function LeaversTab() {
   // três visões com a mesma conta.
   const taxaAtual = taxaDoPeriodo(serieTodosOsAnos, mesesAtuais);
   const taxaAnterior = temPeriodo ? taxaDoPeriodo(serieTodosOsAnos, mesesAnteriores) : null;
-  const taxaAnoPassado = temPeriodo ? taxaDoPeriodo(serieTodosOsAnos, deslocarMeses(periodo.meses, -12)) : null;
-  const taxaYtd = temPeriodo ? taxaDoPeriodo(serieTodosOsAnos, mesesDoAnoAte(fimDoPeriodo)) : null;
+  // Em 12 meses, "o período anterior" JÁ É o mesmo período do ano passado --
+  // mostrar os dois seria o mesmo número duas vezes.
+  const taxaAnoPassado = mesesEscopo && !usaLtm ? taxaDoPeriodo(serieTodosOsAnos, deslocarMeses(mesesEscopo, -12)) : null;
+  const taxaYtd = mesesEscopo && !usaLtm ? taxaDoPeriodo(serieTodosOsAnos, mesesDoAnoAte(fimDoPeriodo)) : null;
   const anoPassado = Number(fimDoPeriodo.slice(0, 4)) - 1;
   const hcMedio = taxaAtual?.hcMedio ?? 0;
   const taxaDe = (n: number) => (hcMedio > 0 ? (n / hcMedio) * 100 : null);
 
-  const rotuloTaxa = periodo.tipo === 'mes' ? 'Atrição do mês' : periodo.tipo === 'trimestre' ? 'Atrição do trimestre' : 'Atrição (todos os anos)';
+  const rotuloTaxa = usaLtm ? 'Atrição 12 meses' : periodo.tipo === 'mes' ? 'Atrição do mês' : periodo.tipo === 'trimestre' ? 'Atrição do trimestre' : 'Atrição (todos os anos)';
   const dYoY = deltaPP(taxaAtual, taxaAnoPassado);
   const subTaxa = taxaAtual
     ? [
@@ -361,7 +353,7 @@ export default function LeaversTab() {
   const kpis = [
     {
       label: 'Total Desligados', value: fmt(totalLeavers), color: COLORS.danger, icon: UserX,
-      sub: temPeriodo ? `em ${periodo.label}` : 'todos os anos',
+      sub: temPeriodo ? `em ${rotuloEscopo}` : 'todos os anos',
       delta: totalAnterior != null
         ? <Delta v={totalLeavers - totalAnterior} invertido periodo={nomeAnterior} />
         : undefined,
@@ -372,17 +364,29 @@ export default function LeaversTab() {
       sub: subTaxa,
       delta: temPeriodo ? <Delta v={deltaPP(taxaAtual, taxaAnterior)} invertido periodo={`${nomeAnterior} (em p.p.)`} /> : undefined,
     },
-    {
-      label: 'Atrição voluntária', value: pctFmt(taxaDe(voluntary)), color: COLORS.info, icon: LogOut,
-      help: 'atricaoVoluntaria' as const, helpValue: taxaDe(voluntary),
-      sub: `${fmt(voluntary)} saídas · ${pctTot(voluntary).toFixed(0)}% dos desligamentos`,
-    },
+    // A métrica da barra de filtros decide o número grande: nº de saídas
+    // (com a taxa embaixo) ou taxa sobre o HC médio (com o nº embaixo).
+    modo === 'taxa'
+      ? {
+          label: 'Atrição voluntária', value: pctFmt(taxaDe(voluntary)), color: COLORS.info, icon: LogOut,
+          help: 'atricaoVoluntaria' as const, helpValue: taxaDe(voluntary),
+          sub: `${fmt(voluntary)} saídas · ${pctTot(voluntary).toFixed(0)}% dos desligamentos`,
+        }
+      : {
+          label: 'Voluntários', value: `${fmt(voluntary)} (${pctTot(voluntary).toFixed(0)}%)`, color: COLORS.info, icon: LogOut,
+          help: 'atricaoVoluntaria' as const, helpValue: taxaDe(voluntary),
+          sub: `${pctFmt(taxaDe(voluntary))} do HC médio`,
+        },
     {
       // Cor neutra de propósito: desligamento involuntário não é, por si,
       // sinal de problema -- pode ser gestão de desempenho funcionando. O
       // âmbar/vermelho fica para o que é alerta de fato (atrição não desejada).
-      label: 'Involuntários', value: `${fmt(involuntary)} (${pctTot(involuntary).toFixed(0)}%)`, color: COLORS.purple, icon: UserMinus,
-      sub: `${pctFmt(taxaDe(involuntary))} do HC médio`,
+      label: modo === 'taxa' ? 'Atrição involuntária' : 'Involuntários',
+      value: modo === 'taxa' ? pctFmt(taxaDe(involuntary)) : `${fmt(involuntary)} (${pctTot(involuntary).toFixed(0)}%)`,
+      color: COLORS.purple, icon: UserMinus,
+      sub: modo === 'taxa'
+        ? `${fmt(involuntary)} saídas · ${pctTot(involuntary).toFixed(0)}% dos desligamentos`
+        : `${pctFmt(taxaDe(involuntary))} do HC médio`,
     },
     {
       label: 'Tempo de casa', value: tenureMediana != null ? `${tenureMediana.toFixed(1)}m` : '—', color: COLORS.nsx, icon: Clock,
@@ -411,7 +415,7 @@ export default function LeaversTab() {
             Análise de Desligamentos
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {totalLeavers} desligamentos{periodo.tipo === 'todos' ? ' (todos os anos)' : ` em ${periodo.label}`}
+            {totalLeavers} desligamentos{temPeriodo ? ` em ${rotuloEscopo}` : ' (todos os anos)'}
             {brand !== 'combined' ? ` · ${brand}` : ''} · marca, mês, trimestre e ano no topo recortam esta aba
           </p>
         </div>
@@ -435,39 +439,10 @@ export default function LeaversTab() {
         ))}
       </div>
 
-      {/* Controles dos quadros de distribuição */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-4">
-        <p className="text-xs text-muted-foreground">
-          Quadros abaixo: <span className="text-foreground font-medium">{totalDist} desligamentos</span> em {rotuloJanela}
-          {usaLtm ? ' · os cartões acima seguem no período do topo' : ''}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          {temPeriodo && (
-            <Alternar
-              titulo="Janela dos quadros"
-              valor={janela}
-              onChange={setJanela}
-              opcoes={[
-                { v: 'periodo', rotulo: periodo.tipo === 'trimestre' ? 'Trimestre' : 'Mês' },
-                { v: 'ltm', rotulo: 'Últimos 12 meses' },
-              ]}
-            />
-          )}
-          <Alternar
-            titulo="Métrica das barras"
-            valor={modo}
-            onChange={setModo}
-            opcoes={[
-              { v: 'abs', rotulo: 'Nº de saídas' },
-              { v: 'taxa', rotulo: '% sobre ativos' },
-            ]}
-          />
-        </div>
-      </div>
       {totalDist > 0 && totalDist < 20 && (
-        <p className="-mt-3 text-[11px] text-muted-foreground">
-          Poucas saídas na janela: cada barra é uma ou duas pessoas e o desenho muda muito de um período para o outro.
-          {temPeriodo && !usaLtm ? ' "Últimos 12 meses" dá uma leitura mais estável.' : ''}
+        <p className="text-[11px] text-muted-foreground">
+          Poucas saídas no recorte: cada barra é uma ou duas pessoas e o desenho muda muito de um período para o outro.
+          {!usaLtm ? ' A janela "Últimos 12 meses", na barra de filtros, dá uma leitura mais estável.' : ''}
         </p>
       )}
 
@@ -615,7 +590,13 @@ export default function LeaversTab() {
       </div>
 
       {/* Evolução mensal empilhada por tipo */}
-      <ChartCard title="Evolução Mensal de Desligamentos" nota="Mês a mês até o período do topo, classificado por tipo · não muda com a janela dos quadros acima">
+      <ChartCard
+        title="Evolução Mensal de Desligamentos"
+        nota={
+          (usaLtm ? 'Os 12 meses da janela' : 'Mês a mês até o período do topo')
+          + (modo === 'taxa' ? ', em % do HC de cada mês, por tipo' : ', em nº de saídas, por tipo')
+        }
+      >
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={monthlyData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -624,9 +605,10 @@ export default function LeaversTab() {
               tick={{ fill: 'var(--chart-tick)', fontSize: 10 }}
               tickFormatter={(v) => mLabel(v)}
             />
-            <YAxis {...eixoContagem} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
+            <YAxis {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
             <Tooltip
               contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }}
+              formatter={(v: number, name: string) => [modo === 'taxa' ? `${v}%` : v, name]}
               labelFormatter={(label) => mLabel(String(label))}
             />
             <Legend wrapperStyle={{ fontSize: 10 }} />

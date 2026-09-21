@@ -173,7 +173,9 @@ export default function FilterBar() {
   const {
     filters, setFilters, brand, activeTab, activeSubTab, serieSemRecorteDeArea, leavers,
     raceFilter, setRaceFilter,
+    janelaDeslig, setJanelaDeslig, metricaDeslig, setMetricaDeslig, view,
   } = useDashboard();
+  const naAbaDesligamentos = activeTab === "attrition" && (activeSubTab ?? "desligamentos") === "desligamentos";
   const { profile, departments, jobFamilies } = useAuth();
 
   const brandColor = BRAND_COLORS[brand] || COLORS.flutter;
@@ -504,6 +506,50 @@ export default function FilterBar() {
               MESMA classe de seletor: pedido foi "morar no mesmo lugar do
               filtro de departamento, visualmente" -- e "visualmente" aqui
               quer dizer também "não parecer um controle de segunda classe". */}
+            {/* ------------------------------------------------------------
+              JANELA E MÉTRICA: SÓ EM DESLIGAMENTOS, MESMO ESTILO
+              ------------------------------------------------------------
+              Moravam como botões no meio da aba e só mexiam nos quadros de
+              distribuição. Pedido de 21/09: valer para a aba inteira, "assim
+              como departamento" -- então moram onde o departamento mora. */}
+            {naAbaDesligamentos && (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+                    Janela
+                  </label>
+                  <select
+                    value={janelaDeslig}
+                    onChange={(e) => setJanelaDeslig(e.target.value as "periodo" | "ltm")}
+                    className={cn(
+                      "bg-secondary border rounded px-2 py-1 text-[11px] text-foreground min-w-[140px] max-w-[200px]",
+                      janelaDeslig !== "periodo" ? "ring-1" : "border-border",
+                    )}
+                    style={janelaDeslig !== "periodo" ? ({ borderColor: brandColor, "--tw-ring-color": brandColor } as React.CSSProperties) : undefined}
+                  >
+                    <option value="periodo">{view === "quarterly" ? "Trimestre do topo" : "Mês do topo"}</option>
+                    <option value="ltm">Últimos 12 meses</option>
+                  </select>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
+                    Métrica
+                  </label>
+                  <select
+                    value={metricaDeslig}
+                    onChange={(e) => setMetricaDeslig(e.target.value as "abs" | "taxa")}
+                    className={cn(
+                      "bg-secondary border rounded px-2 py-1 text-[11px] text-foreground min-w-[140px] max-w-[200px]",
+                      metricaDeslig !== "abs" ? "ring-1" : "border-border",
+                    )}
+                    style={metricaDeslig !== "abs" ? ({ borderColor: brandColor, "--tw-ring-color": brandColor } as React.CSSProperties) : undefined}
+                  >
+                    <option value="abs">Nº de saídas</option>
+                    <option value="taxa">% sobre ativos</option>
+                  </select>
+                </div>
+              </>
+            )}
             {activeTab === "dei" && racasComGente.length > 0 && (
               <div className="flex items-center gap-1.5">
                 <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
