@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   variacaoPorFaixa, efeitoComposicao, dispersaoEntreAreas, aderenciaDoRisco,
-  trajetoriaPorFaixa, instavel,
+  trajetoriaPorFaixa, instavel, classificarTrajetoria, rotuloTrajetoria,
   type FaixaOnda, type NotaPorArea, type RiscoObservado,
 } from './analise-engajamento';
 
@@ -139,7 +139,7 @@ test('com duas ondas não existe trajetória -- toda faixa seria "contínua"', (
 test('faixa parada não vira queda contínua', () => {
   const igual = (enps: number) => [{ faixa: 'x', n: 30, enps }];
   const t = trajetoriaPorFaixa([{ faixas: igual(70) }, { faixas: igual(70) }, { faixas: igual(70) }]);
-  assert.equal(t[0].trajetoria, 'oscila', 'chamar de queda seria alarme sobre nada');
+  assert.equal(t[0].trajetoria, 'estavel', 'chamar de queda seria alarme sobre nada');
   assert.equal(t[0].variacaoTotal, 0);
 });
 
@@ -284,4 +284,29 @@ test('área sem saída observada entra na tabela mas fica fora da conta', () => 
   assert.equal(r.linhas.length, 5, 'aparece na tabela');
   assert.equal(r.pares, 4, 'não entra na correlação');
   assert.equal(r.linhas[0].area, 'E', 'ordenada por risco declarado');
+});
+
+// ------------------------------------- empate não é queda (Thais, 23/09)
+
+test('Commercial: 100 -> 100 -> 50 NÃO é "cai em todas" -- caiu só na última', () => {
+  // Os números exatos da tela que a Thais mandou.
+  const casos: Array<[number[], string]> = [
+    [[100, 100, 50], 'cai só na última'],   // 0-3 meses
+    [[75, 50, 88], 'oscila'],               // 3-6 meses
+    [[100, 100, 67], 'cai só na última'],   // 6-9 e 9-12 meses
+    [[67, 67, 33], 'cai só na última'],     // 12-18 meses
+    [[100, 100, 100], 'estável'],           // 18-24 meses
+    [[67, 71, 76], 'sobe em todas'],        // 24+ meses
+  ];
+  for (const [v, rotulo] of casos) {
+    assert.equal(rotuloTrajetoria(classificarTrajetoria(v), v), rotulo, v.join(' -> '));
+  }
+});
+
+test('"cai em todas" exige cair em CADA passagem', () => {
+  assert.equal(classificarTrajetoria([80, 70, 60]), 'queda');
+  assert.equal(classificarTrajetoria([80, 70, 70]), 'queda_parcial');
+  assert.equal(rotuloTrajetoria('queda_parcial', [80, 70, 70]), 'cai e estabiliza');
+  assert.equal(classificarTrajetoria([60, 60, 70]), 'subida_parcial');
+  assert.equal(rotuloTrajetoria('subida_parcial', [60, 60, 70]), 'sobe só na última');
 });

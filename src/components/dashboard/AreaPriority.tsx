@@ -6,7 +6,7 @@ import ChartCard from "@/components/dashboard/ChartCard";
 import { COLORS } from "@/lib/colors";
 import { cn } from "@/lib/utils";
 import { classifyAreas, type Veredito } from "@/lib/area-priority";
-import { historicoPorArea, type HistoricoDeArea } from "@/lib/analise-engajamento";
+import { historicoPorArea, fraseTrajetoria, type HistoricoDeArea } from "@/lib/analise-engajamento";
 import type { OndaEnps } from "@/lib/experience.functions";
 import {
   Tooltip as UiTooltip,
@@ -195,9 +195,9 @@ function Trajetoria({ h }: { h: HistoricoDeArea | undefined }) {
           )}{" "}
           {h.trajetoria === "queda"
             ? "Caiu em todas as passagens — é tendência, não oscilação."
-            : h.trajetoria === "subida"
-              ? "Subiu em todas as passagens."
-              : "Sobe e desce sem direção clara, o que é comum em área pequena."}
+            : h.trajetoria === "oscila"
+              ? "Sobe e desce sem direção clara, o que é comum em área pequena."
+              : fraseTrajetoria(h.trajetoria, h.valores)}
         </TooltipContent>
       </UiTooltip>
     </TooltipProvider>

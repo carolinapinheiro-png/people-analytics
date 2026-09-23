@@ -66,7 +66,21 @@ export function variacaoPorFaixa(
   return linhas.sort((x, y) => (pos.get(x.faixa) ?? 99) - (pos.get(y.faixa) ?? 99));
 }
 
-export type Trajetoria = 'queda' | 'subida' | 'oscila' | 'indefinida';
+/**
+ * `queda` e `subida` são ESTRITAS: mudou na mesma direção em toda passagem.
+ *
+ * Até 23/09 empate contava como "não subiu", e 100 -> 100 -> 50 saía como
+ * "cai em todas". A Thais viu em Commercial: quatro faixas com esse rótulo que
+ * só tinham caído na última pesquisa. O texto abaixo da tabela ainda
+ * afirmava "sem uma única vez em que tenha melhorado" -- verdade, mas não é o
+ * que "cai em todas" diz a quem lê.
+ *
+ * `queda_parcial` / `subida_parcial`: nunca foi na direção contrária, mas
+ * ficou parada em alguma passagem (ver `rotuloTrajetoria` para o texto).
+ * `estavel`: o mesmo número em todas.
+ */
+export type Trajetoria =
+  | 'queda' | 'subida' | 'queda_parcial' | 'subida_parcial' | 'estavel' | 'oscila' | 'indefinida';
 
 export interface FaixaTrajetoria {
   faixa: string;
@@ -96,6 +110,60 @@ export interface FaixaTrajetoria {
  * Exige pelo menos três pontos com valor -- com dois, toda faixa seria
  * "contínua" por definição, e o rótulo não informaria nada.
  */
+export function classificarTrajetoria(comValor: readonly number[]): Trajetoria {
+  if (comValor.length < 3) return 'indefinida';
+  let caiu = 0, subiu = 0, parou = 0;
+  for (let i = 1; i < comValor.length; i++) {
+    if (comValor[i] < comValor[i - 1]) caiu++;
+    else if (comValor[i] > comValor[i - 1]) subiu++;
+    else parou++;
+  }
+  if (caiu && subiu) return 'oscila';
+  if (caiu) return parou ? 'queda_parcial' : 'queda';
+  if (subiu) return parou ? 'subida_parcial' : 'subida';
+  return 'estavel';
+}
+
+/** A trajetória parcial só se moveu na ÚLTIMA passagem? (100 -> 100 -> 50) */
+function soNaUltima(comValor: readonly number[]): boolean {
+  const n = comValor.length;
+  if (n < 3) return false;
+  for (let i = 1; i < n - 1; i++) if (comValor[i] !== comValor[i - 1]) return false;
+  return comValor[n - 1] !== comValor[n - 2];
+}
+
+/** Rótulo curto, para a coluna "trajetória". */
+export function rotuloTrajetoria(t: Trajetoria, valores: ReadonlyArray<number | null>): string {
+  const v = valores.filter((x): x is number => x != null);
+  switch (t) {
+    case 'queda': return 'cai em todas';
+    case 'subida': return 'sobe em todas';
+    case 'queda_parcial': return soNaUltima(v) ? 'cai só na última' : 'cai e estabiliza';
+    case 'subida_parcial': return soNaUltima(v) ? 'sobe só na última' : 'sobe e estabiliza';
+    case 'estavel': return 'estável';
+    case 'oscila': return 'oscila';
+    default: return '';
+  }
+}
+
+/** A mesma leitura em frase, para tooltips e cabeçalhos de área. */
+export function fraseTrajetoria(t: Trajetoria, valores: ReadonlyArray<number | null>): string {
+  const v = valores.filter((x): x is number => x != null);
+  switch (t) {
+    case 'queda': return 'Caiu em todas as pesquisas.';
+    case 'subida': return 'Subiu em todas as pesquisas.';
+    case 'queda_parcial': return soNaUltima(v)
+      ? 'Estava estável e caiu na última pesquisa.'
+      : 'Caiu e depois ficou estável.';
+    case 'subida_parcial': return soNaUltima(v)
+      ? 'Estava estável e subiu na última pesquisa.'
+      : 'Subiu e depois ficou estável.';
+    case 'estavel': return 'Igual em todas as pesquisas.';
+    case 'oscila': return 'Sobe e desce sem direção clara.';
+    default: return '';
+  }
+}
+
 export function trajetoriaPorFaixa(
   ondas: ReadonlyArray<{ faixas: readonly FaixaOnda[] }>,
   ordem?: readonly string[],
@@ -109,17 +177,7 @@ export function trajetoriaPorFaixa(
     const valores = ondas.map((o) => o.faixas.find((f) => f.faixa === faixa)?.enps ?? null);
     const comValor = valores.filter((v): v is number => v != null);
 
-    let trajetoria: Trajetoria = 'indefinida';
-    if (comValor.length >= 3) {
-      let desce = true, sobe = true;
-      for (let i = 1; i < comValor.length; i++) {
-        if (comValor[i] > comValor[i - 1]) desce = false;
-        if (comValor[i] < comValor[i - 1]) sobe = false;
-      }
-      // Empate em todas as pontas cai em 'oscila': uma faixa parada não é
-      // queda contínua, e chamá-la assim seria alarme sobre nada.
-      trajetoria = desce && !sobe ? 'queda' : sobe && !desce ? 'subida' : 'oscila';
-    }
+    const trajetoria = classificarTrajetoria(comValor);
 
     return {
       faixa,

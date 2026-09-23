@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { perfilDoRecorte, temQuebraPorArea, aderenciaDasPiores } from '@/lib/drill';
 import type { DriverPorRecorte } from '@/lib/survey.functions';
 import { COLORS } from '@/lib/colors';
-import type { HistoricoDeArea } from '@/lib/analise-engajamento';
+import { fraseTrajetoria, type HistoricoDeArea } from '@/lib/analise-engajamento';
 
 /**
  * O perfil de drivers de uma área, aberto ao clicar nela.
@@ -164,7 +164,7 @@ export default function AreaDriverPanel({
               ? 'Vem caindo em todas as pesquisas.'
               : historico.trajetoria === 'subida'
                 ? 'Vem subindo em todas as pesquisas.'
-                : 'Sobe e desce sem direção clara.'}
+                : fraseTrajetoria(historico.trajetoria, historico.valores)}
           </strong>{' '}
           eNPS{' '}
           {historico.valores

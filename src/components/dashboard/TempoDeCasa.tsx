@@ -4,7 +4,7 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import {
-  trajetoriaPorFaixa, efeitoComposicao, type FaixaOnda,
+  trajetoriaPorFaixa, efeitoComposicao, rotuloTrajetoria, type FaixaOnda,
 } from '@/lib/analise-engajamento';
 import { TEMPO_ORDEM } from '@/lib/aggregator/polly-survey';
 
@@ -73,12 +73,6 @@ function sujeitoDaQueda(faixas: string[]): string {
   return `Estas faixas pioraram em todas as pesquisas: ${faixas.join(', ')}`;
 }
 
-const ROTULO = {
-  queda: 'cai em todas',
-  subida: 'sobe em todas',
-  oscila: 'oscila',
-  indefinida: '',
-} as const;
 
 /**
  * "Julho/25" -> "jul/25". O cabecalho reserva uma coluna estreita, do tamanho
@@ -120,7 +114,7 @@ export default function TempoDeCasa({
    */
   daArea?: string | null;
 }) {
-  const { linhas, comp, quedas } = useMemo(() => {
+  const { linhas, comp, quedas, quedasNaUltima, oscilam } = useMemo(() => {
     const linhas = trajetoriaPorFaixa(ondas, TEMPO_ORDEM);
     const primeira = ondas[0]?.faixas ?? [];
     const ultima = ondas[ondas.length - 1]?.faixas ?? [];
@@ -128,6 +122,13 @@ export default function TempoDeCasa({
       linhas,
       comp: efeitoComposicao(ultima, primeira),
       quedas: linhas.filter((l) => l.trajetoria === 'queda'),
+      // Pararam e depois caíram (100 -> 100 -> 50). Não é "cai em todas" --
+      // foi exatamente essa confusão que a Thais apontou em Commercial.
+      quedasNaUltima: linhas.filter(
+        (l) => l.trajetoria === 'queda_parcial'
+          && rotuloTrajetoria(l.trajetoria, l.valores) === 'cai só na última',
+      ),
+      oscilam: linhas.filter((l) => l.trajetoria === 'oscila'),
     };
   }, [ondas]);
 
@@ -234,7 +235,7 @@ export default function TempoDeCasa({
                   )}
                   style={continua ? { color: cor } : undefined}
                 >
-                  {ROTULO[l.trajetoria]}
+                  {rotuloTrajetoria(l.trajetoria, l.valores)}
                 </span>
               )}
             </div>
@@ -269,13 +270,35 @@ export default function TempoDeCasa({
             (O comentário mora AQUI, acima do `&&`, e não dentro dele: um
             comentário JSX logo depois de `{cond && (` é lido como o filho
             único da expressão. Terceira vez que erro isso nesta semana.) */}
+        {/* "Quem tem menos tempo de casa sobe e desce" era texto fixo, escrito
+            a partir da série da empresa em 19/08. Filtrado por área ele
+            continuava aparecendo -- em Commercial, embaixo de faixas iniciais
+            que não oscilavam. Agora a frase lista quem de fato oscila. */}
         {temTrajetoria && quedas.length > 0 && (
-          <>
           <p className="text-[13px] leading-relaxed">
-            <strong>{sujeitoDaQueda(quedas.map((q) => q.faixa))}</strong> — e isso aconteceu de{' '}
-            {ondas.map((o) => o.label).join(' para ')}, sem uma única vez em que tenha melhorado.
-            Quem tem menos tempo de casa sobe e desce sem direção clara.
+            <strong>{sujeitoDaQueda(quedas.map((q) => q.faixa))}</strong> — caíram em cada passagem,
+            de {ondas.map((o) => o.label).join(' para ')}.
           </p>
+        )}
+        {temTrajetoria && quedasNaUltima.length > 0 && (
+          <p className="text-[13px] leading-relaxed">
+            <strong>
+              {quedasNaUltima.length === 1
+                ? `Quem tem ${quedasNaUltima[0].faixa} de casa caiu só na última pesquisa`
+                : `Caíram só na última pesquisa: ${quedasNaUltima.map((q) => q.faixa).join(', ')}`}
+            </strong>{' '}
+            — estavam estáveis até {ondas[ondas.length - 2]?.label} e caíram em{' '}
+            {ondas[ondas.length - 1]?.label}. Uma queda só ainda não é tendência; a próxima
+            pesquisa diz se ela continua.
+          </p>
+        )}
+        {temTrajetoria && (quedas.length > 0 || quedasNaUltima.length > 0) && (
+          <>
+          {oscilam.length > 0 && (
+            <p className="text-[13px] leading-relaxed">
+              Sobem e descem sem direção clara: {oscilam.map((o) => o.faixa).join(', ')}.
+            </p>
+          )}
           <p className="text-[13px] text-muted-foreground leading-relaxed">
             A diferença importa: piorar em toda pesquisa seguida é tendência; subir e descer é o
             que grupos pequenos costumam fazer por acaso. Comparando só a primeira pesquisa com a
