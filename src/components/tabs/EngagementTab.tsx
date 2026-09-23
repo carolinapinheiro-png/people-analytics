@@ -429,15 +429,10 @@ function EngagementSection({
                 : "."}
             </p>
           )}
-          {/* Um cartão com "—" e 42 respondentes ao lado parece defeito -- foi
-              exatamente o que a Thais relatou. Quando o número foi escondido
-              de propósito, a tela diz por quê. */}
           {foco.oculto && (
             <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-              Os números desta área nesta entidade estão ocultos para proteger o anonimato:
-              comparando com a área inteira ou com a outra entidade, daria para deduzir as
-              respostas de um grupo de menos de 5 pessoas. Veja a área com o seletor em
-              {' '}<strong className="text-foreground">Combinado</strong>.
+              Esta área tem menos de 5 respostas nesta entidade, e os números ficam ocultos para
+              proteger o anonimato -- a mesma regra do resto do painel.
             </p>
           )}
           <div data-pdf-block="true" className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -825,7 +820,7 @@ function EngagementSection({
                         </td>
                       )}
                       <td className="p-2 text-xs text-muted-foreground">
-                        {d.oculto ? "oculta (anonimato)" : d.status}
+                        {d.oculto ? "menos de 5 respostas" : d.status}
                       </td>
                     </tr>
                   );
@@ -1473,10 +1468,8 @@ export default function EngagementTab() {
                 const ocultas = data.engagement.filter((e) => e.oculto).map((e) => e.scope);
                 return ocultas.length > 0 ? (
                   <>
-                    {' '}Nesta entidade, ficam ocultas para proteger o anonimato (daria para deduzir as
-                    respostas de um grupo de menos de 5 pessoas):{' '}
-                    <strong className="text-foreground">{ocultas.join(', ')}</strong>. No seletor
-                    Combinado elas aparecem.
+                    {' '}Com menos de 5 respostas nesta entidade, ficam ocultas:{' '}
+                    <strong className="text-foreground">{ocultas.join(', ')}</strong>.
                   </>
                 ) : null;
               })()}
