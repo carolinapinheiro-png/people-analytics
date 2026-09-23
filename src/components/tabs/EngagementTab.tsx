@@ -629,9 +629,16 @@ function EngagementSection({
           Três ou mais: série, porque o slope só enxerga as duas pontas e uma
           área que caiu, subiu e voltou apareceria idêntica a uma parada.
           Quem decide é o banco, não uma constante para alguém lembrar. */}
+      {/* COM ENTIDADE (23/09): jul/25 não perguntou marca, então a série da
+          entidade tem só jan/26 e ago/26 -- e caía no slope, que precisa de
+          pelo menos duas áreas para comparar. Com um departamento escolhido
+          há uma só, o slope devolvia nada e o cartão sumia (Carolina, NSX +
+          Commercial). Com entidade, a mesma série do combinado, com as duas
+          ondas que existem. */}
       {cross &&
-        (cross.serieEnps.length >= 3 ? (
-          <EnpsSerie ondas={cross.serieEnps} />
+        (cross.serieEnps.length >= 3 ||
+        ((cross.entidade?.marcas.length ?? 0) > 0 && cross.serieEnps.length >= 2) ? (
+          <EnpsSerie ondas={cross.serieEnps} minimoOndas={2} />
         ) : (
           <EnpsSlope
             rows={cross.rows}
