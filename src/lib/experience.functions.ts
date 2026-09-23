@@ -687,53 +687,53 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       db.from('survey_cut_scores')
         .select('wave, cut_type, cut_value, n, enps, promotores, passivos, detratores, risco, satisfacao')
         .in('cut_type', ['area', 'tempo', 'area+tempo', 'marca', 'area+marca']),
-      // Só NSX/reconstruido tem dept_breakdown. Ver ressalva abaixo: a pesquisa
-      // cobre a Flutter Brazil inteira, a quebra por área só existe para NSX.
+      // ------------------------------------------------------------------
+      // UMA FONTE SÓ, COM OU SEM ENTIDADE (23/09)
+      // ------------------------------------------------------------------
+      // Até aqui o modo combinado lia a série NSX/reconstruido e a planilha
+      // antiga `leavers`, e o modo entidade lia Convenia. Dois modos, duas
+      // fontes: somar as entidades não dava o combinado, e ninguém saberia
+      // dizer se a diferença era das pessoas ou das bases.
       //
-      // COM ENTIDADE: o headcount da própria entidade, da série Convenia, que
-      // tem quebra por área para NSX e para Betfair BR.
-      marcas
-        ? db
-            .from('monthly_metrics')
-            .select('month, dept_breakdown')
-            .eq('brand', input?.brand ?? '')
-            .eq('source', 'convenia')
-            .is('quality_flag', null)
-            .not('dept_breakdown', 'is', null)
-        : db
-            .from('monthly_metrics')
-            .select('month, dept_breakdown')
-            .eq('brand', 'NSX')
-            .eq('source', 'reconstruido')
-            .is('quality_flag', null)
-            .not('dept_breakdown', 'is', null),
-      // COM ENTIDADE: `convenia_leavers`, a única base de desligados que sabe
-      // a entidade (`leavers` é a planilha antiga, sem essa coluna). Só as
-      // colunas da contagem -- nada de nome, salário ou motivo sai daqui.
-      marcas
-        ? db
-            .from('convenia_leavers')
-            .select('department, job_type_family, dismissal_date, dismissal_type')
-            .eq('marca', marcaNoConvenia ?? '')
-            .gte('dismissal_date', `${JANELA.inicio}-01`)
-            .then((r: { data: unknown; error: { message: string } | null }) => ({
-              error: r.error,
-              data: ((r.data ?? []) as Array<{
-                department: string | null; job_type_family: string | null;
-                dismissal_date: string | null; dismissal_type: string | null;
-              }>).map((x) => ({
-                departamento: x.department ? normalizeDept(x.department) : null,
-                job_family: x.job_type_family,
-                data_desligamento: x.dismissal_date,
-                tipo_desligamento_agrupado: x.dismissal_type
-                  ? ROTULO_TIPO[classificarSaida(x.dismissal_type)]
-                  : null,
-              })),
-            }))
-        : db
-            .from('leavers')
-            .select('departamento, job_family, data_desligamento, tipo_desligamento_agrupado')
-            .gte('data_desligamento', `${JANELA.inicio}-01`),
+      // Agora é Convenia nos dois. Headcount: a série `convenia`, que tem
+      // quebra por área para as TRÊS entidades (a reconstruída só tinha NSX,
+      // e a ressalva "denominador subestimado" existia por isso). Conferido em
+      // fev-jul/26: NSX convenia = NSX reconstruído mês a mês, exceto jul
+      // (577 x 581). Desligados: `convenia_leavers`, a mesma base da aba de
+      // Desligamentos desde que ela deixou `leavers` (70 saídas na janela,
+      // contra 60 na planilha, que parou de ser atualizada).
+      (() => {
+        let q = db
+          .from('monthly_metrics')
+          .select('month, brand, dept_breakdown')
+          .eq('source', 'convenia')
+          .is('quality_flag', null)
+          .not('dept_breakdown', 'is', null);
+        if (marcas) q = q.eq('brand', input?.brand ?? '');
+        return q;
+      })(),
+      // Só as colunas da contagem -- nada de nome, salário ou motivo sai daqui.
+      (() => {
+        let q = db
+          .from('convenia_leavers')
+          .select('department, job_type_family, dismissal_date, dismissal_type')
+          .gte('dismissal_date', `${JANELA.inicio}-01`);
+        if (marcas) q = q.eq('marca', marcaNoConvenia ?? '');
+        return q;
+      })().then((r: { data: unknown; error: { message: string } | null }) => ({
+        error: r.error,
+        data: ((r.data ?? []) as Array<{
+          department: string | null; job_type_family: string | null;
+          dismissal_date: string | null; dismissal_type: string | null;
+        }>).map((x) => ({
+          departamento: x.department ? normalizeDept(x.department) : null,
+          job_family: x.job_type_family,
+          data_desligamento: x.dismissal_date,
+          tipo_desligamento_agrupado: x.dismissal_type
+            ? ROTULO_TIPO[classificarSaida(x.dismissal_type)]
+            : null,
+        })),
+      })),
     ]);
 
     if (eng.error) throw new Error(`Falha ao carregar engajamento: ${eng.error.message}`);
@@ -746,15 +746,14 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       const ym = String(row.month).slice(0, 7);
       const blob = row.dept_breakdown as Record<string, { level_base?: Record<string, number> }> | null;
       if (!blob) continue;
-      const porDept: Record<string, number> = {};
+      // Várias entidades no mesmo mês (modo combinado): soma por área.
+      const porDept: Record<string, number> = hcPorMesDept[ym] ?? {};
       for (const [dept, d] of Object.entries(blob)) {
         // O headcount da área não vem pronto no blob; é a soma do level_base,
         // que é a contagem de pessoas por nível. gender_female + gender_male
         // daria o mesmo total, mas perde quem está sem gênero cadastrado.
-        // A série Convenia (usada com entidade) traz `headcount` pronto.
-        const pronto = Number((d as { headcount?: number } | null)?.headcount ?? 0);
-        const total = pronto || Object.values(d?.level_base ?? {}).reduce((s, n) => s + (n || 0), 0);
-        if (total > 0) porDept[dept] = total;
+        const total = Object.values(d?.level_base ?? {}).reduce((s, n) => s + (n || 0), 0);
+        if (total > 0) porDept[dept] = (porDept[dept] ?? 0) + total;
       }
       hcPorMesDept[ym] = porDept;
     }
@@ -1197,9 +1196,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       ? [
           `Recorte ${input?.brand}: respostas de ${marcas.join(' + ')}, contra headcount e desligamentos da entidade ${input?.brand}. Quem é Cross Brand responde nas duas entidades mas está no headcount de uma só -- a comparação com saídas é aproximada.`,
         ]
-      : [
-          'A pesquisa cobre a Flutter Brazil inteira; a quebra de headcount por área só existe para a NSX. Se as linhas por departamento da pesquisa incluírem gente da Betfair, o denominador está subestimado e a atrição sai um pouco alta.',
-        ];
+      : [];
     if (result.semCorrespondencia.length) {
       ressalvas.push(
         `Sem departamento correspondente no dashboard: ${result.semCorrespondencia.join(', ')}. Estas áreas aparecem nas visões da pesquisa, mas ficam fora do cruzamento com saídas.`,
