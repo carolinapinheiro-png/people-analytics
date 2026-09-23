@@ -15,6 +15,7 @@ import { recorteVisivel } from '@/lib/recorte-visivel';
 import { headcountDaArea } from '@/lib/headcount-area';
 import {
   marcasDaEntidade, rebasearCuts, rebasearDrivers, suprimirPedacos,
+  areasComMarcaPequena, marcaDeAreaExposta,
   type CutLinha, type DriverLinha, type RecorteEntidade,
 } from '@/lib/recorte-entidade';
 
@@ -530,10 +531,16 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // qualquer outra regra: escopo, seleção e supressão seguem valendo sobre
     // as linhas refeitas exatamente como valiam sobre as originais.
     const cutLinhas = (cutRes.data ?? []) as unknown as CutLinha[];
-    const cutsBase: Array<CutLinha & { nMinComponente?: number }> =
+    const cutsBase: Array<CutLinha & { bloqueadoPorDiferenca?: boolean }> =
       marcas ? rebasearCuts(cutLinhas, marcas) : cutLinhas;
+    // Área com alguma marca de 1 a 4 respostas: a quebra por marca DAQUELA
+    // área sai sem nota, inclusive das marcas grandes -- ver
+    // `areasComMarcaPequena`. Vale com e sem entidade: antes, área − as duas
+    // marcas grandes já devolvia o Cross Brand pequeno.
+    const marcaPequena = areasComMarcaPequena(cutLinhas);
     const brutos = cutsBase.map((c) => ({
-      nMinComponente: (c as { nMinComponente?: number }).nMinComponente,
+      bloqueadoPorDiferenca: (c as { bloqueadoPorDiferenca?: boolean }).bloqueadoPorDiferenca
+        || marcaDeAreaExposta(c, marcaPequena),
       cutType: String(c.cut_type), cutValue: String(c.cut_value),
       n: Number(c.n),
       enps: c.enps == null ? null : Number(c.enps),
@@ -652,13 +659,15 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       ...((marcas ? rebasearDrivers(driversSimples, marcas) : driversSimples) as unknown as Array<Record<string, unknown>>),
       ...((cruzRes.error ? [] : cruzRes.data ?? []) as Array<Record<string, unknown>>),
     ];
+    const marcaPequenaDrv = areasComMarcaPequena(driversSimples);
     const driversNoEscopo = driversBrutos
       // A MESMA porta dos cuts, e não uma segunda implementação da ideia.
       // Ver `podeVerORecorte`: foi a divergência entre estas duas linhas que
       // deixou o filtro por tempo de casa sem clima para perfil com escopo.
       .filter((d) => podeVerORecorte(String(d.cut_type), String(d.cut_value)))
       .map((d) => ({
-        nMinComponente: d.nMinComponente as number | undefined,
+        bloqueadoPorDiferenca: (d.bloqueadoPorDiferenca as boolean | undefined)
+          || marcaDeAreaExposta(d as { cut_type?: string; cut_value?: string }, marcaPequenaDrv),
         driver: String(d.driver),
         question: String(d.question),
         cutType: String(d.cut_type),
@@ -708,11 +717,13 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // e não por uma segunda implementação delas. Dado velho não é dado
     // público: quem não pode ver a área hoje não pode vê-la em julho.
     const antBrutos = (antRes.error ? [] : antRes.data ?? []) as unknown as DriverLinha[];
+    const marcaPequenaAnt = areasComMarcaPequena(antBrutos);
     const driversAnteriores = suprimirPedacos(applySuppression(
       ((marcas ? rebasearDrivers(antBrutos, marcas) : antBrutos) as unknown as Array<Record<string, unknown>>)
         .filter((d) => podeVerORecorte(String(d.cut_type), String(d.cut_value)))
         .map((d) => ({
-          nMinComponente: d.nMinComponente as number | undefined,
+          bloqueadoPorDiferenca: (d.bloqueadoPorDiferenca as boolean | undefined)
+            || marcaDeAreaExposta(d as { cut_type?: string; cut_value?: string }, marcaPequenaAnt),
           driver: String(d.driver),
           question: String(d.question),
           cutType: String(d.cut_type),

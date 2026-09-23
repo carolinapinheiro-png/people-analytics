@@ -38,13 +38,25 @@
  * a combinação é ponderada por `n`, exata a menos do arredondamento gravado.
  *
  * ------------------------------------------------------------------
- * SUPRESSÃO: O MENOR PEDAÇO DECIDE
+ * SUPRESSÃO: O QUE DÁ PARA DEDUZIR POR DIFERENÇA
  * ------------------------------------------------------------------
- * "Legal || Betnacional" tem 4 respostas e seria suprimido. Somado ao Cross
- * Brand (12) vira 16 e passaria -- mas "Legal || Cross Brand" aparece também
- * na entidade Betfair BR, e a diferença entre as duas telas devolveria as 4
- * pessoas. Então a linha combinada carrega `nMinComponente` e é suprimida se
- * QUALQUER pedaço com resposta ficaria suprimido sozinho.
+ * Numa área, quem não vê dado individual enxerga três números: a área inteira
+ * (T = Betnacional + Betfair + Cross Brand), a área na NSX (N + C) e a área na
+ * Betfair BR (F + C). Com eles faz as contas:
+ *
+ *   T − NSX        = F  (só Betfair)
+ *   T − Betfair BR = N  (só Betnacional)
+ *   NSX + BF − T   = C  (só Cross Brand)
+ *
+ * Então a entidade só aparece se nenhuma dessas diferenças expuser um grupo
+ * de 1 a 4 pessoas. Se as duas entidades passam mas o Cross Brand é pequeno,
+ * esconde-se a MENOR e mostra-se a maior -- mostrar as duas devolveria o C.
+ *
+ * A primeira versão (23/09 de manhã) escondia a entidade sempre que qualquer
+ * pedaço tinha menos de cinco. Era mais rígida do que precisava: NSX
+ * Commercial, com 42 respostas, sumia porque o Cross Brand de Commercial tem
+ * 3 -- e a Thais via cartões com "—" e 42 respondentes. Pela regra acima, a
+ * NSX aparece e a Betfair BR (9 respostas) é que fica escondida.
  */
 import { partesDoCruzamento, rotuloDeCorte, N_MINIMO_EXIBICAO, CROSS_BRAND } from '@/lib/aggregator/polly-survey';
 
@@ -74,7 +86,7 @@ export type CutLinha = Base & {
 export type DriverLinha = Base & {
   driver: string; question: string; score: number | null; favoravel: number | null;
 };
-export type Combinada = { nMinComponente?: number };
+export type Combinada = { bloqueadoPorDiferenca?: boolean };
 
 const num = (v: unknown): number | null =>
   v == null || v === '' ? null : Number.isFinite(Number(v)) ? Number(v) : null;
@@ -103,28 +115,53 @@ function destino(r: Base, marcas: string[]): { cut_type: string; cut_value: stri
   return null;
 }
 
+const ENTRE_1_E_4 = (n: number) => n >= 1 && n < N_MINIMO_EXIBICAO;
+
+/**
+ * A entidade pode aparecer, dadas as contagens do alvo por marca?
+ * O = a marca da própria entidade, X = a outra marca, C = Cross Brand.
+ */
+export function bloqueadoPorDiferenca(O: number, X: number, C: number): boolean {
+  const esta = O + C >= N_MINIMO_EXIBICAO && !ENTRE_1_E_4(X);
+  if (!esta) return true;
+  const outra = X + C >= N_MINIMO_EXIBICAO && !ENTRE_1_E_4(O);
+  // As duas visíveis devolvem o C por soma. Fica a maior; empate esconde esta.
+  return outra && ENTRE_1_E_4(C) && O <= X;
+}
+
 function rebasear<T extends Base>(
   linhas: readonly T[],
   marcas: string[],
   chaveExtra: (r: T) => string,
   combinar: (partes: T[], alvo: { cut_type: string; cut_value: string }) => T,
 ): Array<T & Combinada> {
-  const grupos = new Map<string, { alvo: { cut_type: string; cut_value: string }; partes: T[] }>();
+  const propria = marcas.find((m) => m !== CROSS_BRAND) ?? '';
+  const outra = ['Betfair', 'Betnacional'].find((m) => m !== propria) ?? '';
+  const grupos = new Map<string, {
+    alvo: { cut_type: string; cut_value: string }; partes: T[]; O: number; X: number; C: number;
+  }>();
   for (const r of linhas) {
-    const d = destino(r, marcas);
+    const d = destino(r, [...marcas, outra]);
     if (!d) continue;
+    const marca = rotuloDeCorte(r.cut_type === 'marca' ? r.cut_value : partesDoCruzamento(r.cut_value)!.valor);
     const k = [r.wave ?? '', d.cut_type, d.cut_value, chaveExtra(r)].join('\u0001');
-    const g = grupos.get(k) ?? { alvo: d, partes: [] };
-    g.partes.push(r);
+    const g = grupos.get(k) ?? { alvo: d, partes: [], O: 0, X: 0, C: 0 };
+    const n = num(r.n) ?? 0;
+    if (marca === propria) g.O += n;
+    else if (marca === outra) g.X += n;
+    else g.C += n;
+    if (marcas.includes(marca)) g.partes.push(r);
     grupos.set(k, g);
   }
   // As linhas originais de empresa e área saem -- inclusive nas ondas sem
   // marca, onde não há o que pôr no lugar. O resto passa intacto.
   const mantidas = linhas.filter((r) => r.cut_type !== 'company' && r.cut_type !== 'area');
-  const sintetizadas = [...grupos.values()].map(({ alvo, partes }) => {
-    const nMin = Math.min(...partes.map((p) => num(p.n) ?? 0).filter((n) => n > 0));
-    return { ...combinar(partes, alvo), nMinComponente: Number.isFinite(nMin) ? nMin : 0 };
-  });
+  const sintetizadas = [...grupos.values()]
+    .filter((g) => g.partes.length > 0)
+    .map(({ alvo, partes, O, X, C }) => ({
+      ...combinar(partes, alvo),
+      bloqueadoPorDiferenca: bloqueadoPorDiferenca(O, X, C),
+    }));
   return [...mantidas, ...sintetizadas];
 }
 
@@ -165,13 +202,9 @@ export function rebasearDrivers<T extends DriverLinha>(linhas: readonly T[], mar
   });
 }
 
-/**
- * A linha combinada precisa ser suprimida mesmo com `n` total grande?
- * Sim quando algum pedaço com resposta ficaria suprimido sozinho.
- */
+/** A linha combinada precisa ser escondida por diferença? (ver o topo) */
 export function pedacoPequeno(r: Combinada, podeVerTudo: boolean): boolean {
-  return !podeVerTudo && r.nMinComponente != null && r.nMinComponente > 0
-    && r.nMinComponente < N_MINIMO_EXIBICAO;
+  return !podeVerTudo && !!r.bloqueadoPorDiferenca;
 }
 
 /** Aplica a regra acima por cima de `applySuppression`, e tira o campo interno. */
@@ -179,15 +212,49 @@ export function suprimirPedacos<T extends Combinada & { suprimido?: boolean }>(
   linhas: T[],
   podeVerTudo: boolean,
   campos: string[],
-): Array<Omit<T, 'nMinComponente'>> {
+): Array<Omit<T, 'bloqueadoPorDiferenca'>> {
   return linhas.map((r) => {
-    const { nMinComponente: _, ...resto } = r;
+    const { bloqueadoPorDiferenca: _, ...resto } = r;
     if (!pedacoPequeno(r, podeVerTudo)) return resto;
     const copia = { ...resto } as Record<string, unknown>;
     for (const c of campos) copia[c] = null;
     copia.suprimido = true;
-    return copia as Omit<T, 'nMinComponente'>;
+    return copia as Omit<T, 'bloqueadoPorDiferenca'>;
   });
+}
+
+/**
+ * Áreas (por onda) em que alguma marca tem de 1 a 4 respostas.
+ *
+ * Nelas, as notas por marca DENTRO da área não podem sair para quem não vê
+ * dado individual -- nem as das marcas grandes. Esconder só a marca pequena
+ * não basta: área inteira − Betnacional − Betfair devolve o Cross Brand, e
+ * NSX − Betnacional também. A área inteira e a entidade (pela regra de
+ * `bloqueadoPorDiferenca`) continuam aparecendo; o que some é a quebra por
+ * marca daquela área.
+ *
+ * Chave: `${wave}\u0001${area}`. Sem `wave` na linha, a onda é ''.
+ */
+export function areasComMarcaPequena(linhas: readonly Base[]): Set<string> {
+  const fora = new Set<string>();
+  for (const r of linhas) {
+    if (r.cut_type !== 'area+marca') continue;
+    const p = partesDoCruzamento(r.cut_value);
+    const n = num(r.n) ?? 0;
+    if (p && n >= 1 && n < N_MINIMO_EXIBICAO) fora.add(`${r.wave ?? ''}\u0001${p.area}`);
+  }
+  return fora;
+}
+
+/** Esta linha 'area+marca' cai numa área com marca pequena? */
+export function marcaDeAreaExposta(
+  r: { cut_type?: string; cutType?: string; cut_value?: string; cutValue?: string; wave?: string },
+  fora: Set<string>,
+): boolean {
+  const tipo = r.cut_type ?? r.cutType;
+  if (tipo !== 'area+marca') return false;
+  const p = partesDoCruzamento(r.cut_value ?? r.cutValue ?? '');
+  return !!p && fora.has(`${r.wave ?? ''}\u0001${p.area}`);
 }
 
 /** O que a tela diz sobre o recorte de entidade em vigor. */

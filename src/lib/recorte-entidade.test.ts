@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   marcasDaEntidade, entidadeSemMarca, rebasearCuts, rebasearDrivers, suprimirPedacos,
+  bloqueadoPorDiferenca, areasComMarcaPequena,
 } from './recorte-entidade';
 
 const c = (cut_type: string, cut_value: string, n: number, P: number, Pa: number, D: number, risco: number, sat: number, wave = 'ago_2026') =>
@@ -49,7 +50,11 @@ test('área vem de area+marca; área sem a marca da entidade usa só o Cross Bra
   assert.deepEqual(bf.map((x) => [x.cut_value, x.n]), [['Legal', 12]]);
   const nsx = rebasearCuts(AGO, marcasDaEntidade('NSX')!).find((x) => x.cut_type === 'area')!;
   assert.equal(nsx.n, 16);
-  assert.equal(nsx.nMinComponente, 4);
+  // Legal: N=4, F=0, C=12. NSX (16) = área inteira (16): não expõe nada.
+  // Betfair BR (12) expõe N = 16 − 12 = 4, então ela é que some.
+  assert.equal(nsx.bloqueadoPorDiferenca, false);
+  const bfLegal = bf.find((x) => x.cut_value === 'Legal')!;
+  assert.equal(bfLegal.bloqueadoPorDiferenca, true);
 });
 
 test('o que não tem marca cruzada passa intacto', () => {
@@ -64,14 +69,30 @@ test('onda sem pergunta de marca perde empresa e área em vez de mostrar a Flutt
   assert.equal(r.filter((x) => x.cut_type === 'company' || x.cut_type === 'area').length, 0);
 });
 
-test('pedaço pequeno suprime a linha combinada para quem não vê individual', () => {
-  const nsx = rebasearCuts(AGO, marcasDaEntidade('NSX')!).filter((x) => x.cut_type === 'area');
-  const restrito = suprimirPedacos(nsx.map((x) => ({ ...x, suprimido: false })), false, ['enps', 'risco']);
+test('bloqueio por diferença: o que as outras telas deixam deduzir', () => {
+  // Commercial ago/26 (caso da Thais): N=39, F=6, C=3.
+  assert.equal(bloqueadoPorDiferenca(39, 6, 3), false, 'NSX (42) aparece');
+  assert.equal(bloqueadoPorDiferenca(6, 39, 3), true, 'Betfair BR (9) some: com as duas, C = 3 sairia');
+  // Legal: N=4, F=0, C=12 -> Betfair BR (12) expõe N = T − BF = 4.
+  assert.equal(bloqueadoPorDiferenca(0, 4, 12), true);
+  // Menos de cinco no total.
+  assert.equal(bloqueadoPorDiferenca(1, 30, 3), true);
+  // Tudo grande.
+  assert.equal(bloqueadoPorDiferenca(30, 20, 10), false);
+});
+
+test('suprimirPedacos esconde o bloqueado só para quem não vê individual', () => {
+  const linhas = [{ n: 16, enps: 70, bloqueadoPorDiferenca: true, suprimido: false }];
+  const restrito = suprimirPedacos(linhas, false, ['enps']);
   assert.equal(restrito[0].enps, null);
   assert.equal(restrito[0].suprimido, true);
-  assert.ok(!('nMinComponente' in restrito[0]));
-  const admin = suprimirPedacos(nsx.map((x) => ({ ...x, suprimido: false })), true, ['enps', 'risco']);
-  assert.notEqual(admin[0].enps, null);
+  assert.ok(!('bloqueadoPorDiferenca' in restrito[0]));
+  assert.equal(suprimirPedacos(linhas, true, ['enps'])[0].enps, 70);
+});
+
+test('área com marca pequena: a quebra por marca inteira da área sai', () => {
+  const fora = areasComMarcaPequena(AGO);
+  assert.ok(fora.has('ago_2026\u0001Legal'), 'Legal || Betnacional tem 4');
 });
 
 test('drivers: nota ponderada por n, por pergunta', () => {

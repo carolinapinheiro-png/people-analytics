@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { EntidadeFilterInput, selectedDept } from '@/lib/dept-filter';
 import {
-  marcasDaEntidade, rebasearCuts, pedacoPequeno,
+  marcasDaEntidade, rebasearCuts, pedacoPequeno, areasComMarcaPequena,
   type CutLinha, type RecorteEntidade,
 } from '@/lib/recorte-entidade';
 import { N_MINIMO_EXIBICAO } from '@/lib/aggregator/polly-survey';
@@ -125,6 +125,7 @@ async function engajamentoDaEntidade(
       status: null,
       gap_ent_enps: null,
       position: i,
+      oculto: escondida,
     };
   });
 }
@@ -143,6 +144,8 @@ export interface EngagementScore {
   participation: number | null;
   status: string | null;
   position: number;
+  /** Escondido de propósito (anonimato por diferença entre entidades). */
+  oculto?: boolean;
 }
 
 export interface OnboardingAggregate {
@@ -871,12 +874,12 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     // Com entidade, 'company' e 'area' refeitos das marcas (ver
     // recorte-entidade.ts). Tempo de casa segue da empresa inteira; as linhas
     // de marca seguem como estão, para a série por marca.
-    const todosCuts: Array<LinhaCut & { nMinComponente?: number }> = marcas
+    const todosCuts: Array<LinhaCut & { bloqueadoPorDiferenca?: boolean }> = marcas
       ? (rebasearCuts((todasOndas.data ?? []) as unknown as CutLinha[], marcas) as unknown as LinhaCut[])
       : ((todasOndas.data ?? []) as LinhaCut[]);
     // Área pequena de uma entidade não entra na série nominal para quem não
     // vê dado individual -- nem com o n ao lado.
-    const areaPequena = (r: LinhaCut & { nMinComponente?: number }) =>
+    const areaPequena = (r: LinhaCut & { bloqueadoPorDiferenca?: boolean }) =>
       !!marcas && !podeVerIndividual && (Number(r.n ?? 0) < N_MINIMO_EXIBICAO || pedacoPequeno(r, false));
 
     const porOnda = new Map<string, PontoOnda[]>();
@@ -1035,10 +1038,16 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     // a mesma gente -- uma parando no meio e outra começando no meio.
     const marcaDaEmpresa = (r: LinhaCut) =>
       r.cut_type === 'marca' ? rotuloDeCorte(r.cut_value ?? '') : null;
+    // Área com alguma marca de 1 a 4 respostas naquela onda: a série por
+    // marca DA ÁREA não sai para quem não vê individual -- nem as marcas
+    // grandes, que por diferença devolveriam a pequena (ver
+    // `areasComMarcaPequena`). A série cai na da empresa, com rótulo.
+    const marcaPequena = areasComMarcaPequena((todasOndas.data ?? []) as unknown as CutLinha[]);
     const marcaDaAreaSel = (r: LinhaCut) => {
       if (r.cut_type !== 'area+marca') return null;
       const p = partesDoCruzamento(r.cut_value ?? '');
       if (!p || !podeVerArea(p.area)) return null;
+      if (!podeVerIndividual && marcaPequena.has(`${r.wave}\u0001${p.area}`)) return null;
       return deptForScope(p.area) === sel ? rotuloDeCorte(p.valor) : null;
     };
 

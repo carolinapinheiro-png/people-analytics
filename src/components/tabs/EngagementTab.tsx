@@ -429,6 +429,17 @@ function EngagementSection({
                 : "."}
             </p>
           )}
+          {/* Um cartão com "—" e 42 respondentes ao lado parece defeito -- foi
+              exatamente o que a Thais relatou. Quando o número foi escondido
+              de propósito, a tela diz por quê. */}
+          {foco.oculto && (
+            <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+              Os números desta área nesta entidade estão ocultos para proteger o anonimato:
+              comparando com a área inteira ou com a outra entidade, daria para deduzir as
+              respostas de um grupo de menos de 5 pessoas. Veja a área com o seletor em
+              {' '}<strong className="text-foreground">Combinado</strong>.
+            </p>
+          )}
           <div data-pdf-block="true" className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <KpiCard
               label="eNPS"
