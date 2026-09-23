@@ -267,7 +267,7 @@ export default function AreaPriority({
     else setAbertaLocal(v);
   };
 
-  const { itens, cutPorArea, nPorArea, gapPorArea, medianas, comparavel } = useMemo(() => {
+  const { itens, cutPorArea, nPorArea, medianas, comparavel } = useMemo(() => {
     const doTipoArea = cuts.filter((c) => c.cutType === "area");
     const cutPorArea = new Map(doTipoArea.map((c) => [chave(c.cutValue), c]));
     const nPorArea = new Map(doTipoArea.map((c) => [chave(c.cutValue), c.n]));
@@ -275,12 +275,10 @@ export default function AreaPriority({
     // este componente voltasse a enriquecer por conta própria, a matriz e a
     // fila podiam divergir de novo sem ninguém notar.
     const c = classifyAreas(areas);
-    const gapPorArea = new Map(areas.map((a) => [chave(a.scope), a.gapEntEnps]));
     return {
       itens: c.itens,
       cutPorArea,
       nPorArea,
-      gapPorArea,
       medianas: { enps: c.medianaEnps, risco: c.medianaRisco },
       comparavel: c.comparavel,
     };
@@ -390,7 +388,6 @@ export default function AreaPriority({
               <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 {g.itens.map((i) => {
                   const c = cutPorArea.get(chave(i.scope));
-                  const gap = gapPorArea.get(chave(i.scope));
                   const n = nPorArea.get(chave(i.scope));
                   const eleg = elegiveisPorArea?.[i.scope];
                   const taxa = n != null && eleg ? Math.round((n / eleg) * 100) : null;
@@ -462,7 +459,9 @@ export default function AreaPriority({
                         {historico && <Trajetoria h={historico.get(chave(i.scope))} />}
                       </div>
 
-                      <div className="mt-2 pt-2 border-t border-border/60 grid grid-cols-3 gap-1 text-[11px]">
+                      {/* "vs FI" saiu em 23/09: engajamento não tem dado da Flutter
+                          International -- a coluna era "—" em todos os cartões. */}
+                      <div className="mt-2 pt-2 border-t border-border/60 grid grid-cols-2 gap-1 text-[11px]">
                         <div>
                           <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
                             Risco
@@ -499,22 +498,6 @@ export default function AreaPriority({
                             {taxa != null && (
                               <span className="text-muted-foreground"> · {taxa}%</span>
                             )}
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
-                            vs FI
-                          </div>
-                          <div
-                            className={cn(
-                              "tabular-nums",
-                              (gap ?? 0) < 0
-                                ? "text-amber-600 dark:text-amber-500"
-                                : "text-foreground",
-                            )}
-                            title="Diferença de eNPS para a Flutter International, informada no deck de jan/26"
-                          >
-                            {gap == null ? "—" : `${gap > 0 ? "+" : ""}${gap}`}
                           </div>
                         </div>
                       </div>
@@ -599,10 +582,6 @@ export default function AreaPriority({
           respostas — então área grande pesa mais lá e não pesa aqui. Os dois divergirem é normal, e
           a diferença diz algo: risco mediano abaixo do risco da empresa significa que as áreas
           maiores estão acima do típico.
-        </span>
-        <span>
-          <strong className="text-foreground">vs FI</strong> = diferença de eNPS para a Flutter
-          International
         </span>
       </div>
 
