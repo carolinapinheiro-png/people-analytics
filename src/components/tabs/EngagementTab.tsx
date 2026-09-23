@@ -49,6 +49,7 @@ import { useDashboard } from "@/data/DashboardContext";
 import { semFiltro, valorFiltro } from "@/lib/filtro-sentinela";
 import { scopeForDept } from "@/lib/engagement-context";
 import { recorteAtivo } from "@/lib/recorte-ativo";
+import { filtrosDaPesquisa, marcaDaEntidade } from "@/lib/marca-da-entidade";
 
 /**
  * Aba Experiencia: engajamento, jornada de entrada e inclusao.
@@ -103,7 +104,9 @@ function EngagementSection({
   cross: EngagementCrossData | null;
   survey: SurveyWaveData | null;
 }) {
-  const { filters } = useDashboard();
+  const { filters: filtrosDaBarra, brand } = useDashboard();
+  // A entidade do topo vira marca de produto (ver lib/marca-da-entidade.ts).
+  const filters = filtrosDaPesquisa(filtrosDaBarra, brand);
   // ------------------------------------------------------------------
   // QUAL RECORTE DE PERFIL ESTÁ ATIVO, SE ALGUM
   // ------------------------------------------------------------------
@@ -1354,7 +1357,7 @@ export default function EngagementTab() {
     // cópia da regra de composição -- e a cópia do servidor já tinha
     // esquecido a área, procurando "24+ meses" onde está gravado
     // "Marketing || 24+ meses". Uma composição, um lugar, com teste.
-    const perfilPedido = recorteAtivo(filters, null);
+    const perfilPedido = recorteAtivo(filtrosDaPesquisa(filters, brand), null);
     fetchSurvey({
       data: {
         department: filters.departamento,
@@ -1385,6 +1388,7 @@ export default function EngagementTab() {
     filters.tempoCasa,
     filters.modeloTrabalho,
     filters.marcaProduto,
+    brand,
   ]);
 
   if (error)
@@ -1460,18 +1464,27 @@ export default function EngagementTab() {
           Agora dá: 'area+marca' sempre esteve gravado, e o filtro de marca de
           produto passou a existir na barra. O aviso vira um encaminhamento --
           o controle certo, pelo nome, com os valores que ele aceita. */}
+      {/* 23/09: o aviso acima dizia que entidade e marca não coincidem, o que
+          estava errado -- ver lib/marca-da-entidade.ts. E mandava a pessoa a
+          um filtro "Marca de produto" que saiu da barra em 10/09. Agora o
+          seletor recorta a pesquisa; o aviso só diz COMO. */}
       {brand !== "combined" && (
         <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          O seletor <strong className="text-foreground">{brand}</strong> não muda os números desta
-          aba, e não é defeito: ele separa <strong className="text-foreground">entidade</strong>,
-          que vem da razão social no headcount, e a pesquisa é anônima — ela não pergunta a
-          entidade da pessoa. Tudo abaixo é da{' '}
-          <strong className="text-foreground">Flutter Brazil inteira</strong>.
-          {' '}Para recortar por marca, use o filtro{' '}
-          <strong className="text-foreground">Marca de produto</strong> na barra acima
-          {' '}(Betnacional, Betfair, Cross Brand) — é o que a pesquisa pergunta, e ele funciona
-          junto com o filtro de área. Marca de produto e entidade não são a mesma coisa: &quot;NSX
-          Betfair Brasil S.A.&quot; é entidade NSX e atende a marca Betfair.
+          {marcaDaEntidade(brand) ? (
+            <>
+              Mostrando as respostas de quem marcou{' '}
+              <strong className="text-foreground">{marcaDaEntidade(brand)}</strong> na pesquisa
+              {' '}(a marca atendida pela entidade {brand}). Quem respondeu{' '}
+              <strong className="text-foreground">Cross Brand</strong> não entra neste recorte,
+              porque a pesquisa é anônima e não diz a entidade dessa pessoa.
+            </>
+          ) : (
+            <>
+              A pesquisa não tem uma marca equivalente a{' '}
+              <strong className="text-foreground">{brand}</strong>, então os números abaixo são da{' '}
+              <strong className="text-foreground">Flutter Brazil inteira</strong>.
+            </>
+          )}
         </p>
       )}
 

@@ -32,8 +32,9 @@ export interface Filters {
    *
    * NÃO é `brand` acima. `brand` é a ENTIDADE (NSX, Betfair BR, Flutter
    * International), que vem da razão social no headcount; esta é a MARCA DE
-   * PRODUTO que a pesquisa pergunta. "NSX BETFAIR BRASIL S.A." é entidade NSX
-   * e atende a marca Betfair -- os nomes se parecem e não coincidem.
+   * PRODUTO que a pesquisa pergunta. As duas se correspondem: "NSX BETFAIR
+   * BRASIL S.A." é a entidade Betfair BR e atende a marca Betfair (ver
+   * lib/marca-da-entidade.ts, que traduz uma na outra no Engajamento).
    */
   marcaProduto: string;
 }
