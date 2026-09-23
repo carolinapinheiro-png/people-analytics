@@ -251,7 +251,10 @@ function EngagementSection({
       // fila publica 84 -- deixar o cartão com uma casa a mais poria dois
       // números diferentes para a mesma taxa na mesma tela, e a diferença
       // pareceria significar alguma coisa.
-      taxa: elegiveis ? Math.round((cut.n / elegiveis) * 100) : null,
+      // Com entidade não há taxa -- ver `elegiveisSaoDaEntidade`.
+      taxa: elegiveis && !survey?.elegiveisSaoDaEntidade
+        ? Math.round((cut.n / elegiveis) * 100)
+        : null,
     };
   }, [areaSel, survey]);
 
@@ -500,7 +503,12 @@ function EngagementSection({
                 ? participacaoDaArea!.taxa
                 : areaSel
                   ? null
-                  : company?.participation ?? null;
+                  : company?.participation ?? survey?.participacao ?? null;
+              // Com entidade: respostas e pessoas da entidade lado a lado,
+              // sem %. O Cross Brand responde nas duas e está no headcount de
+              // uma só (Betfair BR Technology daria 15/3 = 500%).
+              const daEntidade = survey?.elegiveisSaoDaEntidade ? survey.entidade?.brand ?? null : null;
+              const semTaxa = " · sem taxa: Cross Brand responde nas duas entidades";
               return (
                 <KpiCard
                   label="Responderam"
@@ -519,13 +527,17 @@ function EngagementSection({
                   hint={
                     segueFiltro
                       ? participacaoDaArea!.elegiveis != null
-                        ? `${fmt1(taxa)}% dos ${participacaoDaArea!.elegiveis} elegíveis de ${deptSel}`
+                        ? daEntidade
+                          ? `${nDaArea} respostas · ${participacaoDaArea!.elegiveis} pessoas da ${daEntidade} em ${deptSel}${semTaxa}`
+                          : `${fmt1(taxa)}% dos ${participacaoDaArea!.elegiveis} elegíveis de ${deptSel}`
                         : `${nDaArea} respostas em ${deptSel}`
                       : areaSel
                         ? `${deptSel} não tem headcount no organograma, então a taxa desta área não é calculável`
-                        : company?.participation == null
-                          ? undefined
-                          : `${fmt1(company.participation)}% dos elegíveis`
+                        : daEntidade && survey?.elegiveis != null
+                          ? `${survey.respondentes} respostas · ${survey.elegiveis} pessoas na ${daEntidade}${semTaxa}`
+                          : taxa == null
+                            ? undefined
+                            : `${fmt1(taxa)}% dos elegíveis`
                   }
                   help="participacao"
                   helpValue={taxa}
@@ -551,7 +563,7 @@ function EngagementSection({
       <EngagementReading
         enpsEmpresa={foco?.enps ?? null}
         respondentes={participacaoDaArea?.n ?? survey?.respondentes ?? null}
-        participacao={participacaoDaArea?.taxa ?? company?.participation ?? null}
+        participacao={participacaoDaArea?.taxa ?? company?.participation ?? survey?.participacao ?? null}
         areas={rowsComN}
         cuts={survey?.cuts ?? []}
         importancia={survey?.importancia ?? []}
@@ -592,7 +604,14 @@ function EngagementSection({
             areas={rowsComN}
             serie={cross.serieEnps}
             cuts={survey?.cuts ?? []}
-            elegiveisPorArea={survey?.elegiveisPorArea}
+            // Com entidade, o headcount é da entidade e o Cross Brand responde
+            // nas duas: a fila mostra só as respostas, sem %.
+            elegiveisPorArea={survey?.elegiveisSaoDaEntidade ? undefined : survey?.elegiveisPorArea}
+            motivoSemTaxa={
+              survey?.elegiveisSaoDaEntidade
+                ? "sem taxa por entidade: Cross Brand responde nas duas entidades"
+                : undefined
+            }
             drivers={survey?.driversPorArea ?? []}
             minimoExibicao={survey?.minimoExibicao ?? 5}
           />

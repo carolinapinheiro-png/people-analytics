@@ -233,6 +233,11 @@ export interface SurveyWaveData {
    * quem respondeu. Chave é o nome da ÁREA, não do departamento.
    */
   elegiveisPorArea?: Record<string, number>;
+  /**
+   * Com entidade, `elegiveis`/`elegiveisPorArea` são o headcount DA ENTIDADE
+   * e não há taxa: o Cross Brand responde nas duas. Ver o cálculo.
+   */
+  elegiveisSaoDaEntidade?: boolean;
   elegiveis: number | null;
   participacao: number | null;
   cuts: SurveyCut[];
@@ -673,19 +678,33 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // agosto daria 635 e a soma das áreas não fecharia com o cartão.
     const mesRef = String(wave.reference_date ?? '').slice(0, 7);
     const elegiveisPorArea: Record<string, number> = {};
-    // Com entidade não há denominador honesto: o Cross Brand responde nas
-    // duas entidades e está no headcount de uma só. A taxa sairia acima de
-    // 100% em área pequena. Sem denominador, a tela não mostra taxa.
-    for (const row of (marcas || hcRes.error ? [] : hcRes.data ?? []) as Array<{
-      month: string; dept_breakdown: unknown;
+    // ------------------------------------------------------------------
+    // COM ENTIDADE: O HEADCOUNT DA ENTIDADE, E A TAXA É APROXIMADA
+    // ------------------------------------------------------------------
+    // Na primeira versão (23/09) a entidade ficava sem denominador, e o
+    // cartão "Responderam" perdia os elegíveis e a taxa -- o time leu como
+    // erro ("faltam informações sobre os respondentes", NSX x Combinado).
+    //
+    // Volta o headcount da entidade -- mas SEM taxa. Conferido em ago/26: a
+    // Betfair BR tem 3 pessoas em Technology e 15 respostas lá (3 Betfair +
+    // 12 Cross Brand, que estão no headcount da NSX). A taxa daria 500%;
+    // Marketing, 611%. O Cross Brand responde pelas duas entidades e está no
+    // headcount de uma só, e a pesquisa anônima não diz de qual. Então a tela
+    // mostra os dois números lado a lado (respostas, pessoas da entidade) e
+    // diz por que não há %.
+    let elegiveisEntidade = 0;
+    for (const row of (hcRes.error ? [] : hcRes.data ?? []) as Array<{
+      month: string; brand?: string; dept_breakdown: unknown;
     }>) {
       if (String(row.month).slice(0, 7) !== mesRef) continue;
+      if (marcas && row.brand !== data.brand) continue;
       const blob = row.dept_breakdown as Record<string, Parameters<typeof headcountDaArea>[0]> | null;
       if (!blob) continue;
       for (const [dept, d] of Object.entries(blob)) {
         // `headcount` vem nulo na série convenia -- ver lib/headcount-area.ts.
         const hc = headcountDaArea(d);
         if (!hc) continue;
+        elegiveisEntidade += hc;
         // Departamento sem área na pesquisa (PORTO, DIRETORIA, GERAL) cai no
         // residual -- que é exatamente para onde essas pessoas vão na carga.
         const area = scopeForDept(dept) ?? AREA_RESIDUAL;
@@ -726,16 +745,21 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       wave: String(wave.wave),
       label: String(wave.label),
       respondentes: marcas ? Number(empresaEntidade?.n ?? 0) : Number(wave.respondents),
-      elegiveis: marcas || wave.eligible == null ? null : Number(wave.eligible),
-      participacao: !marcas && wave.eligible
+      elegiveis: marcas
+        ? (elegiveisEntidade || null)
+        : wave.eligible == null ? null : Number(wave.eligible),
+      participacao: marcas
+        ? null
+        : wave.eligible
         ? Math.round((Number(wave.respondents) / Number(wave.eligible)) * 1000) / 10
         : null,
+      elegiveisSaoDaEntidade: !!marcas,
       entidade: data.brand && data.brand !== 'combined'
         ? {
             brand: data.brand,
             marcas: marcas ?? [],
             daEmpresaInteira: marcas
-              ? ['tempo de casa', 'modelo de trabalho', 'função', 'o que mais pesa no eNPS', 'participação']
+              ? ['tempo de casa', 'modelo de trabalho', 'função', 'o que mais pesa no eNPS']
               : ['tudo'],
           }
         : null,

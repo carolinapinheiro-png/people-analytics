@@ -479,7 +479,7 @@ export const getExperienceData = createServerFn({ method: 'GET' })
             brand: input.brand,
             marcas: marcas ?? [],
             daEmpresaInteira: marcas
-              ? ['drivers do deck', 'onboarding', 'inclusão & pertencimento', 'participação']
+              ? ['drivers do deck', 'onboarding', 'inclusão & pertencimento']
               : ['tudo'],
           }
         : null,

@@ -208,6 +208,7 @@ export default function AreaPriority({
   areas,
   cuts,
   elegiveisPorArea,
+  motivoSemTaxa,
   drivers = [],
   minimoExibicao = 5,
   areaAberta,
@@ -240,6 +241,8 @@ export default function AreaPriority({
    * que são leituras opostas do mesmo eNPS.
    */
   elegiveisPorArea?: Record<string, number>;
+  /** Por que não há taxa, para o tooltip (ex.: recorte por entidade). */
+  motivoSemTaxa?: string;
   /** Recortes por área da carga bruta: n de respondentes E a composição. */
   cuts: SurveyCut[];
   /** Notas por pergunta e por área, para o painel que abre no clique. */
@@ -491,7 +494,7 @@ export default function AreaPriority({
                             title={
                               eleg
                                 ? `${n} de ${eleg} pessoas responderam (${taxa}%)`
-                                : "sem headcount da área para calcular a taxa"
+                                : motivoSemTaxa ?? "sem headcount da área para calcular a taxa"
                             }
                           >
                             {n == null ? "—" : eleg ? `${n}/${eleg}` : n}
