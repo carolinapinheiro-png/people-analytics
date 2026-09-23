@@ -8,6 +8,7 @@ import {
 } from '@/lib/recorte-entidade';
 import { N_MINIMO_EXIBICAO } from '@/lib/aggregator/polly-survey';
 import { normalizeDept } from '@/lib/permissions';
+import { headcountDaArea } from '@/lib/headcount-area';
 import { classificarSaida } from '@/lib/convenia/pessoas';
 
 /** O mesmo rótulo que `leavers.functions.ts` dá ao tipo de saída do Convenia. */
@@ -744,7 +745,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
     const hcPorMesDept: Record<string, Record<string, number>> = {};
     for (const row of (mm.data ?? []) as Array<{ month: string; dept_breakdown: unknown }>) {
       const ym = String(row.month).slice(0, 7);
-      const blob = row.dept_breakdown as Record<string, { level_base?: Record<string, number> }> | null;
+      const blob = row.dept_breakdown as Record<string, Parameters<typeof headcountDaArea>[0]> | null;
       if (!blob) continue;
       // Várias entidades no mesmo mês (modo combinado): soma por área.
       const porDept: Record<string, number> = hcPorMesDept[ym] ?? {};
@@ -752,7 +753,7 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
         // O headcount da área não vem pronto no blob; é a soma do level_base,
         // que é a contagem de pessoas por nível. gender_female + gender_male
         // daria o mesmo total, mas perde quem está sem gênero cadastrado.
-        const total = Object.values(d?.level_base ?? {}).reduce((s, n) => s + (n || 0), 0);
+        const total = headcountDaArea(d);
         if (total > 0) porDept[dept] = (porDept[dept] ?? 0) + total;
       }
       hcPorMesDept[ym] = porDept;

@@ -12,6 +12,7 @@ import {
 import { selectedDept, recorteNoEscopo } from '@/lib/dept-filter';
 import { semFiltro } from '@/lib/filtro-sentinela';
 import { recorteVisivel } from '@/lib/recorte-visivel';
+import { headcountDaArea } from '@/lib/headcount-area';
 import {
   marcasDaEntidade, rebasearCuts, rebasearDrivers, suprimirPedacos,
   type CutLinha, type DriverLinha, type RecorteEntidade,
@@ -682,10 +683,11 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       month: string; dept_breakdown: unknown;
     }>) {
       if (String(row.month).slice(0, 7) !== mesRef) continue;
-      const blob = row.dept_breakdown as Record<string, { headcount?: number }> | null;
+      const blob = row.dept_breakdown as Record<string, Parameters<typeof headcountDaArea>[0]> | null;
       if (!blob) continue;
       for (const [dept, d] of Object.entries(blob)) {
-        const hc = Number(d?.headcount ?? 0);
+        // `headcount` vem nulo na série convenia -- ver lib/headcount-area.ts.
+        const hc = headcountDaArea(d);
         if (!hc) continue;
         // Departamento sem área na pesquisa (PORTO, DIRETORIA, GERAL) cai no
         // residual -- que é exatamente para onde essas pessoas vão na carga.
