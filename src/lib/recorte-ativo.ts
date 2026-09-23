@@ -50,8 +50,8 @@ const PERFIS = [
   // O seletor do topo separa ENTIDADE -- NSX, Betfair BR, Flutter
   // International -- que vem da razão social no headcount. A pesquisa é
   // anônima e não coleta entidade; ela coleta MARCA DE PRODUTO: Betnacional,
-  // Betfair e Cross Brand. São eixos diferentes, e "NSX BETFAIR BRASIL S.A."
-  // é o lembrete de que os nomes se parecem e não coincidem.
+  // Betfair e Cross Brand. Desde 23/09 o seletor do topo se traduz nelas
+  // (entidade = a sua marca + Cross Brand) -- ver lib/recorte-entidade.ts.
   //
   // A confusão entre os dois já chegou duas vezes, de duas pessoas: a Marilia
   // na revisão ("se eu coloco BF ou se eu coloco NSX, ele não faz a troca") e

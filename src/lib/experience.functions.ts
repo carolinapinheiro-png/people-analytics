@@ -1,7 +1,17 @@
 import { createServerFn } from '@tanstack/react-start';
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { DeptFilterInput, selectedDept } from '@/lib/dept-filter';
+import { EntidadeFilterInput, selectedDept } from '@/lib/dept-filter';
+import {
+  marcasDaEntidade, rebasearCuts, pedacoPequeno,
+  type CutLinha, type RecorteEntidade,
+} from '@/lib/recorte-entidade';
+import { N_MINIMO_EXIBICAO } from '@/lib/aggregator/polly-survey';
+import { normalizeDept } from '@/lib/permissions';
+import { classificarSaida } from '@/lib/convenia/pessoas';
+
+/** O mesmo rótulo que `leavers.functions.ts` dá ao tipo de saída do Convenia. */
+const ROTULO_TIPO = { voluntaria: 'Voluntário', involuntaria: 'Involuntário', outra: 'Outros' } as const;
 import {
   isGlobalProfile, isInScope, visibleExperienceSubTabs,
   type AccessScope, type ExperienceSubTab,
@@ -58,10 +68,64 @@ type UntypedClient = SupabaseClient<any, 'public', any>;
  */
 async function authorize(
   userEmail: string | undefined,
-): Promise<{ scope: AccessScope; subTabs: string[] }> {
+): Promise<{ scope: AccessScope; subTabs: string[]; podeVerIndividual: boolean }> {
   const { resolverEscopo } = await import('@/lib/escopo.server');
   const e = await resolverEscopo(userEmail, 'engagement');
-  return { scope: e.scope, subTabs: e.subTabs };
+  return { scope: e.scope, subTabs: e.subTabs, podeVerIndividual: !!e.podeVerIndividual };
+}
+
+// ---------------------------------------------------------------------------
+// ENGAJAMENTO POR ENTIDADE
+// ---------------------------------------------------------------------------
+/**
+ * As linhas de `engagement_scores` (empresa + áreas) de uma onda, refeitas
+ * para a entidade a partir das marcas -- ver `recorte-entidade.ts`.
+ *
+ * `engagement_scores` é o deck transcrito e não tem marca. Mas bate com
+ * `survey_cut_scores` (conferido em jan/26 e ago/26: empresa 69 / 16,1 / 8,7
+ * nas duas), então refazer a partir de lá é a mesma medida, só com outro
+ * grupo de pessoas.
+ *
+ * Supressão: o deck nunca precisou, porque as áreas da empresa inteira são
+ * grandes. Uma área de uma entidade não é -- então aqui vale a mesma regra da
+ * pesquisa, com o menor pedaço decidindo.
+ */
+async function engajamentoDaEntidade(
+  db: UntypedClient,
+  wave: string | null,
+  marcas: string[],
+  podeVerIndividual: boolean,
+): Promise<EngagementScore[]> {
+  if (!wave) return [];
+  const { data, error } = await db
+    .from('survey_cut_scores')
+    .select('wave, cut_type, cut_value, n, enps, promotores, passivos, detratores, risco, satisfacao')
+    .eq('wave', wave)
+    .in('cut_type', ['marca', 'area+marca']);
+  if (error) throw new Error(`Falha ao carregar engajamento por marca: ${error.message}`);
+  const linhas = rebasearCuts((data ?? []) as unknown as CutLinha[], marcas)
+    .filter((r) => r.cut_type === 'company' || r.cut_type === 'area');
+  const empresa = linhas.filter((r) => r.cut_type === 'company');
+  const areas = linhas.filter((r) => r.cut_type === 'area')
+    .sort((a, b) => (b.enps ?? -999) - (a.enps ?? -999));
+  return [...empresa, ...areas].map((r, i) => {
+    const escondida = r.cut_type !== 'company' && !podeVerIndividual
+      && ((r.n ?? 0) < N_MINIMO_EXIBICAO || pedacoPequeno(r, false));
+    return {
+      wave,
+      scope: r.cut_type === 'company' ? 'company' : r.cut_value,
+      enps: escondida ? null : r.enps,
+      enps_delta: null,
+      retention_risk: escondida ? null : r.risco,
+      rr_delta: null,
+      satisfaction: escondida ? null : r.satisfacao,
+      sat_delta: null,
+      participation: null,
+      status: null,
+      gap_ent_enps: null,
+      position: i,
+    };
+  });
 }
 
 export interface EngagementScore {
@@ -134,6 +198,8 @@ export interface ExperienceData {
    * rótulo dentro de uma tela filtrada por área seria lido como sendo da área.
    */
   escopo: { restrito: boolean; departamento: string | null };
+  /** Presente quando o seletor de entidade do topo está recortando a aba. */
+  entidade?: RecorteEntidade | null;
   /**
    * As ondas que existem no banco, da mais recente para a mais antiga.
    *
@@ -169,9 +235,10 @@ export interface OndaResumo {
 
 export const getExperienceData = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => DeptFilterInput.parse(input))
+  .validator((input: unknown) => EntidadeFilterInput.parse(input))
   .handler(async ({ context, data: input }): Promise<ExperienceData> => {
-    const { scope, subTabs } = await authorize(context.claims.email as string | undefined);
+    const { scope, subTabs, podeVerIndividual } = await authorize(context.claims.email as string | undefined);
+    const marcas = marcasDaEntidade(input?.brand);
 
     // ======================================================================
     // O FILTRO PEDIDO NÃO PODE AMPLIAR O ESCOPO -- SÓ ESTREITAR
@@ -229,11 +296,16 @@ export const getExperienceData = createServerFn({ method: 'GET' })
     const ondaAnterior = ondaAnt?.wave ?? null;
 
     const [eng, engAnt, drv, onb, dist] = await Promise.all([
-      ondaAtual
+      // Com entidade, empresa e áreas vêm refeitas das marcas; sem, do deck.
+      marcas
+        ? engajamentoDaEntidade(db, ondaAtual, marcas, podeVerIndividual).then((d) => ({ data: d, error: null }))
+        : ondaAtual
         ? db.from('engagement_scores').select('*').eq('wave', ondaAtual).order('position', { ascending: true })
         : db.from('engagement_scores').select('*').order('position', { ascending: true }),
       // A onda anterior entra so para o delta ser CALCULADO. Ver abaixo.
-      ondaAnterior
+      marcas
+        ? engajamentoDaEntidade(db, ondaAnterior, marcas, podeVerIndividual).then((d) => ({ data: d, error: null }))
+        : ondaAnterior
         ? db.from('engagement_scores').select('scope, enps, retention_risk, satisfaction').eq('wave', ondaAnterior)
         : Promise.resolve({ data: [], error: null }),
       db
@@ -398,6 +470,15 @@ export const getExperienceData = createServerFn({ method: 'GET' })
         restrito: !podeVerTudo,
         departamento: sel === '\u0000SEM-ESCOPO' ? null : sel,
       },
+      entidade: input?.brand && input.brand !== 'combined'
+        ? {
+            brand: input.brand,
+            marcas: marcas ?? [],
+            daEmpresaInteira: marcas
+              ? ['drivers do deck', 'onboarding', 'inclusão & pertencimento', 'participação']
+              : ['tudo'],
+          }
+        : null,
     };
   });
 
@@ -436,6 +517,8 @@ export interface EngagementCrossData extends EngagementContextResult {
    */
   ondaAtualLabel: string | null;
   ondaAnteriorLabel: string | null;
+  /** Presente quando o seletor de entidade do topo está recortando a aba. */
+  entidade?: RecorteEntidade | null;
   /**
    * Os três indicadores por área ao longo de TODAS as ondas com dado, da mais
    * antiga para a mais nova. O nome ficou de quando a tela desenhava só o
@@ -532,9 +615,13 @@ export interface PontoOnda {
 
 export const getEngagementCross = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .validator((input: unknown) => DeptFilterInput.parse(input))
+  .validator((input: unknown) => EntidadeFilterInput.parse(input))
   .handler(async ({ context, data: input }): Promise<EngagementCrossData> => {
-    const { scope } = await authorize(context.claims.email as string | undefined);
+    const { scope, podeVerIndividual } = await authorize(context.claims.email as string | undefined);
+    const marcas = marcasDaEntidade(input?.brand);
+    // Nome da entidade em `convenia_leavers.marca`, que grava 'Betfair' e não
+    // 'Betfair BR'. Só usado quando há recorte de entidade.
+    const marcaNoConvenia = input?.brand === 'Betfair BR' ? 'Betfair' : input?.brand ?? null;
     const podeVerTudo = isGlobalProfile(scope.profile);
 
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server');
@@ -558,12 +645,16 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       escolherOndas((ondasBrutas ?? []) as OndaLinha[]);
 
     const [eng, engAnt, todasOndas, mm, lv] = await Promise.all([
-      db
+      marcas
+        ? engajamentoDaEntidade(db, ondaAtual?.wave ?? null, marcas, podeVerIndividual).then((d) => ({ data: d, error: null }))
+        : db
         .from('engagement_scores')
         .select('scope, enps, enps_delta, retention_risk, satisfaction, participation, status, gap_ent_enps')
         .eq('wave', ondaAtual?.wave ?? '')
         .order('position', { ascending: true }),
-      ondaAnterior
+      marcas
+        ? engajamentoDaEntidade(db, ondaAnterior?.wave ?? null, marcas, podeVerIndividual).then((d) => ({ data: d, error: null }))
+        : ondaAnterior
         ? db.from('engagement_scores')
             .select('scope, enps, retention_risk, satisfaction')
             .eq('wave', ondaAnterior.wave)
@@ -598,17 +689,51 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
         .in('cut_type', ['area', 'tempo', 'area+tempo', 'marca', 'area+marca']),
       // Só NSX/reconstruido tem dept_breakdown. Ver ressalva abaixo: a pesquisa
       // cobre a Flutter Brazil inteira, a quebra por área só existe para NSX.
-      db
-        .from('monthly_metrics')
-        .select('month, dept_breakdown')
-        .eq('brand', 'NSX')
-        .eq('source', 'reconstruido')
-        .is('quality_flag', null)
-        .not('dept_breakdown', 'is', null),
-      db
-        .from('leavers')
-        .select('departamento, job_family, data_desligamento, tipo_desligamento_agrupado')
-        .gte('data_desligamento', `${JANELA.inicio}-01`),
+      //
+      // COM ENTIDADE: o headcount da própria entidade, da série Convenia, que
+      // tem quebra por área para NSX e para Betfair BR.
+      marcas
+        ? db
+            .from('monthly_metrics')
+            .select('month, dept_breakdown')
+            .eq('brand', input?.brand ?? '')
+            .eq('source', 'convenia')
+            .is('quality_flag', null)
+            .not('dept_breakdown', 'is', null)
+        : db
+            .from('monthly_metrics')
+            .select('month, dept_breakdown')
+            .eq('brand', 'NSX')
+            .eq('source', 'reconstruido')
+            .is('quality_flag', null)
+            .not('dept_breakdown', 'is', null),
+      // COM ENTIDADE: `convenia_leavers`, a única base de desligados que sabe
+      // a entidade (`leavers` é a planilha antiga, sem essa coluna). Só as
+      // colunas da contagem -- nada de nome, salário ou motivo sai daqui.
+      marcas
+        ? db
+            .from('convenia_leavers')
+            .select('department, job_type_family, dismissal_date, dismissal_type')
+            .eq('marca', marcaNoConvenia ?? '')
+            .gte('dismissal_date', `${JANELA.inicio}-01`)
+            .then((r: { data: unknown; error: { message: string } | null }) => ({
+              error: r.error,
+              data: ((r.data ?? []) as Array<{
+                department: string | null; job_type_family: string | null;
+                dismissal_date: string | null; dismissal_type: string | null;
+              }>).map((x) => ({
+                departamento: x.department ? normalizeDept(x.department) : null,
+                job_family: x.job_type_family,
+                data_desligamento: x.dismissal_date,
+                tipo_desligamento_agrupado: x.dismissal_type
+                  ? ROTULO_TIPO[classificarSaida(x.dismissal_type)]
+                  : null,
+              })),
+            }))
+        : db
+            .from('leavers')
+            .select('departamento, job_family, data_desligamento, tipo_desligamento_agrupado')
+            .gte('data_desligamento', `${JANELA.inicio}-01`),
     ]);
 
     if (eng.error) throw new Error(`Falha ao carregar engajamento: ${eng.error.message}`);
@@ -626,7 +751,9 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
         // O headcount da área não vem pronto no blob; é a soma do level_base,
         // que é a contagem de pessoas por nível. gender_female + gender_male
         // daria o mesmo total, mas perde quem está sem gênero cadastrado.
-        const total = Object.values(d?.level_base ?? {}).reduce((s, n) => s + (n || 0), 0);
+        // A série Convenia (usada com entidade) traz `headcount` pronto.
+        const pronto = Number((d as { headcount?: number } | null)?.headcount ?? 0);
+        const total = pronto || Object.values(d?.level_base ?? {}).reduce((s, n) => s + (n || 0), 0);
         if (total > 0) porDept[dept] = total;
       }
       hcPorMesDept[ym] = porDept;
@@ -741,13 +868,22 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
       promotores: number | null; passivos: number | null; detratores: number | null;
       risco: number | null; satisfacao: number | null;
     };
-    const todosCuts = (todasOndas.data ?? []) as LinhaCut[];
+    // Com entidade, 'company' e 'area' refeitos das marcas (ver
+    // recorte-entidade.ts). Tempo de casa segue da empresa inteira; as linhas
+    // de marca seguem como estão, para a série por marca.
+    const todosCuts: Array<LinhaCut & { nMinComponente?: number }> = marcas
+      ? (rebasearCuts((todasOndas.data ?? []) as unknown as CutLinha[], marcas) as unknown as LinhaCut[])
+      : ((todasOndas.data ?? []) as LinhaCut[]);
+    // Área pequena de uma entidade não entra na série nominal para quem não
+    // vê dado individual -- nem com o n ao lado.
+    const areaPequena = (r: LinhaCut & { nMinComponente?: number }) =>
+      !!marcas && !podeVerIndividual && (Number(r.n ?? 0) < N_MINIMO_EXIBICAO || pedacoPequeno(r, false));
 
     const porOnda = new Map<string, PontoOnda[]>();
     for (const r of todosCuts) {
       if (r.cut_type !== 'area') continue;
       const nome = r.cut_value ?? '';
-      if (r.enps == null || !podeVerArea(nome)) continue;
+      if (r.enps == null || !podeVerArea(nome) || areaPequena(r)) continue;
       const lista = porOnda.get(r.wave) ?? [];
       lista.push({
         scope: nome,
@@ -1057,9 +1193,13 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
         })()
       : null;
 
-    const ressalvas: string[] = [
-      'A pesquisa cobre a Flutter Brazil inteira; a quebra de headcount por área só existe para a NSX. Se as linhas por departamento da pesquisa incluírem gente da Betfair, o denominador está subestimado e a atrição sai um pouco alta.',
-    ];
+    const ressalvas: string[] = marcas
+      ? [
+          `Recorte ${input?.brand}: respostas de ${marcas.join(' + ')}, contra headcount e desligamentos da entidade ${input?.brand}. Quem é Cross Brand responde nas duas entidades mas está no headcount de uma só -- a comparação com saídas é aproximada.`,
+        ]
+      : [
+          'A pesquisa cobre a Flutter Brazil inteira; a quebra de headcount por área só existe para a NSX. Se as linhas por departamento da pesquisa incluírem gente da Betfair, o denominador está subestimado e a atrição sai um pouco alta.',
+        ];
     if (result.semCorrespondencia.length) {
       ressalvas.push(
         `Sem departamento correspondente no dashboard: ${result.semCorrespondencia.join(', ')}. Estas áreas aparecem nas visões da pesquisa, mas ficam fora do cruzamento com saídas.`,
@@ -1074,6 +1214,13 @@ export const getEngagementCross = createServerFn({ method: 'GET' })
 
     return {
       ...result,
+      entidade: input?.brand && input.brand !== 'combined'
+        ? {
+            brand: input.brand,
+            marcas: marcas ?? [],
+            daEmpresaInteira: marcas ? ['tempo de casa'] : ['tudo'],
+          }
+        : null,
       ressalvas,
       ondaAtualLabel: ondaAtual?.label ?? null,
       ondaAnteriorLabel: ondaAnterior?.label ?? null,

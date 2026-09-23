@@ -20,6 +20,18 @@ export const DeptFilterInput = z
 
 export type DeptFilterData = z.infer<typeof DeptFilterInput>;
 
+/**
+ * Departamento + a entidade do seletor do topo, para as funções da pesquisa.
+ * A entidade não amplia escopo: ela só troca QUAIS respostas entram (ver
+ * `recorte-entidade.ts`), e a permissão por área continua valendo por cima.
+ */
+export const EntidadeFilterInput = z
+  .object({
+    department: z.string().trim().max(80).optional(),
+    brand: z.enum(['combined', 'NSX', 'Betfair BR', 'Flutter International']).optional(),
+  })
+  .optional();
+
 /** 'Todos', vazio e nulo significam "sem seleção" (ver `filtro-sentinela.ts`). */
 export function selectedDept(data: DeptFilterData): string | null {
   const d = data?.department;

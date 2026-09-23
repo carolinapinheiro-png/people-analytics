@@ -83,8 +83,8 @@ const AREAS_DA_PESQUISA = [...new Set(Object.values(SCOPE_TO_DEPT))].sort();
  *
  * Pôr os nomes do topo aqui daria um seletor onde escolher "NSX" não encontra
  * linha nenhuma, e vazio na tela se lê como "ninguém desta marca respondeu".
- * "NSX BETFAIR BRASIL S.A." é o lembrete de que os dois vocabulários se
- * parecem o bastante para alguém tentar mapear um no outro.
+ * O mapeamento entre os dois (entidade = a sua marca + Cross Brand) existe
+ * e mora em `lib/recorte-entidade.ts`; este seletor continua sendo o de marca.
  *
  * `CROSS_BRAND` vem do agregador, e não escrito à mão: foi renomeado uma vez
  * ("Ambas" -> "Cross Brand", pedido da Marilia) e uma cópia aqui teria ficado

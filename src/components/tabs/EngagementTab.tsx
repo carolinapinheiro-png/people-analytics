@@ -49,7 +49,7 @@ import { useDashboard } from "@/data/DashboardContext";
 import { semFiltro, valorFiltro } from "@/lib/filtro-sentinela";
 import { scopeForDept } from "@/lib/engagement-context";
 import { recorteAtivo } from "@/lib/recorte-ativo";
-import { filtrosDaPesquisa, marcaDaEntidade } from "@/lib/marca-da-entidade";
+import { marcasDaEntidade } from "@/lib/recorte-entidade";
 
 /**
  * Aba Experiencia: engajamento, jornada de entrada e inclusao.
@@ -104,9 +104,7 @@ function EngagementSection({
   cross: EngagementCrossData | null;
   survey: SurveyWaveData | null;
 }) {
-  const { filters: filtrosDaBarra, brand } = useDashboard();
-  // A entidade do topo vira marca de produto (ver lib/marca-da-entidade.ts).
-  const filters = filtrosDaPesquisa(filtrosDaBarra, brand);
+  const { filters } = useDashboard();
   // ------------------------------------------------------------------
   // QUAL RECORTE DE PERFIL ESTÁ ATIVO, SE ALGUM
   // ------------------------------------------------------------------
@@ -1287,7 +1285,7 @@ export default function EngagementTab() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchData({ data: { department: filters.departamento } })
+    fetchData({ data: { department: filters.departamento, brand } })
       .then((d) => {
         if (!cancelled) setData(d as ExperienceData);
       })
@@ -1297,7 +1295,7 @@ export default function EngagementTab() {
     return () => {
       cancelled = true;
     };
-  }, [fetchData, filters.departamento]);
+  }, [fetchData, filters.departamento, brand]);
 
   // ------------------------------------------------------------------
   // O CRUZAMENTO PASSOU A RESPEITAR O FILTRO
@@ -1320,7 +1318,7 @@ export default function EngagementTab() {
   // o cruzamento, então o erro só some com os gráficos.
   useEffect(() => {
     let cancelled = false;
-    fetchCross({ data: { department: filters.departamento } })
+    fetchCross({ data: { department: filters.departamento, brand } })
       .then((d) => {
         if (!cancelled) setCross(d as EngagementCrossData);
       })
@@ -1330,7 +1328,7 @@ export default function EngagementTab() {
     return () => {
       cancelled = true;
     };
-  }, [fetchCross, filters.departamento]);
+  }, [fetchCross, filters.departamento, brand]);
 
   // Recortes da onda mais recente.
   //
@@ -1357,13 +1355,16 @@ export default function EngagementTab() {
     // cópia da regra de composição -- e a cópia do servidor já tinha
     // esquecido a área, procurando "24+ meses" onde está gravado
     // "Marketing || 24+ meses". Uma composição, um lugar, com teste.
-    const perfilPedido = recorteAtivo(filtrosDaPesquisa(filters, brand), null);
+    const perfilPedido = recorteAtivo(filters, null);
     fetchSurvey({
       data: {
         department: filters.departamento,
         perfilTipo: (perfilPedido?.cutType ?? null) as
           | "tempo" | "modelo" | "marca" | "funcao" | "tempo+modelo" | null,
         perfilValor: perfilPedido?.valor ?? null,
+        // A entidade do topo: o servidor troca empresa e áreas pela soma das
+        // marcas dela (ver lib/recorte-entidade.ts).
+        brand,
       },
     })
       .then((d) => {
@@ -1426,57 +1427,33 @@ export default function EngagementTab() {
       </div>
 
       {/* ------------------------------------------------------------------
-          O SELETOR DO TOPO NÃO ALCANÇA ESTA ABA, E ISSO PRECISA SER DITO
+          23/09: O SELETOR DE ENTIDADE PASSOU A RECORTAR A ABA
           ------------------------------------------------------------------
-          Primeira coisa que a Marilia falou na revisão: "se eu coloco BF ou se
-          eu coloco NSX, ele ainda não tá fazendo essa troca". Está certa -- e
-          esta aba nunca leu `brand`.
+          O aviso anterior dizia que entidade e marca "não são a mesma coisa" e
+          que "NSX BETFAIR BRASIL S.A." é entidade NSX. Estava errado -- o
+          próprio agregador roteia essa razão social para Betfair BR -- e ainda
+          mandava a pessoa a um filtro "Marca de produto" que saiu da barra em
+          10/09.
 
-          Só que aqui, ao contrário dos outros seis casos desta semana, a
-          limitação é REAL. O seletor separa ENTIDADE (NSX, Betfair BR, Flutter
-          International), que vem da razão social no headcount. A pesquisa não
-          pergunta isso: `PollyResponse` tem área, tempo de casa, função, marca
-          e modelo, e nada de entidade.
-
-          O que existe é MARCA DE PRODUTO -- Betnacional, Betfair, Cross Brand
-          --, que é outro eixo. Mapear uma na outra seria inventar, e o próprio
-          agregador avisa por quê: "NSX BETFAIR BRASIL S.A." começa com NSX e é
-          Betfair. Os nomes se parecem e não coincidem.
-
-          Então o seletor não passa a funcionar: ele passa a dizer que não se
-          aplica, e a apontar o recorte que responde a pergunta parecida. Um
-          controle visível que não faz nada é pior que um controle ausente --
-          quem troca e não vê mudança conclui que os números são iguais. */}
-      {/* ------------------------------------------------------------------
-          O AVISO EXPLICAVA O NÃO E NÃO DAVA O SIM
-          ------------------------------------------------------------------
-          Ele foi escrito depois de a Marilia levantar o assunto na revisão, e
-          a mesma queixa voltou pela Thais semanas depois -- com o aviso na
-          tela. Duas pessoas diferentes, mesma pergunta: sinal de que o texto
-          não estava resolvendo.
-
-          Relendo, o motivo fica claro. Ele respondia "por que este seletor não
-          se aplica" e mandava a pessoa procurar "os blocos por marca abaixo",
-          que é uma indicação vaga de leitura passiva. Quem chegou ali queria
-          FILTRAR Product por Betfair, e a resposta era um parágrafo dizendo
-          que não dava.
-
-          Agora dá: 'area+marca' sempre esteve gravado, e o filtro de marca de
-          produto passou a existir na barra. O aviso vira um encaminhamento --
-          o controle certo, pelo nome, com os valores que ele aceita. */}
-      {/* 23/09: o aviso acima dizia que entidade e marca não coincidem, o que
-          estava errado -- ver lib/marca-da-entidade.ts. E mandava a pessoa a
-          um filtro "Marca de produto" que saiu da barra em 10/09. Agora o
-          seletor recorta a pesquisa; o aviso só diz COMO. */}
+          A regra, da Carolina: cada entidade é a sua marca MAIS o Cross Brand,
+          que pertence às duas. O servidor refaz empresa e áreas assim (ver
+          lib/recorte-entidade.ts); aqui a tela só diz o que entrou e o que
+          continua sendo da Flutter Brazil inteira. */}
       {brand !== "combined" && (
         <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          {marcaDaEntidade(brand) ? (
+          {marcasDaEntidade(brand) ? (
             <>
-              Mostrando as respostas de quem marcou{' '}
-              <strong className="text-foreground">{marcaDaEntidade(brand)}</strong> na pesquisa
-              {' '}(a marca atendida pela entidade {brand}). Quem respondeu{' '}
-              <strong className="text-foreground">Cross Brand</strong> não entra neste recorte,
-              porque a pesquisa é anônima e não diz a entidade dessa pessoa.
+              <strong className="text-foreground">{brand}</strong>: respostas de quem marcou{' '}
+              <strong className="text-foreground">{marcasDaEntidade(brand)!.join(' + ')}</strong> na
+              pesquisa. Cross Brand entra nas duas entidades, então Betfair BR + NSX soma mais que a
+              Flutter Brazil. Seguem da <strong className="text-foreground">Flutter Brazil inteira</strong>,
+              por não terem marca na pesquisa:{' '}
+              {[...new Set([
+                ...(data.entidade?.daEmpresaInteira ?? []),
+                ...(cross?.entidade?.daEmpresaInteira ?? []),
+                ...(survey?.entidade?.daEmpresaInteira ?? []),
+              ])].join(', ')}.
+              {' '}Jul/25 não perguntou marca e fica fora das séries.
             </>
           ) : (
             <>

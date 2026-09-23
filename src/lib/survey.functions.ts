@@ -12,6 +12,10 @@ import {
 import { selectedDept, recorteNoEscopo } from '@/lib/dept-filter';
 import { semFiltro } from '@/lib/filtro-sentinela';
 import { recorteVisivel } from '@/lib/recorte-visivel';
+import {
+  marcasDaEntidade, rebasearCuts, rebasearDrivers, suprimirPedacos,
+  type CutLinha, type DriverLinha, type RecorteEntidade,
+} from '@/lib/recorte-entidade';
 
 /**
  * Carga e leitura da pesquisa de engajamento.
@@ -256,6 +260,8 @@ export interface SurveyWaveData {
   /** Quantos recortes tiveram a nota escondida para este perfil. */
   suprimidos: number;
   minimoExibicao: number;
+  /** Presente quando o seletor de entidade do topo está recortando a onda. */
+  entidade?: RecorteEntidade | null;
 }
 
 export const getSurveyWave = createServerFn({ method: 'GET' })
@@ -281,6 +287,9 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       // A ÁREA nunca vem daqui: quem a acrescenta é o servidor, com o nome que
       // o escopo autoriza. Ver `cruzadoPedido`.
       perfilValor: z.string().nullish(),
+      // A entidade do topo. Ver `recorte-entidade.ts`: vira a soma das marcas
+      // dela (a própria + Cross Brand) no lugar de 'company' e 'area'.
+      brand: z.enum(['combined', 'NSX', 'Betfair BR', 'Flutter International']).nullish(),
     }).parse(input ?? {}))
   .handler(async ({ context, data }): Promise<SurveyWaveData | null> => {
     const { profile, scope, podeVerIndividual } = await authorize(context.claims.email as string | undefined);
@@ -398,6 +407,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // vinha vazia. É a terceira vez esta semana que este arquivo erra na
     // fronteira entre os dois vocabulários.
     const areaGravada = sel ? scopeForDept(sel) : null;
+    const marcas = marcasDaEntidade(data.brand);
     const cruzadoPedido = !perfil
       ? null
       : areaGravada
@@ -434,7 +444,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     const idxAtual = (waves ?? []).findIndex((w: { wave: string }) => w.wave === wave.wave);
     const ondaAnterior = idxAtual >= 0 ? (waves ?? [])[idxAtual + 1] : undefined;
 
-    const [cutRes, impRes, drvRes, hcRes, cruzRes, antRes] = await Promise.all([
+    const [cutRes, impRes, drvRes, hcRes, cruzRes, antRes, drvMarcaRes] = await Promise.all([
       db.from('survey_cut_scores').select('*').eq('wave', wave.wave),
       db.from('survey_driver_importance').select('*').eq('wave', wave.wave).order('r', { ascending: false }),
       // ------------------------------------------------------------------
@@ -497,14 +507,32 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
         ? db.from('survey_driver_scores')
             .select('driver, question, cut_type, cut_value, n, score, favoravel')
             .eq('wave', ondaAnterior.wave)
-            .in('cut_type', ['company', 'area'])
+            // Com entidade, 'company' e 'area' são refeitos a partir das
+            // marcas -- então elas precisam vir.
+            .in('cut_type', marcas ? ['marca', 'area+marca'] : ['company', 'area'])
+            .limit(5000)
+        : Promise.resolve({ data: [], error: null }),
+      // 'area+marca' dos drivers: é cruzamento, então não vem em
+      // `tiposDeDriver`. Só é pedido quando a entidade vai precisar dele.
+      marcas
+        ? db.from('survey_driver_scores')
+            .select('driver, question, cut_type, cut_value, n, score, favoravel')
+            .eq('wave', wave.wave)
+            .eq('cut_type', 'area+marca')
             .limit(5000)
         : Promise.resolve({ data: [], error: null }),
     ]);
     if (cutRes.error) throw new Error(`Falha ao carregar recortes: ${cutRes.error.message}`);
 
     const podeVerTudo = podeVerIndividual;
-    const brutos = (cutRes.data ?? []).map((c: Record<string, unknown>) => ({
+    // Com entidade, 'company' e 'area' viram a soma das marcas dela ANTES de
+    // qualquer outra regra: escopo, seleção e supressão seguem valendo sobre
+    // as linhas refeitas exatamente como valiam sobre as originais.
+    const cutLinhas = (cutRes.data ?? []) as unknown as CutLinha[];
+    const cutsBase: Array<CutLinha & { nMinComponente?: number }> =
+      marcas ? rebasearCuts(cutLinhas, marcas) : cutLinhas;
+    const brutos = cutsBase.map((c) => ({
+      nMinComponente: (c as { nMinComponente?: number }).nMinComponente,
       cutType: String(c.cut_type), cutValue: String(c.cut_value),
       n: Number(c.n),
       enps: c.enps == null ? null : Number(c.enps),
@@ -590,9 +618,11 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // A supressão é aplicada AQUI, antes de a linha existir na resposta HTTP.
     // Fazer isso na tela deixaria o número real no payload -- visível para
     // qualquer pessoa que abrisse a aba de rede do navegador.
-    const cuts = applySuppression(noEscopo, podeVerTudo, [
-      'enps', 'risco', 'satisfacao', 'promotores', 'passivos', 'detratores',
-    ]) as SurveyCut[];
+    const camposCut = ['enps', 'risco', 'satisfacao', 'promotores', 'passivos', 'detratores'];
+    const cuts = suprimirPedacos(
+      applySuppression(noEscopo, podeVerTudo, camposCut as Array<keyof (typeof noEscopo)[number]>),
+      podeVerTudo, camposCut,
+    ) as unknown as SurveyCut[];
 
     cuts.sort((a, b) =>
       a.cutType !== b.cutType ? a.cutType.localeCompare(b.cutType)
@@ -613,8 +643,12 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // A supressão por n baixo vale aqui também: uma área com três respostas
     // não pode ter a nota exposta porque quem olha clicou em vez de ler a
     // tabela.
-    const driversBrutos = [
+    const driversSimples = [
       ...((drvRes.error ? [] : drvRes.data ?? []) as Array<Record<string, unknown>>),
+      ...((drvMarcaRes.error ? [] : drvMarcaRes.data ?? []) as Array<Record<string, unknown>>),
+    ] as unknown as DriverLinha[];
+    const driversBrutos = [
+      ...((marcas ? rebasearDrivers(driversSimples, marcas) : driversSimples) as unknown as Array<Record<string, unknown>>),
       ...((cruzRes.error ? [] : cruzRes.data ?? []) as Array<Record<string, unknown>>),
     ];
     const driversNoEscopo = driversBrutos
@@ -623,6 +657,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       // deixou o filtro por tempo de casa sem clima para perfil com escopo.
       .filter((d) => podeVerORecorte(String(d.cut_type), String(d.cut_value)))
       .map((d) => ({
+        nMinComponente: d.nMinComponente as number | undefined,
         driver: String(d.driver),
         question: String(d.question),
         cutType: String(d.cut_type),
@@ -640,7 +675,10 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // agosto daria 635 e a soma das áreas não fecharia com o cartão.
     const mesRef = String(wave.reference_date ?? '').slice(0, 7);
     const elegiveisPorArea: Record<string, number> = {};
-    for (const row of (hcRes.error ? [] : hcRes.data ?? []) as Array<{
+    // Com entidade não há denominador honesto: o Cross Brand responde nas
+    // duas entidades e está no headcount de uma só. A taxa sairia acima de
+    // 100% em área pequena. Sem denominador, a tela não mostra taxa.
+    for (const row of (marcas || hcRes.error ? [] : hcRes.data ?? []) as Array<{
       month: string; dept_breakdown: unknown;
     }>) {
       if (String(row.month).slice(0, 7) !== mesRef) continue;
@@ -659,17 +697,20 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       }
     }
 
-    const driversPorArea = applySuppression(
-      driversNoEscopo, podeVerTudo, ['score', 'favoravel'],
-    ) as DriverPorRecorte[];
+    const driversPorArea = suprimirPedacos(
+      applySuppression(driversNoEscopo, podeVerTudo, ['score', 'favoravel']),
+      podeVerTudo, ['score', 'favoravel'],
+    ) as unknown as DriverPorRecorte[];
 
     // A onda anterior passa pelas MESMAS duas portas -- escopo e supressão --
     // e não por uma segunda implementação delas. Dado velho não é dado
     // público: quem não pode ver a área hoje não pode vê-la em julho.
-    const driversAnteriores = applySuppression(
-      ((antRes.error ? [] : antRes.data ?? []) as Array<Record<string, unknown>>)
+    const antBrutos = (antRes.error ? [] : antRes.data ?? []) as unknown as DriverLinha[];
+    const driversAnteriores = suprimirPedacos(applySuppression(
+      ((marcas ? rebasearDrivers(antBrutos, marcas) : antBrutos) as unknown as Array<Record<string, unknown>>)
         .filter((d) => podeVerORecorte(String(d.cut_type), String(d.cut_value)))
         .map((d) => ({
+          nMinComponente: d.nMinComponente as number | undefined,
           driver: String(d.driver),
           question: String(d.question),
           cutType: String(d.cut_type),
@@ -679,15 +720,27 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
           favoravel: d.favoravel == null ? null : Number(d.favoravel),
         })),
       podeVerTudo, ['score', 'favoravel'],
-    ) as DriverPorRecorte[];
+    ), podeVerTudo, ['score', 'favoravel']) as unknown as DriverPorRecorte[];
 
+    // Com entidade, "respondentes" é o n da empresa refeita -- e sem
+    // denominador (ver elegíveis acima), sem participação.
+    const empresaEntidade = marcas ? cutsBase.find((c) => c.cut_type === 'company') : null;
     return {
       wave: String(wave.wave),
       label: String(wave.label),
-      respondentes: Number(wave.respondents),
-      elegiveis: wave.eligible == null ? null : Number(wave.eligible),
-      participacao: wave.eligible
+      respondentes: marcas ? Number(empresaEntidade?.n ?? 0) : Number(wave.respondents),
+      elegiveis: marcas || wave.eligible == null ? null : Number(wave.eligible),
+      participacao: !marcas && wave.eligible
         ? Math.round((Number(wave.respondents) / Number(wave.eligible)) * 1000) / 10
+        : null,
+      entidade: data.brand && data.brand !== 'combined'
+        ? {
+            brand: data.brand,
+            marcas: marcas ?? [],
+            daEmpresaInteira: marcas
+              ? ['tempo de casa', 'modelo de trabalho', 'função', 'o que mais pesa no eNPS', 'participação']
+              : ['tudo'],
+          }
         : null,
       cuts,
       importancia: (impRes.error ? [] : impRes.data ?? [])
