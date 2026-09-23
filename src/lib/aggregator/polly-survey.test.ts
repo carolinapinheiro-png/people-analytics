@@ -153,14 +153,17 @@ test('recorte de empresa soma todo mundo', () => {
 
 // ---------------------------------------------------------------- sigilo
 
-test('sigilo: esconde a nota abaixo de 5, mantendo o n e o recorte', () => {
-  const rows = [{ n: 3, enps: 33, risco: 66 }, { n: 12, enps: 80, risco: 10 }];
+test('sem mínimo (23/09): grupo pequeno mostra a nota para todos os perfis', () => {
+  const rows = [{ n: 3, enps: 33, risco: 66 }, { n: 1, enps: 100, risco: 0 }];
   const out = applySuppression(rows, false, ['enps', 'risco']);
-  assert.equal(out[0].suprimido, true);
+  assert.equal(out[0].suprimido, false);
+  assert.equal(out[0].enps, 33);
+  assert.equal(out[1].enps, 100, 'até uma resposta aparece');
+});
+
+test('grupo sem resposta continua sem nota', () => {
+  const out = applySuppression([{ n: 0, enps: null }], false, ['enps']);
   assert.equal(out[0].enps, null);
-  assert.equal(out[0].n, 3, 'o n precisa continuar visível');
-  assert.equal(out[1].suprimido, false);
-  assert.equal(out[1].enps, 80);
 });
 
 test('sigilo: perfil que já vê dado individual vê tudo', () => {
@@ -169,7 +172,7 @@ test('sigilo: perfil que já vê dado individual vê tudo', () => {
   assert.equal(out[0].enps, 50);
 });
 
-test('sigilo: o limite é exatamente 5, não 6', () => {
+test('sigilo: no limite exato a nota aparece', () => {
   const out = applySuppression([{ n: N_MINIMO_EXIBICAO, enps: 1 }], false, ['enps']);
   assert.equal(out[0].suprimido, false);
 });

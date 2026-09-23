@@ -72,8 +72,18 @@ export interface PollyResponse {
   drivers: Record<string, number>;
 }
 
-/** Abaixo disto a nota não é exibida para quem não é RH. Ver `applySuppression`. */
-export const N_MINIMO_EXIBICAO = 5;
+/**
+ * Abaixo disto a nota não é exibida para quem não é RH. Ver `applySuppression`.
+ *
+ * Era 5 até 23/09. Decisão da Carolina: "temos áreas pequenas e não faz
+ * sentido a gente esconder os resultados". Com 1, toda nota de grupo que teve
+ * resposta aparece para todos os perfis; só grupo sem resposta fica vazio.
+ *
+ * O mecanismo (`applySuppression`, `minimoExibicao` na resposta, as telas que
+ * explicam grupo oculto) fica no lugar: voltar a ter um mínimo é mudar só
+ * este número.
+ */
+export const N_MINIMO_EXIBICAO = 1;
 
 // ---------------------------------------------------------------- normalização
 
