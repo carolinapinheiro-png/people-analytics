@@ -824,7 +824,9 @@ function EngagementSection({
                           )}
                         </td>
                       )}
-                      <td className="p-2 text-xs text-muted-foreground">{d.status}</td>
+                      <td className="p-2 text-xs text-muted-foreground">
+                        {d.oculto ? "oculta (anonimato)" : d.status}
+                      </td>
                     </tr>
                   );
                 })}
@@ -1465,6 +1467,19 @@ export default function EngagementTab() {
                 ...(survey?.entidade?.daEmpresaInteira ?? []),
               ])].join(', ')}.
               {' '}Jul/25 não perguntou marca e fica fora das séries.
+              {/* Com "Todos", as áreas escondidas por anonimato são nomeadas
+                  aqui -- uma linha de tabela com "—" sem motivo parece defeito. */}
+              {(() => {
+                const ocultas = data.engagement.filter((e) => e.oculto).map((e) => e.scope);
+                return ocultas.length > 0 ? (
+                  <>
+                    {' '}Nesta entidade, ficam ocultas para proteger o anonimato (daria para deduzir as
+                    respostas de um grupo de menos de 5 pessoas):{' '}
+                    <strong className="text-foreground">{ocultas.join(', ')}</strong>. No seletor
+                    Combinado elas aparecem.
+                  </>
+                ) : null;
+              })()}
             </>
           ) : (
             <>
