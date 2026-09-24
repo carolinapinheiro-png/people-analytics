@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import MetricHelp from '@/components/dashboard/MetricHelp';
 import { TONE_TEXT, type ChaveMetrica, type KpiTone } from '@/lib/metric-help';
 
+import { tx } from '@/lib/i18n';
 /**
  * Cartão de KPI.
  *
@@ -64,8 +65,8 @@ export default function KpiCard({
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-1 mb-1.5">
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</span>
-            {help && <MetricHelp metrica={help} valor={helpValue} rotulo={label} />}
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{tx(label)}</span>
+            {help && <MetricHelp metrica={help} valor={helpValue} rotulo={tx(label)} />}
           </div>
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <div className={cn(
@@ -77,7 +78,7 @@ export default function KpiCard({
             </div>
             {delta}
           </div>
-          {hint && <div className="text-[11px] text-muted-foreground mt-0.5">{hint}</div>}
+          {hint && <div className="text-[11px] text-muted-foreground mt-0.5">{tx(hint)}</div>}
           {sub && <div className="text-[11px] text-muted-foreground mt-0.5" dangerouslySetInnerHTML={{ __html: sub }} />}
         </div>
         {Icon && (

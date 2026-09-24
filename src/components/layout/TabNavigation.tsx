@@ -13,6 +13,7 @@ import { useDashboard, TabType } from '@/data/DashboardContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { visibleTabs } from '@/lib/permissions';
 
+import { tx } from '@/lib/i18n';
 const tabs: { id: TabType; label: string }[] = [
   { id: 'overview', label: 'Overview' },
   { id: 'dei', label: 'DEI Metrics' },
@@ -55,7 +56,7 @@ export default function TabNavigation() {
           )}
           style={activeTab === tab.id ? { borderBottomColor: brandColor } : undefined}
         >
-          {tab.label}
+          {tx(tab.label)}
         </button>
       ))}
     </div>

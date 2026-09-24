@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { toast } from 'sonner';
 import { vincularCamadaComp } from '@/lib/comp.functions';
 
+import { tx } from '@/lib/i18n';
 interface Resultado {
   total: number;
   casados: number;
@@ -37,7 +38,7 @@ export default function VinculoCamadaCard() {
     try {
       setR((await rodar({ data: {} })) as Resultado);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao conferir');
+      toast.error(e instanceof Error ? tx(e.message) : tx("Falha ao conferir"));
     } finally {
       setOcupado(false);
     }
@@ -50,66 +51,60 @@ export default function VinculoCamadaCard() {
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2">
           <Link2 className="h-5 w-5 text-muted-foreground" />
-          Camada N na folha — conferência
+          {tx("Camada N na folha — conferência")}
         </CardTitle>
         <CardDescription>
-          Compara a folha de remuneração com o organograma, pelo nome, e mostra quem
-          não casa. Não grava nada: a camada é escrita pela sincronização do Convenia,
-          pelo elo de id.
+          {tx("Compara a folha de remuneração com o organograma, pelo nome, e mostra quem não casa. Não grava nada: a camada é escrita pela sincronização do Convenia, pelo elo de id.")}
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-3">
         <Button variant="outline" size="sm" onClick={executar} disabled={ocupado}>
           <RefreshCw className={`mr-2 h-4 w-4 ${ocupado ? 'animate-spin' : ''}`} />
-          {ocupado ? 'Conferindo…' : 'Conferir'}
+          {ocupado ? tx("Conferindo…") : tx("Conferir")}
         </Button>
 
         {r && (
           <div className="rounded-lg border border-border/60 p-3 text-sm space-y-3">
             <div className={taxa >= 90 ? '' : 'text-amber-600 dark:text-amber-500'}>
-              {r.resumo}
+              {tx(r.resumo)}
             </div>
 
             {taxa < 90 && r.total > 0 && (
               <p className="text-[12px] text-muted-foreground">
-                A taxa aqui não mede mais a saúde da aba de Salários — mede só o quanto
-                os nomes coincidem. As linhas que não casam são as que a sincronização
-                do Convenia não alcança: em geral, resíduo da planilha antiga.
+                {tx("A taxa aqui não mede mais a saúde da aba de Salários — mede só o quanto os nomes coincidem. As linhas que não casam são as que a sincronização do Convenia não alcança: em geral, resíduo da planilha antiga.")}
               </p>
             )}
 
             {r.ambiguos.length > 0 && (
               <div>
                 <div className="flex items-center gap-1.5 text-[12px] font-medium text-amber-600 dark:text-amber-500">
-                  <AlertTriangle className="h-3.5 w-3.5" /> Nome repetido — recusadas de propósito
+                  <AlertTriangle className="h-3.5 w-3.5" />{" "}{tx("Nome repetido — recusadas de propósito")}
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  Escolher uma seria decidir no cara ou coroa quem enxerga o salário de quem.
+                  {tx("Escolher uma seria decidir no cara ou coroa quem enxerga o salário de quem.")}
                 </p>
-                <p className="mt-1 text-[12px] text-muted-foreground">{r.ambiguos.join(' · ')}</p>
+                <p className="mt-1 text-[12px] text-muted-foreground">{tx(r.ambiguos.join(' · '))}</p>
               </div>
             )}
 
             {r.semCamadaNaOrigem.length > 0 && (
               <div>
-                <div className="text-[12px] font-medium">Sem camada no organograma</div>
+                <div className="text-[12px] font-medium">{tx("Sem camada no organograma")}</div>
                 <p className="text-[11px] text-muted-foreground">
-                  A pessoa existe no Convenia, mas a cadeia de reporte dela está quebrada
-                  ou em ciclo. Resolve-se arrumando o gestor no Convenia.
+                  {tx("A pessoa existe no Convenia, mas a cadeia de reporte dela está quebrada ou em ciclo. Resolve-se arrumando o gestor no Convenia.")}
                 </p>
-                <p className="mt-1 text-[12px] text-muted-foreground">{r.semCamadaNaOrigem.join(' · ')}</p>
+                <p className="mt-1 text-[12px] text-muted-foreground">{tx(r.semCamadaNaOrigem.join(' · '))}</p>
               </div>
             )}
 
             {r.semCorrespondencia.length > 0 && (
               <div>
-                <div className="text-[12px] font-medium">Sem correspondência no Convenia</div>
+                <div className="text-[12px] font-medium">{tx("Sem correspondência no Convenia")}</div>
                 <p className="text-[11px] text-muted-foreground">
-                  Grafia diferente, nome de casada, ou gente que não está no Convenia
-                  (Betfair, terceiros). Amostra:
+                  {tx("Grafia diferente, nome de casada, ou gente que não está no Convenia (Betfair, terceiros). Amostra:")}
                 </p>
-                <p className="mt-1 text-[12px] text-muted-foreground">{r.semCorrespondencia.join(' · ')}</p>
+                <p className="mt-1 text-[12px] text-muted-foreground">{tx(r.semCorrespondencia.join(' · '))}</p>
               </div>
             )}
 
@@ -117,9 +112,7 @@ export default function VinculoCamadaCard() {
         )}
 
         <p className="text-[11px] text-muted-foreground">
-          A camada que controla o acesso é gravada pela sincronização do Convenia, pelo
-          elo de id. Esta tela só olha — gravar daqui, por nome, desfaria o que a carga
-          acertou, e sem erro nenhum aparecer.
+          {tx("A camada que controla o acesso é gravada pela sincronização do Convenia, pelo elo de id. Esta tela só olha — gravar daqui, por nome, desfaria o que a carga acertou, e sem erro nenhum aparecer.")}
         </p>
       </CardContent>
     </Card>

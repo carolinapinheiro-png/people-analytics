@@ -9,6 +9,7 @@ import html2canvas from 'html2canvas-pro';
 import logoUrl from '@/assets/flutter-logo.webp';
 import { semFiltro, valorFiltro } from '@/lib/filtro-sentinela';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Exportação da sub-aba de Engajamento para PDF.
  *
@@ -73,7 +74,7 @@ function tituloCurto(opts: ExportOpts): string {
   const area = rotulo(opts.departamento);
   return area === 'Todos'
     ? 'Relatório de Engajamento — Flutter Brazil'
-    : `Relatório de Engajamento — ${area}`;
+    : tx('Relatório de Engajamento — {0}', [area]);
 }
 
 async function carregarLogo(): Promise<string | null> {
@@ -145,7 +146,7 @@ function desenharCapa(pdf: jsPDF, opts: ExportOpts, logo: string | null) {
   pdf.setFontSize(10);
   pdf.setTextColor(110, 110, 110);
   pdf.text(
-    `Gerado em ${new Date().toLocaleString('pt-BR')}`,
+    tx('Gerado em {0}', [new Date().toLocaleString(numLocale())]),
     MARGEM,
     y,
   );
@@ -171,7 +172,7 @@ function desenharCabecalho(
   pdf.setFontSize(9);
   pdf.setTextColor(90, 90, 90);
   pdf.text(tituloCurto(opts), MARGEM, y);
-  pdf.text(`Página ${pagina} de ${totalPaginas}`, A4.w - MARGEM, y, { align: 'right' });
+  pdf.text(tx('Página {0} de {1}', [pagina, totalPaginas]), A4.w - MARGEM, y, { align: 'right' });
   pdf.setDrawColor(225, 225, 225);
   pdf.line(MARGEM, y + 3, A4.w - MARGEM, y + 3);
 }
@@ -182,7 +183,7 @@ function desenharRodape(pdf: jsPDF, dataGeracao: string) {
   const y = A4.h - MARGEM + 4;
   pdf.setFontSize(7.5);
   pdf.setTextColor(150, 150, 150);
-  pdf.text(`Gerado em ${dataGeracao}`, MARGEM, y);
+  pdf.text(tx('Gerado em {0}', [dataGeracao]), MARGEM, y);
   pdf.text('People Analytics — Flutter Brazil', A4.w - MARGEM, y, { align: 'right' });
 }
 

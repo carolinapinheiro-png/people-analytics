@@ -11,6 +11,7 @@ import {
 import type { SurveyImportance, DriverPorRecorte } from '@/lib/survey.functions';
 import { areasNaPergunta, temQuebraPorArea, perguntasNoRecorte } from '@/lib/drill';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * As perguntas onde mexer tende a render mais, como lista.
  *
@@ -41,7 +42,7 @@ import { areasNaPergunta, temQuebraPorArea, perguntasNoRecorte } from '@/lib/dri
  */
 
 const fmt2 = (n: number) =>
-  n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  n.toLocaleString(numLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const fmt0 = (n: number | null) => (n == null ? '—' : Math.round(n).toString());
 
@@ -75,7 +76,7 @@ function PorArea({ drivers, p }: { drivers: DriverPorRecorte[]; p: SurveyImporta
   if (!temQuebraPorArea(drivers)) {
     return (
       <p className="mt-1 ml-[74px] text-[11px] text-muted-foreground italic">
-        Esta onda não foi quebrada por área.
+        {tx("Esta onda não foi quebrada por área.")}
       </p>
     );
   }
@@ -89,8 +90,8 @@ function PorArea({ drivers, p }: { drivers: DriverPorRecorte[]; p: SurveyImporta
       >
         {(a.gap ?? 0) > 0 ? '+' : ''}{a.gap}
       </span>
-      <span>{a.area}</span>
-      <span className="text-muted-foreground">n={a.n}</span>
+      <span>{tx(a.area)}</span>
+      <span className="text-muted-foreground">{tx("n=")}{a.n}</span>
     </span>
   );
 
@@ -116,17 +117,17 @@ function PorArea({ drivers, p }: { drivers: DriverPorRecorte[]; p: SurveyImporta
     <div className="mt-1 ml-[74px] flex flex-wrap items-center gap-1.5 text-[11px]">
       {piores.length > 0 && (
         <>
-          <span className="text-muted-foreground">puxam para baixo:</span>
+          <span className="text-muted-foreground">{tx("puxam para baixo:")}</span>
           {piores.map((a) => <Chip key={a.area} a={a} />)}
         </>
       )}
       {melhores.length > 0 && (
         <>
-          <span className={cn('text-muted-foreground', piores.length > 0 && 'ml-1')}>sustentam:</span>
+          <span className={cn('text-muted-foreground', piores.length > 0 && 'ml-1')}>{tx("sustentam:")}</span>
           {melhores.map((a) => <Chip key={a.area} a={a} />)}
         </>
       )}
-      <span className="text-muted-foreground">· pontos de % contra a empresa</span>
+      <span className="text-muted-foreground">{tx("· pontos de % contra a empresa")}</span>
     </div>
   );
 }
@@ -238,7 +239,7 @@ export default function DriverPriority({
   // isso na mesma semana.)
   return (
     <ChartCard
-      title="O que mais pesa, pergunta a pergunta"
+      title={tx("O que mais pesa, pergunta a pergunta")}
       ajuda="oQueMaisPesa"
       subtitle={
         // O `n` acompanha o % : sob filtro os dois são da área. Trocar um sem o
@@ -246,8 +247,8 @@ export default function DriverPriority({
         // tela fez por um tempo, escrevendo "485 respostas" ao lado do painel
         // filtrado em Marketing.
         departamentoSelecionado
-          ? `${escopo.assocDaEmpresa ? 'ordem da empresa' : 'tudo de ' + departamentoSelecionado} · ${escopo.linhas.length} perguntas · ${escopo.linhas[0]?.n ?? 0} respostas`
-          : `% que concorda · ${escopo.linhas.length} perguntas · ${escopo.linhas[0]?.n ?? 0} respostas da empresa`
+          ? tx("{0} · {1} perguntas · {2} respostas", [escopo.assocDaEmpresa ? 'ordem da empresa' : 'tudo de ' + departamentoSelecionado, escopo.linhas.length, escopo.linhas[0]?.n ?? 0])
+          : tx("% que concorda · {0} perguntas · {1} respostas da empresa", [escopo.linhas.length, escopo.linhas[0]?.n ?? 0])
       }
     >
       {/* Deixou de ser "este bloco não segue o filtro". Metade segue: o % é da
@@ -268,41 +269,36 @@ export default function DriverPriority({
               que dá para conferir. */}
           {escopo.assocDaEmpresa ? (
             <>
-              <strong>A coluna de % é de {departamentoSelecionado}; a ordem é da empresa.</strong>{' '}
-              {departamentoSelecionado} tem {escopo.linhas[0]?.n ?? 0} respostas, abaixo das{' '}
-              {N_MINIMO_CORRELACAO} que uma correlação precisa para a ordem das perguntas significar
-              algo. Então a lista responde: entre as perguntas que movem engajamento na Flutter
-              Brazil, quais {departamentoSelecionado} responde pior.
+              <strong>{tx("A coluna de % é de")}{" "}{tx(departamentoSelecionado)}{tx("; a ordem é da empresa.")}</strong>{' '}
+              {tx(departamentoSelecionado)}{" "}{tx("tem")}{" "}{escopo.linhas[0]?.n ?? 0}{" "}{tx("respostas, abaixo das")}{' '}
+              {N_MINIMO_CORRELACAO}{" "}{tx("que uma correlação precisa para a ordem das perguntas significar algo. Então a lista responde: entre as perguntas que movem engajamento na Flutter Brazil, quais")}{" "}{tx(departamentoSelecionado)}{" "}{tx("responde pior.")}
             </>
           ) : (
             <>
-              <strong>Tudo aqui é de {departamentoSelecionado}</strong> — a nota e a ordem. A
-              associação com o eNPS foi calculada dentro da área, sobre as{' '}
-              {escopo.linhas[0]?.n ?? 0} respostas dela. A lista responde: o que move engajamento{' '}
-              <strong>nesta área</strong>, que pode ser diferente do que move na empresa.
+              <strong>{tx("Tudo aqui é de")}{" "}{tx(departamentoSelecionado)}</strong>{" "}{tx("— a nota e a ordem. A associação com o eNPS foi calculada dentro da área, sobre as")}{' '}
+              {escopo.linhas[0]?.n ?? 0}{" "}{tx("respostas dela. A lista responde: o que move engajamento")}{' '}
+              <strong>{tx("nesta área")}</strong>{tx(", que pode ser diferente do que move na empresa.")}
             </>
           )}
           {escopo.suprimidas > 0 && (
             <>
               {' '}
-              {escopo.suprimidas} pergunta{escopo.suprimidas === 1 ? '' : 's'} ficou de fora por
-              ter a nota da área suprimida (grupo pequeno demais).
+              {escopo.suprimidas}{" "}{tx("pergunta")}{escopo.suprimidas === 1 ? '' : tx("s")}{" "}{tx("ficou de fora por ter a nota da área suprimida (grupo pequeno demais).")}
             </>
           )}
         </p>
       )}
       {temaDominante && (
         <p className="text-sm leading-relaxed mb-3">
-          Das {prioridade.length} perguntas que {departamentoSelecionado ?? 'a empresa'} responde
-          com menor concordância entre as que mais acompanham o engajamento,{' '}
-          <strong>{temaDominante.qtd} são de {temaDominante.tema.toLowerCase()}</strong>.{' '}
+          {tx("Das")}{" "}{prioridade.length}{" "}{tx("perguntas que")}{" "}{tx(departamentoSelecionado) ?? tx("a empresa")}{" "}{tx("responde com menor concordância entre as que mais acompanham o engajamento,")}{' '}
+          <strong>{temaDominante.qtd}{" "}{tx("são de")}{" "}{tx(temaDominante.tema.toLowerCase())}</strong>.{' '}
           {/* A observação sobre remuneração é sobre a EMPRESA -- as piores notas
               da Flutter Brazil. Sob filtro ela pode simplesmente não valer para
               a área, e afirmá-la assim mesmo seria pôr um fato da empresa na
               boca de uma leitura de área. */}
           {departamentoSelecionado
-            ? 'A ordem vem da associação medida na empresa; a concordância, desta área.'
-            : 'Remuneração tem as piores notas da empresa, mas acompanha menos — é problema real, e não é o que separa quem está engajado de quem não está.'}
+            ? tx("A ordem vem da associação medida na empresa; a concordância, desta área.")
+            : tx("Remuneração tem as piores notas da empresa, mas acompanha menos — é problema real, e não é o que separa quem está engajado de quem não está.")}
         </p>
       )}
 
@@ -322,16 +318,16 @@ export default function DriverPriority({
             <div className="flex items-start gap-3">
               <span
                 className="tabular-nums w-[62px] shrink-0 text-right"
-                title={`média ${fmt2(p.score)} de 5`}
+                title={tx("média {0} de 5", [fmt2(p.score)])}
               >
                 <span className="text-sm font-semibold" style={{ color: corFav(p.favoravel) }}>
-                  {fmt0(p.favoravel)}%
+                  {tx(fmt0(p.favoravel))}%
                 </span>
-                <span className="text-[10px] text-muted-foreground ml-1">{fmt2(p.score)}</span>
+                <span className="text-[10px] text-muted-foreground ml-1">{tx(fmt2(p.score))}</span>
               </span>
               <span className="flex-1 text-xs leading-snug min-w-0">
-                {p.question}
-                <span className="text-muted-foreground"> · {p.driver}</span>
+                {tx(p.question)}
+                <span className="text-muted-foreground"> · {tx(p.driver)}</span>
               </span>
               <span
                 className={cn(
@@ -339,9 +335,9 @@ export default function DriverPriority({
                   alta ? 'font-medium' : 'text-muted-foreground',
                 )}
                 style={alta ? { color: COLORS.flutter } : undefined}
-                title={`correlação com o eNPS individual: ${fmt2(p.r)}`}
+                title={tx("correlação com o eNPS individual: {0}", [fmt2(p.r)])}
               >
-                {forca(p.r, cortes)}
+                {tx(forca(p.r, cortes))}
               </span>
             </div>
 
@@ -360,23 +356,23 @@ export default function DriverPriority({
           onClick={() => setVerTodas((v) => !v)}
           className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
         >
-          {verTodas ? `mostrar só as ${prioridade.length} de maior prioridade` : `ver todas as ${escopo.linhas.length} perguntas`}
+          {verTodas ? tx("mostrar só as {0} de maior prioridade", [prioridade.length]) : tx("ver todas as {0} perguntas", [escopo.linhas.length])}
         </button>
         <TooltipProvider delayDuration={200}>
           <UiTooltip>
             <TooltipTrigger asChild>
               <button className="text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
                 <Info className="h-3 w-3" />
-                o que &quot;puxa&quot; quer dizer
+                {tx("o que \"puxa\" quer dizer")}
               </button>
             </TooltipTrigger>
             <TooltipContent className="max-w-[340px] text-xs leading-relaxed space-y-1.5">
               <p>
-                Mede o quanto a resposta da pergunta acompanha o eNPS{' '}
-                <strong>da mesma pessoa</strong>.{' '}
+                {tx("Mede o quanto a resposta da pergunta acompanha o eNPS")}{' '}
+                <strong>{tx("da mesma pessoa")}</strong>.{' '}
                 {escopo.assocDaEmpresa
-                  ? 'Aqui vem das respostas da empresa inteira: esta área não tem pares suficientes para uma correlação própria, e uma conta sobre poucas dezenas de respostas ordenaria perguntas por acaso.'
-                  : `Aqui vem das respostas de ${departamentoSelecionado} — a ordem é da área, não da empresa.`}
+                  ? tx("Aqui vem das respostas da empresa inteira: esta área não tem pares suficientes para uma correlação própria, e uma conta sobre poucas dezenas de respostas ordenaria perguntas por acaso.")
+                  : tx("Aqui vem das respostas de {0} — a ordem é da área, não da empresa.", [departamentoSelecionado])}
               </p>
               {/* ------------------------------------------------------------------
                   O CRITÉRIO, EM NÚMERO, PORQUE ELE É RELATIVO
@@ -391,21 +387,14 @@ export default function DriverPriority({
                   Sem isso escrito, "puxa muito" se lê como propriedade da
                   pergunta. É posição, e posição depende de quem está ao lado. */}
               <p>
-                <strong>Puxa muito / puxa / puxa pouco</strong> é posição nesta lista, não patamar
-                fixo: acima de {fmt2(cortes.alto)} está o quarto mais forte, acima de{' '}
-                {fmt2(cortes.medio)} está a metade de cima, abaixo disso é o resto. Trocando o
-                recorte, os cortes mudam junto — a mesma pergunta pode ser &quot;puxa muito&quot;
-                numa área e &quot;puxa&quot; noutra sem nada ter mudado nela.
+                <strong>{tx("Puxa muito / puxa / puxa pouco")}</strong>{" "}{tx("é posição nesta lista, não patamar fixo: acima de")}{" "}{tx(fmt2(cortes.alto))}{" "}{tx("está o quarto mais forte, acima de")}{' '}
+                {tx(fmt2(cortes.medio))}{" "}{tx("está a metade de cima, abaixo disso é o resto. Trocando o recorte, os cortes mudam junto — a mesma pergunta pode ser \"puxa muito\" numa área e \"puxa\" noutra sem nada ter mudado nela.")}
               </p>
               <p>
-                O número grande é o <strong>% que respondeu 4 ou 5</strong> — a mesma leitura do
-                deck da diretoria. O número pequeno ao lado é a média de 1 a 5, que capta movimento
-                menor entre ondas.
+                {tx("O número grande é o")}{" "}<strong>{tx("% que respondeu 4 ou 5")}</strong>{" "}{tx("— a mesma leitura do deck da diretoria. O número pequeno ao lado é a média de 1 a 5, que capta movimento menor entre ondas.")}
               </p>
               <p>
-                <strong>Não é relação de causa.</strong> Todas as respostas vêm da mesma pessoa no
-                mesmo momento, e quem está satisfeito tende a marcar alto em tudo. Serve para
-                ordenar as perguntas entre si, não para prometer que mexer numa levanta o eNPS.
+                <strong>{tx("Não é relação de causa.")}</strong>{" "}{tx("Todas as respostas vêm da mesma pessoa no mesmo momento, e quem está satisfeito tende a marcar alto em tudo. Serve para ordenar as perguntas entre si, não para prometer que mexer numa levanta o eNPS.")}
               </p>
             </TooltipContent>
           </UiTooltip>
@@ -414,8 +403,8 @@ export default function DriverPriority({
 
       {!verTodas && sustentar.length > 0 && (
         <p className="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
-          <strong className="text-foreground">O que já funciona e importa:</strong>{' '}
-          {sustentar.map((s) => s.question.replace(/\.$/, '')).join('; ')}. Perder aqui custa caro.
+          <strong className="text-foreground">{tx("O que já funciona e importa:")}</strong>{' '}
+          {tx(sustentar.map((s) => s.question.replace(/\.$/, '')).join('; '))}{tx(". Perder aqui custa caro.")}
         </p>
       )}
     </ChartCard>

@@ -1,5 +1,6 @@
 import { ACCESS_PROFILES, type AccessProfile, type DashboardTab } from '@/lib/permissions';
 
+import { tx } from '@/lib/i18n';
 /**
  * CSV de usuários: leitura e escrita.
  *
@@ -204,7 +205,7 @@ export function lerCsv(texto: string, abasValidas: readonly string[]): LeituraCs
     if (!ACCESS_PROFILES.includes(profile as AccessProfile)) {
       problemas.push({
         linha: numero, email,
-        motivo: `Perfil "${pega('profile')}" não existe. Use: ${ACCESS_PROFILES.join(', ')}.`,
+        motivo: tx('Perfil "{0}" não existe. Use: {1}.', [pega('profile'), ACCESS_PROFILES.join(', ')]),
       });
       continue;
     }
@@ -212,13 +213,13 @@ export function lerCsv(texto: string, abasValidas: readonly string[]): LeituraCs
     const extraTabs = lista(pega('extraTabs'));
     const abaRuim = extraTabs.find((t) => !abasValidas.includes(t as DashboardTab));
     if (abaRuim) {
-      problemas.push({ linha: numero, email, motivo: `Aba "${abaRuim}" não existe.` });
+      problemas.push({ linha: numero, email, motivo: tx('Aba "{0}" não existe.', [abaRuim]) });
       continue;
     }
 
     const expiresAt = pega('expiresAt');
     if (expiresAt && Number.isNaN(new Date(expiresAt).getTime())) {
-      problemas.push({ linha: numero, email, motivo: `Validade "${expiresAt}" não é uma data legível (use AAAA-MM-DD).` });
+      problemas.push({ linha: numero, email, motivo: tx('Validade "{0}" não é uma data legível (use AAAA-MM-DD).', [expiresAt]) });
       continue;
     }
 

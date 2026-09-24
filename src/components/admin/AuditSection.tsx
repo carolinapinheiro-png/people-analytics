@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { ScrollText } from 'lucide-react';
 
+import { tx, numLocale } from '@/lib/i18n';
 export interface AccessLog {
   id: string;
   email: string;
@@ -17,9 +18,9 @@ export default function AuditSection({ logs }: { logs: AccessLog[] }) {
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <ScrollText className="h-5 w-5" />
-          Logs de acesso
+          {tx("Logs de acesso")}
         </CardTitle>
-        <CardDescription>Últimas tentativas de acesso ao dashboard.</CardDescription>
+        <CardDescription>{tx("Últimas tentativas de acesso ao dashboard.")}</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -30,18 +31,18 @@ export default function AuditSection({ logs }: { logs: AccessLog[] }) {
             >
               <div className="flex items-center gap-3 min-w-0">
                 <Badge variant={log.allowed ? 'outline' : 'destructive'} className="shrink-0">
-                  {log.allowed ? 'Permitido' : 'Negado'}
+                  {log.allowed ? tx("Permitido") : tx("Negado")}
                 </Badge>
-                <span className="truncate">{log.email}</span>
+                <span className="truncate">{tx(log.email)}</span>
               </div>
               <span className="text-xs text-muted-foreground shrink-0">
-                {new Date(log.created_at).toLocaleString('pt-BR')}
+                {tx(new Date(log.created_at).toLocaleString(numLocale()))}
               </span>
             </div>
           ))}
           {logs.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
-              Nenhum log registrado ainda.
+              {tx("Nenhum log registrado ainda.")}
             </p>
           )}
         </div>

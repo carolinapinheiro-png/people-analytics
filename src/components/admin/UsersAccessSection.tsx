@@ -58,6 +58,7 @@ import {
   type DashboardTab,
 } from '@/lib/permissions';
 
+import { tx, numLocale } from '@/lib/i18n';
 /** Rotulos das abas, para os chips da previa. */
 export const TAB_LABELS: Record<DashboardTab, string> = {
   overview: 'Overview',
@@ -153,19 +154,19 @@ function PreviaDeAbas({ form }: { form: UserFormState }) {
         return (
           <span
             key={t}
-            title={extra ? 'Concedida a esta pessoa, além do perfil' : 'Vem do perfil'}
+            title={extra ? tx("Concedida a esta pessoa, além do perfil") : tx("Vem do perfil")}
             className={`rounded-full px-2 py-0.5 text-[11px] ${
               extra
                 ? 'bg-primary/15 text-primary font-medium'
                 : 'bg-muted text-muted-foreground'
             }`}
           >
-            {TAB_LABELS[t]}{extra ? ' +' : ''}
+            {tx(TAB_LABELS[t])}{extra ? ' +' : ''}
           </span>
         );
       })}
       {abas.length === 0 && (
-        <span className="text-[11px] text-muted-foreground">Nenhuma aba — a pessoa entra e não vê nada.</span>
+        <span className="text-[11px] text-muted-foreground">{tx("Nenhuma aba — a pessoa entra e não vê nada.")}</span>
       )}
     </div>
   );
@@ -389,8 +390,8 @@ function SinaisDaLinha({
     sinais.push({
       tom: vencido ? 'aviso' : 'neutro',
       texto: vencido
-        ? `Acesso expirou em ${expira.toLocaleDateString('pt-BR')} — a pessoa já não entra.`
-        : `Acesso válido até ${expira.toLocaleDateString('pt-BR')}.`,
+        ? tx('Acesso expirou em {0} — a pessoa já não entra.', [expira.toLocaleDateString(numLocale())])
+        : tx('Acesso válido até {0}.', [expira.toLocaleDateString(numLocale())]),
     });
   }
   if (diasSemEntrar == null) {
@@ -408,7 +409,7 @@ function SinaisDaLinha({
           key={sg.texto}
           className={`text-[11px] ${sg.tom === 'aviso' ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground'}`}
         >
-          {sg.tom === 'aviso' ? '⚠ ' : ''}{sg.texto}
+          {sg.tom === 'aviso' ? '⚠ ' : ''}{tx(sg.texto)}
         </span>
       ))}
     </div>
@@ -558,7 +559,7 @@ export default function UsersAccessSection({
 
   const aplicarLote = async () => {
     if (!loteProfile && loteAdd.length === 0 && loteRemove.length === 0) {
-      toast.error('Escolha ao menos uma mudança para aplicar.');
+      toast.error(tx("Escolha ao menos uma mudança para aplicar."));
       return;
     }
     setLoteSalvando(true);
@@ -577,14 +578,14 @@ export default function UsersAccessSection({
           r.recusados.map((x) => x.email).join(', '),
         );
       } else {
-        toast.success(`${r.aplicados.length} usuário(s) atualizado(s).`);
+        toast.success(tx("{0} usuário(s) atualizado(s).", [r.aplicados.length]));
       }
       setLoteAberto(false);
       setSelecionados(new Set());
       setLoteProfile(''); setLoteAdd([]); setLoteRemove([]);
       onChanged();
     } catch (e) {
-      toast.error(errorMessage(e, 'Falha ao aplicar em lote'));
+      toast.error(tx(errorMessage(e, 'Falha ao aplicar em lote')));
     } finally {
       setLoteSalvando(false);
     }
@@ -663,7 +664,7 @@ export default function UsersAccessSection({
 
     const validationError = validateForm(addForm);
     if (validationError) {
-      toast.error(validationError);
+      toast.error(tx(validationError));
       return;
     }
 
@@ -672,13 +673,13 @@ export default function UsersAccessSection({
       await addAllowedEmailFn({
         data: { email: newEmail.trim(), ...paraEnvio(addForm) },
       });
-      toast.success('Email autorizado com sucesso');
+      toast.success(tx("Email autorizado com sucesso"));
       setNewEmail('');
       setAddForm(EMPTY_FORM);
       setAddTouched(false);
       onChanged();
     } catch (error) {
-      toast.error(errorMessage(error, 'Erro ao adicionar email'));
+      toast.error(tx(errorMessage(error, 'Erro ao adicionar email')));
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -689,12 +690,12 @@ export default function UsersAccessSection({
     if (!removendo) return;
     try {
       await removeAllowedEmailFn({ data: { id: removendo.id } });
-      toast.success(`Acesso de ${removendo.email} removido`);
+      toast.success(tx("Acesso de {0} removido", [removendo.email]));
       setRemovendo(null);
       setConfirmacao('');
       onChanged();
     } catch (error) {
-      toast.error(errorMessage(error, 'Erro ao remover email'));
+      toast.error(tx(errorMessage(error, 'Erro ao remover email')));
       console.error(error);
     }
   };
@@ -732,18 +733,18 @@ export default function UsersAccessSection({
 
     const validationError = validateForm(editForm);
     if (validationError) {
-      toast.error(validationError);
+      toast.error(tx(validationError));
       return;
     }
 
     setIsSaving(true);
     try {
       await updateAllowedEmailUserFn({ data: { id: editingId, ...paraEnvio(editForm) } });
-      toast.success('Usuário atualizado');
+      toast.success(tx("Usuário atualizado"));
       setEditingId(null);
       onChanged();
     } catch (error) {
-      toast.error(errorMessage(error, 'Erro ao atualizar usuário'));
+      toast.error(tx(errorMessage(error, 'Erro ao atualizar usuário')));
       console.error(error);
     } finally {
       setIsSaving(false);
@@ -759,17 +760,17 @@ export default function UsersAccessSection({
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <UserPlus className="h-5 w-5" />
-            Adicionar usuário
+            {tx("Adicionar usuário")}
           </CardTitle>
           <CardDescription>
-            O usuário precisará fazer login com esse email (senha ou Google).
+            {tx("O usuário precisará fazer login com esse email (senha ou Google).")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAdd} className="space-y-4">
             <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground" htmlFor="new-user-email">
-                E-mail
+                {tx("E-mail")}
               </Label>
               <Input
                 id="new-user-email"
@@ -782,7 +783,7 @@ export default function UsersAccessSection({
                 className="max-w-md"
               />
               <p className="text-[11px] text-muted-foreground">
-                Ao sair do campo, nome, cargo, camada e departamento vêm do Convenia.
+                {tx("Ao sair do campo, nome, cargo, camada e departamento vêm do Convenia.")}
               </p>
               {/* O aviso do Convenia MUDOU DE LUGAR, não foi duplicado: ele
                   agora mora dentro do bloco em leitura, ao lado dos três campos
@@ -811,12 +812,12 @@ export default function UsersAccessSection({
                 e a explicacao estava a uma rolagem inteira de distancia. */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 pt-1">
               <Button type="submit" disabled={isLoading || !!addValidationError || !newEmail.trim()}>
-                {isLoading ? 'Adicionando...' : 'Adicionar usuário'}
+                {isLoading ? tx("Adicionando...") : tx("Adicionar usuário")}
               </Button>
               {!newEmail.trim() ? (
-                <span className="text-xs text-muted-foreground">Informe o e-mail para continuar.</span>
+                <span className="text-xs text-muted-foreground">{tx("Informe o e-mail para continuar.")}</span>
               ) : addValidationError ? (
-                <span className="text-xs text-destructive">{addValidationError}</span>
+                <span className="text-xs text-destructive">{tx(addValidationError)}</span>
               ) : null}
             </div>
           </form>
@@ -827,17 +828,17 @@ export default function UsersAccessSection({
         <CardHeader className="pb-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <CardTitle className="text-lg">Usuários autorizados</CardTitle>
+              <CardTitle className="text-lg">{tx("Usuários autorizados")}</CardTitle>
               <CardDescription>
-                {totalCount} usuário{totalCount !== 1 ? 's' : ''} com acesso
-                {search ? ` · filtrado por "${search}"` : ''}
+                {totalCount}{" "}{tx("usuário")}{totalCount !== 1 ? tx("s") : ''}{" "}{tx("com acesso")}
+                {search ? tx(" · filtrado por \"{0}\"", [search]) : ''}
               </CardDescription>
             </div>
             <div className="relative max-w-xs w-full">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Buscar por email ou cargo..."
+                placeholder={tx("Buscar por email ou cargo...")}
                 value={search}
                 onChange={(e) => onSearchChange(e.target.value)}
                 className="pl-9"
@@ -893,7 +894,7 @@ export default function UsersAccessSection({
                       : 'border-border text-muted-foreground hover:text-foreground hover:bg-secondary'
                   }`}
                 >
-                  {rotulo} · {total}
+                  {tx(rotulo)} · {total}
                 </button>
               );
             })}
@@ -902,11 +903,11 @@ export default function UsersAccessSection({
               value={deptFilter}
               onChange={(e) => onDeptFilterChange(e.target.value)}
               className="ml-auto rounded border border-border bg-secondary px-2 py-1 text-[11px]"
-              aria-label="Filtrar por departamento atendido"
+              aria-label={tx("Filtrar por departamento atendido")}
             >
-              <option value="">Todos os departamentos</option>
+              <option value="">{tx("Todos os departamentos")}</option>
               {departments.filter((d) => d.active).map((d) => (
-                <option key={d.name} value={d.name}>{d.name}</option>
+                <option key={d.name} value={d.name}>{tx(d.name)}</option>
               ))}
             </select>
 
@@ -916,7 +917,7 @@ export default function UsersAccessSection({
                 onClick={() => { onProfileFilterChange(''); onDeptFilterChange(''); }}
                 className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground"
               >
-                limpar filtros
+                {tx("limpar filtros")}
               </button>
             )}
           </div>
@@ -938,20 +939,20 @@ export default function UsersAccessSection({
                   checked={emails.length > 0 && emails.every((e) => selecionados.has(e.id))}
                   onChange={(e) => selecionarPagina(e.target.checked)}
                 />
-                Selecionar os {emails.length} desta página
+                {tx("Selecionar os")}{" "}{emails.length}{" "}{tx("desta página")}
               </label>
               {selecionados.size > 0 && (
                 <>
-                  <span className="font-medium">{selecionados.size} selecionado{selecionados.size > 1 ? 's' : ''}</span>
+                  <span className="font-medium">{selecionados.size}{" "}{tx("selecionado")}{selecionados.size > 1 ? tx("s") : ''}</span>
                   <Button size="sm" variant="outline" className="h-7" onClick={() => setLoteAberto(true)}>
-                    Editar em lote
+                    {tx("Editar em lote")}
                   </Button>
                   <button
                     type="button"
                     onClick={() => setSelecionados(new Set())}
                     className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
                   >
-                    limpar seleção
+                    {tx("limpar seleção")}
                   </button>
                 </>
               )}
@@ -968,12 +969,12 @@ export default function UsersAccessSection({
                   type="checkbox"
                   checked={selecionados.has(item.id)}
                   onChange={(e) => alternarSelecao(item.id, e.target.checked)}
-                  aria-label={`Selecionar ${item.email}`}
+                  aria-label={tx("Selecionar {0}", [item.email])}
                   className="mt-1 shrink-0"
                 />
                 <div className="flex flex-col gap-1.5 min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium truncate">{item.email}</span>
+                    <span className="text-sm font-medium truncate">{tx(item.email)}</span>
                     {/* ------------------------------------------------------------------
                         A ETIQUETA MOSTRA O PERFIL ATRIBUÍDO, NÃO O RÓTULO DERIVADO
                         ------------------------------------------------------------------
@@ -999,21 +1000,21 @@ export default function UsersAccessSection({
                           ) : (
                             <ShieldAlert className="h-3 w-3 mr-1" />
                           )}
-                          {atribuido?.nome ?? PROFILE_LABELS[item.profile] ?? item.profile}
+                          {tx(atribuido?.nome) ?? tx(PROFILE_LABELS[item.profile]) ?? item.profile}
                         </Badge>
                       );
                     })()}
                     {(item.job_title || item.job_level) && (
                       <Badge variant="outline">
-                        {[item.job_title, item.job_level].filter(Boolean).join(' · ')}
+                        {tx([item.job_title, item.job_level].filter(Boolean).join(' · '))}
                       </Badge>
                     )}
                   </div>
                   {!isGlobalProfile(item.profile) && (
                     <span className="text-xs text-muted-foreground">
                       {(item.departments?.length || item.job_families?.length)
-                        ? [...(item.departments ?? []), ...(item.job_families ?? [])].join(' · ')
-                        : 'Sem escopo atribuído — sem acesso a dados'}
+                        ? tx([...(item.departments ?? []), ...(item.job_families ?? [])].join(' · '))
+                        : tx("Sem escopo atribuído — sem acesso a dados")}
                     </span>
                   )}
 
@@ -1032,7 +1033,7 @@ export default function UsersAccessSection({
                           key={r}
                           className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
                         >
-                          {r}
+                          {tx(r)}
                         </span>
                       ))}
                     </div>
@@ -1047,8 +1048,8 @@ export default function UsersAccessSection({
                   <Button
                     variant="ghost"
                     size="icon"
-                    title={`Ver o painel como ${item.email}`}
-                    aria-label={`Ver o painel como ${item.email}`}
+                    title={tx("Ver o painel como {0}", [item.email])}
+                    aria-label={tx("Ver o painel como {0}", [item.email])}
                     onClick={() => entrarVerComo(item.email)}
                   >
                     <Eye className="h-4 w-4" />
@@ -1069,7 +1070,7 @@ export default function UsersAccessSection({
             ))}
             {emails.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
-                {search ? 'Nenhum usuário encontrado para esta busca.' : 'Nenhum email autorizado ainda.'}
+                {search ? tx("Nenhum usuário encontrado para esta busca.") : tx("Nenhum email autorizado ainda.")}
               </p>
             )}
           </div>
@@ -1078,7 +1079,7 @@ export default function UsersAccessSection({
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mt-4 pt-4 border-t border-border">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span>
-                  Página {page} de {totalPages}
+                  {tx("Página")}{" "}{page}{" "}{tx("de")}{" "}{totalPages}
                 </span>
                 <span className="hidden sm:inline">·</span>
                 <span className="flex items-center gap-1">
@@ -1086,7 +1087,7 @@ export default function UsersAccessSection({
                     value={limit}
                     onChange={(e) => onLimitChange(Number(e.target.value))}
                     className="h-7 rounded-md border border-input bg-background px-2 text-xs"
-                    aria-label="Itens por página"
+                    aria-label={tx("Itens por página")}
                   >
                     {[10, 20, 50].map((n) => (
                       <option key={n} value={n}>
@@ -1094,7 +1095,7 @@ export default function UsersAccessSection({
                       </option>
                     ))}
                   </select>
-                  por página
+                  {tx("por página")}
                 </span>
               </div>
               <div className="flex items-center gap-1">
@@ -1105,7 +1106,7 @@ export default function UsersAccessSection({
                   disabled={page <= 1}
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  <span className="sr-only">Anterior</span>
+                  <span className="sr-only">{tx("Anterior")}</span>
                 </Button>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                   <Button
@@ -1125,7 +1126,7 @@ export default function UsersAccessSection({
                   disabled={page >= totalPages}
                 >
                   <ChevronRight className="h-4 w-4" />
-                  <span className="sr-only">Próxima</span>
+                  <span className="sr-only">{tx("Próxima")}</span>
                 </Button>
               </div>
             </div>
@@ -1146,16 +1147,15 @@ export default function UsersAccessSection({
       <Dialog open={loteAberto} onOpenChange={setLoteAberto}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Editar {selecionados.size} usuário(s)</DialogTitle>
+            <DialogTitle>{tx("Editar")}{" "}{selecionados.size}{" "}{tx("usuário(s)")}</DialogTitle>
             <DialogDescription>
-              O que ficar em branco não é alterado. Departamentos são somados ou
-              retirados do que cada pessoa já tem — não substituem.
+              {tx("O que ficar em branco não é alterado. Departamentos são somados ou retirados do que cada pessoa já tem — não substituem.")}
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="lote-perfil">Trocar alcance e dado individual</Label>
+              <Label htmlFor="lote-perfil">{tx("Trocar alcance e dado individual")}</Label>
               {/* ------------------------------------------------------------------
                   A MESMA LINGUAGEM DO CADASTRO INDIVIDUAL
                   ------------------------------------------------------------------
@@ -1173,47 +1173,45 @@ export default function UsersAccessSection({
                 onChange={(e) => setLoteProfile(e.target.value)}
                 className="w-full rounded border border-border bg-secondary px-2 py-1.5 text-sm"
               >
-                <option value="">— não mexer —</option>
-                <option value="admin">Empresa toda · vê individual · administra usuários</option>
-                <option value="hr_leader">Empresa toda · vê individual</option>
-                <option value="hrbp">Só as áreas atribuídas · vê individual</option>
-                <option value="dept_leader">Só as áreas atribuídas · só agregados</option>
+                <option value="">{tx("— não mexer —")}</option>
+                <option value="admin">{tx("Empresa toda · vê individual · administra usuários")}</option>
+                <option value="hr_leader">{tx("Empresa toda · vê individual")}</option>
+                <option value="hrbp">{tx("Só as áreas atribuídas · vê individual")}</option>
+                <option value="dept_leader">{tx("Só as áreas atribuídas · só agregados")}</option>
               </select>
               <p className="text-[11px] text-muted-foreground">
-                Não mexe nas abas de cada pessoa — só no alcance, no dado individual e em
-                administrar. As abas continuam como estão em cada cadastro.
+                {tx("Não mexe nas abas de cada pessoa — só no alcance, no dado individual e em administrar. As abas continuam como estão em cada cadastro.")}
               </p>
             </div>
 
             <MultiSelect
               id="lote-add"
-              label="Somar departamentos"
+              label={tx("Somar departamentos")}
               options={departments.filter((d) => d.active).map((d) => d.name)}
               value={loteAdd}
               onChange={setLoteAdd}
-              placeholder="Nenhum"
-              searchPlaceholder="Buscar departamento..."
+              placeholder={tx("Nenhum")}
+              searchPlaceholder={tx("Buscar departamento...")}
             />
             <MultiSelect
               id="lote-remove"
-              label="Tirar departamentos"
+              label={tx("Tirar departamentos")}
               options={departments.map((d) => d.name)}
               value={loteRemove}
               onChange={setLoteRemove}
-              placeholder="Nenhum"
-              searchPlaceholder="Buscar departamento..."
+              placeholder={tx("Nenhum")}
+              searchPlaceholder={tx("Buscar departamento...")}
             />
 
             <p className="rounded-md bg-secondary/60 p-2 text-[11px] text-muted-foreground">
-              Quem ficar com perfil restrito e nenhuma área é <strong>recusado</strong>,
-              não salvo pela metade — e você vê a lista de quem foi.
+              {tx("Quem ficar com perfil restrito e nenhuma área é")}{" "}<strong>{tx("recusado")}</strong>{tx(", não salvo pela metade — e você vê a lista de quem foi.")}
             </p>
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setLoteAberto(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setLoteAberto(false)}>{tx("Cancelar")}</Button>
             <Button onClick={aplicarLote} disabled={loteSalvando}>
-              {loteSalvando ? 'Aplicando…' : `Aplicar a ${selecionados.size}`}
+              {loteSalvando ? tx("Aplicando…") : tx("Aplicar a {0}", [selecionados.size])}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1222,16 +1220,16 @@ export default function UsersAccessSection({
       <Dialog open={!!removendo} onOpenChange={(open) => { if (!open) { setRemovendo(null); setConfirmacao(''); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Remover acesso</DialogTitle>
+            <DialogTitle>{tx("Remover acesso")}</DialogTitle>
             <DialogDescription>
-              {removendo?.email} perde o acesso ao painel imediatamente.
+              {tx(removendo?.email)}{" "}{tx("perde o acesso ao painel imediatamente.")}
             </DialogDescription>
           </DialogHeader>
 
           {removendo && (
             <div className="space-y-3">
               <div className="rounded-md bg-muted/50 p-2.5 space-y-1.5">
-                <p className="text-xs text-muted-foreground">O que essa pessoa deixa de ver:</p>
+                <p className="text-xs text-muted-foreground">{tx("O que essa pessoa deixa de ver:")}</p>
                 <PreviaDeAbas
                   form={{
                     ...EMPTY_FORM,
@@ -1243,20 +1241,20 @@ export default function UsersAccessSection({
                 />
                 {(removendo.departments?.length || removendo.job_families?.length) ? (
                   <p className="text-[11px] text-muted-foreground">
-                    Escopo: {[...(removendo.departments ?? []), ...(removendo.job_families ?? [])].join(' · ')}
+                    {tx("Escopo:")}{" "}{tx([...(removendo.departments ?? []), ...(removendo.job_families ?? [])].join(' · '))}
                   </p>
                 ) : null}
               </div>
 
               <div className="space-y-1">
                 <Label htmlFor="confirma-remocao" className="text-xs">
-                  Digite <strong>{removendo.email}</strong> para confirmar
+                  {tx("Digite")}{" "}<strong>{tx(removendo.email)}</strong>{" "}{tx("para confirmar")}
                 </Label>
                 <Input
                   id="confirma-remocao"
                   value={confirmacao}
                   onChange={(e) => setConfirmacao(e.target.value)}
-                  placeholder={removendo.email}
+                  placeholder={tx(removendo.email)}
                   autoComplete="off"
                 />
               </div>
@@ -1265,14 +1263,14 @@ export default function UsersAccessSection({
 
           <DialogFooter>
             <Button variant="outline" onClick={() => { setRemovendo(null); setConfirmacao(''); }}>
-              Cancelar
+              {tx("Cancelar")}
             </Button>
             <Button
               variant="destructive"
               disabled={confirmacao.trim().toLowerCase() !== (removendo?.email ?? '').toLowerCase()}
               onClick={handleRemove}
             >
-              Remover acesso
+              {tx("Remover acesso")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1281,8 +1279,8 @@ export default function UsersAccessSection({
       <Dialog open={!!editingId} onOpenChange={(open) => !open && setEditingId(null)}>
         <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar acesso</DialogTitle>
-            <DialogDescription>{editingUser?.email}</DialogDescription>
+            <DialogTitle>{tx("Editar acesso")}</DialogTitle>
+            <DialogDescription>{tx(editingUser?.email)}</DialogDescription>
           </DialogHeader>
           <UserAccessFormFields
             idSuffix="edit"
@@ -1296,10 +1294,10 @@ export default function UsersAccessSection({
           />
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingId(null)}>
-              Cancelar
+              {tx("Cancelar")}
             </Button>
             <Button onClick={handleSaveEdit} disabled={isSaving || !!editValidationError}>
-              {isSaving ? 'Salvando...' : 'Salvar'}
+              {isSaving ? tx("Salvando...") : tx("Salvar")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1359,7 +1357,7 @@ function PainelDoQueVaiVer({
   return (
     <div className="rounded-lg border border-border p-3 space-y-3 lg:sticky lg:top-4">
       <p className="text-xs text-muted-foreground">
-        {quem === 'Esta pessoa' ? 'Esta pessoa verá' : `${quem.split(' ')[0]} verá`}
+        {quem === 'Esta pessoa' ? tx("Esta pessoa verá") : tx("{0} verá", [quem.split(' ')[0]])}
       </p>
 
       {/* ------------------------------------------------------------------
@@ -1372,13 +1370,12 @@ function PainelDoQueVaiVer({
       {semEscopo ? (
         <p className="text-xs">
           <ShieldAlert className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5 text-amber-600 dark:text-amber-500" />
-          Nada, por enquanto: sem departamento, a pessoa entra e abre o painel em branco. As abas
-          abaixo só passam a valer depois que houver ao menos um.
+          {tx("Nada, por enquanto: sem departamento, a pessoa entra e abre o painel em branco. As abas abaixo só passam a valer depois que houver ao menos um.")}
         </p>
       ) : abas.length === 0 ? (
         <p className="text-xs">
           <ShieldAlert className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5 text-amber-600 dark:text-amber-500" />
-          Nenhuma aba. A pessoa consegue entrar e não encontra nada para abrir.
+          {tx("Nenhuma aba. A pessoa consegue entrar e não encontra nada para abrir.")}
         </p>
       ) : null}
 
@@ -1392,7 +1389,7 @@ function PainelDoQueVaiVer({
                 : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
             }`}
           >
-            {TAB_LABELS[t]}
+            {tx(TAB_LABELS[t])}
           </span>
         ))}
       </div>
@@ -1400,17 +1397,17 @@ function PainelDoQueVaiVer({
       {!semEscopo && (
         <p className="text-xs text-muted-foreground border-t border-border pt-2.5">
           {form.global ? (
-            <>Da <span className="text-foreground">empresa inteira</span>.</>
+            <>{tx("Da")}{" "}<span className="text-foreground">{tx("empresa inteira")}</span>.</>
           ) : (
             <>
-              Só de{' '}
+              {tx("Só de")}{' '}
               <span className="text-foreground">
-                {[...form.departments, ...form.jobFamilies].join(', ')}
+                {tx([...form.departments, ...form.jobFamilies].join(', '))}
               </span>
               .
             </>
           )}{' '}
-          {podeIndividual ? 'Com nome e salário pessoa a pessoa.' : 'Em números agregados.'}
+          {podeIndividual ? tx("Com nome e salário pessoa a pessoa.") : tx("Em números agregados.")}
         </p>
       )}
 
@@ -1418,22 +1415,22 @@ function PainelDoQueVaiVer({
           nenhum: a tela antiga só listava o que a pessoa alcança. */}
       <div className="space-y-1 text-[11px] text-muted-foreground border-t border-border pt-2.5">
         {fora.length > 0 && (
-          <p>Sem {fora.map((t: DashboardTab) => TAB_LABELS[t]).join(', ')}.</p>
+          <p>{tx("Sem")}{" "}{tx(fora.map((t: DashboardTab) => TAB_LABELS[t]).join(', '))}.</p>
         )}
         {subForaDeAbaVisivel.length > 0 && (
-          <p>Sem {subForaDeAbaVisivel.map((sb) => sb.rotulo).join(', ')}.</p>
+          <p>{tx("Sem")}{" "}{tx(subForaDeAbaVisivel.map((sb) => sb.rotulo).join(', '))}.</p>
         )}
         {form.jobFamilies.length > 0 && (
           <p className="text-foreground/70">
-            Alcança também por job family: {form.jobFamilies.join(', ')}. Departamento{' '}
-            <strong>ou</strong> família — os dois somam, não restringem.
+            {tx("Alcança também por job family:")}{" "}{tx(form.jobFamilies.join(', '))}{tx(". Departamento")}{' '}
+            <strong>{tx("ou")}</strong>{" "}{tx("família — os dois somam, não restringem.")}
           </p>
         )}
-        <p>{form.expiresAt ? `Expira em ${form.expiresAt}.` : 'Sem prazo de validade.'}</p>
+        <p>{form.expiresAt ? tx("Expira em {0}.", [form.expiresAt]) : tx("Sem prazo de validade.")}</p>
         {perfil && (
           <p>
-            Herdado do perfil <strong className="text-foreground">{perfil.nome}</strong>
-            {perfil.quantos > 1 ? `, que ${perfil.quantos} pessoas usam` : ''}.
+            {tx("Herdado do perfil")}{" "}<strong className="text-foreground">{tx(perfil.nome)}</strong>
+            {perfil.quantos > 1 ? tx(", que {0} pessoas usam", [perfil.quantos]) : ''}.
           </p>
         )}
       </div>
@@ -1551,33 +1548,32 @@ function UserAccessFormFields({
         ================================================================== */}
         <div className="rounded-lg bg-muted/40 p-3 space-y-2">
           <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-            <Lock className="h-3 w-3" /> do Convenia, não editável
+            <Lock className="h-3 w-3" />{" "}{tx("do Convenia, não editável")}
           </p>
           {value.conveniaEncontrado === false ? (
             <p className="text-xs text-amber-600 dark:text-amber-500">
-              Este e-mail não está no Convenia. Pode ser terceiro, conta de serviço ou alguém ainda
-              não cadastrado no RH — o acesso funciona, mas sem cargo e sem camada.
+              {tx("Este e-mail não está no Convenia. Pode ser terceiro, conta de serviço ou alguém ainda não cadastrado no RH — o acesso funciona, mas sem cargo e sem camada.")}
             </p>
           ) : value.conveniaEncontrado === null ? (
             <p className="text-xs text-muted-foreground">
-              Informe o e-mail para buscar nome, cargo e camada.
+              {tx("Informe o e-mail para buscar nome, cargo e camada.")}
             </p>
           ) : (
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-              <dt className="text-muted-foreground">Nome</dt>
-              <dd>{value.nome || <span className="text-muted-foreground">—</span>}</dd>
-              <dt className="text-muted-foreground">Cargo</dt>
-              <dd>{value.jobTitle || <span className="text-muted-foreground">não informado</span>}</dd>
-              <dt className="text-muted-foreground">Camada</dt>
-              <dd>{value.jobLevel || <span className="text-muted-foreground">não informada</span>}</dd>
+              <dt className="text-muted-foreground">{tx("Nome")}</dt>
+              <dd>{tx(value.nome) || <span className="text-muted-foreground">—</span>}</dd>
+              <dt className="text-muted-foreground">{tx("Cargo")}</dt>
+              <dd>{tx(value.jobTitle) || <span className="text-muted-foreground">{tx("não informado")}</span>}</dd>
+              <dt className="text-muted-foreground">{tx("Camada")}</dt>
+              <dd>{tx(value.jobLevel) || <span className="text-muted-foreground">{tx("não informada")}</span>}</dd>
             </dl>
           )}
           {avisoDoConvenia && (
-            <p className="text-[11px] text-amber-600 dark:text-amber-500">{avisoDoConvenia}</p>
+            <p className="text-[11px] text-amber-600 dark:text-amber-500">{tx(avisoDoConvenia)}</p>
           )}
           {isCompVisivel && !value.jobLevel && (
             <p className="text-[11px] text-amber-600 dark:text-amber-500">
-              Sem camada, esta pessoa abre a aba de Salários e não vê ninguém.
+              {tx("Sem camada, esta pessoa abre a aba de Salários e não vê ninguém.")}
             </p>
           )}
         </div>
@@ -1591,7 +1587,7 @@ function UserAccessFormFields({
         ================================================================== */}
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground" htmlFor={`perfil-${idSuffix}`}>
-            Perfil de acesso
+            {tx("Perfil de acesso")}
           </Label>
           <select
             id={`perfil-${idSuffix}`}
@@ -1599,20 +1595,20 @@ function UserAccessFormFields({
             onChange={(e) => escolherPerfil(e.target.value)}
             className="w-full rounded border border-border bg-secondary px-2 py-1.5 text-sm"
           >
-            <option value="">— sem perfil, definir à mão —</option>
+            <option value="">{tx("— sem perfil, definir à mão —")}</option>
             {perfis.map((p) => (
-              <option key={p.id} value={p.id}>{p.nome}</option>
+              <option key={p.id} value={p.id}>{tx(p.nome)}</option>
             ))}
           </select>
           {perfilAtual ? (
             <p className="text-[11px] text-muted-foreground">
-              {perfilAtual.tabs.length} abas ·{' '}
-              {perfilAtual.veEmpresaToda ? 'a empresa toda' : 'só as áreas atribuídas'} ·{' '}
-              {perfilAtual.veIndividual ? 'com dado individual' : 'sem dado individual'}
+              {perfilAtual.tabs.length}{" "}{tx("abas ·")}{' '}
+              {perfilAtual.veEmpresaToda ? tx("a empresa toda") : tx("só as áreas atribuídas")} ·{' '}
+              {perfilAtual.veIndividual ? tx("com dado individual") : tx("sem dado individual")}
             </p>
           ) : perfis.length === 0 ? (
             <p className="text-[11px] text-muted-foreground">
-              Nenhum perfil cadastrado ainda — as três perguntas abaixo definem o acesso.
+              {tx("Nenhum perfil cadastrado ainda — as três perguntas abaixo definem o acesso.")}
             </p>
           ) : null}
         </div>
@@ -1623,7 +1619,7 @@ function UserAccessFormFields({
           <div className="space-y-2">
             {CHAVES.map((c) => (
               <div key={c.campo} className="flex items-center justify-between gap-3 flex-wrap">
-                <Label className="text-xs font-normal">{c.pergunta}</Label>
+                <Label className="text-xs font-normal">{tx(c.pergunta)}</Label>
                 <div className="flex gap-1 rounded-md bg-muted p-0.5">
                   {[false, true].map((v) => (
                     <button
@@ -1636,7 +1632,7 @@ function UserAccessFormFields({
                           : 'text-muted-foreground'
                       }`}
                     >
-                      {v ? 'Sim' : 'Não'}
+                      {v ? tx("Sim") : tx("Não")}
                     </button>
                   ))}
                 </div>
@@ -1644,8 +1640,7 @@ function UserAccessFormFields({
             ))}
             {value.admin && !value.global && (
               <p className="text-[11px] text-amber-600 dark:text-amber-500">
-                Quem administra usuários alcança todo mundo pelo cadastro de qualquer forma — por
-                isso ligar isto também liga o alcance à empresa toda.
+                {tx("Quem administra usuários alcança todo mundo pelo cadastro de qualquer forma — por isso ligar isto também liga o alcance à empresa toda.")}
               </p>
             )}
           </div>
@@ -1655,7 +1650,7 @@ function UserAccessFormFields({
           <div className="space-y-1.5">
             <MultiSelect
               id={`dept-${idSuffix}`}
-              label="Departamentos que atende"
+              label={tx("Departamentos que atende")}
               options={departmentOptions}
               labels={Object.fromEntries(departmentOptions.map((d) => {
                 const a = alcancePorArea.get(d);
@@ -1670,8 +1665,8 @@ function UserAccessFormFields({
               }))}
               value={value.departments}
               onChange={(departments) => patch({ departments })}
-              placeholder="Selecionar departamentos"
-              searchPlaceholder="Buscar departamento..."
+              placeholder={tx("Selecionar departamentos")}
+              searchPlaceholder={tx("Buscar departamento...")}
             />
             {(() => {
               // Só acende quando a área não alcança ninguém em NENHUMA das duas
@@ -1684,17 +1679,15 @@ function UserAccessFormFields({
               if (!vazias.length) return null;
               return (
                 <p className="text-[11px] text-amber-600 dark:text-amber-500">
-                  <strong>{vazias.join(', ')}</strong>{' '}
-                  {vazias.length === 1 ? 'não alcança' : 'não alcançam'} ninguém na base hoje. O
-                  cadastro salva assim mesmo, mas quem entrar vai abrir o painel em branco — e vai
-                  parecer falta de dado, não de escopo.
+                  <strong>{tx(vazias.join(', '))}</strong>{' '}
+                  {vazias.length === 1 ? tx("não alcança") : tx("não alcançam")}{" "}{tx("ninguém na base hoje. O cadastro salva assim mesmo, mas quem entrar vai abrir o painel em branco — e vai parecer falta de dado, não de escopo.")}
                 </p>
               );
             })()}
             {showError && validationError && (
               <p className="text-[11px] text-destructive flex items-center gap-1.5">
                 <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
-                {validationError}
+                {tx(validationError)}
               </p>
             )}
           </div>
@@ -1718,9 +1711,9 @@ function UserAccessFormFields({
             ) : (
               <ChevronRight className="h-3.5 w-3.5" />
             )}
-            Exceções {perfilAtual ? 'ao perfil' : 'e prazo'}
+            {tx("Exceções")}{" "}{perfilAtual ? tx("ao perfil") : tx("e prazo")}
             <span className="ml-auto text-[11px]">
-              {temExcecao ? 'esta pessoa diverge do perfil' : 'nenhuma'}
+              {temExcecao ? tx("esta pessoa diverge do perfil") : tx("nenhuma")}
             </span>
           </button>
 
@@ -1728,7 +1721,7 @@ function UserAccessFormFields({
             <div className="border-t border-border p-3 space-y-3">
               {perfilAtual && (
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <Label className="text-xs font-normal">Vê nome e salário de cada pessoa?</Label>
+                  <Label className="text-xs font-normal">{tx("Vê nome e salário de cada pessoa?")}</Label>
                   <div className="flex gap-1 rounded-md bg-muted p-0.5">
                     {[false, true].map((v) => (
                       <button
@@ -1741,7 +1734,7 @@ function UserAccessFormFields({
                             : 'text-muted-foreground'
                         }`}
                       >
-                        {v ? 'Sim' : 'Não'}
+                        {v ? tx("Sim") : tx("Não")}
                       </button>
                     ))}
                   </div>
@@ -1750,15 +1743,15 @@ function UserAccessFormFields({
 
               <MultiSelect
                 id={`tabs-proprias-${idSuffix}`}
-                label="Abas desta pessoa"
+                label={tx("Abas desta pessoa")}
                 // Oferecer `individual` a quem está marcado como "só números
                 // agregados" é pedir uma decisão que o produto vai ignorar.
                 options={Object.keys(TAB_LABELS).filter((t) => podeIndividual || t !== 'individual')}
                 labels={TAB_LABELS}
                 value={value.tabs}
                 onChange={(tabs) => patch({ tabs })}
-                placeholder={perfilAtual ? 'Vazio = as do perfil' : 'Vazio = as do preset'}
-                searchPlaceholder="Buscar aba..."
+                placeholder={perfilAtual ? tx("Vazio = as do perfil") : tx("Vazio = as do preset")}
+                searchPlaceholder={tx("Buscar aba...")}
               />
 
               {(() => {
@@ -1780,21 +1773,20 @@ function UserAccessFormFields({
                   <>
                     <MultiSelect
                       id={`subtabs-${idSuffix}`}
-                      label="Sub-abas"
+                      label={tx("Sub-abas")}
                       options={disponiveis.map((sb) => sb.id)}
                       labels={SUB_ABA_LABEL}
                       value={value.subTabs}
                       onChange={(subTabs) => patch({ subTabs })}
-                      placeholder="Vazio = todas as das abas acima"
-                      searchPlaceholder="Buscar sub-aba..."
+                      placeholder={tx("Vazio = todas as das abas acima")}
+                      searchPlaceholder={tx("Buscar sub-aba...")}
                     />
                     {parPartido.length > 0 && (
                       <p className="text-[11px] text-amber-600 dark:text-amber-500">
-                        <strong>Atenção:</strong>{' '}
-                        {parPartido.map((sb) => sb.rotulo).join(' e ')} e{' '}
-                        {parPartido.map((sb) => SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id]).join(' e ')}{' '}
-                        leem a MESMA lista de pessoas. Marcar uma sem a outra tira do menu, mas não
-                        protege.
+                        <strong>{tx("Atenção:")}</strong>{' '}
+                        {tx(parPartido.map((sb) => sb.rotulo).join(' e '))}{" "}{tx("e")}{' '}
+                        {tx(parPartido.map((sb) => SUB_ABAS_QUE_COMPARTILHAM_DADO[sb.id]).join(' e '))}{' '}
+                        {tx("leem a MESMA lista de pessoas. Marcar uma sem a outra tira do menu, mas não protege.")}
                       </p>
                     )}
                   </>
@@ -1802,7 +1794,7 @@ function UserAccessFormFields({
               })()}
 
               <div className="space-y-1 sm:max-w-xs">
-                <Label htmlFor={`exp-${idSuffix}`} className="text-xs">Acesso válido até</Label>
+                <Label htmlFor={`exp-${idSuffix}`} className="text-xs">{tx("Acesso válido até")}</Label>
                 <Input
                   id={`exp-${idSuffix}`}
                   type="date"
@@ -1811,8 +1803,8 @@ function UserAccessFormFields({
                 />
                 <p className="text-[11px] text-muted-foreground">
                   {value.expiresAt
-                    ? 'Depois desta data a pessoa deixa de entrar, sem precisar de ninguém.'
-                    : 'Em branco = sem prazo.'}
+                    ? tx("Depois desta data a pessoa deixa de entrar, sem precisar de ninguém.")
+                    : tx("Em branco = sem prazo.")}
                 </p>
               </div>
             </div>

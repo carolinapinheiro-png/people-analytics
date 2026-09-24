@@ -7,6 +7,7 @@ import { COLORS } from '@/lib/colors';
 import { useDashboard } from '@/data/DashboardContext';
 import { Scale } from 'lucide-react';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Comp-ratio por gênero e etnia, no mesmo nível.
  *
@@ -81,8 +82,8 @@ export default function EquidadeCompRatio() {
 
   if (erro) {
     return (
-      <ChartCard title="Equidade de comp ratio" icon={Scale}>
-        <p className="text-sm text-muted-foreground py-4">Não foi possível carregar: {erro}</p>
+      <ChartCard title={tx("Equidade de comp ratio")} icon={Scale}>
+        <p className="text-sm text-muted-foreground py-4">{tx("Não foi possível carregar:")}{" "}{tx(erro)}</p>
       </ChartCard>
     );
   }
@@ -92,11 +93,9 @@ export default function EquidadeCompRatio() {
 
   if (!dados.comElo) {
     return (
-      <ChartCard title="Equidade de comp ratio" icon={Scale}>
+      <ChartCard title={tx("Equidade de comp ratio")} icon={Scale}>
         <p className="text-sm text-muted-foreground py-4 leading-relaxed">
-          Nenhuma das {dados.total} linhas de remuneração está ligada ao cadastro do Convenia, e é
-          de lá que vêm gênero e etnia. Rode o vínculo de camada no admin — ele grava esse elo junto
-          com a camada N.
+          {tx("Nenhuma das")}{" "}{dados.total}{" "}{tx("linhas de remuneração está ligada ao cadastro do Convenia, e é de lá que vêm gênero e etnia. Rode o vínculo de camada no admin — ele grava esse elo junto com a camada N.")}
         </p>
       </ChartCard>
     );
@@ -108,16 +107,16 @@ export default function EquidadeCompRatio() {
     return (
       <div className="overflow-x-auto">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
-          {titulo}
+          {tx(titulo)}
         </div>
         <table className="w-full text-sm">
           <thead className="text-xs text-muted-foreground">
             <tr className="border-b border-border text-left">
-              <th className="p-2">Nível</th>
+              <th className="p-2">{tx("Nível")}</th>
               {grupos.map((g) => (
-                <th key={g} className="p-2 text-right">{g}</th>
+                <th key={g} className="p-2 text-right">{tx(g)}</th>
               ))}
-              <th className="p-2 text-right">Diferença</th>
+              <th className="p-2 text-right">{tx("Diferença")}</th>
             </tr>
           </thead>
           <tbody>
@@ -135,7 +134,7 @@ export default function EquidadeCompRatio() {
                   key={r.nivel}
                   className={`border-b border-border/50 ${r.nivel === 'Geral' ? 'bg-muted/30' : ''}`}
                 >
-                  <td className="p-2 font-medium">{r.nivel}</td>
+                  <td className="p-2 font-medium">{tx(r.nivel)}</td>
                   {grupos.map((g) => {
                     const c = porGrupo.get(g);
                     return (
@@ -143,12 +142,12 @@ export default function EquidadeCompRatio() {
                         {c == null ? (
                           <span className="text-muted-foreground">—</span>
                         ) : c.mediana == null ? (
-                          <span className="text-muted-foreground" title={`${c.n} pessoa(s): abaixo do mínimo de ${dados.minimo}`}>
-                            n={c.n}
+                          <span className="text-muted-foreground" title={tx("{0} pessoa(s): abaixo do mínimo de {1}", [c.n, dados.minimo])}>
+                            {tx("n=")}{c.n}
                           </span>
                         ) : (
                           <>
-                            {c.mediana.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
+                            {tx(c.mediana.toLocaleString(numLocale(), { maximumFractionDigits: 1 }))}%
                             <span className="text-muted-foreground text-[11px] ml-1">({c.n})</span>
                           </>
                         )}
@@ -160,7 +159,7 @@ export default function EquidadeCompRatio() {
                     style={{ color: dif != null && dif <= -10 ? COLORS.danger : undefined }}
                   >
                     {dif == null ? <span className="text-muted-foreground font-normal">—</span>
-                      : `${dif.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} pp`}
+                      : tx("{0} pp", [dif.toLocaleString(numLocale(), { maximumFractionDigits: 1 })])}
                   </td>
                 </tr>
               );
@@ -173,37 +172,29 @@ export default function EquidadeCompRatio() {
 
   return (
     <ChartCard
-      title="Equidade de comp ratio"
+      title={tx("Equidade de comp ratio")}
       icon={Scale}
-      subtitle={`${dados.comElo} pessoas com cadastro vinculado${semElo > 0 ? ` · ${semElo} sem vínculo, fora da conta` : ''}`}
+      subtitle={tx("{0} pessoas com cadastro vinculado{1}", [dados.comElo, semElo > 0 ? ` · ${semElo} sem vínculo, fora da conta` : ''])}
     >
       <div className="space-y-5">
-        <Tabela recortes={dados.porGenero} titulo="Por gênero" />
-        <Tabela recortes={dados.porEtnia} titulo="Por cor / raça" />
+        <Tabela recortes={dados.porGenero} titulo={tx("Por gênero")} />
+        <Tabela recortes={dados.porEtnia} titulo={tx("Por cor / raça")} />
       </div>
 
       <div className="mt-4 pt-3 border-t border-border/60 space-y-2 text-[11px] text-muted-foreground leading-relaxed">
         <p>
-          <strong>Comp ratio é posição dentro da faixa do próprio cargo</strong> — 100% é o meio da
-          faixa. Como o nível já está embutido no cálculo, comparar grupos aqui não compara salário:
-          pergunta se, na mesma faixa, um grupo está posicionado abaixo do outro.
+          <strong>{tx("Comp ratio é posição dentro da faixa do próprio cargo")}</strong>{" "}{tx("— 100% é o meio da faixa. Como o nível já está embutido no cálculo, comparar grupos aqui não compara salário: pergunta se, na mesma faixa, um grupo está posicionado abaixo do outro.")}
         </p>
         <p>
-          <strong>Olhe as linhas por nível, não a "Geral".</strong> A geral mistura níveis, então uma
-          diferença ali pode ser só composição — um grupo concentrado em cargos menores. Dentro de um
-          nível essa explicação não existe.
+          <strong>{tx("Olhe as linhas por nível, não a \"Geral\".")}</strong>{" "}{tx("A geral mistura níveis, então uma diferença ali pode ser só composição — um grupo concentrado em cargos menores. Dentro de um nível essa explicação não existe.")}
         </p>
         <p>
-          O número entre parênteses é quantas pessoas há na célula, e aqui{' '}
-          <strong>todo grupo aparece, de qualquer tamanho</strong> — inclusive de uma pessoa só.
-          Com n baixo a mediana é o número de alguém específico, então leia a contagem antes do
-          percentual: uma diferença grande entre células de duas e três pessoas não é um achado.
+          {tx("O número entre parênteses é quantas pessoas há na célula, e aqui")}{' '}
+          <strong>{tx("todo grupo aparece, de qualquer tamanho")}</strong>{" "}{tx("— inclusive de uma pessoa só. Com n baixo a mediana é o número de alguém específico, então leia a contagem antes do percentual: uma diferença grande entre células de duas e três pessoas não é um achado.")}
         </p>
         <p>
-          Isso vale porque esta aba é restrita a quem já vê o comp-ratio individual na lista acima.
-          <strong> Se Compensação for aberta para perfis com escopo de área</strong> — um HRBP, um
-          gestor —, esta tabela passa a publicar salário individual por dedução, e o mínimo de
-          exibição precisa voltar.
+          {tx("Isso vale porque esta aba é restrita a quem já vê o comp-ratio individual na lista acima.")}
+          <strong>{" "}{tx("Se Compensação for aberta para perfis com escopo de área")}</strong>{" "}{tx("— um HRBP, um gestor —, esta tabela passa a publicar salário individual por dedução, e o mínimo de exibição precisa voltar.")}
         </p>
       </div>
     </ChartCard>

@@ -37,6 +37,7 @@ import {
   mediana, mesesDeCasaValidos, turnoverPrecoce,
 } from '@/lib/desligamentos-kpis';
 
+import { tx } from '@/lib/i18n';
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
   NSX: COLORS.nsx,
@@ -394,7 +395,7 @@ export default function LeaversTab() {
       label: rotuloTaxa, value: pctFmt(taxaAtual?.taxa), color: COLORS.orange, icon: TrendingUp,
       help: 'atricaoPeriodo' as const, helpValue: taxaAtual?.taxa ?? null,
       sub: subTaxa,
-      delta: temPeriodo ? <Delta v={deltaPP(taxaAtual, taxaAnterior)} invertido periodo={`${nomeAnterior} (em p.p.)`} /> : undefined,
+      delta: temPeriodo ? <Delta v={deltaPP(taxaAtual, taxaAnterior)} invertido periodo={tx("{0} (em p.p.)", [nomeAnterior])} /> : undefined,
     },
     // A métrica da barra de filtros decide o número grande: nº de saídas
     // (com a taxa embaixo) ou taxa sobre o HC médio (com o nº embaixo).
@@ -444,18 +445,18 @@ export default function LeaversTab() {
         <div>
           <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
             <LogOut className="h-5 w-5" style={{ color: brandColor }} />
-            Análise de Desligamentos
+            {tx("Análise de Desligamentos")}
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {totalLeavers} desligamentos{temPeriodo ? ` em ${rotuloEscopo}` : ' (todos os anos)'}
-            {brand !== 'combined' ? ` · ${brand}` : ''} · marca, mês, trimestre e ano no topo recortam esta aba
+            {totalLeavers}{" "}{tx("desligamentos")}{temPeriodo ? tx(" em {0}", [rotuloEscopo]) : tx(" (todos os anos)")}
+            {brand !== 'combined' ? ` · ${brand}` : ''}{" "}{tx("· marca, mês, trimestre e ano no topo recortam esta aba")}
           </p>
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <input
             type="text"
-            placeholder={nomesOcultos ? 'Buscar cargo ou departamento...' : 'Buscar colaborador, cargo ou departamento...'}
+            placeholder={nomesOcultos ? tx("Buscar cargo ou departamento...") : tx("Buscar colaborador, cargo ou departamento...")}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="bg-secondary border border-border rounded pl-9 pr-3 py-1.5 text-sm text-foreground w-full md:w-[320px] focus:outline-none focus:ring-1"
@@ -473,27 +474,27 @@ export default function LeaversTab() {
 
       {totalDist > 0 && totalDist < 20 && (
         <p className="text-[11px] text-muted-foreground">
-          Poucas saídas no recorte: cada barra é uma ou duas pessoas e o desenho muda muito de um período para o outro.
-          {!usaLtm ? ' A janela "Últimos 12 meses", na barra de filtros, dá uma leitura mais estável.' : ''}
+          {tx("Poucas saídas no recorte: cada barra é uma ou duas pessoas e o desenho muda muito de um período para o outro.")}
+          {!usaLtm ? tx(" A janela \"Últimos 12 meses\", na barra de filtros, dá uma leitura mais estável.") : ''}
         </p>
       )}
 
       {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard
-          title="Desligamentos por Faixa Salarial"
+          title={tx("Desligamentos por Faixa Salarial")}
           nota={
             modo === 'taxa'
               ? temDenominador
-                ? '% das pessoas ativas hoje em cada faixa que saíram · no tooltip, o absoluto'
+                ? tx("% das pessoas ativas hoje em cada faixa que saíram · no tooltip, o absoluto")
                 : semAcesso
-                  ? 'A taxa sobre os ativos da faixa exige acesso a Compensation — sem barras neste modo'
-                  : 'Sem o HC por faixa, não há taxa — sem barras neste modo'
+                  ? tx("A taxa sobre os ativos da faixa exige acesso a Compensation — sem barras neste modo")
+                  : tx("Sem o HC por faixa, não há taxa — sem barras neste modo")
               : temDenominador
-                ? 'Absoluto · no tooltip, taxa sobre os ativos da faixa'
+                ? tx("Absoluto · no tooltip, taxa sobre os ativos da faixa")
                 : semAcesso
-                  ? 'Absoluto · no tooltip, % do total — a taxa sobre os ativos da faixa exige acesso a Compensation'
-                  : 'Absoluto · no tooltip, % do total'
+                  ? tx("Absoluto · no tooltip, % do total — a taxa sobre os ativos da faixa exige acesso a Compensation")
+                  : tx("Absoluto · no tooltip, % do total")
           }
         >
           <ResponsiveContainer width="100%" height={260}>
@@ -502,16 +503,16 @@ export default function LeaversTab() {
               <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
               <YAxis {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
               <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }} formatter={tooltipTaxa} />
-              <Bar dataKey={chaveBarra} name="Desligados" fill={brandColor} radius={[4, 4, 0, 0]} />
+              <Bar dataKey={chaveBarra} name={tx("Desligados")} fill={brandColor} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
         <ChartCard
-          title="Desligamentos por Tempo de Casa"
+          title={tx("Desligamentos por Tempo de Casa")}
           nota={modo === 'taxa'
-            ? 'Saídas com aquele tempo de casa ÷ ativos na mesma faixa no mês de referência · no tooltip, o absoluto'
-            : 'Tempo de casa na data da saída · no tooltip, a taxa sobre os ativos da faixa'}
+            ? tx("Saídas com aquele tempo de casa ÷ ativos na mesma faixa no mês de referência · no tooltip, o absoluto")
+            : tx("Tempo de casa na data da saída · no tooltip, a taxa sobre os ativos da faixa")}
         >
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={tenureData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
@@ -519,7 +520,7 @@ export default function LeaversTab() {
               <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
               <YAxis {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
               <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }} formatter={tooltipTaxa} />
-              <Bar dataKey={chaveBarra} name="Desligados" fill={COLORS.nsx} radius={[4, 4, 0, 0]} />
+              <Bar dataKey={chaveBarra} name={tx("Desligados")} fill={COLORS.nsx} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -528,7 +529,7 @@ export default function LeaversTab() {
       {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <ChartCard
-          title="Por Tipo de Desligamento"
+          title={tx("Por Tipo de Desligamento")}
           nota={"'Outros' = tudo fora de voluntário/involuntário (acordo, fim de contrato, etc.)"
             + (modo === 'taxa' ? ' · em % do HC médio do período' : '')}
         >
@@ -541,7 +542,7 @@ export default function LeaversTab() {
                 <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
                 <YAxis {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
                 <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }} formatter={tooltipSobreHcTotal} />
-                <Bar dataKey="pctHC" name="Desligados" radius={[4, 4, 0, 0]}>
+                <Bar dataKey="pctHC" name={tx("Desligados")} radius={[4, 4, 0, 0]}>
                   {typeData.map((_, idx) => (
                     <Cell key={`cell-${idx}`} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
                   ))}
@@ -574,10 +575,10 @@ export default function LeaversTab() {
 
         {mostraEmpresa && (
           <ChartCard
-            title="Por Marca"
+            title={tx("Por Marca")}
             nota={modo === 'taxa'
-              ? 'Saídas da marca ÷ HC médio da marca no período · no tooltip, o absoluto'
-              : 'Nº de saídas · no tooltip, a taxa sobre o HC médio da marca no período'}
+              ? tx("Saídas da marca ÷ HC médio da marca no período · no tooltip, o absoluto")
+              : tx("Nº de saídas · no tooltip, a taxa sobre o HC médio da marca no período")}
           >
             <ResponsiveContainer width="100%" height={240}>
               <BarChart data={empresaData} layout="vertical" margin={{ left: 20 }}>
@@ -593,7 +594,7 @@ export default function LeaversTab() {
                       : `${p.value} · sem HC da marca no período`, 'Desligados'];
                   }}
                 />
-                <Bar dataKey={chaveBarra} name="Desligados" radius={[0, 4, 4, 0]}>
+                <Bar dataKey={chaveBarra} name={tx("Desligados")} radius={[0, 4, 4, 0]}>
                   {empresaData.map((d) => (
                     <Cell key={d.name} fill={BRAND_COLORS[d.name] || COLORS.flutter} />
                   ))}
@@ -605,7 +606,7 @@ export default function LeaversTab() {
 
         {comMotivo.length > 0 && (
           <ChartCard
-            title="Por Motivo"
+            title={tx("Por Motivo")}
             nota={`${comMotivo.length} de ${totalDist} saídas com motivo no Convenia · top 10`
               + (modo === 'taxa' ? ' · em % do HC médio do período' : ' · no tooltip, % das que têm motivo')}
           >
@@ -620,15 +621,15 @@ export default function LeaversTab() {
                     ? tooltipSobreHcTotal
                     : (value: number) => [`${value} · ${((value / comMotivo.length) * 100).toFixed(0)}% das saídas com motivo`, 'Desligados']}
                 />
-                <Bar dataKey={chaveBarra} name="Desligados" fill={COLORS.teal} radius={[0, 4, 4, 0]} />
+                <Bar dataKey={chaveBarra} name={tx("Desligados")} fill={COLORS.teal} radius={[0, 4, 4, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
         )}
 
         <ChartCard
-          title="Por Departamento"
-          nota={modo === 'taxa' ? '% do HC atual do depto que saiu · top 8 por nº de saídas' : 'Absoluto · no tooltip, % sobre o HC do depto'}
+          title={tx("Por Departamento")}
+          nota={modo === 'taxa' ? tx("% do HC atual do depto que saiu · top 8 por nº de saídas") : tx("Absoluto · no tooltip, % sobre o HC do depto")}
         >
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={deptData.slice(0, 8)} layout="vertical" margin={{ left: 20 }}>
@@ -636,14 +637,14 @@ export default function LeaversTab() {
               <XAxis type="number" {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
               <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={90} />
               <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }} formatter={tooltipTaxa} />
-              <Bar dataKey={chaveBarra} name="Desligados" fill={COLORS.purple} radius={[0, 4, 4, 0]} />
+              <Bar dataKey={chaveBarra} name={tx("Desligados")} fill={COLORS.purple} radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
         <ChartCard
-          title="Por Level"
-          nota={modo === 'taxa' ? '% do HC atual do nível que saiu · no tooltip, o absoluto' : 'Absoluto · no tooltip, % sobre o HC do nível'}
+          title={tx("Por Level")}
+          nota={modo === 'taxa' ? tx("% do HC atual do nível que saiu · no tooltip, o absoluto") : tx("Absoluto · no tooltip, % sobre o HC do nível")}
         >
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={levelData} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
@@ -651,7 +652,7 @@ export default function LeaversTab() {
               <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
               <YAxis {...eixoBarra} tick={{ fill: 'var(--chart-tick)', fontSize: 11 }} />
               <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 12 }} formatter={tooltipTaxa} />
-              <Bar dataKey={chaveBarra} name="Desligados" fill={COLORS.betfair} radius={[4, 4, 0, 0]} />
+              <Bar dataKey={chaveBarra} name={tx("Desligados")} fill={COLORS.betfair} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -659,7 +660,7 @@ export default function LeaversTab() {
 
       {/* Evolução mensal empilhada por tipo */}
       <ChartCard
-        title="Evolução Mensal de Desligamentos"
+        title={tx("Evolução Mensal de Desligamentos")}
         nota={
           (usaLtm ? 'Os 12 meses da janela' : 'Mês a mês até o período do topo')
           + (modo === 'taxa' ? ', em % do HC de cada mês, por tipo' : ', em nº de saídas, por tipo')
@@ -680,9 +681,9 @@ export default function LeaversTab() {
               labelFormatter={(label) => mLabel(String(label))}
             />
             <Legend wrapperStyle={{ fontSize: 10 }} />
-            <Bar dataKey="voluntario" name="Voluntário" stackId="t" fill={COLORS.info} />
-            <Bar dataKey="involuntario" name="Involuntário" stackId="t" fill={COLORS.orange} />
-            <Bar dataKey="outros" name="Outros" stackId="t" fill={COLORS.gray800} radius={[4, 4, 0, 0]} />
+            <Bar dataKey="voluntario" name={tx("Voluntário")} stackId="t" fill={COLORS.info} />
+            <Bar dataKey="involuntario" name={tx("Involuntário")} stackId="t" fill={COLORS.orange} />
+            <Bar dataKey="outros" name={tx("Outros")} stackId="t" fill={COLORS.gray800} radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </ChartCard>
@@ -692,12 +693,12 @@ export default function LeaversTab() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2 text-foreground">
             <BarChart3 className="h-5 w-5" style={{ color: brandColor }} />
-            Lista de Desligados
+            {tx("Lista de Desligados")}
           </CardTitle>
           {nomesOcultos && (
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
               <EyeOff className="h-3.5 w-3.5 shrink-0" />
-              Nomes e salários ficam ocultos no seu perfil de acesso — os números da aba contam todas as pessoas do seu escopo.
+              {tx("Nomes e salários ficam ocultos no seu perfil de acesso — os números da aba contam todas as pessoas do seu escopo.")}
             </p>
           )}
         </CardHeader>
@@ -706,27 +707,27 @@ export default function LeaversTab() {
             <table className="w-full text-[11px]">
               <thead className="text-muted-foreground uppercase sticky top-0 bg-card/95 backdrop-blur-sm">
                 <tr className="border-b border-border/50">
-                  <th className="text-left p-2">Nome</th>
-                  <th className="text-left p-2">Cargo</th>
-                  <th className="text-left p-2">Depto</th>
-                  <th className="text-left p-2">Level</th>
-                  <th className="text-left p-2">Vínculo</th>
-                  <th className="text-left p-2">Tempo de Casa</th>
-                  <th className="text-left p-2">Data Deslig.</th>
-                  <th className="text-left p-2">Tipo</th>
-                  <th className="text-left p-2">Motivo</th>
+                  <th className="text-left p-2">{tx("Nome")}</th>
+                  <th className="text-left p-2">{tx("Cargo")}</th>
+                  <th className="text-left p-2">{tx("Depto")}</th>
+                  <th className="text-left p-2">{tx("Level")}</th>
+                  <th className="text-left p-2">{tx("Vínculo")}</th>
+                  <th className="text-left p-2">{tx("Tempo de Casa")}</th>
+                  <th className="text-left p-2">{tx("Data Deslig.")}</th>
+                  <th className="text-left p-2">{tx("Tipo")}</th>
+                  <th className="text-left p-2">{tx("Motivo")}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredLeavers.map((leaver) => (
                   <tr key={leaver.id} className="border-b border-border/30 hover:bg-muted/50">
-                    <td className="p-2 font-medium text-foreground whitespace-nowrap">{leaver.nome}</td>
-                    <td className="p-2 text-foreground">{leaver.cargo}</td>
-                    <td className="p-2 text-foreground">{leaver.departamento}</td>
-                    <td className="p-2 text-foreground">{leaver.level}</td>
-                    <td className="p-2 text-foreground">{leaver.vinculo}</td>
-                    <td className="p-2 text-foreground">{leaver.tempo_casa_faixa}</td>
-                    <td className="p-2 text-foreground whitespace-nowrap">{leaver.data_desligamento_str}</td>
+                    <td className="p-2 font-medium text-foreground whitespace-nowrap">{tx(leaver.nome)}</td>
+                    <td className="p-2 text-foreground">{tx(leaver.cargo)}</td>
+                    <td className="p-2 text-foreground">{tx(leaver.departamento)}</td>
+                    <td className="p-2 text-foreground">{tx(leaver.level)}</td>
+                    <td className="p-2 text-foreground">{tx(leaver.vinculo)}</td>
+                    <td className="p-2 text-foreground">{tx(leaver.tempo_casa_faixa)}</td>
+                    <td className="p-2 text-foreground whitespace-nowrap">{tx(leaver.data_desligamento_str)}</td>
                     <td className="p-2">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${
                         leaver.tipo_desligamento_agrupado === 'Involuntário'
@@ -737,16 +738,16 @@ export default function LeaversTab() {
                           ? 'bg-yellow-500/20 text-yellow-400'
                           : 'bg-muted text-muted-foreground'
                       }`}>
-                        {leaver.tipo_desligamento_agrupado}
+                        {tx(leaver.tipo_desligamento_agrupado)}
                       </span>
                     </td>
-                    <td className="p-2 text-muted-foreground">{leaver.motivo_desligamento || '—'}</td>
+                    <td className="p-2 text-muted-foreground">{tx(leaver.motivo_desligamento) || '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {filteredLeavers.length === 0 && (
-              <p className="text-center text-muted-foreground py-8">Nenhum desligado encontrado com os filtros selecionados.</p>
+              <p className="text-center text-muted-foreground py-8">{tx("Nenhum desligado encontrado com os filtros selecionados.")}</p>
             )}
           </div>
         </CardContent>

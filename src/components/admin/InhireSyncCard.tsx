@@ -8,6 +8,7 @@ import {
   type InhireSyncResult, type InhireStatus,
 } from '@/lib/inhire.functions';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Sincronização do recrutamento com a API do InHire.
  *
@@ -22,7 +23,7 @@ import {
  */
 
 const fmtData = (iso: string | null) =>
-  !iso ? '—' : new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  !iso ? '—' : new Date(iso).toLocaleString(numLocale(), { dateStyle: 'short', timeStyle: 'short' });
 
 export default function InhireSyncCard() {
   const [status, setStatus] = useState<InhireStatus | null>(null);
@@ -63,21 +64,18 @@ export default function InhireSyncCard() {
       <div className="flex items-start gap-2.5">
         <Plug className="h-4 w-4 mt-0.5 text-[hsl(var(--flutter))]" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium">Recrutamento — sincronizar com o InHire</p>
+          <p className="text-sm font-medium">{tx("Recrutamento — sincronizar com o InHire")}</p>
           <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
-            Busca as vagas pela API e recalcula a série mensal e a foto de vagas abertas.
-            Só agregado por área: nenhum dado de candidato passa por aqui.
+            {tx("Busca as vagas pela API e recalcula a série mensal e a foto de vagas abertas. Só agregado por área: nenhum dado de candidato passa por aqui.")}
           </p>
         </div>
       </div>
 
       {status && !configurado && (
         <div className="rounded-md border p-3" style={{ borderColor: `${COLORS.warning}55`, background: `${COLORS.warning}0f` }}>
-          <p className="text-xs font-medium mb-1">Integração ainda não configurada</p>
+          <p className="text-xs font-medium mb-1">{tx("Integração ainda não configurada")}</p>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Faltam nos secrets: <strong>{status.faltando.join(', ')}</strong>. Crie um usuário de API
-            no InHire em Configurações → Usuários de API (precisa ser owner, plano Advanced) e cole
-            os valores. A senha aparece uma única vez.
+            {tx("Faltam nos secrets:")}{" "}<strong>{tx(status.faltando.join(', '))}</strong>{tx(". Crie um usuário de API no InHire em Configurações → Usuários de API (precisa ser owner, plano Advanced) e cole os valores. A senha aparece uma única vez.")}
           </p>
         </div>
       )}
@@ -85,22 +83,22 @@ export default function InhireSyncCard() {
       {status && (
         <div className="grid grid-cols-2 gap-3 text-[11px]">
           <div>
-            <p className="text-muted-foreground">Última execução</p>
+            <p className="text-muted-foreground">{tx("Última execução")}</p>
             <p className="font-medium">
-              {status.ultimaExecucao ? fmtData(status.ultimaExecucao.quando) : 'nunca'}
+              {status.ultimaExecucao ? tx(fmtData(status.ultimaExecucao.quando)) : tx("nunca")}
               {status.ultimaExecucao && (
-                <span className="text-muted-foreground"> · {status.ultimaExecucao.status}</span>
+                <span className="text-muted-foreground"> · {tx(status.ultimaExecucao.status)}</span>
               )}
             </p>
             {status.ultimaExecucao?.erro && (
               <p className="text-[11px] mt-0.5" style={{ color: COLORS.danger }}>
-                {status.ultimaExecucao.erro}
+                {tx(status.ultimaExecucao.erro)}
               </p>
             )}
           </div>
           <div>
-            <p className="text-muted-foreground">Foto de vagas abertas</p>
-            <p className="font-medium">{status.ultimaFoto ?? 'nenhuma ainda'}</p>
+            <p className="text-muted-foreground">{tx("Foto de vagas abertas")}</p>
+            <p className="font-medium">{tx(status.ultimaFoto) ?? tx("nenhuma ainda")}</p>
           </div>
         </div>
       )}
@@ -109,20 +107,20 @@ export default function InhireSyncCard() {
         <Button size="sm" variant="outline" disabled={!configurado || rodando !== null}
           onClick={() => executar(false)}>
           {rodando === 'preview'
-            ? <><RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />Simulando…</>
-            : 'Simular sem gravar'}
+            ? <><RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />{tx("Simulando…")}</>
+            : tx("Simular sem gravar")}
         </Button>
         {resultado && !resultado.gravado && (
           <Button size="sm" disabled={rodando !== null} onClick={() => executar(true)}>
             {rodando === 'gravar'
-              ? <><RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />Gravando…</>
-              : `Gravar ${resultado.linhasMensais + resultado.linhasAbertas} linhas`}
+              ? <><RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />{tx("Gravando…")}</>
+              : tx("Gravar {0} linhas", [resultado.linhasMensais + resultado.linhasAbertas])}
           </Button>
         )}
       </div>
 
       {erro && (
-        <p className="text-xs" style={{ color: COLORS.danger }}>{erro}</p>
+        <p className="text-xs" style={{ color: COLORS.danger }}>{tx(erro)}</p>
       )}
 
       {resultado && (
@@ -132,7 +130,7 @@ export default function InhireSyncCard() {
               ? <CheckCircle2 className="h-4 w-4" style={{ color: COLORS.success }} />
               : <AlertTriangle className="h-4 w-4" style={{ color: COLORS.info }} />}
             <p className="text-xs font-medium">
-              {resultado.gravado ? 'Gravado' : 'Prévia — nada foi gravado ainda'}
+              {resultado.gravado ? tx("Gravado") : tx("Prévia — nada foi gravado ainda")}
             </p>
           </div>
 
@@ -160,7 +158,7 @@ export default function InhireSyncCard() {
             ].map(([label, valor]) => (
               <div key={String(label)}>
                 <p className="text-muted-foreground">{label}</p>
-                <p className="font-medium tabular-nums">{String(valor)}</p>
+                <p className="font-medium tabular-nums">{tx(String(valor))}</p>
               </div>
             ))}
           </div>
@@ -170,7 +168,7 @@ export default function InhireSyncCard() {
               {resultado.avisos.map((a) => (
                 <li key={a} className="text-[11px] text-muted-foreground leading-relaxed flex gap-1.5">
                   <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" style={{ color: COLORS.warning }} />
-                  {a}
+                  {tx(a)}
                 </li>
               ))}
             </ul>
@@ -179,9 +177,7 @@ export default function InhireSyncCard() {
       )}
 
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        O limite de requisições do InHire é <strong>por conta</strong>, compartilhado com o conector
-        MCP que o time usa. A sincronização anda devagar de propósito — se ela corresse, derrubaria
-        a ferramenta de quem está recrutando naquele momento.
+        {tx("O limite de requisições do InHire é")}{" "}<strong>{tx("por conta")}</strong>{tx(", compartilhado com o conector MCP que o time usa. A sincronização anda devagar de propósito — se ela corresse, derrubaria a ferramenta de quem está recrutando naquele momento.")}
       </p>
     </div>
   );

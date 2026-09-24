@@ -11,6 +11,7 @@ import {
   importSurveyWave, listSurveyWaves, type ResultadoCarga,
 } from '@/lib/survey-import.functions';
 
+import { tx } from '@/lib/i18n';
 /** Metadado de uma onda já gravada, para o formulário se preencher. */
 type OndaGravada = Awaited<ReturnType<typeof listSurveyWaves>>[number];
 
@@ -183,11 +184,9 @@ export function PesquisaCard() {
       <div className="flex items-start gap-3">
         <ClipboardList className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold">Carregar onda de pesquisa</h3>
+          <h3 className="font-semibold">{tx("Carregar onda de pesquisa")}</h3>
           <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-            O CSV do Polly é lido e agregado <strong>no seu navegador</strong>. Sobem
-            somas e contagens por recorte — nenhuma resposta individual e nenhum
-            comentário atravessam a rede.
+            {tx("O CSV do Polly é lido e agregado")}{" "}<strong>{tx("no seu navegador")}</strong>{tx(". Sobem somas e contagens por recorte — nenhuma resposta individual e nenhum comentário atravessam a rede.")}
           </p>
 
           <div className="mt-3">
@@ -198,19 +197,19 @@ export function PesquisaCard() {
             />
           </div>
 
-          {erro && <p className="mt-3 text-sm text-red-600 dark:text-red-500">{erro}</p>}
+          {erro && <p className="mt-3 text-sm text-red-600 dark:text-red-500">{tx(erro)}</p>}
 
           {previa && (
             <div className="mt-4 space-y-3">
               <div className="rounded-md border border-border bg-secondary/30 px-3 py-2.5">
                 <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
-                  O que o arquivo tem · {arquivo}
+                  {tx("O que o arquivo tem ·")}{" "}{tx(arquivo)}
                 </p>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1 text-[13px]">
-                  <Item rotulo="Respostas" valor={previa.respostas} />
-                  <Item rotulo="Perguntas de driver" valor={previa.encontrado.drivers} />
-                  <Item rotulo="Áreas" valor={areas.length} />
-                  <Item rotulo="Recortes" valor={previa.cuts.length} />
+                  <Item rotulo={tx("Respostas")} valor={previa.respostas} />
+                  <Item rotulo={tx("Perguntas de driver")} valor={previa.encontrado.drivers} />
+                  <Item rotulo={tx("Áreas")} valor={areas.length} />
+                  <Item rotulo={tx("Recortes")} valor={previa.cuts.length} />
                 </div>
 
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
@@ -243,11 +242,8 @@ export function PesquisaCard() {
                     bloco, com o nome do que some. */}
                 {!previa.encontrado.nps && (
                   <p className="mt-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
-                    <strong>Este arquivo não tem a pergunta de recomendação (eNPS).</strong> Ele
-                    mede só as perguntas de driver. Se esta onda já tiver eNPS gravado, ele será{' '}
-                    <strong>preservado</strong> — a carga substitui apenas os drivers. É o caso de
-                    uma onda aplicada em duas partes, como jul/25, em que o eNPS veio de um arquivo
-                    e os drivers de outro. Simule antes de gravar para ver o que vai acontecer.
+                    <strong>{tx("Este arquivo não tem a pergunta de recomendação (eNPS).")}</strong>{" "}{tx("Ele mede só as perguntas de driver. Se esta onda já tiver eNPS gravado, ele será")}{' '}
+                    <strong>{tx("preservado")}</strong>{" "}{tx("— a carga substitui apenas os drivers. É o caso de uma onda aplicada em duas partes, como jul/25, em que o eNPS veio de um arquivo e os drivers de outro. Simule antes de gravar para ver o que vai acontecer.")}
                   </p>
                 )}
 
@@ -258,11 +254,11 @@ export function PesquisaCard() {
                 {previa.ignorados.length > 0 && (
                   <details className="mt-2">
                     <summary className="text-[11px] text-muted-foreground cursor-pointer">
-                      {previa.ignorados.length} colunas não reconhecidas — vale conferir
+                      {previa.ignorados.length}{" "}{tx("colunas não reconhecidas — vale conferir")}
                     </summary>
                     <ul className="mt-1 space-y-0.5">
                       {previa.ignorados.map((h) => (
-                        <li key={h} className="text-[11px] text-muted-foreground truncate">{h}</li>
+                        <li key={h} className="text-[11px] text-muted-foreground truncate">{tx(h)}</li>
                       ))}
                     </ul>
                   </details>
@@ -270,28 +266,26 @@ export function PesquisaCard() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                <Campo rotulo="Identificador (ago_2026)" valor={wave} onChange={aoMudarWave} />
-                <Campo rotulo="Como é chamada (Agosto/26)" valor={label} onChange={setLabel} />
-                <Campo rotulo="Início da coleta (AAAA-MM-DD)" valor={referenceDate} onChange={setReferenceDate} />
-                <Campo rotulo="Elegíveis na largada" valor={eligible} onChange={setEligible} />
+                <Campo rotulo={tx("Identificador (ago_2026)")} valor={wave} onChange={aoMudarWave} />
+                <Campo rotulo={tx("Como é chamada (Agosto/26)")} valor={label} onChange={setLabel} />
+                <Campo rotulo={tx("Início da coleta (AAAA-MM-DD)")} valor={referenceDate} onChange={setReferenceDate} />
+                <Campo rotulo={tx("Elegíveis na largada")} valor={eligible} onChange={setEligible} />
               </div>
-              <Campo rotulo="Observação (aparece na linha do tempo)" valor={notes} onChange={setNotes} />
+              <Campo rotulo={tx("Observação (aparece na linha do tempo)")} valor={notes} onChange={setNotes} />
 
               {/* Recarga de onda existente: diz o que vai acontecer ANTES de
                   acontecer. `importSurveyWave` apaga a onda e regrava, então
                   o que estiver em branco aqui some de lá. */}
               {prefixada && (
                 <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
-                  <strong>{prefixada.wave} já existe</strong> ({prefixada.label}
-                  {prefixada.respondents != null && `, ${prefixada.respondents} respostas`}). Os
-                  campos acima vieram do que está gravado — confirmar substitui a onda inteira, e o
-                  que você apagar destes campos some do painel.
+                  <strong>{tx(prefixada.wave)}{" "}{tx("já existe")}</strong> ({tx(prefixada.label)}
+                  {prefixada.respondents != null && tx(", {0} respostas", [prefixada.respondents])}{tx("). Os campos acima vieram do que está gravado — confirmar substitui a onda inteira, e o que você apagar destes campos some do painel.")}
                 </p>
               )}
 
               {ondas.length > 0 && !prefixada && (
                 <p className="text-[11px] text-muted-foreground">
-                  Ondas já gravadas:{' '}
+                  {tx("Ondas já gravadas:")}{' '}
                   {ondas.map((o, i) => (
                     <span key={o.wave}>
                       {i > 0 && ' · '}
@@ -300,25 +294,25 @@ export function PesquisaCard() {
                         className="underline underline-offset-2 hover:text-foreground"
                         onClick={() => aoMudarWave(o.wave)}
                       >
-                        {o.wave}
+                        {tx(o.wave)}
                       </button>
                     </span>
                   ))}
-                  . Clique para recarregar uma delas com os mesmos dados de cadastro.
+                  {tx(". Clique para recarregar uma delas com os mesmos dados de cadastro.")}
                 </p>
               )}
 
               <div className="flex flex-wrap items-center gap-2">
                 <Button onClick={() => void enviar(false)} disabled={!podeGravar || ocupado} variant="outline" size="sm">
-                  Simular
+                  {tx("Simular")}
                 </Button>
                 <Button onClick={() => void enviar(true)} disabled={!podeGravar || ocupado} size="sm">
                   <Upload className="h-3.5 w-3.5 mr-1.5" />
-                  Gravar
+                  {tx("Gravar")}
                 </Button>
                 {!podeGravar && (
                   <span className="text-[11px] text-muted-foreground">
-                    preencha identificador, nome e data
+                    {tx("preencha identificador, nome e data")}
                   </span>
                 )}
               </div>
@@ -333,21 +327,21 @@ export function PesquisaCard() {
                   : <AlertTriangle className="h-4 w-4 text-muted-foreground" />}
                 <p className="text-sm font-medium">
                   {resultado.gravado
-                    ? `${resultado.wave} gravada`
-                    : `Simulação de ${resultado.wave} — nada foi gravado`}
+                    ? tx("{0} gravada", [resultado.wave])
+                    : tx("Simulação de {0} — nada foi gravado", [resultado.wave])}
                 </p>
               </div>
               <p className="mt-1 text-[12px] text-muted-foreground">
-                {resultado.linhas.cuts} recortes · {resultado.linhas.engagementScores} áreas ·{' '}
-                {resultado.linhas.engagementDrivers} perguntas ·{' '}
-                {resultado.linhas.driverScores} notas por recorte ·{' '}
-                {resultado.linhas.importance} correlações
+                {resultado.linhas.cuts}{" "}{tx("recortes ·")}{" "}{resultado.linhas.engagementScores}{" "}{tx("áreas ·")}{' '}
+                {resultado.linhas.engagementDrivers}{" "}{tx("perguntas ·")}{' '}
+                {resultado.linhas.driverScores}{" "}{tx("notas por recorte ·")}{' '}
+                {resultado.linhas.importance}{" "}{tx("correlações")}
               </p>
               {resultado.avisos.length > 0 && (
                 <ul className="mt-2 space-y-1">
                   {resultado.avisos.map((a) => (
                     <li key={a} className="text-[12px] leading-relaxed text-amber-700 dark:text-amber-400">
-                      {a}
+                      {tx(a)}
                     </li>
                   ))}
                 </ul>
@@ -362,7 +356,7 @@ export function PesquisaCard() {
 
 const Item = ({ rotulo, valor }: { rotulo: string; valor: number }) => (
   <div>
-    <span className="text-muted-foreground">{rotulo}: </span>
+    <span className="text-muted-foreground">{tx(rotulo)}: </span>
     <strong className="tabular-nums">{valor}</strong>
   </div>
 );
@@ -371,7 +365,7 @@ const Campo = ({ rotulo, valor, onChange }: {
   rotulo: string; valor: string; onChange: (v: string) => void;
 }) => (
   <label className="block">
-    <span className="text-[11px] text-muted-foreground">{rotulo}</span>
+    <span className="text-[11px] text-muted-foreground">{tx(rotulo)}</span>
     <Input value={valor} onChange={(e) => onChange(e.target.value)} className="mt-0.5 h-8 text-sm" />
   </label>
 );

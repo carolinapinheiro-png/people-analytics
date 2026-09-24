@@ -1,3 +1,4 @@
+import { tx } from '@/lib/i18n';
 /**
  * Quem enxerga a remuneração de quem.
  *
@@ -154,5 +155,5 @@ export function descreverRecorte(
   }
   const quem = rotuloCamada?.trim() ? ` (${rotuloCamada.trim()})` : '';
   const areas = escopo.areas.length ? escopo.areas.join(', ') : 'sua área';
-  return `Mostrando ${areas}, apenas camadas abaixo da sua${quem}. Seus pares e as camadas acima não aparecem — nem nos totais e médias desta tela.`;
+  return tx('Mostrando {0}, apenas camadas abaixo da sua{1}. Seus pares e as camadas acima não aparecem — nem nos totais e médias desta tela.', [areas, quem]);
 }

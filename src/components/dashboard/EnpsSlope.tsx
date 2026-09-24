@@ -4,6 +4,7 @@ import ChartCard from '@/components/dashboard/ChartCard';
 import { COLORS } from '@/lib/colors';
 import type { EngagementContextRow } from '@/lib/engagement-context';
 
+import { tx } from '@/lib/i18n';
 /**
  * Movimento do eNPS entre as duas ondas, por área.
  *
@@ -101,23 +102,23 @@ export default function EnpsSlope({
 
   return (
     <ChartCard
-      title="Movimento do eNPS por área"
+      title={tx("Movimento do eNPS por área")}
       subtitle={`${ondaAnterior} → ${ondaAtual}`}
       icon={TrendingDown}
     >
       <div className="w-full overflow-x-auto">
         <svg viewBox={`0 0 520 ${H}`} className="w-full min-w-[460px]" style={{ height: H }} role="img"
-          aria-label={`Variação do eNPS entre ${ondaAnterior} e ${ondaAtual} por área`}>
+          aria-label={tx("Variação do eNPS entre {0} e {1} por área", [ondaAnterior, ondaAtual])}>
           {/* Eixos verticais das duas ondas */}
           <line x1={LABEL_W} y1={PAD_TOP - 8} x2={LABEL_W} y2={H - PAD_BOTTOM + 6}
             stroke="var(--border)" strokeWidth={1} />
           <line x1={520 - LABEL_W} y1={PAD_TOP - 8} x2={520 - LABEL_W} y2={H - PAD_BOTTOM + 6}
             stroke="var(--border)" strokeWidth={1} />
           <text x={LABEL_W} y={H - 8} textAnchor="middle" fontSize={11} fill="var(--muted-foreground)">
-            {ondaAnterior}
+            {tx(ondaAnterior)}
           </text>
           <text x={520 - LABEL_W} y={H - 8} textAnchor="middle" fontSize={11} fill="var(--muted-foreground)">
-            {ondaAtual}
+            {tx(ondaAtual)}
           </text>
 
           {dados.map((d, idx) => {
@@ -140,7 +141,7 @@ export default function EnpsSlope({
                     próximo os textos encostavam nas linhas e um no outro. */}
                 <text x={LABEL_W - 8} y={ry1 + 3.5} textAnchor="end" fontSize={11} fill="var(--muted-foreground)"
                   stroke="var(--card)" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">
-                  {d.scope} {d.enpsPrev}
+                  {tx(d.scope)} {d.enpsPrev}
                 </text>
                 <text x={520 - LABEL_W + 8} y={ry2 + 3.5} fontSize={11} fill="var(--foreground)"
                   stroke="var(--card)" strokeWidth={3.5} strokeLinejoin="round" paintOrder="stroke">
@@ -155,16 +156,14 @@ export default function EnpsSlope({
       </div>
 
       <p className="text-sm mt-2 leading-relaxed">
-        <strong>{caiu.length} de {dados.length} áreas caíram.</strong>
+        <strong>{caiu.length}{" "}{tx("de")}{" "}{dados.length}{" "}{tx("áreas caíram.")}</strong>
         {subiu.length === 1
-          ? ` A única que subiu foi ${subiu[0].scope}, que também tem o menor eNPS absoluto (${subiu[0].enps}).`
-          : subiu.length ? ` Subiram ${subiu.map((s) => s.scope).join(', ')}.` : ''}
-        {' '}Quando quase todas se movem para o mesmo lado, a causa costuma ser da empresa, não de
-        cada gestor.
+          ? tx(" A única que subiu foi {0}, que também tem o menor eNPS absoluto ({1}).", [subiu[0].scope, subiu[0].enps])
+          : subiu.length ? tx(" Subiram {0}.", [subiu.map((s) => s.scope).join(', ')]) : ''}
+        {' '}{tx("Quando quase todas se movem para o mesmo lado, a causa costuma ser da empresa, não de cada gestor.")}
       </p>
       <p className="text-xs text-muted-foreground mt-1.5">
-        Maior queda: {maiorQueda.scope} ({maiorQueda.enps - maiorQueda.enpsPrev} pontos). Quem
-        participou pela primeira vez não aparece — não há de onde medir variação.
+        {tx("Maior queda:")}{" "}{tx(maiorQueda.scope)} ({maiorQueda.enps - maiorQueda.enpsPrev}{" "}{tx("pontos). Quem participou pela primeira vez não aparece — não há de onde medir variação.")}
       </p>
     </ChartCard>
   );

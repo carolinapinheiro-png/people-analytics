@@ -6,6 +6,7 @@ import { COLORS } from '@/lib/colors';
 import { syncConvenia, type ResumoSyncConvenia } from '@/lib/convenia.functions';
 import { agruparAvisos } from '@/lib/convenia/avisos';
 
+import { tx } from '@/lib/i18n';
 /**
  * A carga do Convenia.
  *
@@ -42,20 +43,15 @@ export function ConveniaSyncCard() {
       <div className="flex items-start gap-3">
         <DownloadCloud className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
-          <h3 className="text-base font-semibold">Rodar a carga</h3>
+          <h3 className="text-base font-semibold">{tx("Rodar a carga")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            "Simular" já grava o cadastro base (nome, salário, custom fields) e os desligados —
-            leitura barata e reversível, mesmo em prévia. Confirmar grava também o{' '}
-            <strong>organograma</strong> (camada, cargo, empresa, escritório), o comp-ratio, a
-            evolução CLT/PJ e a <strong>série mensal</strong> (headcount, entradas, saídas,
-            atrição) como uma <strong>terceira série</strong> (<code>convenia</code>), ao lado da
-            congelada e da reconstruída — nada é sobrescrito, mas organograma e série mensal
-            reescrevem histórico.
+            {tx("\"Simular\" já grava o cadastro base (nome, salário, custom fields) e os desligados — leitura barata e reversível, mesmo em prévia. Confirmar grava também o")}{' '}
+            <strong>{tx("organograma")}</strong>{" "}{tx("(camada, cargo, empresa, escritório), o comp-ratio, a evolução CLT/PJ e a")}{" "}<strong>{tx("série mensal")}</strong>{" "}{tx("(headcount, entradas, saídas, atrição) como uma")}{" "}<strong>{tx("terceira série")}</strong> (<code>convenia</code>{tx("), ao lado da congelada e da reconstruída — nada é sobrescrito, mas organograma e série mensal reescrevem histórico.")}
           </p>
           <div className="mt-4 flex gap-2">
             <Button onClick={() => rodarSync(false)} disabled={sincronizando} variant="outline" size="sm">
               <RefreshCw className={`mr-2 h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} />
-              {sincronizando ? 'Calculando…' : 'Simular sem gravar a série'}
+              {sincronizando ? tx("Calculando…") : tx("Simular sem gravar a série")}
             </Button>
             {/* ------------------------------------------------------------
                 O BOTÃO NÃO PODE SUMIR SÓ PORQUE A SÉRIE FOI RECUSADA
@@ -71,13 +67,13 @@ export function ConveniaSyncCard() {
             {r && !r.gravado && (r.totalLinhas > 0 || r.totalOrg > 0) && (
               <Button onClick={() => rodarSync(true)} disabled={sincronizando} size="sm">
                 {r.totalLinhas > 0
-                  ? `Gravar ${r.totalLinhas} linhas`
-                  : `Gravar só o organograma (${r.totalOrg} pessoas)`}
+                  ? tx("Gravar {0} linhas", [r.totalLinhas])
+                  : tx("Gravar só o organograma ({0} pessoas)", [r.totalOrg])}
               </Button>
             )}
           </div>
 
-          {erroSync && <p className="mt-2 text-sm" style={{ color: COLORS.danger }}>{erroSync}</p>}
+          {erroSync && <p className="mt-2 text-sm" style={{ color: COLORS.danger }}>{tx(erroSync)}</p>}
 
           {/* A recusa da série é a informação mais importante da tela quando
               acontece. Enterrada no meio da lista de avisos, ela se perde. */}
@@ -85,9 +81,9 @@ export function ConveniaSyncCard() {
             <div className="mt-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
               <p className="text-sm font-medium flex items-center gap-1.5">
                 <AlertTriangle className="h-4 w-4 shrink-0" />
-                A série mensal não foi gravada
+                {tx("A série mensal não foi gravada")}
               </p>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{r.serieTravada}</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{tx(r.serieTravada)}</p>
             </div>
           )}
 
@@ -110,7 +106,7 @@ export function ConveniaSyncCard() {
                   está empurrando o próprio trabalho para quem a usa. */}
               {r.gravado ? (
                 <div className="flex items-center gap-2 font-medium">
-                  <CheckCircle2 className="h-4 w-4" style={{ color: COLORS.success }} /> Gravado
+                  <CheckCircle2 className="h-4 w-4" style={{ color: COLORS.success }} />{" "}{tx("Gravado")}
                 </div>
               ) : r.pronto ? (
                 <div
@@ -119,47 +115,46 @@ export function ConveniaSyncCard() {
                 >
                   <p className="font-medium flex items-center gap-2">
                     <CheckCircle2 className="h-4 w-4" style={{ color: COLORS.success }} />
-                    Pronto para gravar
+                    {tx("Pronto para gravar")}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Nenhuma fila em aberto. O que a carga vai gravar já está completo.
+                    {tx("Nenhuma fila em aberto. O que a carga vai gravar já está completo.")}
                   </p>
                 </div>
               ) : (
                 <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 p-3">
                   <p className="font-medium flex items-center gap-2">
                     <RefreshCw className="h-4 w-4 shrink-0" />
-                    Ainda não — rode "Simular" de novo
+                    {tx("Ainda não — rode \"Simular\" de novo")}
                   </p>
                   <ul className="text-xs text-muted-foreground mt-1 space-y-0.5">
-                    {r.oQueFalta.map((f) => <li key={f}>falta {f}</li>)}
+                    {r.oQueFalta.map((f) => <li key={f}>{tx("falta")}{" "}{tx(f)}</li>)}
                   </ul>
                   <p className="text-xs text-muted-foreground mt-1.5">
-                    Gravar agora funciona, mas grava incompleto — e a tela não teria como
-                    dizer isso depois.
+                    {tx("Gravar agora funciona, mas grava incompleto — e a tela não teria como dizer isso depois.")}
                   </p>
                 </div>
               )}
               <p className="mt-1 text-xs text-muted-foreground">
-                {r.pessoasUnicas} pessoas · {r.linhasVisiveis} meses que o painel mostra
-                {r.totalLinhas > r.linhasVisiveis && ` (de ${r.totalLinhas} calculados)`}
-                {' · '}{r.requisicoes} requisições ao Convenia
+                {r.pessoasUnicas}{" "}{tx("pessoas ·")}{" "}{r.linhasVisiveis}{" "}{tx("meses que o painel mostra")}
+                {r.totalLinhas > r.linhasVisiveis && tx(" (de {0} calculados)", [r.totalLinhas])}
+                {' · '}{r.requisicoes}{" "}{tx("requisições ao Convenia")}
               </p>
 
               <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-5">
-                <div><div className="text-muted-foreground">Pessoas</div><div className="font-medium">{r.pessoasUnicas}</div></div>
+                <div><div className="text-muted-foreground">{tx("Pessoas")}</div><div className="font-medium">{r.pessoasUnicas}</div></div>
                 {/* "Linhas" era ambíguo entre calculado e visível. */}
-                <div><div className="text-muted-foreground">Meses visíveis</div><div className="font-medium">{r.linhasVisiveis}</div></div>
-                <div><div className="text-muted-foreground">Buscados 1 a 1</div><div className="font-medium">{r.detalhesBuscados}</div></div>
-                <div><div className="text-muted-foreground">Não resolvidos</div><div className="font-medium">{r.naoResolvidos}</div></div>
-                <div><div className="text-muted-foreground">Requisições</div><div className="font-medium">{r.requisicoes}</div></div>
+                <div><div className="text-muted-foreground">{tx("Meses visíveis")}</div><div className="font-medium">{r.linhasVisiveis}</div></div>
+                <div><div className="text-muted-foreground">{tx("Buscados 1 a 1")}</div><div className="font-medium">{r.detalhesBuscados}</div></div>
+                <div><div className="text-muted-foreground">{tx("Não resolvidos")}</div><div className="font-medium">{r.naoResolvidos}</div></div>
+                <div><div className="text-muted-foreground">{tx("Requisições")}</div><div className="font-medium">{r.requisicoes}</div></div>
               </div>
 
               <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                 {r.empresas.map((e) => (
                   <div key={e.empresa}>
-                    <span className="font-medium">{e.empresa}</span>:{' '}
-                    {e.erro ? e.erro : `${e.ativos} no cadastro · ${e.desligados} saídas · ${e.cruzaram} cruzaram`}
+                    <span className="font-medium">{tx(e.empresa)}</span>:{' '}
+                    {e.erro ? tx(e.erro) : tx("{0} no cadastro · {1} saídas · {2} cruzaram", [e.ativos, e.desligados, e.cruzaram])}
                   </div>
                 ))}
               </div>
@@ -167,8 +162,8 @@ export function ConveniaSyncCard() {
               {r.genero.total > 0 && (
                 <div className="mt-3 rounded border border-border/60 p-2 text-xs">
                   <div className="font-medium">
-                    Gênero: {r.genero.conhecidos} de {r.genero.total} resolvidos
-                    {r.genero.pendentes > 0 && ` · ${r.genero.pendentes} pendentes`}
+                    {tx("Gênero:")}{" "}{r.genero.conhecidos}{" "}{tx("de")}{" "}{r.genero.total}{" "}{tx("resolvidos")}
+                    {r.genero.pendentes > 0 && tx(" · {0} pendentes", [r.genero.pendentes])}
                   </div>
                   <div className="mt-1 h-1.5 overflow-hidden rounded bg-muted">
                     <div
@@ -181,8 +176,8 @@ export function ConveniaSyncCard() {
                   </div>
                   {r.genero.buscadosAgora > 0 && (
                     <div className="mt-1 text-muted-foreground">
-                      {r.genero.buscadosAgora} buscados nesta execução.
-                      {r.genero.pendentes > 0 && ' Rode de novo para avançar.'}
+                      {r.genero.buscadosAgora}{" "}{tx("buscados nesta execução.")}
+                      {r.genero.pendentes > 0 && tx(" Rode de novo para avançar.")}
                     </div>
                   )}
                 </div>
@@ -195,8 +190,8 @@ export function ConveniaSyncCard() {
                         marcada. Dizer só "163 meses" ao lado de um aviso que
                         diz "82 aparecem" são duas frases discordando sobre o
                         mesmo resultado. */}
-                    <span className="font-medium">{m.marca}</span>: {m.linhas} meses calculados
-                    {m.de && ` (${m.de.slice(0, 7)} a ${m.ate?.slice(0, 7)})`}
+                    <span className="font-medium">{tx(m.marca)}</span>: {m.linhas}{" "}{tx("meses calculados")}
+                    {m.de && tx(" ({0} a {1})", [m.de.slice(0, 7), m.ate?.slice(0, 7)])}
                   </div>
                 ))}
               </div>
@@ -220,11 +215,11 @@ export function ConveniaSyncCard() {
                       <div className="mt-3 rounded-lg border border-amber-500/40 p-3">
                         <p className="text-xs font-medium flex items-center gap-1.5 text-amber-600 dark:text-amber-500">
                           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                          Precisa de alguém
+                          {tx("Precisa de alguém")}
                         </p>
                         <ul className="mt-1.5 space-y-1.5">
                           {g.pendencia.map((a) => (
-                            <li key={a} className="text-xs leading-relaxed">{a}</li>
+                            <li key={a} className="text-xs leading-relaxed">{tx(a)}</li>
                           ))}
                         </ul>
                       </div>
@@ -235,7 +230,7 @@ export function ConveniaSyncCard() {
                         {g.feito.map((a) => (
                           <li key={a} className="text-xs text-muted-foreground flex gap-1.5">
                             <CheckCircle2 className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: COLORS.success }} />
-                            <span>{a}</span>
+                            <span>{tx(a)}</span>
                           </li>
                         ))}
                       </ul>
@@ -248,11 +243,11 @@ export function ConveniaSyncCard() {
                     {g.limite.length > 0 && (
                       <details className="mt-3">
                         <summary className="cursor-pointer text-xs text-muted-foreground">
-                          Limites conhecidos ({g.limite.length}) — o que esta carga não tem como saber
+                          {tx("Limites conhecidos (")}{g.limite.length}{tx(") — o que esta carga não tem como saber")}
                         </summary>
                         <ul className="mt-1.5 space-y-1.5 pl-1">
                           {g.limite.map((a) => (
-                            <li key={a} className="text-xs text-muted-foreground leading-relaxed">{a}</li>
+                            <li key={a} className="text-xs text-muted-foreground leading-relaxed">{tx(a)}</li>
                           ))}
                         </ul>
                       </details>

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { COLORS } from '@/lib/colors';
 import { sondarQoh, type SondaQoh } from '@/lib/qoh.functions';
 
+import { tx } from '@/lib/i18n';
 /**
  * Passo zero da Qualidade da Contratação: descobrir a forma da resposta.
  *
@@ -39,40 +40,37 @@ export function QohCard() {
       <div className="flex items-start gap-3">
         <ClipboardCheck className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
-          <h3 className="text-base font-semibold">Qualidade da Contratação — sondar a API</h3>
+          <h3 className="text-base font-semibold">{tx("Qualidade da Contratação — sondar a API")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            O gestor responde 60 dias depois do Dia 1. Isto só pergunta como a resposta
-            da API é feita — quantos registros, quais campos, que valores as perguntas
-            fechadas assumem. Nada é gravado.
+            {tx("O gestor responde 60 dias depois do Dia 1. Isto só pergunta como a resposta da API é feita — quantos registros, quais campos, que valores as perguntas fechadas assumem. Nada é gravado.")}
           </p>
 
           <Button onClick={rodar} disabled={carregando} className="mt-4" variant="outline">
             <RefreshCw className={`mr-2 h-4 w-4 ${carregando ? 'animate-spin' : ''}`} />
-            {carregando ? 'Consultando…' : 'Sondar'}
+            {carregando ? tx("Consultando…") : tx("Sondar")}
           </Button>
 
           {s?.erro && (
             <div className="mt-4 rounded-lg border border-border/60 p-3 text-sm">
               <div className="flex items-center gap-2 font-medium" style={{ color: COLORS.danger }}>
-                <AlertTriangle className="h-4 w-4" /> Não deu para consultar
+                <AlertTriangle className="h-4 w-4" />{" "}{tx("Não deu para consultar")}
               </div>
-              <p className="mt-1 text-muted-foreground">{s.erro}</p>
+              <p className="mt-1 text-muted-foreground">{tx(s.erro)}</p>
 
               {s.tentativas.length > 0 && (
                 <div className="mt-3">
-                  <div className="text-xs font-medium">As quatro formas de autenticar</div>
+                  <div className="text-xs font-medium">{tx("As quatro formas de autenticar")}</div>
                   <p className="text-xs text-muted-foreground">
-                    Se todas falharem igual — inclusive a última, sem token —, o problema
-                    não é a credencial: é a chamada estar sendo barrada pela origem.
+                    {tx("Se todas falharem igual — inclusive a última, sem token —, o problema não é a credencial: é a chamada estar sendo barrada pela origem.")}
                   </p>
                   <div className="mt-2 space-y-1">
                     {s.tentativas.map((t) => (
                       <div key={t.forma} className="text-xs">
-                        <span className="font-medium">{t.forma}</span>:{' '}
+                        <span className="font-medium">{tx(t.forma)}</span>:{' '}
                         <span style={{ color: t.status === 200 ? COLORS.success : COLORS.warning }}>
-                          {t.status ?? 'sem resposta'}
+                          {t.status ?? tx("sem resposta")}
                         </span>
-                        {t.corpo && <span className="text-muted-foreground"> — {t.corpo}</span>}
+                        {t.corpo && <span className="text-muted-foreground"> — {tx(t.corpo)}</span>}
                       </div>
                     ))}
                   </div>
@@ -85,34 +83,34 @@ export function QohCard() {
             <div className="mt-4 rounded-lg border border-border/60 p-4 text-sm">
               <div className="flex items-center gap-2 font-medium">
                 <CheckCircle2 className="h-4 w-4" style={{ color: COLORS.success }} />
-                {s.registros} avaliações · {s.campos.length} campos
+                {s.registros}{" "}{tx("avaliações ·")}{" "}{s.campos.length}{" "}{tx("campos")}
               </div>
 
               <div className="mt-1 text-xs text-muted-foreground">
-                Token aceito {s.viaHeader ? 'por cabeçalho' : 'só na URL'}
+                {tx("Token aceito")}{" "}{s.viaHeader ? tx("por cabeçalho") : tx("só na URL")}
               </div>
 
               {s.campos.length > 0 && (
                 <details className="mt-3">
                   <summary className="cursor-pointer text-xs text-muted-foreground">
-                    Campos da resposta
+                    {tx("Campos da resposta")}
                   </summary>
-                  <p className="mt-1 text-xs text-muted-foreground">{s.campos.join(', ')}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{tx(s.campos.join(', '))}</p>
                 </details>
               )}
 
               {s.categorias.length > 0 && (
                 <div className="mt-3">
-                  <div className="text-xs font-medium">Valores das perguntas fechadas</div>
+                  <div className="text-xs font-medium">{tx("Valores das perguntas fechadas")}</div>
                   <p className="text-xs text-muted-foreground">
-                    É daqui que sai o de-para da pontuação.
+                    {tx("É daqui que sai o de-para da pontuação.")}
                   </p>
                   <div className="mt-2 space-y-2">
                     {s.categorias.map((c) => (
                       <div key={c.campo} className="text-xs">
-                        <div className="font-medium">{c.campo}</div>
+                        <div className="font-medium">{tx(c.campo)}</div>
                         <div className="text-muted-foreground">
-                          {c.valores.map((v) => `${v.valor} (${v.n})`).join(' · ')}
+                          {tx(c.valores.map((v) => `${v.valor} (${v.n})`).join(' · '))}
                         </div>
                       </div>
                     ))}
@@ -121,15 +119,13 @@ export function QohCard() {
               )}
 
               {s.avisos.map((a) => (
-                <p key={a} className="mt-3 text-xs" style={{ color: COLORS.warning }}>⚠ {a}</p>
+                <p key={a} className="mt-3 text-xs" style={{ color: COLORS.warning }}>⚠ {tx(a)}</p>
               ))}
             </div>
           )}
 
           <p className="mt-3 text-xs text-muted-foreground">
-            Só nomes de campo e valores de categoria saem daqui. Resposta aberta, nome e
-            e-mail ficam de fora automaticamente: campo com muitos valores distintos é
-            dado de pessoa, não categoria.
+            {tx("Só nomes de campo e valores de categoria saem daqui. Resposta aberta, nome e e-mail ficam de fora automaticamente: campo com muitos valores distintos é dado de pessoa, não categoria.")}
           </p>
         </div>
       </div>

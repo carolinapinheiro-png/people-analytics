@@ -6,6 +6,7 @@ import MovementTab from './MovementTab';
 import { useEffect } from 'react';
 import { useDashboard } from '@/data/DashboardContext';
 
+import { tx } from '@/lib/i18n';
 /**
  * Compensacao numa secao unica (decisao da area): Custos & Bandas, Comp Ratio
  * individual e Movimentacoes Salariais viram sub-abas. Cada uma continua sendo
@@ -28,15 +29,15 @@ export default function CompensationTab() {
       <TabsList>
         <TabsTrigger value="custos" className="gap-2">
           <Wallet className="h-4 w-4" />
-          Custos &amp; Bandas
+          {tx("Custos & Bandas")}
         </TabsTrigger>
         <TabsTrigger value="compratio" className="gap-2">
           <Scale className="h-4 w-4" />
-          Comp Ratio individual
+          {tx("Comp Ratio individual")}
         </TabsTrigger>
         <TabsTrigger value="movimentacoes" className="gap-2">
           <Award className="h-4 w-4" />
-          Movimentações Salariais
+          {tx("Movimentações Salariais")}
         </TabsTrigger>
       </TabsList>
       <TabsContent value="custos" className="mt-0"><SalaryTab /></TabsContent>

@@ -20,6 +20,7 @@ import {
 } from "@/lib/tab-filters";
 import { Lock, SlidersHorizontal, X } from "lucide-react";
 
+import { tx } from '@/lib/i18n';
 /**
  * Barra de filtros.
  *
@@ -369,7 +370,7 @@ export default function FilterBar() {
             visual da barra e como lugar do contador. */}
         <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground shrink-0">
           <SlidersHorizontal className="h-3.5 w-3.5" />
-          Filtros
+          {tx("Filtros")}
           {ativos.length + ativosForaDaAba.length > 0 && (
             <span
               className="rounded-full px-1.5 text-[10px] font-medium text-white"
@@ -392,14 +393,14 @@ export default function FilterBar() {
           <span
             key={k}
             className="inline-flex items-center gap-1 rounded-md border border-dashed border-amber-500/50 px-2 py-1 text-[11px] shrink-0"
-            title="Ativo em outra aba. Não recorta esta, mas continua valendo onde se aplica."
+            title={tx("Ativo em outra aba. Não recorta esta, mas continua valendo onde se aplica.")}
           >
-            <span className="text-amber-600 dark:text-amber-500">{FILTER_LABELS[k]}:</span>
-            <span className="max-w-[140px] truncate">{filters[k]}</span>
-            <span className="text-muted-foreground">· não aplicado aqui</span>
+            <span className="text-amber-600 dark:text-amber-500">{tx(FILTER_LABELS[k])}:</span>
+            <span className="max-w-[140px] truncate">{tx(filters[k])}</span>
+            <span className="text-muted-foreground">{tx("· não aplicado aqui")}</span>
             <button
               onClick={() => limparUm(k)}
-              aria-label={`Remover filtro ${FILTER_LABELS[k]}`}
+              aria-label={tx("Remover filtro {0}", [FILTER_LABELS[k]])}
               className="rounded-full hover:bg-background/60 p-0.5"
             >
               <X className="h-3 w-3" />
@@ -409,7 +410,7 @@ export default function FilterBar() {
 
         {aviso && (
           <span className="text-[11px] text-amber-600 dark:text-amber-500 basis-full">
-            {aviso}
+            {tx(aviso)}
           </span>
         )}
 
@@ -418,17 +419,17 @@ export default function FilterBar() {
             onClick={limparTudo}
             className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 shrink-0"
           >
-            limpar todos
+            {tx("limpar todos")}
           </button>
         )}
 
         {ativos.length + ativosForaDaAba.length === 0 && !scoped && (
-          <span className="text-[11px] text-muted-foreground">Mostrando a empresa toda.</span>
+          <span className="text-[11px] text-muted-foreground">{tx("Mostrando a empresa toda.")}</span>
         )}
 
         {RECORTES_EXCLUSIVOS.some((k) => disponiveis.includes(k) && filters[k] !== "Todos") && (
           <span className="text-[11px] text-amber-600 dark:text-amber-500">
-            recorte único — só headcount, saídas e atrição
+            {tx("recorte único — só headcount, saídas e atrição")}
           </span>
         )}
         <div className="flex flex-wrap items-center gap-2">
@@ -445,12 +446,12 @@ export default function FilterBar() {
               extras da aba vêm atrás. Esmaecido continua sendo esmaecido: ele
               informa o limite, não some. */}
             {barra.map(({ key: k, reason }) => (reason ? (
-              <div key={k} className="flex items-center gap-1.5 opacity-45" title={reason}>
+              <div key={k} className="flex items-center gap-1.5 opacity-45" title={tx(reason)}>
                 <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
-                  {FILTER_LABELS[k]}
+                  {tx(FILTER_LABELS[k])}
                 </label>
                 <div className="border border-dashed border-border rounded px-2 py-1 text-[11px] text-muted-foreground min-w-[140px] max-w-[200px] cursor-help">
-                  não se aplica aqui
+                  {tx("não se aplica aqui")}
                 </div>
               </div>
             ) : (
@@ -458,14 +459,14 @@ export default function FilterBar() {
                 {/* Prefixo na mesma linha, e não rótulo em cima: com um filtro
                   só, o rótulo empilhado custava uma linha inteira da barra. */}
                 <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
-                  {FILTER_LABELS[k]}
+                  {tx(FILTER_LABELS[k])}
                 </label>
                 {k === "departamento" && semEscolhaDeDept ? (
                   <div
                     className="rounded border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground min-w-[140px] max-w-[200px]"
-                    title="Definido pelo seu acesso — não é uma escolha."
+                    title={tx("Definido pelo seu acesso — não é uma escolha.")}
                   >
-                    {meusDepts[0] ?? "sem área atribuída"}
+                    {tx(meusDepts[0]) ?? tx("sem área atribuída")}
                   </div>
                 ) : (
                   <select
@@ -490,7 +491,7 @@ export default function FilterBar() {
                   >
                     {opcoes(k).map((o) => (
                       <option key={o} value={o}>
-                        {o}
+                        {tx(o)}
                       </option>
                     ))}
                   </select>
@@ -516,7 +517,7 @@ export default function FilterBar() {
               <>
                 <div className="flex items-center gap-1.5">
                   <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
-                    Janela
+                    {tx("Janela")}
                   </label>
                   <select
                     value={janelaDeslig}
@@ -527,13 +528,13 @@ export default function FilterBar() {
                     )}
                     style={janelaDeslig !== "periodo" ? ({ borderColor: brandColor, "--tw-ring-color": brandColor } as React.CSSProperties) : undefined}
                   >
-                    <option value="periodo">{view === "quarterly" ? "Trimestre do topo" : "Mês do topo"}</option>
-                    <option value="ltm">Últimos 12 meses</option>
+                    <option value="periodo">{view === "quarterly" ? tx("Trimestre do topo") : tx("Mês do topo")}</option>
+                    <option value="ltm">{tx("Últimos 12 meses")}</option>
                   </select>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
-                    Métrica
+                    {tx("Métrica")}
                   </label>
                   <select
                     value={metricaDeslig}
@@ -544,8 +545,8 @@ export default function FilterBar() {
                     )}
                     style={metricaDeslig !== "abs" ? ({ borderColor: brandColor, "--tw-ring-color": brandColor } as React.CSSProperties) : undefined}
                   >
-                    <option value="abs">Nº de saídas</option>
-                    <option value="taxa">% sobre ativos</option>
+                    <option value="abs">{tx("Nº de saídas")}</option>
+                    <option value="taxa">{tx("% sobre ativos")}</option>
                   </select>
                 </div>
               </>
@@ -553,7 +554,7 @@ export default function FilterBar() {
             {activeTab === "dei" && racasComGente.length > 0 && (
               <div className="flex items-center gap-1.5">
                 <label className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">
-                  Raça
+                  {tx("Raça")}
                 </label>
                 <select
                   value={raceFilter}
@@ -574,7 +575,7 @@ export default function FilterBar() {
                 >
                   {["Todas", ...racasComGente].map((r) => (
                     <option key={r} value={r}>
-                      {r}
+                      {tx(r)}
                     </option>
                   ))}
                 </select>

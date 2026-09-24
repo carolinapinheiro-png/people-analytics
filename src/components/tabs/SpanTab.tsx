@@ -12,6 +12,7 @@ import { useDashboard } from '@/data/DashboardContext';
 import AvisoPeriodo from '@/components/dashboard/AvisoPeriodo';
 import { PERIODO_INDISPONIVEL } from '@/lib/periodo';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Span de controle calculado AO VIVO da cadeia real de reporte
  * (org_pessoas), a cada carregamento da aba -- ver span.functions.ts.
@@ -19,7 +20,7 @@ import { PERIODO_INDISPONIVEL } from '@/lib/periodo';
  */
 
 const fmt1 = (n: number | null | undefined) =>
-  n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  n == null ? '—' : Number(n).toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 
 // Referencia (nao meta), decisao Carolina (30/07): ate ~8 reports e considerado
 // saudavel; times operacionais/repetitivos podem acumular mais de forma saudavel.
@@ -41,7 +42,7 @@ export default function SpanTab() {
     return () => { cancelled = true; };
   }, [fetchSpan, filters.departamento]);
 
-  if (error) return <p className="text-sm text-muted-foreground text-center py-24">Não foi possível carregar o Span: {error}</p>;
+  if (error) return <p className="text-sm text-muted-foreground text-center py-24">{tx("Não foi possível carregar o Span:")}{" "}{tx(error)}</p>;
   if (!rows) return <div className="flex items-center justify-center py-24"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   const overall = rows.find((r) => r.scope_type === 'overall');
@@ -65,34 +66,29 @@ export default function SpanTab() {
       <div>
         <h2 className="text-lg font-bold flex items-center gap-2">
           <Network className="h-5 w-5 text-[hsl(var(--flutter))]" />
-          Span de Controle
+          {tx("Span de Controle")}
         </h2>
         <p className="text-sm text-muted-foreground">
-          Calculado ao vivo, direto da cadeia de reporte do Convenia — atualiza sozinho a cada
-          sincronização. Só agregados — sem nomes.
+          {tx("Calculado ao vivo, direto da cadeia de reporte do Convenia — atualiza sozinho a cada sincronização. Só agregados — sem nomes.")}
         </p>
       </div>
 
       <AvisoPeriodo motivo={PERIODO_INDISPONIVEL.span} />
 
       <div className="rounded-lg border border-border/50 bg-muted/40 p-3 text-xs text-muted-foreground leading-relaxed">
-        <strong>Gestor ≠ Líder.</strong> Aqui &quot;gestor&quot; é quem tem pelo menos um reporte direto na
-        cadeia ({fmt1(overall?.managers)} pessoas, sobre {fmt1(overall?.actives)} ativos).
-        No DEI/Overview, &quot;líder&quot; é quem está marcado como liderança no cadastro (flag
-        &quot;Liderança?&quot;) — populações e critérios diferentes, por isso os números não batem (ex.: ~130
-        líderes marcados no consolidado × {fmt1(overall?.managers)} gestores com reportes).
+        <strong>{tx("Gestor ≠ Líder.")}</strong>{" "}{tx("Aqui \"gestor\" é quem tem pelo menos um reporte direto na cadeia (")}{tx(fmt1(overall?.managers))}{" "}{tx("pessoas, sobre")}{" "}{tx(fmt1(overall?.actives))}{" "}{tx("ativos). No DEI/Overview, \"líder\" é quem está marcado como liderança no cadastro (flag \"Liderança?\") — populações e critérios diferentes, por isso os números não batem (ex.: ~130 líderes marcados no consolidado ×")}{" "}{tx(fmt1(overall?.managers))}{" "}{tx("gestores com reportes).")}
       </div>
 
       {overall && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <KpiCard label="Ativos" value={fmt1(overall.actives)} color={COLORS.flutter} icon={Users} />
-          <KpiCard label="Gestores" value={fmt1(overall.managers)} color={COLORS.nsx} icon={UserCog} />
-          <KpiCard label="Span médio" value={fmt1(overall.avg_span)} color={COLORS.success} icon={GitBranch} help="spanMedio" />
-          <KpiCard label="Contribuidores individuais" value={fmt1(overall.ics)} color={COLORS.info} icon={Users} />
+          <KpiCard label={tx("Ativos")} value={fmt1(overall.actives)} color={COLORS.flutter} icon={Users} />
+          <KpiCard label={tx("Gestores")} value={fmt1(overall.managers)} color={COLORS.nsx} icon={UserCog} />
+          <KpiCard label={tx("Span médio")} value={fmt1(overall.avg_span)} color={COLORS.success} icon={GitBranch} help="spanMedio" />
+          <KpiCard label={tx("Contribuidores individuais")} value={fmt1(overall.ics)} color={COLORS.info} icon={Users} />
         </div>
       )}
 
-      <ChartCard title="Span médio por departamento" subtitle="reports por gestor · cor = faixa" icon={Network}>
+      <ChartCard title={tx("Span médio por departamento")} subtitle={tx("reports por gestor · cor = faixa")} icon={Network}>
         <ResponsiveContainer width="100%" height={300}>
           <BarChart data={depts} layout="vertical" margin={{ left: 40, right: 24 }}>
             <CartesianGrid strokeDasharray="3 3" horizontal={false} className="opacity-30" />
@@ -107,13 +103,13 @@ export default function SpanTab() {
       </ChartCard>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <ChartCard title="Distribuição do tamanho de time" subtitle={`gestores por faixa · mediana na faixa ${medianBucket || '—'}`} icon={UserCog}>
+        <ChartCard title={tx("Distribuição do tamanho de time")} subtitle={tx("gestores por faixa · mediana na faixa {0}", [medianBucket || '—'])} icon={UserCog}>
           <div className="space-y-2 pt-1">
             {dist.map((d) => (
               <div key={d.scope} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">{d.scope}</span>
-                  <span className="font-semibold tabular-nums">{d.managers} · {pctMgr(d.managers).toFixed(0)}%</span>
+                  <span className="text-muted-foreground">{tx(d.scope)}</span>
+                  <span className="font-semibold tabular-nums">{d.managers} · {tx(pctMgr(d.managers).toFixed(0))}%</span>
                 </div>
                 <div className="h-2 rounded-full bg-muted overflow-hidden">
                   <div className="h-full rounded-full" style={{ width: `${((d.managers ?? 0) / distMax) * 100}%`, background: COLORS.flutter }} />
@@ -122,30 +118,28 @@ export default function SpanTab() {
             ))}
           </div>
           <p className="text-[11px] text-muted-foreground mt-2">
-            % sobre {totalMgr} gestores. <strong>Até ~8 reports é uma referência de span saudável — não
-            uma meta.</strong> Times com trabalho mais operacional e repetitivo podem acumular mais reports
-            de forma saudável; a cor é só um sinalizador para olhar, não um alvo.
+            {tx("% sobre")}{" "}{totalMgr}{" "}{tx("gestores.")}{" "}<strong>{tx("Até ~8 reports é uma referência de span saudável — não uma meta.")}</strong>{" "}{tx("Times com trabalho mais operacional e repetitivo podem acumular mais reports de forma saudável; a cor é só um sinalizador para olhar, não um alvo.")}
           </p>
         </ChartCard>
 
-        <ChartCard title="Detalhe por departamento" icon={Network}>
+        <ChartCard title={tx("Detalhe por departamento")} icon={Network}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="p-2">Departamento</th>
-                  <th className="p-2 text-right">Gestores</th>
-                  <th className="p-2 text-right">Reports</th>
-                  <th className="p-2 text-right">Span médio</th>
+                  <th className="p-2">{tx("Departamento")}</th>
+                  <th className="p-2 text-right">{tx("Gestores")}</th>
+                  <th className="p-2 text-right">{tx("Reports")}</th>
+                  <th className="p-2 text-right">{tx("Span médio")}</th>
                 </tr>
               </thead>
               <tbody>
                 {depts.map((d) => (
                   <tr key={d.scope} className="border-b border-border/50">
-                    <td className="p-2 font-medium">{d.scope}</td>
+                    <td className="p-2 font-medium">{tx(d.scope)}</td>
                     <td className="p-2 text-right tabular-nums">{d.managers}</td>
                     <td className="p-2 text-right tabular-nums">{d.reports}</td>
-                    <td className="p-2 text-right tabular-nums font-semibold">{fmt1(d.avg_span)}</td>
+                    <td className="p-2 text-right tabular-nums font-semibold">{tx(fmt1(d.avg_span))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -155,11 +149,10 @@ export default function SpanTab() {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Span médio geral de {fmt1(overall?.avg_span)} reports por gestor.
+        {tx("Span médio geral de")}{" "}{tx(fmt1(overall?.avg_span))}{" "}{tx("reports por gestor.")}
         {depts.length > 1 && depts[0].scope !== depts[depts.length - 1].scope && (
           <>
-            {' '}{depts[0].scope} concentra os maiores times; {depts[depts.length - 1].scope}, os
-            mais enxutos.
+            {' '}{tx(depts[0].scope)}{" "}{tx("concentra os maiores times;")}{" "}{tx(depts[depts.length - 1].scope)}{tx(", os mais enxutos.")}
           </>
         )}
       </p>

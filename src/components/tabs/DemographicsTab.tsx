@@ -12,6 +12,7 @@ import { Users, MapPin, Cake, ShieldCheck, Globe, GraduationCap, Laptop } from '
 import { useState, useEffect, useMemo } from 'react';
 import { FAIXAS_TEMPO_DE_CASA } from '@/lib/convenia/pessoas';
 
+import { tx } from '@/lib/i18n';
 const WORK_MODEL_ORDER = ['Remoto', 'Híbrido', 'Presencial', 'Não informado'];
 const WORK_MODEL_COLORS: Record<string, string> = {
   Remoto: COLORS.flutter,
@@ -195,11 +196,11 @@ export default function DemographicsTab() {
   return (
     <div className="space-y-6">
       <div className="flex gap-5 flex-wrap text-xs text-muted-foreground">
-        <span>Marca: <strong className="text-foreground">{brand === 'combined' ? 'Combinado' : brand}</strong></span>
-        <span>Ref: <strong className="text-foreground">{mLabel(currentMonth)}</strong></span>
-        <span>Total: <strong className="text-foreground">{hc}</strong></span>
+        <span>{tx("Marca:")}{" "}<strong className="text-foreground">{brand === 'combined' ? tx("Combinado") : brand}</strong></span>
+        <span>{tx("Ref:")}{" "}<strong className="text-foreground">{tx(mLabel(currentMonth))}</strong></span>
+        <span>{tx("Total:")}{" "}<strong className="text-foreground">{hc}</strong></span>
         {cut.active && cut.label && (
-          <span>Recorte: <strong className="text-foreground">{cut.label}</strong></span>
+          <span>{tx("Recorte:")}{" "}<strong className="text-foreground">{tx(cut.label)}</strong></span>
         )}
       </div>
 
@@ -213,9 +214,7 @@ export default function DemographicsTab() {
           populações diferentes. */}
       {cut.active && cut.valorDesconhecido && (
         <p className="text-[11px] rounded-md border border-amber-500/40 p-2 text-amber-600 dark:text-amber-500">
-          <strong>{cut.label}</strong> não aparece em nenhum mês da série. Isso não quer dizer
-          "ninguém nessa faixa": quer dizer que a carga nunca gravou esse valor. Provável
-          diferença de vocabulário entre o seletor e o cadastro do Convenia — vale reportar.
+          <strong>{tx(cut.label)}</strong>{" "}{tx("não aparece em nenhum mês da série. Isso não quer dizer \"ninguém nessa faixa\": quer dizer que a carga nunca gravou esse valor. Provável diferença de vocabulário entre o seletor e o cadastro do Convenia — vale reportar.")}
         </p>
       )}
       {/* A composição da fatia não existe: ou é linha anterior à quebra, ou é
@@ -225,26 +224,25 @@ export default function DemographicsTab() {
           passaram despercebidos em 09/09. */}
       {cut.active && !cut.valorDesconhecido && curr?.demographics == null && (
         <p className="text-[11px] rounded-md border border-amber-500/40 p-2 text-amber-600 dark:text-amber-500">
-          Os gráficos abaixo estão vazios porque a composição desta fatia não foi calculada
+          {tx("Os gráficos abaixo estão vazios porque a composição desta fatia não foi calculada")}
           {filters.departamento && filters.departamento !== 'Todos'
-            ? ` — a série guarda quem é de ${filters.departamento} e quem é de ${cut.label?.split(': ')[1]}, nunca o cruzamento dos dois. Limpe o departamento para ler este recorte.`
-            : ' — este mês foi gravado antes da quebra por essa dimensão existir. Rode a carga de novo para preenchê-lo.'}
-          {' '}O headcount acima é exato.
+            ? tx(" — a série guarda quem é de {0} e quem é de {1}, nunca o cruzamento dos dois. Limpe o departamento para ler este recorte.", [filters.departamento, cut.label?.split(': ')[1]])
+            : tx(" — este mês foi gravado antes da quebra por essa dimensão existir. Rode a carga de novo para preenchê-lo.")}
+          {' '}{tx("O headcount acima é exato.")}
         </p>
       )}
       {cut.active && !cut.valorDesconhecido && curr?.demographics != null && (
         <p className="text-[11px] rounded-md border border-border p-2 text-muted-foreground">
-          Com <strong className="text-foreground">{cut.label}</strong>, gênero, raça, idade,
-          estado civil e origem são os desta fatia. Continuam sendo da empresa toda:{' '}
-          {cut.suppressed.join(', ')}, PCD, aprendizes e modelo de trabalho.
+          {tx("Com")}{" "}<strong className="text-foreground">{tx(cut.label)}</strong>{tx(", gênero, raça, idade, estado civil e origem são os desta fatia. Continuam sendo da empresa toda:")}{' '}
+          {tx(cut.suppressed.join(', '))}{tx(", PCD, aprendizes e modelo de trabalho.")}
         </p>
       )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        <KpiCard label="Mulheres" value={`${curr.gender_female_pct || 0}%`} color={COLORS.female} icon={Users} help="mulheres" />
-        <KpiCard label="Faixa etária top" value={topAge ? topAge.name : '—'} sub={topAge ? `${pctOf(topAge.value, hc).toFixed(0)}% do quadro` : ''} color={COLORS.info} icon={Cake} />
-        <KpiCard label="Não brancos" value={raceKnown ? `${pctOf(nonWhite, raceKnown).toFixed(0)}%` : '—'} sub="da base com raça" color={COLORS.nsx} icon={Globe} help="naoBrancos" />
+        <KpiCard label={tx("Mulheres")} value={`${curr.gender_female_pct || 0}%`} color={COLORS.female} icon={Users} help="mulheres" />
+        <KpiCard label={tx("Faixa etária top")} value={topAge ? topAge.name : '—'} sub={topAge ? tx("{0}% do quadro", [pctOf(topAge.value, hc).toFixed(0)]) : ''} color={COLORS.info} icon={Cake} />
+        <KpiCard label={tx("Não brancos")} value={raceKnown ? `${pctOf(nonWhite, raceKnown).toFixed(0)}%` : '—'} sub={tx("da base com raça")} color={COLORS.nsx} icon={Globe} help="naoBrancos" />
         {/* ------------------------------------------------------------------
             AS COTAS LEGAIS: "—" QUANDO NÃO SE SABE, E A BASE DE QUEM RESPONDEU
             ------------------------------------------------------------------
@@ -274,22 +272,22 @@ export default function DemographicsTab() {
             no verbete `pcd` de metric-help.ts, no "?" do card.
             ------------------------------------------------------------------ */}
         <KpiCard
-          label="% PCD"
+          label={tx("% PCD")}
           value={curr.pcd == null ? '—' : `${pctOf(curr.pcd, hc).toFixed(1)}%`}
           sub={curr.pcd == null
-            ? 'não calculado nesta fatia'
-            : hc > 0 ? `${curr.pcd} de ${hc}` : `${curr.pcd} pessoas`}
+            ? tx("não calculado nesta fatia")
+            : hc > 0 ? tx("{0} de {1}", [curr.pcd, hc]) : tx("{0} pessoas", [curr.pcd])}
           color={COLORS.warning} icon={ShieldCheck} help="pcd"
         />
         {/* O denominador aparece, como no card de PCD ao lado: com 1 casa
             decimal o percentual anda de 0,5% a 0,6% no ano inteiro, e sem a
             base parece travado. O que se move é a contagem. */}
         <KpiCard
-          label="% Aprendiz"
+          label={tx("% Aprendiz")}
           value={curr.apprentice == null ? '—' : `${pctOf(curr.apprentice, hc).toFixed(1)}%`}
           sub={curr.apprentice == null
-            ? 'não calculado nesta fatia'
-            : hc > 0 ? `${curr.apprentice} de ${hc}` : `${curr.apprentice} aprendizes`}
+            ? tx("não calculado nesta fatia")
+            : hc > 0 ? tx("{0} de {1}", [curr.apprentice, hc]) : tx("{0} aprendizes", [curr.apprentice])}
           color={COLORS.purple} icon={GraduationCap}
         />
       </div>
@@ -297,7 +295,7 @@ export default function DemographicsTab() {
       {/* Modelo de trabalho -- ao vivo, da série mensal (ver work_model_base) */}
       {wmTotal > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ChartCard title="Modelo de trabalho" subtitle={`${mLabel(currentMonth)} · ${wmTotal} ativos · ${wmRemotoPct.toFixed(0)}% remoto`} icon={Laptop}>
+          <ChartCard title={tx("Modelo de trabalho")} subtitle={tx("{0} · {1} ativos · {2}% remoto", [mLabel(currentMonth), wmTotal, wmRemotoPct.toFixed(0)])} icon={Laptop}>
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
                 <Pie data={wmOverall} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2}>
@@ -309,7 +307,7 @@ export default function DemographicsTab() {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Modelo por departamento" subtitle="% dentro de cada área" icon={Users}>
+          <ChartCard title={tx("Modelo por departamento")} subtitle={tx("% dentro de cada área")} icon={Users}>
             <ResponsiveContainer width="100%" height={Math.max(220, wmByDept.length * 26)}>
               <BarChart data={wmByDept} layout="vertical" stackOffset="expand" margin={{ left: 30, right: 16 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} className="opacity-30" />
@@ -317,7 +315,7 @@ export default function DemographicsTab() {
                 <YAxis type="category" dataKey="dept" width={95} tick={{ fontSize: 10 }} />
                 <Tooltip formatter={(v: number, n) => [`${v}`, n as string]} />
                 {WORK_MODEL_ORDER.map((m) => (
-                  <Bar key={m} dataKey={m} name={m} stackId="a" fill={WORK_MODEL_COLORS[m]} />
+                  <Bar key={m} dataKey={m} name={tx(m)} stackId="a" fill={WORK_MODEL_COLORS[m]} />
                 ))}
               </BarChart>
             </ResponsiveContainer>
@@ -327,7 +325,7 @@ export default function DemographicsTab() {
 
       {!hasDemographics && (
         <p className="text-sm text-muted-foreground text-center py-8">
-          Sem dados demográficos para esta marca (ex.: Flutter International não tem cadastro completo).
+          {tx("Sem dados demográficos para esta marca (ex.: Flutter International não tem cadastro completo).")}
         </p>
       )}
 
@@ -335,7 +333,7 @@ export default function DemographicsTab() {
         <>
           {/* Gênero & Idade */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <ChartCard title="Gênero" subtitle="Distribuição do quadro" icon={Users}>
+            <ChartCard title={tx("Gênero")} subtitle={tx("Distribuição do quadro")} icon={Users}>
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie data={genderData} innerRadius={55} outerRadius={80} dataKey="value" strokeWidth={0}>
@@ -348,14 +346,14 @@ export default function DemographicsTab() {
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Faixa etária" subtitle="Idade exata no mês" icon={Cake}>
+            <ChartCard title={tx("Faixa etária")} subtitle={tx("Idade exata no mês")} icon={Cake}>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={age}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
                   <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                   <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
-                  <Bar dataKey="value" name="Pessoas" fill={brandColor} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" name={tx("Pessoas")} fill={brandColor} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -363,28 +361,28 @@ export default function DemographicsTab() {
 
           {/* Cor/Raça & Estado civil */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <ChartCard title="Cor / Raça" subtitle="Autodeclaração · dado sensível, só agregado (LGPD)" icon={Globe}>
+            <ChartCard title={tx("Cor / Raça")} subtitle={tx("Autodeclaração · dado sensível, só agregado (LGPD)")} icon={Globe}>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={race} layout="vertical" margin={{ left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                   <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={90} />
                   <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`${v} · ${pctOf(v, hc).toFixed(0)}%`, 'Pessoas']} />
-                  <Bar dataKey="value" name="Pessoas" radius={[0, 4, 4, 0]}>
+                  <Bar dataKey="value" name={tx("Pessoas")} radius={[0, 4, 4, 0]}>
                     {race.map((r) => <Cell key={r.name} fill={RACE_COLORS[r.name] || brandColor} />)}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Estado civil" icon={Users}>
+            <ChartCard title={tx("Estado civil")} icon={Users}>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={marital} layout="vertical" margin={{ left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                   <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={100} />
                   <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`${v} · ${pctOf(v, hc).toFixed(0)}%`, 'Pessoas']} />
-                  <Bar dataKey="value" name="Pessoas" fill={COLORS.nsx + '99'} stroke={COLORS.nsx} strokeWidth={1} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="value" name={tx("Pessoas")} fill={COLORS.nsx + '99'} stroke={COLORS.nsx} strokeWidth={1} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
@@ -392,19 +390,19 @@ export default function DemographicsTab() {
 
           {/* Origem & Localização */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <ChartCard title="Origem (UF natal)" subtitle="Onde nasceram — top 10" icon={Globe}>
+            <ChartCard title={tx("Origem (UF natal)")} subtitle={tx("Onde nasceram — top 10")} icon={Globe}>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={origin} layout="vertical" margin={{ left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                   <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} width={110} />
                   <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
-                  <Bar dataKey="value" name="Pessoas" fill={COLORS.betfair + '99'} stroke={COLORS.betfair} strokeWidth={1} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="value" name={tx("Pessoas")} fill={COLORS.betfair + '99'} stroke={COLORS.betfair} strokeWidth={1} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Local de trabalho (UF)" subtitle="Top estados e regiões" icon={MapPin}>
+            <ChartCard title={tx("Local de trabalho (UF)")} subtitle={tx("Top estados e regiões")} icon={MapPin}>
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={states} layout="vertical" margin={{ left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -414,13 +412,13 @@ export default function DemographicsTab() {
                     contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }}
                     formatter={(v: number, _n: string, item: any) => [`${v} · ${pctOf(v, hc).toFixed(0)}%`, item.payload.full]}
                   />
-                  <Bar dataKey="value" name="Pessoas" fill={brandColor} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="value" name={tx("Pessoas")} fill={brandColor} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
               <div className="flex flex-wrap gap-2 mt-2 text-[11px] text-muted-foreground">
                 {regions.map((r) => (
                   <span key={r.name} className="rounded bg-muted/60 px-2 py-0.5">
-                    {r.name}: <strong className="text-foreground">{pctOf(r.value, hc).toFixed(0)}%</strong>
+                    {tx(r.name)}: <strong className="text-foreground">{tx(pctOf(r.value, hc).toFixed(0))}%</strong>
                   </span>
                 ))}
               </div>
@@ -429,19 +427,19 @@ export default function DemographicsTab() {
 
           {/* Senioridade & Tempo de casa */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <ChartCard title="Senioridade (nível)" subtitle="Pirâmide do quadro" icon={GraduationCap}>
+            <ChartCard title={tx("Senioridade (nível)")} subtitle={tx("Pirâmide do quadro")} icon={GraduationCap}>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={level} layout="vertical" margin={{ left: 8 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                   <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                   <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={32} />
                   <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
-                  <Bar dataKey="value" name="Pessoas" fill={COLORS.purple + '99'} stroke={COLORS.purple} strokeWidth={1} radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="value" name={tx("Pessoas")} fill={COLORS.purple + '99'} stroke={COLORS.purple} strokeWidth={1} radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Tempo de casa" subtitle="Distribuição dos ativos" icon={Cake}>
+            <ChartCard title={tx("Tempo de casa")} subtitle={tx("Distribuição dos ativos")} icon={Cake}>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={tenure}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -450,7 +448,7 @@ export default function DemographicsTab() {
                   <XAxis dataKey="name" interval={0} tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
                   <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                   <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
-                  <Bar dataKey="value" name="Pessoas" fill={COLORS.info} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="value" name={tx("Pessoas")} fill={COLORS.info} radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>

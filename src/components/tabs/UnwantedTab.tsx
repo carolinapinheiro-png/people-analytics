@@ -28,6 +28,7 @@ import {
   DollarSign,
 } from 'lucide-react';
 
+import { tx, numLocale } from '@/lib/i18n';
 // As seis constantes que estavam aqui saíram do componente:
 //   - as que o painel SUPÕE (65%, R$ 45.000, 6 meses, 4,2%) foram para
 //     `premissas.ts`, cada uma com a origem declarada -- e a origem de todas
@@ -147,21 +148,18 @@ export default function UnwantedTab() {
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 p-3 text-xs text-amber-200/90 leading-relaxed">
-        <strong>Como ler esta aba:</strong> a divisão <em>desejada × não desejada</em> é uma{' '}
-        <strong>estimativa</strong> — {(UNWANTED_ATTRITION_PCT * 100).toFixed(0)}% das saídas são
-        tratadas como não desejadas (premissa configurável), não uma classificação individual de cada
-        desligamento. O <strong>custo estimado</strong> = nº de saídas não desejadas ×{' '}
-        R$ {REPLACEMENT_COST.toLocaleString('pt-BR')} (custo médio de substituição, premissa). Para
-        números reais, seria preciso marcar cada saída como desejada/não na origem.
+        <strong>{tx("Como ler esta aba:")}</strong>{" "}{tx("a divisão")}{" "}<em>{tx("desejada × não desejada")}</em>{" "}{tx("é uma")}{' '}
+        <strong>{tx("estimativa")}</strong> — {tx((UNWANTED_ATTRITION_PCT * 100).toFixed(0))}{tx("% das saídas são tratadas como não desejadas (premissa configurável), não uma classificação individual de cada desligamento. O")}{" "}<strong>{tx("custo estimado")}</strong>{" "}{tx("= nº de saídas não desejadas ×")}{' '}
+        {tx("R$")}{" "}{tx(REPLACEMENT_COST.toLocaleString(numLocale()))}{" "}{tx("(custo médio de substituição, premissa). Para números reais, seria preciso marcar cada saída como desejada/não na origem.")}
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map((k, i) => (
-          <KpiCard key={i} label={k.label} value={k.value} sub={k.sub} color={k.color} />
+          <KpiCard key={i} label={tx(k.label)} value={k.value} sub={tx(k.sub)} color={k.color} />
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Saídas: Não Desejada vs Desejada" icon={UserX}>
+        <ChartCard title={tx("Saídas: Não Desejada vs Desejada")} icon={UserX}>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -169,20 +167,20 @@ export default function UnwantedTab() {
               <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
               <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="naoDesejada" name="Não Desejada" stackId="a" fill={COLORS.danger} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="desejada" name="Desejada" stackId="a" fill={COLORS.success} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="naoDesejada" name={tx("Não Desejada")} stackId="a" fill={COLORS.danger} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="desejada" name={tx("Desejada")} stackId="a" fill={COLORS.success} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Taxa de Atrito Não Desejado (%)" icon={TrendingUp}>
+        <ChartCard title={tx("Taxa de Atrito Não Desejado (%)")} icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={trendData}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
               <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
               <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
               <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
-              <Line type="monotone" dataKey="taxaNaoDesejada" name="Taxa Não Desejada %" stroke={COLORS.danger} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="taxaNaoDesejada" name={tx("Taxa Não Desejada %")} stroke={COLORS.danger} strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -193,30 +191,30 @@ export default function UnwantedTab() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2 text-foreground">
             <BarChart3 className="h-5 w-5" style={{ color: brandColor }} />
-            Dados Reais de Desligamentos — {realLeaversCount} registros
+            {tx("Dados Reais de Desligamentos —")}{" "}{realLeaversCount}{" "}{tx("registros")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Real KPIs */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-muted/50 rounded-lg p-4 text-center border">
-              <p className="text-muted-foreground text-xs">Desligados Reais</p>
-              <p className="font-bold text-2xl text-foreground">{fmt(realLeaversCount)}</p>
+              <p className="text-muted-foreground text-xs">{tx("Desligados Reais")}</p>
+              <p className="font-bold text-2xl text-foreground">{tx(fmt(realLeaversCount))}</p>
             </div>
             <div className="bg-muted/50 rounded-lg p-4 text-center border">
-              <p className="text-muted-foreground text-xs">Involuntários</p>
-              <p className="font-bold text-2xl text-red-400">{fmt(realInvoluntary)}</p>
-              <p className="text-xs text-muted-foreground">{realLeaversCount > 0 ? ((realInvoluntary / realLeaversCount) * 100).toFixed(1) : 0}%</p>
+              <p className="text-muted-foreground text-xs">{tx("Involuntários")}</p>
+              <p className="font-bold text-2xl text-red-400">{tx(fmt(realInvoluntary))}</p>
+              <p className="text-xs text-muted-foreground">{realLeaversCount > 0 ? tx(((realInvoluntary / realLeaversCount) * 100).toFixed(1)) : 0}%</p>
             </div>
             <div className="bg-muted/50 rounded-lg p-4 text-center border">
-              <p className="text-muted-foreground text-xs">Voluntários</p>
-              <p className="font-bold text-2xl text-blue-400">{fmt(realVoluntary)}</p>
-              <p className="text-xs text-muted-foreground">{realLeaversCount > 0 ? ((realVoluntary / realLeaversCount) * 100).toFixed(1) : 0}%</p>
+              <p className="text-muted-foreground text-xs">{tx("Voluntários")}</p>
+              <p className="font-bold text-2xl text-blue-400">{tx(fmt(realVoluntary))}</p>
+              <p className="text-xs text-muted-foreground">{realLeaversCount > 0 ? tx(((realVoluntary / realLeaversCount) * 100).toFixed(1)) : 0}%</p>
             </div>
             <div className="bg-muted/50 rounded-lg p-4 text-center border">
-              <p className="text-muted-foreground text-xs">Salário Médio</p>
-              <p className="font-bold text-2xl text-green-400">{fmtC(Math.round(realAvgSalary))}</p>
-              <p className="text-xs text-muted-foreground">{realAvgTenure.toFixed(1)} meses médios</p>
+              <p className="text-muted-foreground text-xs">{tx("Salário Médio")}</p>
+              <p className="font-bold text-2xl text-green-400">{tx(fmtC(Math.round(realAvgSalary)))}</p>
+              <p className="text-xs text-muted-foreground">{tx(realAvgTenure.toFixed(1))}{" "}{tx("meses médios")}</p>
             </div>
           </div>
 
@@ -224,7 +222,7 @@ export default function UnwantedTab() {
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <DollarSign className="h-4 w-4" />
-                Attrition por Faixa Salarial (Real)
+                {tx("Attrition por Faixa Salarial (Real)")}
               </h3>
               {salaryBandData.length > 0 ? (
                 <>
@@ -234,28 +232,28 @@ export default function UnwantedTab() {
                       <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
                       <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={90} />
                       <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
-                      <Bar dataKey="value" name="Saídas" fill={brandColor} radius={[0, 4, 4, 0]} />
+                      <Bar dataKey="value" name={tx("Saídas")} fill={brandColor} radius={[0, 4, 4, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-4">
                     {salaryBandData.map((item, idx) => (
                       <div key={idx} className="bg-muted/50 p-3 rounded border text-sm">
-                        <p className="text-foreground text-xs">{item.name}</p>
+                        <p className="text-foreground text-xs">{tx(item.name)}</p>
                         <p className="font-bold text-lg">{item.value}</p>
-                        <p className="text-xs text-muted-foreground">{realLeaversCount > 0 ? ((item.value / realLeaversCount) * 100).toFixed(1) : 0}% das saídas</p>
+                        <p className="text-xs text-muted-foreground">{realLeaversCount > 0 ? tx(((item.value / realLeaversCount) * 100).toFixed(1)) : 0}{tx("% das saídas")}</p>
                       </div>
                     ))}
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">Nenhuma saída registrada no período para análise por faixa salarial.</p>
+                <p className="text-sm text-muted-foreground">{tx("Nenhuma saída registrada no período para análise por faixa salarial.")}</p>
               )}
             </div>
 
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Activity className="h-4 w-4" />
-                Tipo de Desligamento (Real)
+                {tx("Tipo de Desligamento (Real)")}
               </h3>
               {typeData.length > 0 ? (
                 <>
@@ -282,21 +280,21 @@ export default function UnwantedTab() {
                   <div className="space-y-2 mt-4">
                     {typeData.map((item, idx) => (
                       <div key={idx} className="flex justify-between text-sm">
-                        <span className="text-foreground">{item.name}</span>
-                        <span className="font-bold">{item.value} ({realLeaversCount > 0 ? ((item.value / realLeaversCount) * 100).toFixed(1) : 0}%)</span>
+                        <span className="text-foreground">{tx(item.name)}</span>
+                        <span className="font-bold">{item.value} ({realLeaversCount > 0 ? tx(((item.value / realLeaversCount) * 100).toFixed(1)) : 0}%)</span>
                       </div>
                     ))}
                   </div>
                 </>
               ) : (
-                <p className="text-sm text-muted-foreground">Nenhum dado de tipo de desligamento disponível.</p>
+                <p className="text-sm text-muted-foreground">{tx("Nenhum dado de tipo de desligamento disponível.")}</p>
               )}
             </div>
 
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Briefcase className="h-4 w-4" />
-                Top Departamentos (Real)
+                {tx("Top Departamentos (Real)")}
               </h3>
               {deptData.length > 0 ? (
                 <ResponsiveContainer width="100%" height={260}>
@@ -305,11 +303,11 @@ export default function UnwantedTab() {
                     <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} />
                     <YAxis type="category" dataKey="name" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} width={100} />
                     <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
-                    <Bar dataKey="value" name="Saídas" fill={COLORS.purple} radius={[0, 4, 4, 0]} />
+                    <Bar dataKey="value" name={tx("Saídas")} fill={COLORS.purple} radius={[0, 4, 4, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <p className="text-sm text-muted-foreground">Nenhum dado por departamento disponível.</p>
+                <p className="text-sm text-muted-foreground">{tx("Nenhum dado por departamento disponível.")}</p>
               )}
             </div>
           </div>
@@ -318,10 +316,9 @@ export default function UnwantedTab() {
             <div className="flex items-start gap-3">
               <Activity className="h-5 w-5 text-blue-400 mt-0.5" />
               <div>
-                <h4 className="font-semibold text-blue-200">Integração de Dados Reais</h4>
+                <h4 className="font-semibold text-blue-200">{tx("Integração de Dados Reais")}</h4>
                 <p className="mt-1 text-sm text-blue-200">
-                  As análises acima combinam dados mensais agregados do headcount com os {realLeaversCount} registros reais de desligamentos.
-                  Os dados por faixa salarial, tipo de desligamento e departamento são baseados nos registros individuais.
+                  {tx("As análises acima combinam dados mensais agregados do headcount com os")}{" "}{realLeaversCount}{" "}{tx("registros reais de desligamentos. Os dados por faixa salarial, tipo de desligamento e departamento são baseados nos registros individuais.")}
                 </p>
               </div>
             </div>
@@ -333,7 +330,7 @@ export default function UnwantedTab() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2 text-foreground">
             <BarChart3 className="h-5 w-5" style={{ color: brandColor }} />
-            Análise de Attrition Não Desejada — {mLabel(currentMonth)}
+            {tx("Análise de Attrition Não Desejada —")}{" "}{tx(mLabel(currentMonth))}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -341,16 +338,16 @@ export default function UnwantedTab() {
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Target className="h-4 w-4" />
-                Benchmarks
+                {tx("Benchmarks")}
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Meta Interna</span>
+                  <span className="text-muted-foreground">{tx("Meta Interna")}</span>
                   <span className="font-bold text-green-400">{BENCHMARK_TARGET}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
                   <span className="text-muted-foreground">
-                    Média de Mercado
+                    {tx("Média de Mercado")}
                     {/* Sem fonte anotada -- ver premissas.ts. O asterisco existe
                         para o número não ficar do lado da meta interna
                         parecendo ter a mesma procedência. */}
@@ -359,16 +356,16 @@ export default function UnwantedTab() {
                   <span className="font-bold text-yellow-400">{BENCHMARK_MARKET}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Limite Crítico</span>
+                  <span className="text-muted-foreground">{tx("Limite Crítico")}</span>
                   <span className="font-bold text-red-400">{BENCHMARK_CRITICAL}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Taxa Atual</span>
+                  <span className="text-muted-foreground">{tx("Taxa Atual")}</span>
                   {/* A cor sai da MESMA lista que define as faixas acima. Antes
                       era um ternário à mão aqui, com os limites repetidos --
                       mexer na faixa mudava a tabela e não mudava esta cor. */}
                   <span className={`font-bold ${TONE_TEXT[toneDe('atricaoNaoDesejada', unwantedRate)]}`}>
-                    {unwantedRate.toFixed(2)}%
+                    {tx(unwantedRate.toFixed(2))}%
                   </span>
                 </div>
                 <p className="text-[10px] text-muted-foreground leading-relaxed pt-1">
@@ -380,28 +377,28 @@ export default function UnwantedTab() {
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
-                Tendências
+                {tx("Tendências")}
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Var. Mensal</span>
+                  <span className="text-muted-foreground">{tx("Var. Mensal")}</span>
                   <span className={`font-bold ${monthlyChange >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                    {monthlyChange >= 0 ? '+' : ''}{monthlyChange.toFixed(2)} p.p.
+                    {monthlyChange >= 0 ? '+' : ''}{tx(monthlyChange.toFixed(2))}{" "}{tx("p.p.")}
                   </span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Var. Semestral</span>
+                  <span className="text-muted-foreground">{tx("Var. Semestral")}</span>
                   <span className={`font-bold ${semestralChange >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                    {semestralChange >= 0 ? '+' : ''}{semestralChange.toFixed(2)} p.p.
+                    {semestralChange >= 0 ? '+' : ''}{tx(semestralChange.toFixed(2))}{" "}{tx("p.p.")}
                   </span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Custo Estimado</span>
-                  <span className="font-bold">R$ {(totalCost / 1000).toFixed(0)}k</span>
+                  <span className="text-muted-foreground">{tx("Custo Estimado")}</span>
+                  <span className="font-bold">{tx("R$")}{" "}{tx((totalCost / 1000).toFixed(0))}{tx("k")}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Ramp-up Médio</span>
-                  <span className="font-bold">{PRODUCTIVITY_LOSS_MONTHS} meses</span>
+                  <span className="text-muted-foreground">{tx("Ramp-up Médio")}</span>
+                  <span className="font-bold">{PRODUCTIVITY_LOSS_MONTHS}{" "}{tx("meses")}</span>
                 </div>
               </div>
             </div>
@@ -409,24 +406,24 @@ export default function UnwantedTab() {
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                Impacto
+                {tx("Impacto")}
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Headcount Atual</span>
-                  <span className="font-bold">{fmt(curr.headcount || 0)}</span>
+                  <span className="text-muted-foreground">{tx("Headcount Atual")}</span>
+                  <span className="font-bold">{tx(fmt(curr.headcount || 0))}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Total de Saídas</span>
-                  <span className="font-bold">{fmt(totalLeavers)}</span>
+                  <span className="text-muted-foreground">{tx("Total de Saídas")}</span>
+                  <span className="font-bold">{tx(fmt(totalLeavers))}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Não Desejadas</span>
-                  <span className="font-bold text-red-400">{fmt(unwantedLeavers)}</span>
+                  <span className="text-muted-foreground">{tx("Não Desejadas")}</span>
+                  <span className="font-bold text-red-400">{tx(fmt(unwantedLeavers))}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Desejadas</span>
-                  <span className="font-bold text-green-400">{fmt(wantedLeavers)}</span>
+                  <span className="text-muted-foreground">{tx("Desejadas")}</span>
+                  <span className="font-bold text-green-400">{tx(fmt(wantedLeavers))}</span>
                 </div>
               </div>
             </div>
@@ -436,11 +433,11 @@ export default function UnwantedTab() {
             <div className="flex items-start gap-3">
               <BarChart3 className="h-5 w-5 mt-0.5 flex-shrink-0" />
               <div>
-                <strong>Resumo:</strong>{' '}
-                A atrição não desejada estimada está em {unwantedRate.toFixed(2)}% do HC, variação de
-                {' '}{monthlyChange >= 0 ? '+' : ''}{monthlyChange.toFixed(2)} p.p. vs o mês anterior.
-                {' '}As faixas de referência internas ({BENCHMARK_TARGET}% alvo, {BENCHMARK_CRITICAL}% limite)
-                {' '}são placeholders a validar com a liderança.
+                <strong>{tx("Resumo:")}</strong>{' '}
+                {tx("A atrição não desejada estimada está em")}{" "}{tx(unwantedRate.toFixed(2))}{tx("% do HC, variação de")}
+                {' '}{monthlyChange >= 0 ? '+' : ''}{tx(monthlyChange.toFixed(2))}{" "}{tx("p.p. vs o mês anterior.")}
+                {' '}{tx("As faixas de referência internas (")}{BENCHMARK_TARGET}{tx("% alvo,")}{" "}{BENCHMARK_CRITICAL}{tx("% limite)")}
+                {' '}{tx("são placeholders a validar com a liderança.")}
               </div>
             </div>
           </div>
@@ -448,24 +445,24 @@ export default function UnwantedTab() {
           <div className="bg-muted/40 border border-border/40 rounded-lg p-4">
             <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
-              Pontos de atenção
+              {tx("Pontos de atenção")}
             </h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-start gap-2">
                 <span className="font-bold">1.</span>
-                <span><strong>Picos mensais:</strong> nos meses de maior atrição não desejada, entrevistas de saída ajudam a entender os motivos.</span>
+                <span><strong>{tx("Picos mensais:")}</strong>{" "}{tx("nos meses de maior atrição não desejada, entrevistas de saída ajudam a entender os motivos.")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">2.</span>
-                <span><strong>Classificação real:</strong> marcar cada saída como desejada/não na origem substitui a estimativa de {(UNWANTED_ATTRITION_PCT * 100).toFixed(0)}% por dado real.</span>
+                <span><strong>{tx("Classificação real:")}</strong>{" "}{tx("marcar cada saída como desejada/não na origem substitui a estimativa de")}{" "}{tx((UNWANTED_ATTRITION_PCT * 100).toFixed(0))}{tx("% por dado real.")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">3.</span>
-                <span><strong>Faixas de referência:</strong> validar alvo e limite com a liderança antes de classificar meses como adequado/atenção.</span>
+                <span><strong>{tx("Faixas de referência:")}</strong>{" "}{tx("validar alvo e limite com a liderança antes de classificar meses como adequado/atenção.")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">4.</span>
-                <span><strong>Acompanhamento:</strong> monitorar a variação mensal da taxa ao longo do tempo.</span>
+                <span><strong>{tx("Acompanhamento:")}</strong>{" "}{tx("monitorar a variação mensal da taxa ao longo do tempo.")}</span>
               </li>
             </ul>
           </div>

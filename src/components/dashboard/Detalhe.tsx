@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+import { tx } from '@/lib/i18n';
 /**
  * Bloco recolhido de detalhe.
  *
@@ -64,8 +65,8 @@ export default function Detalhe({
         {aberto
           ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
           : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
-        <span className="text-sm font-medium text-muted-foreground">{titulo}</span>
-        {resumo && <span className="text-xs text-muted-foreground/80 truncate">{resumo}</span>}
+        <span className="text-sm font-medium text-muted-foreground">{tx(titulo)}</span>
+        {resumo && <span className="text-xs text-muted-foreground/80 truncate">{tx(resumo)}</span>}
       </button>
       {aberto && <div className="p-3 space-y-4">{children}</div>}
     </div>

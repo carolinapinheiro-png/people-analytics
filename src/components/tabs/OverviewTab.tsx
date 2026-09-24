@@ -49,6 +49,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 
+import { tx } from '@/lib/i18n';
 /** Rotulos das dimensoes de recorte, iguais aos da barra de filtros. */
 const CUT_LABELS: Record<SeriesFilterKey, string> = {
   level: 'Nível',
@@ -302,11 +303,9 @@ export default function OverviewTab() {
     <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-foreground">
       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
       <p>
-        Esta visão aceita <strong>um</strong> recorte entre nível e tempo de casa: a série
-        mensal guarda as duas bases separadas, sem o cruzamento. Aplicado{' '}
-        <strong>{CUT_LABELS[seriesCut.key ?? 'level']}: {seriesCut.value}</strong>; ignorado{' '}
-        {seriesCut.ignored.map((i) => `${CUT_LABELS[i.key]}: ${i.value}`).join(', ')}. Para
-        cruzar as duas dimensões, use a aba Atrição &amp; Desligamentos.
+        {tx("Esta visão aceita")}{" "}<strong>{tx("um")}</strong>{" "}{tx("recorte entre nível e tempo de casa: a série mensal guarda as duas bases separadas, sem o cruzamento. Aplicado")}{' '}
+        <strong>{tx(CUT_LABELS[seriesCut.key ?? 'level'])}: {tx(seriesCut.value)}</strong>{tx("; ignorado")}{' '}
+        {tx(seriesCut.ignored.map((i) => `${CUT_LABELS[i.key]}: ${i.value}`).join(', '))}{tx(". Para cruzar as duas dimensões, use a aba Atrição & Desligamentos.")}
       </p>
     </div>
   ) : null;
@@ -325,14 +324,12 @@ export default function OverviewTab() {
             assim", que é uma afirmação sobre as pessoas. */}
         {cut.valorDesconhecido && (
           <p className="text-[11px] rounded-md border border-amber-500/40 p-2 text-amber-600 dark:text-amber-500">
-            <strong>{cut.label}</strong> não aparece em nenhum mês da série. Isso não quer dizer
-            "ninguém nessa faixa": quer dizer que a carga nunca gravou esse valor. Provável
-            diferença de vocabulário entre o seletor e o cadastro do Convenia — vale reportar.
+            <strong>{tx(cut.label)}</strong>{" "}{tx("não aparece em nenhum mês da série. Isso não quer dizer \"ninguém nessa faixa\": quer dizer que a carga nunca gravou esse valor. Provável diferença de vocabulário entre o seletor e o cadastro do Convenia — vale reportar.")}
           </p>
         )}
         <SeriesCutView
           months={cut.months}
-          label={cut.label}
+          label={tx(cut.label)}
           suppressed={cut.suppressed}
           brandColor={brandColor}
           unreliable={cut.unreliable}
@@ -348,16 +345,14 @@ export default function OverviewTab() {
       <div className="bg-gradient-to-r p-6 rounded-xl border" style={{ background: `linear-gradient(to right, ${brandColor}1a, transparent)`, borderColor: `${brandColor}33` }}>
         <div className="flex items-center gap-3 mb-3">
           <Building2 className="h-6 w-6" style={{ color: brandColor }} />
-          <h2 className="text-xl font-bold text-foreground">Resumo Executivo</h2>
-          <span className="text-sm text-muted-foreground">{mLabel(currentMonth)}</span>
+          <h2 className="text-xl font-bold text-foreground">{tx("Resumo Executivo")}</h2>
+          <span className="text-sm text-muted-foreground">{tx(mLabel(currentMonth))}</span>
         </div>
         <p className="text-foreground leading-relaxed">
-          Em {mLabel(currentMonth)}, a organização apresenta <strong>{generateNarrative()}</strong>. 
-          Com {curr.headcount} colaboradores ativos, {curr.leaders} líderes ({curr.leaders_pct}% do total) 
-          e {curr.promotions == null ? 'promoções não calculadas nesta série' : `${curr.promotions} promoções realizadas`}, o cenário atual demonstra 
-          {growthTrend === 'positive' ? ' expansão' : growthTrend === 'negative' ? ' contração' : ' estabilidade'}
-          {' '}no headcount. Números factuais do período; leituras de "adequado/atenção" dependem de metas
-          {' '}a validar com a liderança.
+          {tx("Em")}{" "}{tx(mLabel(currentMonth))}{tx(", a organização apresenta")}{" "}<strong>{tx(generateNarrative())}</strong>{tx(". Com")}{" "}{curr.headcount}{" "}{tx("colaboradores ativos,")}{" "}{curr.leaders}{" "}{tx("líderes (")}{curr.leaders_pct}{tx("% do total) e")}{" "}{curr.promotions == null ? tx("promoções não calculadas nesta série") : tx("{0} promoções realizadas", [curr.promotions])}{tx(", o cenário atual demonstra")} 
+          {growthTrend === 'positive' ? tx(" expansão") : growthTrend === 'negative' ? tx(" contração") : tx(" estabilidade")}
+          {' '}{tx("no headcount. Números factuais do período; leituras de \"adequado/atenção\" dependem de metas")}
+          {' '}{tx("a validar com a liderança.")}
         </p>
       </div>
 
@@ -366,52 +361,51 @@ export default function OverviewTab() {
         {kpis.map((k, idx) => (
           <KpiCard 
             key={k.label} 
-            label={k.label} 
+            label={tx(k.label)} 
             value={k.val} 
             color={k.color} 
-            sub={k.sub}
+            sub={tx(k.sub)}
             help={'help' in k ? k.help : undefined}
           />
         ))}
       </div>
 
       {/* Panorama do período (antiga aba Trend, agora na visão executiva) */}
-      <StorySection title={`Panorama do Período${panorama.rotulo ? ` · ${panorama.rotulo}` : ''}`} icon={Activity}>
+      <StorySection title={tx("Panorama do Período{0}", [panorama.rotulo ? ` · ${panorama.rotulo}` : ''])} icon={Activity}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <StoryMetric
-            label="Crescimento no período"
+            label={tx("Crescimento no período")}
             value={`${panorama.crescimentoPct >= 0 ? '+' : ''}${panorama.crescimentoPct.toFixed(1)}%`}
             subtext={`${panorama.hcInicio} → ${panorama.hcFim}`}
             trendDirection={panorama.crescimentoPct >= 0 ? 'up' : 'down'}
           />
           <StoryMetric
-            label="Atrição acumulada"
+            label={tx("Atrição acumulada")}
             value={`${panorama.atricaoAcumulada.toFixed(1)}%`}
-            subtext={`${panorama.saidas} saídas · média mensal ${panorama.atricaoMediaMensal.toFixed(1)}%`}
+            subtext={tx("{0} saídas · média mensal {1}%", [panorama.saidas, panorama.atricaoMediaMensal.toFixed(1)])}
             trendDirection={attritionYoY != null ? (attritionYoY <= 0 ? 'up' : 'down') : 'neutral'}
           />
           <StoryMetric
-            label="Turnover acumulado"
+            label={tx("Turnover acumulado")}
             value={`${panorama.turnoverAcumulado.toFixed(1)}%`}
-            subtext={`${panorama.entradas} entradas / ${panorama.saidas} saídas · média mensal ${panorama.turnoverMediaMensal.toFixed(1)}%`}
+            subtext={tx("{0} entradas / {1} saídas · média mensal {2}%", [panorama.entradas, panorama.saidas, panorama.turnoverMediaMensal.toFixed(1)])}
           />
           <StoryMetric
-            label="Promoções no período"
+            label={tx("Promoções no período")}
             value={panorama.promocoes == null ? '—' : String(panorama.promocoes)}
-            subtext={panorama.promocoes == null ? 'não calculado nesta série' : 'acumulado'}
+            subtext={panorama.promocoes == null ? tx("não calculado nesta série") : 'acumulado'}
           />
         </div>
         <p className="mt-3 text-xs text-muted-foreground leading-relaxed">
-          <strong>Qual período.</strong>{' '}
+          <strong>{tx("Qual período.")}</strong>{' '}
           {activeYear
-            ? <>De janeiro até o fim do {view === 'quarterly' ? 'trimestre' : 'mês'} selecionado ({panorama.rotulo || 'sem dado'}).</>
-            : <>Com &quot;Todos os anos&quot;, a série inteira ({panorama.rotulo || 'sem dado'}).</>}{' '}
-          <strong>Como é calculado.</strong> <em>Crescimento</em> compara o headcount do primeiro e do último mês.{' '}
-          <em>Atrição acumulada</em> = total de saídas ÷ HC médio mensal do período.
-          <em> Turnover acumulado</em> = (entradas + saídas) ÷ 2 ÷ HC médio. A <em>média mensal</em> é a média das taxas de cada mês —
-          útil para o ritmo recorrente, enquanto o acumulado mostra o total do período. A atrição{' '}
-          <em>não desejada</em> (estimativa de 65% das saídas, ainda sem classificação real na origem) fica detalhada na aba{' '}
-          <strong>Atrição &amp; Desligamentos</strong>.
+            ? <>{tx("De janeiro até o fim do")}{" "}{view === 'quarterly' ? tx("trimestre") : tx("mês")}{" "}{tx("selecionado (")}{tx(panorama.rotulo) || tx("sem dado")}).</>
+            : <>{tx("Com \"Todos os anos\", a série inteira (")}{tx(panorama.rotulo) || tx("sem dado")}).</>}{' '}
+          <strong>{tx("Como é calculado.")}</strong> <em>{tx("Crescimento")}</em>{" "}{tx("compara o headcount do primeiro e do último mês.")}{' '}
+          <em>{tx("Atrição acumulada")}</em>{" "}{tx("= total de saídas ÷ HC médio mensal do período.")}
+          <em>{" "}{tx("Turnover acumulado")}</em>{" "}{tx("= (entradas + saídas) ÷ 2 ÷ HC médio. A")}{" "}<em>{tx("média mensal")}</em>{" "}{tx("é a média das taxas de cada mês — útil para o ritmo recorrente, enquanto o acumulado mostra o total do período. A atrição")}{' '}
+          <em>{tx("não desejada")}</em>{" "}{tx("(estimativa de 65% das saídas, ainda sem classificação real na origem) fica detalhada na aba")}{' '}
+          <strong>{tx("Atrição & Desligamentos")}</strong>.
         </p>
         {yearlyStats.length > 1 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
@@ -419,8 +413,8 @@ export default function OverviewTab() {
               <div key={s.year} className="rounded-lg border border-border bg-card/40 p-3 flex items-center justify-between text-sm">
                 <span className="font-medium">{s.year}</span>
                 <span className="text-muted-foreground">
-                  HC médio <strong className="text-foreground">{s.avgHc}</strong> · atrição{' '}
-                  <strong className="text-foreground">{s.avgAttr.toFixed(1)}%</strong>
+                  {tx("HC médio")}{" "}<strong className="text-foreground">{s.avgHc}</strong>{" "}{tx("· atrição")}{' '}
+                  <strong className="text-foreground">{tx(s.avgAttr.toFixed(1))}%</strong>
                 </span>
               </div>
             ))}
@@ -429,10 +423,10 @@ export default function OverviewTab() {
       </StorySection>
 
       {/* Headcount Evolution Story */}
-      <StorySection title="Evolução do Headcount" icon={TrendingUp}>
+      <StorySection title={tx("Evolução do Headcount")} icon={TrendingUp}>
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <div className="lg:col-span-2">
-            <ChartCard title="Crescimento ao Longo do Tempo" subtitle="Headcount total e variação mensal">
+            <ChartCard title={tx("Crescimento ao Longo do Tempo")} subtitle={tx("Headcount total e variação mensal")}>
               <ResponsiveContainer width="100%" height={240}>
                 <AreaChart data={trendData}>
                   <defs>
@@ -462,7 +456,7 @@ export default function OverviewTab() {
           </div>
           <div className="space-y-3">
             <StoryMetric
-              label="Total Atual"
+              label={tx("Total Atual")}
               value={fmt(curr.headcount)}
               subtext="colaboradores"
               trend={netGrowth > 0 ? `+${netGrowth}` : `${netGrowth}`}
@@ -470,7 +464,7 @@ export default function OverviewTab() {
             />
             <div className="rounded-lg border border-border bg-card/40 p-3 space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Este mês</span>
+                <span className="text-muted-foreground">{tx("Este mês")}</span>
                 <span className="font-semibold">
                   <span className="text-green-400">+{curr.joiners || 0}</span>
                   {' / '}
@@ -478,32 +472,32 @@ export default function OverviewTab() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">% Mulheres / Homens</span>
+                <span className="text-muted-foreground">{tx("% Mulheres / Homens")}</span>
                 <span className="font-semibold">
                   <span className="text-pink-400">{curr.gender_female_pct || 0}%</span>
                   {' / '}
-                  <span className="text-blue-400">{(100 - (curr.gender_female_pct || 0)).toFixed(0)}%</span>
+                  <span className="text-blue-400">{tx((100 - (curr.gender_female_pct || 0)).toFixed(0))}%</span>
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Tempo de casa (moda)</span>
+                <span className="text-muted-foreground">{tx("Tempo de casa (moda)")}</span>
                 <span className="font-semibold">{tenureTop ? `${tenureTop.faixa} (${tenureTop.pct.toFixed(0)}%)` : '—'}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">CLT / PJ</span>
+                <span className="text-muted-foreground">{tx("CLT / PJ")}</span>
                 <span className="font-semibold">
                   {contractMix
-                    ? <span title={contractMix.outros > 0 ? `+${contractMix.outros} com outro vínculo ou vínculo não informado neste mês` : undefined}>
+                    ? <span title={contractMix.outros > 0 ? tx("+{0} com outro vínculo ou vínculo não informado neste mês", [contractMix.outros]) : undefined}>
                         {contractMix.clt} / {contractMix.pj}
                       </span>
-                    : <span className="text-muted-foreground font-normal" title="Sem quebra por vínculo para este mês/recorte na série">—</span>}
+                    : <span className="text-muted-foreground font-normal" title={tx("Sem quebra por vínculo para este mês/recorte na série")}>—</span>}
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Time que + cresceu</span>
+                <span className="text-muted-foreground">{tx("Time que + cresceu")}</span>
                 <span className="font-semibold text-right">
                   {topGrowthDept
-                    ? <>{topGrowthDept.dept.replace(/_/g, ' ')} <span className="text-green-400">+{topGrowthDept.delta}</span></>
+                    ? <>{tx(topGrowthDept.dept.replace(/_/g, ' '))} <span className="text-green-400">+{topGrowthDept.delta}</span></>
                     : '—'}
                 </span>
               </div>
@@ -511,40 +505,38 @@ export default function OverviewTab() {
           </div>
         </div>
         <StoryInsight type={netGrowth >= 0 ? 'positive' : 'negative'}>
-          O headcount {netGrowth >= 0 ? 'cresceu' : 'reduziu'} {Math.abs(netGrowth)} colaboradores em {mLabel(currentMonth)}, 
-          representando uma variação de {((netGrowth / (curr.headcount - netGrowth)) * 100).toFixed(1)}% 
-          em relação ao mês anterior. {netGrowth >= 0
-            ? 'Resultado de mais entradas que saídas no mês.'
-            : 'As saídas superaram as entradas no mês; os motivos ficam na aba Atrição & Desligamentos.'}
+          {tx("O headcount")}{" "}{netGrowth >= 0 ? tx("cresceu") : tx("reduziu")} {Math.abs(netGrowth)}{" "}{tx("colaboradores em")}{" "}{tx(mLabel(currentMonth))}{tx(", representando uma variação de")}{" "}{tx(((netGrowth / (curr.headcount - netGrowth)) * 100).toFixed(1))}{tx("% em relação ao mês anterior.")}{" "}{netGrowth >= 0
+            ? tx("Resultado de mais entradas que saídas no mês.")
+            : tx("As saídas superaram as entradas no mês; os motivos ficam na aba Atrição & Desligamentos.")}
         </StoryInsight>
       </StorySection>
 
       {/* Movement Story */}
-      <StorySection title="Movimentação de Pessoas" icon={ArrowRightLeft}>
+      <StorySection title={tx("Movimentação de Pessoas")} icon={ArrowRightLeft}>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <ChartCard title="Entradas vs Saídas" subtitle="Fluxo mensal de colaboradores">
+          <ChartCard title={tx("Entradas vs Saídas")} subtitle={tx("Fluxo mensal de colaboradores")}>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={jlData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                 <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                 <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
-                <Bar dataKey="entradas" name="Entradas" fill={COLORS.success + '99'} stroke={COLORS.success} strokeWidth={1} radius={[4, 4, 0, 0]} />
-                <Bar dataKey="saidas" name="Saídas" fill={COLORS.danger + '99'} stroke={COLORS.danger} strokeWidth={1} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="entradas" name={tx("Entradas")} fill={COLORS.success + '99'} stroke={COLORS.success} strokeWidth={1} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="saidas" name={tx("Saídas")} fill={COLORS.danger + '99'} stroke={COLORS.danger} strokeWidth={1} radius={[4, 4, 0, 0]} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
               </BarChart>
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Taxas de Movimentação" subtitle="Atrição vs Turnover (%)">
+          <ChartCard title={tx("Taxas de Movimentação")} subtitle={tx("Atrição vs Turnover (%)")}>
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={attrTurnData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
                 <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                 <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                 <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
-                <Line type="monotone" dataKey="attricao" name="Atrição %" stroke={COLORS.warning} strokeWidth={3} dot={{ r: 4 }} connectNulls />
-                <Line type="monotone" dataKey="turnover" name="Turnover %" stroke={COLORS.orange} strokeWidth={2} dot={{ r: 3 }} strokeDasharray="5 5" connectNulls />
+                <Line type="monotone" dataKey="attricao" name={tx("Atrição %")} stroke={COLORS.warning} strokeWidth={3} dot={{ r: 4 }} connectNulls />
+                <Line type="monotone" dataKey="turnover" name={tx("Turnover %")} stroke={COLORS.orange} strokeWidth={2} dot={{ r: 3 }} strokeDasharray="5 5" connectNulls />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
               </LineChart>
             </ResponsiveContainer>
@@ -552,17 +544,17 @@ export default function OverviewTab() {
         </div>
         
         <StoryInsight type="neutral">
-          Em {mLabel(currentMonth)}: {curr.joiners || 0} entradas e {curr.leavers || 0} saídas
-          {' '}(atrição {(curr.attrition_rate || 0).toFixed(2)}%, turnover {tv}%). Média do período:
-          {' '}atrição {panorama.atricaoMediaMensal.toFixed(1)}%, turnover {panorama.turnoverMediaMensal.toFixed(1)}%.
-          {tv > 0 && ` No ritmo do mês, cerca de 1 em cada ${Math.round(100 / tv)} colaboradores é substituído.`}
-          {' '}Para aprofundar as causas, ver a aba Atrição &amp; Desligamentos.
+          {tx("Em")}{" "}{tx(mLabel(currentMonth))}: {curr.joiners || 0}{" "}{tx("entradas e")}{" "}{curr.leavers || 0}{" "}{tx("saídas")}
+          {' '}{tx("(atrição")}{" "}{tx((curr.attrition_rate || 0).toFixed(2))}{tx("%, turnover")}{" "}{tv}{tx("%). Média do período:")}
+          {' '}{tx("atrição")}{" "}{tx(panorama.atricaoMediaMensal.toFixed(1))}{tx("%, turnover")}{" "}{tx(panorama.turnoverMediaMensal.toFixed(1))}%.
+          {tv > 0 && tx(" No ritmo do mês, cerca de 1 em cada {0} colaboradores é substituído.", [Math.round(100 / tv)])}
+          {' '}{tx("Para aprofundar as causas, ver a aba Atrição & Desligamentos.")}
         </StoryInsight>
       </StorySection>
 
       {/* Distribuição por Departamento */}
-      <StorySection title="Distribuição por Departamento" icon={Building2}>
-        <ChartCard title="Headcount por área" subtitle="Colaboradores e % do total">
+      <StorySection title={tx("Distribuição por Departamento")} icon={Building2}>
+        <ChartCard title={tx("Headcount por área")} subtitle={tx("Colaboradores e % do total")}>
           <ResponsiveContainer width="100%" height={340}>
             <BarChart data={depts} layout="vertical" margin={{ left: 8, right: 16 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />

@@ -8,6 +8,7 @@ import {
 } from 'recharts';
 import { Award, BarChart3, TrendingUp } from 'lucide-react';
 
+import { tx } from '@/lib/i18n';
 /**
  * Movimentacoes salariais reconstruidas do historico (Motivo): promocao x
  * merito/reajuste x dissidio (reajuste coletivo), com nº de eventos e valor do
@@ -69,15 +70,11 @@ export default function MovementTab() {
     return (
       <div className="space-y-3 py-16 text-center">
         <p className="text-sm text-muted-foreground max-w-xl mx-auto">
-          <strong className="text-foreground">Movimentações não são calculadas nesta série.</strong>{' '}
-          Promoção, mérito e dissídio saem do histórico salarial de cada pessoa, e a carga do
-          Convenia ainda não o lê — por isso não há número aqui, e não porque não tenha havido
-          movimentação.
+          <strong className="text-foreground">{tx("Movimentações não são calculadas nesta série.")}</strong>{' '}
+          {tx("Promoção, mérito e dissídio saem do histórico salarial de cada pessoa, e a carga do Convenia ainda não o lê — por isso não há número aqui, e não porque não tenha havido movimentação.")}
         </p>
         <p className="text-xs text-muted-foreground max-w-xl mx-auto">
-          O dado existe no Convenia, em <code>/employees/&#123;id&#125;/salaries-historic</code>,
-          com o motivo já classificado na origem. Hoje ele é lido só na geração do report do WIL,
-          para a liderança sênior.
+          {tx("O dado existe no Convenia, em")}{" "}<code>/employees/&#123;id&#125;/salaries-historic</code>{tx(", com o motivo já classificado na origem. Hoje ele é lido só na geração do report do WIL, para a liderança sênior.")}
         </p>
       </div>
     );
@@ -88,11 +85,10 @@ export default function MovementTab() {
       <div>
         <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
           <Award className="h-5 w-5 text-[hsl(var(--purple))]" />
-          Movimentações Salariais
+          {tx("Movimentações Salariais")}
         </h2>
         <p className="text-sm text-muted-foreground mt-1">
-          Reconstruídas do histórico (Motivo). Valor = salário do evento menos o último salário
-          conhecido da pessoa. Ref: {mLabel(currentMonth)}.
+          {tx("Reconstruídas do histórico (Motivo). Valor = salário do evento menos o último salário conhecido da pessoa. Ref:")}{" "}{tx(mLabel(currentMonth))}.
         </p>
       </div>
 
@@ -101,26 +97,26 @@ export default function MovementTab() {
         {TYPES.map(({ key, label, color }) => (
           <Card key={key}>
             <CardContent className="p-4">
-              <p className="text-xs text-muted-foreground">{label}</p>
+              <p className="text-xs text-muted-foreground">{tx(label)}</p>
               <p className="text-xl font-bold" style={{ color }}>{totals[key].n}</p>
               <p className="text-xs text-muted-foreground mt-1">
-                {totals[key].n > 0 ? `${fmtC(Math.round(totals[key].delta / totals[key].n))} médio` : 'sem eventos'}
+                {totals[key].n > 0 ? tx("{0} médio", [fmtC(Math.round(totals[key].delta / totals[key].n))]) : tx("sem eventos")}
               </p>
             </CardContent>
           </Card>
         ))}
         <Card>
           <CardContent className="p-4">
-            <p className="text-xs text-muted-foreground">Reajuste total (período)</p>
-            <p className="text-xl font-bold text-green-400">{fmtC(grandDelta)}</p>
-            <p className="text-xs text-muted-foreground mt-1">soma dos três tipos</p>
+            <p className="text-xs text-muted-foreground">{tx("Reajuste total (período)")}</p>
+            <p className="text-xl font-bold text-green-400">{tx(fmtC(grandDelta))}</p>
+            <p className="text-xs text-muted-foreground mt-1">{tx("soma dos três tipos")}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Eventos por mês e tipo" subtitle="Nº de movimentações" icon={Award}>
+        <ChartCard title={tx("Eventos por mês e tipo")} subtitle={tx("Nº de movimentações")} icon={Award}>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={monthlyN}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -135,7 +131,7 @@ export default function MovementTab() {
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Valor do reajuste por mês e tipo" subtitle="Soma dos reajustes (R$)" icon={TrendingUp}>
+        <ChartCard title={tx("Valor do reajuste por mês e tipo")} subtitle={tx("Soma dos reajustes (R$)")} icon={TrendingUp}>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={monthlyValue}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -156,20 +152,18 @@ export default function MovementTab() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <BarChart3 className="h-5 w-5" />
-            Como ler
+            {tx("Como ler")}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-foreground">
           <p>
-            <strong>Promoção</strong>: mudança de cargo com aumento (maior reajuste médio).{' '}
-            <strong>Mérito/Reajuste</strong>: ajuste individual por desempenho.{' '}
-            <strong>Dissídio</strong>: reajuste coletivo da categoria (inclui antecipação e acordo
-            coletivo) — muitos eventos, valor pequeno por pessoa.
+            <strong>{tx("Promoção")}</strong>{tx(": mudança de cargo com aumento (maior reajuste médio).")}{' '}
+            <strong>{tx("Mérito/Reajuste")}</strong>{tx(": ajuste individual por desempenho.")}{' '}
+            <strong>{tx("Dissídio")}</strong>{tx(": reajuste coletivo da categoria (inclui antecipação e acordo coletivo) — muitos eventos, valor pequeno por pessoa.")}
           </p>
           <p className="text-xs text-muted-foreground">
-            No período: {totals.promocao.n} promoções, {totals.merito.n} méritos e {totals.dissidio.n}{' '}
-            dissídios; reajuste total reconstruído de {fmtC(grandDelta)}. Betfair só tem histórico
-            das pessoas vindas do Talent Mobility; Flutter International não tem histórico salarial.
+            {tx("No período:")}{" "}{totals.promocao.n}{" "}{tx("promoções,")}{" "}{totals.merito.n}{" "}{tx("méritos e")}{" "}{totals.dissidio.n}{' '}
+            {tx("dissídios; reajuste total reconstruído de")}{" "}{tx(fmtC(grandDelta))}{tx(". Betfair só tem histórico das pessoas vindas do Talent Mobility; Flutter International não tem histórico salarial.")}
           </p>
         </CardContent>
       </Card>

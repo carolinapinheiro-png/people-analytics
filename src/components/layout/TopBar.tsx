@@ -18,7 +18,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import GlossaryDialog from '@/components/dashboard/GlossaryDialog';
+import SeletorIdioma from '@/components/layout/SeletorIdioma';
 
+import { tx } from '@/lib/i18n';
 const BRAND_COLORS: Record<string, string> = {
   combined: COLORS.flutter,
   NSX: COLORS.nsx,
@@ -57,7 +59,7 @@ export default function TopBar() {
   // acontecer ANTES do clique -- e nao virar a interpretacao de tres abas
   // vazias depois dele. Ver lib/cobertura.ts.
   const yearOptions: { k: string; label: string }[] = [
-    { k: 'atual', label: `Ano atual${latestYear ? ` (${latestYear})` : ''}` },
+    { k: 'atual', label: `${tx('Ano atual')}${latestYear ? ` (${latestYear})` : ''}` },
     ...[...availableYears]
       .filter((y) => y !== latestYear)
       .sort((a, b) => (a < b ? 1 : -1))
@@ -65,7 +67,7 @@ export default function TopBar() {
     // "Todos" sozinho num campo sem rótulo visível não diz do que. Agora que o
     // controle pode ficar sem legenda em tela estreita, o valor precisa se
     // sustentar lido de fora.
-    { k: 'Todos', label: 'Todos os anos' },
+    { k: 'Todos', label: tx('Todos os anos') },
   ];
 
   return (
@@ -78,9 +80,9 @@ export default function TopBar() {
           F
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-bold tracking-tight whitespace-nowrap">Flutter Brazil · People Analytics</div>
+          <div className="text-sm font-bold tracking-tight whitespace-nowrap">{tx("Flutter Brazil · People Analytics")}</div>
           {/* Contexto, nao informacao critica: some antes de atrapalhar. */}
-          <div className="text-[11px] text-muted-foreground whitespace-nowrap hidden xl:block">NSX + Betfair · Dashboard mensal de RH</div>
+          <div className="text-[11px] text-muted-foreground whitespace-nowrap hidden xl:block">{tx("NSX + Betfair · Dashboard mensal de RH")}</div>
         </div>
       </div>
 
@@ -108,7 +110,7 @@ export default function TopBar() {
             listas diferentes.
         ------------------------------------------------------------------ */}
         <Seletor
-          rotulo="Marca"
+          rotulo={tx("Marca")}
           valor={brand}
           onChange={(v) => setBrand(v as BrandType)}
           cor={brandColor}
@@ -116,7 +118,7 @@ export default function TopBar() {
         />
 
         <Seletor
-          rotulo="Ano"
+          rotulo={tx("Ano")}
           valor={yearFilter}
           onChange={setYearFilter}
           cor={brandColor}
@@ -124,7 +126,7 @@ export default function TopBar() {
         />
 
         <Seletor
-          rotulo="Visão"
+          rotulo={tx("Visão")}
           valor={view}
           onChange={(v) => setView(v as ViewType)}
           cor={brandColor}
@@ -153,8 +155,8 @@ export default function TopBar() {
           <button
             onClick={() => currentMonthIdx > 0 && setCurrentMonthIdx(currentMonthIdx - 1)}
             disabled={currentMonthIdx <= 0}
-            aria-label="Mês anterior"
-            title="Mês anterior"
+            aria-label={tx("Mês anterior")}
+            title={tx("Mês anterior")}
             className="p-1 rounded border border-border hover:bg-secondary disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -165,22 +167,22 @@ export default function TopBar() {
               const i = monthsOrder.indexOf(e.target.value);
               if (i >= 0) setCurrentMonthIdx(i);
             }}
-            aria-label="Mês"
-            title="Mês"
+            aria-label={tx("Mês")}
+            title={tx("Mês")}
             className="border border-border rounded-md bg-card py-1.5 pl-2 pr-6 text-[11px] font-semibold text-foreground cursor-pointer hover:bg-secondary transition-colors focus:outline-none focus:ring-1"
             style={{ '--tw-ring-color': brandColor } as React.CSSProperties}
           >
             {/* Do mais recente para o mais antigo, como o filtro de ano: com
                 272 meses, o mês corrente não pode estar no fim da rolagem. */}
             {[...monthsOrder].reverse().map((m) => (
-              <option key={m} value={m}>{mLabel(m)}</option>
+              <option key={m} value={m}>{tx(mLabel(m))}</option>
             ))}
           </select>
           <button
             onClick={() => currentMonthIdx < monthsOrder.length - 1 && setCurrentMonthIdx(currentMonthIdx + 1)}
             disabled={currentMonthIdx >= monthsOrder.length - 1}
-            aria-label="Próximo mês"
-            title="Próximo mês"
+            aria-label={tx("Próximo mês")}
+            title={tx("Próximo mês")}
             className="p-1 rounded border border-border hover:bg-secondary disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
@@ -195,6 +197,9 @@ export default function TopBar() {
 
         {/* User menu */}
         <UserMenu />
+
+        {/* Idioma: último item, canto superior direito. */}
+        <SeletorIdioma />
       </div>
     </header>
   );
@@ -224,18 +229,18 @@ function Seletor({
   return (
     <div className="flex items-center gap-1.5 shrink-0">
       <span className="text-[10px] uppercase tracking-wider text-muted-foreground hidden 2xl:inline">
-        {rotulo}
+        {tx(rotulo)}
       </span>
       <select
         value={valor}
         onChange={(e) => onChange(e.target.value)}
-        aria-label={rotulo}
-        title={rotulo}
+        aria-label={tx(rotulo)}
+        title={tx(rotulo)}
         className="border border-border rounded-md bg-card py-1.5 pl-2 pr-6 text-[11px] font-semibold text-foreground max-w-[168px] truncate cursor-pointer hover:bg-secondary transition-colors focus:outline-none focus:ring-1"
         style={{ '--tw-ring-color': cor } as React.CSSProperties}
       >
         {opcoes.map((o) => (
-          <option key={o.k} value={o.k}>{o.label}</option>
+          <option key={o.k} value={o.k}>{tx(o.label)}</option>
         ))}
       </select>
     </div>
@@ -247,8 +252,8 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggle}
-      title={theme === 'dark' ? 'Tema claro' : 'Tema escuro'}
-      aria-label="Alternar tema"
+      title={theme === 'dark' ? tx("Tema claro") : tx("Tema escuro")}
+      aria-label={tx("Alternar tema")}
       className="p-2 rounded-full border border-border text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
     >
       {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
@@ -262,9 +267,9 @@ function UserMenu() {
   const handleSignOut = async () => {
     try {
       await signOut();
-      toast.success('Logout realizado');
+      toast.success(tx("Logout realizado"));
     } catch (error) {
-      toast.error('Erro ao sair');
+      toast.error(tx("Erro ao sair"));
       console.error('Sign out error:', error);
     }
   };
@@ -278,7 +283,7 @@ function UserMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <div className="px-2 py-1.5 text-sm text-muted-foreground truncate">
-          {user?.email || 'Usuário'}
+          {tx(user?.email) || tx("Usuário")}
         </div>
         {isAdmin && (
           <>
@@ -286,7 +291,7 @@ function UserMenu() {
             <DropdownMenuItem asChild className="cursor-pointer">
               <Link to="/admin">
                 <Shield className="mr-2 h-4 w-4" />
-                Admin
+                {tx("Admin")}
               </Link>
             </DropdownMenuItem>
           </>
@@ -294,7 +299,7 @@ function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
           <LogOut className="mr-2 h-4 w-4" />
-          Sair
+          {tx("Sair")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -6,6 +6,7 @@ import { COLORS } from '@/lib/colors';
 import { mapearCamposTalent, salvarEscolhaTalent, type MapaDeCampos } from '@/lib/talent-mobility.functions';
 import type { CampoVisto } from '@/lib/talent-mobility';
 
+import { tx } from '@/lib/i18n';
 /**
  * O mapa dos reports do Sandeep, antes de existir botão que os gere.
  *
@@ -56,38 +57,34 @@ export function TalentMobilityCard() {
       <div className="flex items-start gap-3">
         <MapIcon className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
-          <h3 className="text-base font-semibold">Reports do Sandeep — de onde sai cada coluna</h3>
+          <h3 className="text-base font-semibold">{tx("Reports do Sandeep — de onde sai cada coluna")}</h3>
           {/* Recolhido por padrão. Não é card de uso mensal: mexe-se nele
               quando o RH renomeia um campo, e o card de download já avisa,
               pelo nome, quando isso acontece. Aberto o tempo todo, ele empurra
               para baixo o botão que se usa de fato. */}
           <details className="mt-1">
             <summary className="cursor-pointer text-sm text-muted-foreground">
-              O mapa das 51 colunas — abra para conferir ou reapontar um campo
+              {tx("O mapa das 51 colunas — abra para conferir ou reapontar um campo")}
             </summary>
             <p className="mt-2 text-sm text-muted-foreground">
-            As 51 colunas do Talent Mobility Data Model contra o cadastro do Convenia. Para
-            cada coluna, escolha o campo olhando a cobertura e os valores — a escolha fica
-            gravada e é ela que o gerador do CSV vai ler. Meus palpites por nome aparecem
-            como palpite e não contam: <code>Level</code> é o Compensation Grade, e os dois
-            nomes não têm uma letra em comum.
+            {tx("As 51 colunas do Talent Mobility Data Model contra o cadastro do Convenia. Para cada coluna, escolha o campo olhando a cobertura e os valores — a escolha fica gravada e é ela que o gerador do CSV vai ler. Meus palpites por nome aparecem como palpite e não contam:")}{" "}<code>Level</code>{" "}{tx("é o Compensation Grade, e os dois nomes não têm uma letra em comum.")}
           </p>
 
           <Button onClick={rodar} disabled={carregando} className="mt-4" variant="outline">
             <RefreshCw className={`mr-2 h-4 w-4 ${carregando ? 'animate-spin' : ''}`} />
-            {carregando ? 'Lendo o cadastro…' : 'Mapear os campos'}
+            {carregando ? tx("Lendo o cadastro…") : tx("Mapear os campos")}
           </Button>
 
-          {erro && <p className="mt-3 text-sm" style={{ color: COLORS.danger }}>{erro}</p>}
+          {erro && <p className="mt-3 text-sm" style={{ color: COLORS.danger }}>{tx(erro)}</p>}
 
           {/* Depois da unificação existe uma base só, e as outras fontes leem
               zero. Imprimir "29 colunas sem fonte" cinco vezes não é notícia --
               é ruído com cara de problema. */}
           {dados && dados.filter((d) => d.amostra === 0 && !d.erro).length > 0 && (
             <p className="mt-3 text-xs text-muted-foreground">
-              Sem cadastro para ler:{' '}
-              {dados.filter((d) => d.amostra === 0 && !d.erro).map((d) => d.empresa).join(', ')}
-              {' '}— esperado desde a unificação.
+              {tx("Sem cadastro para ler:")}{' '}
+              {tx(dados.filter((d) => d.amostra === 0 && !d.erro).map((d) => d.empresa).join(', '))}
+              {' '}{tx("— esperado desde a unificação.")}
             </p>
           )}
 
@@ -96,18 +93,18 @@ export function TalentMobilityCard() {
             return (
               <div key={d.empresa} className="mt-4 min-w-0 overflow-hidden rounded-lg border border-border/60 p-3 text-xs">
                 <p className="text-sm font-medium">
-                  {d.empresa}
+                  {tx(d.empresa)}
                   <span className="font-normal text-muted-foreground">
-                    {' '}· {d.amostra} cadastros lidos
+                    {' '}· {d.amostra}{" "}{tx("cadastros lidos")}
                   </span>
                 </p>
-                {d.erro && <p style={{ color: COLORS.danger }}>{d.erro}</p>}
+                {d.erro && <p style={{ color: COLORS.danger }}>{tx(d.erro)}</p>}
                 {!d.erro && (
                   <p className="mt-1 text-muted-foreground">
-                    {d.mapa.filter((m) => m.jaTemos).length} colunas já saem do que temos ·{' '}
-                    {d.mapa.filter((m) => m.forca === 'escolhida').length} escolhidas ·{' '}
+                    {d.mapa.filter((m) => m.jaTemos).length}{" "}{tx("colunas já saem do que temos ·")}{' '}
+                    {d.mapa.filter((m) => m.forca === 'escolhida').length}{" "}{tx("escolhidas ·")}{' '}
                     {d.mapa.filter((m) => m.forca === 'exata' || m.forca === 'parcial').length}{' '}
-                    palpite meu · {orfas.length} sem campo
+                    {tx("palpite meu ·")}{" "}{orfas.length}{" "}{tx("sem campo")}
                   </p>
                 )}
 
@@ -119,7 +116,7 @@ export function TalentMobilityCard() {
                 {d.mapa.filter((m) => !m.jaTemos).map((m) => (
                   <div key={m.coluna} className="mt-1 border-b border-border/40 py-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium">{m.coluna}</span>
+                      <span className="font-medium">{tx(m.coluna)}</span>
                       {/* `max-w-full` e `min-w-0`: sem os dois, uma option com
                           seis valores de exemplo estica o select, o select
                           estica a linha e o card inteiro vaza para fora da
@@ -131,33 +128,33 @@ export function TalentMobilityCard() {
                         onChange={(e) => escolher(m.coluna, d.campos, e.target.value)}
                       >
                         <option value="">
-                          {m.campo ? `— palpite: ${m.campo.nome} —` : '— escolher campo —'}
+                          {m.campo ? tx("— palpite: {0} —", [m.campo.nome]) : tx("— escolher campo —")}
                         </option>
                         {d.campos.map((c) => (
                           <option key={c.nome} value={c.nome}>
-                            {c.nome} · {c.preenchidos}/{d.amostra}
+                            {tx(c.nome)} · {c.preenchidos}/{d.amostra}
                             {c.valores.length ? ` · ${c.valores.slice(0, 2).join(' | ').slice(0, 60)}` : ''}
                           </option>
                         ))}
                       </select>
-                      {salvando === m.coluna && <span className="text-muted-foreground">salvando…</span>}
+                      {salvando === m.coluna && <span className="text-muted-foreground">{tx("salvando…")}</span>}
                       {m.forca === 'escolhida' && (
                         <span className="text-emerald-600 dark:text-emerald-500">
-                          escolhido por {m.definidoPor}
+                          {tx("escolhido por")}{" "}{tx(m.definidoPor)}
                         </span>
                       )}
                       {m.forca === 'parcial' && (
-                        <span className="text-amber-600 dark:text-amber-500">palpite por pedaço</span>
+                        <span className="text-amber-600 dark:text-amber-500">{tx("palpite por pedaço")}</span>
                       )}
                       {m.forca === 'exata' && (
-                        <span className="text-muted-foreground">palpite por nome exato</span>
+                        <span className="text-muted-foreground">{tx("palpite por nome exato")}</span>
                       )}
-                      {!m.campo && <span className="text-muted-foreground">sem campo</span>}
+                      {!m.campo && <span className="text-muted-foreground">{tx("sem campo")}</span>}
                     </div>
                     {m.campo && (
                       <p className="text-muted-foreground">
                         {m.campo.origem} · {m.campo.preenchidos}/{d.amostra} ·{' '}
-                        {m.campo.valores.join(' | ') || '—'}
+                        {tx(m.campo.valores.join(' | ')) || '—'}
                       </p>
                     )}
                   </div>
@@ -174,15 +171,15 @@ export function TalentMobilityCard() {
                 {d.sobraram.length > 0 && (
                   <details className="mt-2" open>
                     <summary className="cursor-pointer font-medium">
-                      {d.sobraram.length} campos do cadastro que nenhuma coluna reivindicou
+                      {d.sobraram.length}{" "}{tx("campos do cadastro que nenhuma coluna reivindicou")}
                     </summary>
                     {d.sobraram.map((c) => (
                       <div key={c.nome} className="flex flex-wrap gap-x-2 py-0.5">
-                        <code className="font-mono">{c.nome}</code>
+                        <code className="font-mono">{tx(c.nome)}</code>
                         <span className="text-muted-foreground">
                           {c.origem} · {c.preenchidos}/{d.amostra}
                         </span>
-                        <span>{c.valores.join(' | ') || '—'}</span>
+                        <span>{tx(c.valores.join(' | ')) || '—'}</span>
                       </div>
                     ))}
                   </details>

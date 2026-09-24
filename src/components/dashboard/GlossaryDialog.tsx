@@ -11,6 +11,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 
+import { tx } from '@/lib/i18n';
 /**
  * Glossario dentro do produto.
  *
@@ -157,15 +158,14 @@ export default function GlossaryDialog() {
       <DialogTrigger asChild>
         <Button variant="ghost" size="sm" className="gap-1.5 text-xs">
           <BookOpen className="h-3.5 w-3.5" />
-          Glossário
+          {tx("Glossário")}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Como ler os números</DialogTitle>
+          <DialogTitle>{tx("Como ler os números")}</DialogTitle>
           <DialogDescription>
-            As definições que o dashboard usa. Quando dois números parecem contraditórios, a
-            resposta costuma estar aqui.
+            {tx("As definições que o dashboard usa. Quando dois números parecem contraditórios, a resposta costuma estar aqui.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -173,12 +173,12 @@ export default function GlossaryDialog() {
           {GROUPS.map((g) => (
             <div key={g.title} className="space-y-2.5">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                {g.title}
+                {tx(g.title)}
               </p>
               {g.entries.map((e) => (
                 <div key={e.term} className="border-l-2 border-border pl-3 space-y-0.5">
                   <p className="text-sm font-medium flex items-center gap-2">
-                    {e.term}
+                    {tx(e.term)}
                     {e.tag && (
                       <Badge
                         variant={e.tag === 'estimativa' ? 'destructive' : 'secondary'}
@@ -188,10 +188,10 @@ export default function GlossaryDialog() {
                       </Badge>
                     )}
                   </p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{e.def}</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{tx(e.def)}</p>
                   {e.watch && (
                     <p className="text-xs text-amber-600 dark:text-amber-500 leading-relaxed">
-                      {e.watch}
+                      {tx(e.watch)}
                     </p>
                   )}
                 </div>
@@ -201,9 +201,8 @@ export default function GlossaryDialog() {
         </div>
 
         <p className="text-[11px] text-muted-foreground border-t border-border pt-3">
-          Onde há <strong>estimativa</strong>, o número não foi medido — é premissa. Onde há{' '}
-          <strong>reconstruído</strong>, o número foi calculado a partir de eventos datados, e não
-          lido pronto de uma fonte.
+          {tx("Onde há")}{" "}<strong>{tx("estimativa")}</strong>{tx(", o número não foi medido — é premissa. Onde há")}{' '}
+          <strong>{tx("reconstruído")}</strong>{tx(", o número foi calculado a partir de eventos datados, e não lido pronto de uma fonte.")}
         </p>
       </DialogContent>
     </Dialog>

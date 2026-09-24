@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { COLORS } from '@/lib/colors';
 import { baseWIL } from '@/lib/wil-location.functions';
 
+import { tx, numLocale } from '@/lib/i18n';
 export function WilLocationCard() {
   const gerar = useServerFn(baseWIL);
   const [baixando, setBaixando] = useState(false);
@@ -23,7 +24,7 @@ export function WilLocationCard() {
     d.setMonth(d.getMonth() - 1 - i);
     return {
       valor: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-      rotulo: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+      rotulo: d.toLocaleDateString(numLocale(), { month: 'long', year: 'numeric' }),
     };
   });
 
@@ -79,17 +80,15 @@ export function WilLocationCard() {
       <div className="flex items-start gap-3">
         <Globe className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
-          <h3 className="text-base font-semibold">WIL/GPA — planilha do mês</h3>
+          <h3 className="text-base font-semibold">{tx("WIL/GPA — planilha do mês")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Um <code>.xlsx</code> com as abas <strong>Template - Location</strong> e{' '}
-            <strong>N-4</strong> já preenchidas, com os nomes de aba do template. Só NSX — as
-            três entidades; Betfair e Flutter International ficam de fora, e o resumo diz
-            quantos.
+            {tx("Um")}{" "}<code>.xlsx</code>{" "}{tx("com as abas")}{" "}<strong>{tx("Template - Location")}</strong>{" "}{tx("e")}{' '}
+            <strong>{tx("N-4")}</strong>{" "}{tx("já preenchidas, com os nomes de aba do template. Só NSX — as três entidades; Betfair e Flutter International ficam de fora, e o resumo diz quantos.")}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
-            <strong>Total open roles</strong>, <strong>Backfill</strong> e <strong>New</strong>{' '}
-            saem vazias: vêm da sua planilha, não do Convenia. A aba <strong>DEI Metrics</strong>{' '}
-            ainda não é gerada — depende de nacionalidade e PCD, que a carga está preenchendo.
+            <strong>{tx("Total open roles")}</strong>, <strong>{tx("Backfill")}</strong>{" "}{tx("e")}{" "}<strong>{tx("New")}</strong>{' '}
+            {tx("saem vazias: vêm da sua planilha, não do Convenia. A aba")}{" "}<strong>{tx("DEI Metrics")}</strong>{' '}
+            {tx("ainda não é gerada — depende de nacionalidade e PCD, que a carga está preenchendo.")}
           </p>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -99,16 +98,16 @@ export function WilLocationCard() {
               onChange={(e) => { setAlvo(e.target.value); setResumo(null); }}
               disabled={baixando}
             >
-              {meses.map((m) => <option key={m.valor} value={m.valor}>{m.rotulo}</option>)}
+              {meses.map((m) => <option key={m.valor} value={m.valor}>{tx(m.rotulo)}</option>)}
             </select>
             <Button onClick={baixar} disabled={baixando} variant="outline">
               <RefreshCw className={`mr-2 h-4 w-4 ${baixando ? 'animate-spin' : ''}`} />
-              {baixando ? 'Montando…' : 'Baixar planilha do WIL'}
+              {baixando ? tx("Montando…") : tx("Baixar planilha do WIL")}
             </Button>
           </div>
 
-          {erro && <p className="mt-3 text-sm" style={{ color: COLORS.danger }}>{erro}</p>}
-          {resumo && <p className="mt-3 text-xs leading-relaxed">{resumo}</p>}
+          {erro && <p className="mt-3 text-sm" style={{ color: COLORS.danger }}>{tx(erro)}</p>}
+          {resumo && <p className="mt-3 text-xs leading-relaxed">{tx(resumo)}</p>}
         </div>
       </div>
     </div>

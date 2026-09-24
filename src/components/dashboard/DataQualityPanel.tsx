@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { getDataQuality, type QualityIssue } from '@/lib/data-quality.functions';
 import { getDataFreshness, type DatasetFreshness } from '@/lib/freshness.functions';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Dois blocos que respondem perguntas diferentes:
  *  - "posso confiar na idade disto?" (atualizacao das fontes)
@@ -42,31 +43,30 @@ export default function DataQualityPanel() {
       <div className="rounded-lg border border-border p-4">
         <h3 className="text-sm font-semibold flex items-center gap-2 mb-1">
           <Clock className="h-4 w-4" />
-          Atualização das fontes
+          {tx("Atualização das fontes")}
         </h3>
         <p className="text-xs text-muted-foreground mb-3">
-          Dashboard raramente morre errado — morre velho. Em âmbar, o que passou do intervalo
-          esperado de renovação.
+          {tx("Dashboard raramente morre errado — morre velho. Em âmbar, o que passou do intervalo esperado de renovação.")}
         </p>
         <div className="space-y-1">
           <div className="grid grid-cols-12 gap-2 text-[11px] text-muted-foreground pb-1 border-b border-border">
-            <span className="col-span-5">Conjunto</span>
-            <span className="col-span-3">Origem</span>
-            <span className="col-span-2 text-right">Linhas</span>
-            <span className="col-span-2 text-right">Idade</span>
+            <span className="col-span-5">{tx("Conjunto")}</span>
+            <span className="col-span-3">{tx("Origem")}</span>
+            <span className="col-span-2 text-right">{tx("Linhas")}</span>
+            <span className="col-span-2 text-right">{tx("Idade")}</span>
           </div>
-          {fresh == null && <p className="text-xs text-muted-foreground py-2">Carregando…</p>}
+          {fresh == null && <p className="text-xs text-muted-foreground py-2">{tx("Carregando…")}</p>}
           {fresh?.map((f) => (
             <div key={f.key} className="grid grid-cols-12 gap-2 items-start py-1 text-xs">
               <span className="col-span-5">
-                {f.label}
+                {tx(f.label)}
                 {f.note && (
-                  <span className="block text-[11px] text-muted-foreground leading-snug">{f.note}</span>
+                  <span className="block text-[11px] text-muted-foreground leading-snug">{tx(f.note)}</span>
                 )}
               </span>
-              <span className="col-span-3 text-[11px] text-muted-foreground">{f.source}</span>
+              <span className="col-span-3 text-[11px] text-muted-foreground">{tx(f.source)}</span>
               <span className="col-span-2 text-right text-muted-foreground">
-                {f.rows.toLocaleString('pt-BR')}
+                {tx(f.rows.toLocaleString(numLocale()))}
               </span>
               <span
                 className={
@@ -74,7 +74,7 @@ export default function DataQualityPanel() {
                   (f.stale ? 'text-amber-600 dark:text-amber-500' : 'text-muted-foreground')
                 }
               >
-                {f.ageDays == null ? '—' : `${f.ageDays}d`}
+                {f.ageDays == null ? '—' : tx("{0}d", [f.ageDays])}
               </span>
             </div>
           ))}
@@ -85,35 +85,34 @@ export default function DataQualityPanel() {
       <div className="rounded-lg border border-border p-4">
         <h3 className="text-sm font-semibold flex items-center gap-2 mb-1">
           <Wrench className="h-4 w-4" />
-          Qualidade de cadastro — o que corrigir na origem
+          {tx("Qualidade de cadastro — o que corrigir na origem")}
         </h3>
         <p className="text-xs text-muted-foreground mb-3">
-          Isto não se conserta no dashboard: conserta no sistema onde o dado nasce. Cada item diz o
-          que deixa de funcionar enquanto existir.
+          {tx("Isto não se conserta no dashboard: conserta no sistema onde o dado nasce. Cada item diz o que deixa de funcionar enquanto existir.")}
         </p>
 
-        {issues == null && <p className="text-xs text-muted-foreground">Carregando…</p>}
+        {issues == null && <p className="text-xs text-muted-foreground">{tx("Carregando…")}</p>}
         {issues?.length === 0 && (
-          <p className="text-xs text-muted-foreground">Nenhuma lacuna detectada nas verificações atuais.</p>
+          <p className="text-xs text-muted-foreground">{tx("Nenhuma lacuna detectada nas verificações atuais.")}</p>
         )}
 
         <div className="space-y-2.5">
           {issues?.map((i) => (
             <div key={i.key} className="border-l-2 border-border pl-3">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium">{i.title}</span>
+                <span className="text-sm font-medium">{tx(i.title)}</span>
                 <Badge variant="secondary" className="text-[10px] font-normal">
-                  {i.count.toLocaleString('pt-BR')}
+                  {tx(i.count.toLocaleString(numLocale()))}
                 </Badge>
                 <span className={'text-[10px] rounded px-1.5 py-0.5 ' + SEV[i.severity]}>
                   {i.severity}
                 </span>
                 <span className="text-[10px] text-muted-foreground">→ {i.owner}</span>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">{i.where}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{tx(i.where)}</p>
               <p className="text-xs mt-0.5 flex items-start gap-1.5">
                 <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0 text-amber-600 dark:text-amber-500" />
-                <span className="text-muted-foreground">{i.impact}</span>
+                <span className="text-muted-foreground">{tx(i.impact)}</span>
               </p>
             </div>
           ))}

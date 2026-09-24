@@ -10,6 +10,7 @@ import {
 } from '@/lib/analise-engajamento';
 import { cn } from '@/lib/utils';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * O painel avaliando a si mesmo.
  *
@@ -68,9 +69,9 @@ import { cn } from '@/lib/utils';
  */
 
 const fmt1 = (v: number | null) =>
-  v == null ? '—' : v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  v == null ? '—' : v.toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 const fmt2 = (v: number | null) =>
-  v == null ? '—' : v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  v == null ? '—' : v.toLocaleString(numLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 /**
  * A leitura do rho em palavras.
@@ -173,57 +174,51 @@ export default function RiscoPreviu({
     const minha = dados.linhas.find((r) => chave(r.area) === alvo) ?? null;
     return (
       <ChartCard
-        title="O risco declarado previu as saídas?"
-        subtitle={`${departamentoSelecionado} · declarado em ${ondaLabel} · saídas nos ${dados.mesesObservados} meses seguintes`}
+        title={tx("O risco declarado previu as saídas?")}
+        subtitle={tx("{0} · declarado em {1} · saídas nos {2} meses seguintes", [departamentoSelecionado, ondaLabel, dados.mesesObservados])}
         icon={Target}
       >
         {minha == null ? (
           <p className="text-sm text-muted-foreground py-6 text-center">
-            Esta área não tem risco declarado e saídas observadas na mesma janela.
+            {tx("Esta área não tem risco declarado e saídas observadas na mesma janela.")}
           </p>
         ) : (
           <div className="rounded-md border border-border p-3">
             <div className="flex items-baseline gap-2 flex-wrap">
               <span className="text-2xl font-medium tabular-nums" style={{ color: COLORS.warning }}>
-                {fmt1(minha.riscoDeclarado)}%
+                {tx(fmt1(minha.riscoDeclarado))}%
               </span>
-              <span className="text-xs text-muted-foreground">declararam risco em {ondaLabel}</span>
+              <span className="text-xs text-muted-foreground">{tx("declararam risco em")}{" "}{tx(ondaLabel)}</span>
               <span className="text-muted-foreground">→</span>
               {minha.saidaObservada == null ? (
                 <span className="text-xs text-muted-foreground">
-                  sem denominador para calcular a saída
+                  {tx("sem denominador para calcular a saída")}
                 </span>
               ) : (
                 <>
                   <span className="text-2xl font-medium tabular-nums" style={{ color: COLORS.danger }}>
-                    {fmt1(minha.saidaObservada)}%
+                    {tx(fmt1(minha.saidaObservada))}%
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    pediram demissão ({minha.pediramDemissao} de {minha.headcount ?? '—'},
-                    anualizado)
+                    {tx("pediram demissão (")}{minha.pediramDemissao}{" "}{tx("de")}{" "}{minha.headcount ?? '—'}{tx(", anualizado)")}
                   </span>
                 </>
               )}
             </div>
             {minha.pediramDemissao < SAIDAS_MINIMAS_PARA_TAXA && (
               <p className="text-[11px] mt-2 leading-relaxed" style={{ color: COLORS.warning }}>
-                Poucas saídas para uma taxa estável: uma pessoa a mais ou a menos move este
-                percentual vários pontos. O risco declarado, esse vem da pesquisa inteira da área.
+                {tx("Poucas saídas para uma taxa estável: uma pessoa a mais ou a menos move este percentual vários pontos. O risco declarado, esse vem da pesquisa inteira da área.")}
               </p>
             )}
           </div>
         )}
 
         <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
-          <strong>O veredito do cartão não cabe aqui.</strong> Saber se a coluna de risco antecipa
-          quem sai é comparar o que cada área declarou com o que aconteceu em cada uma — precisa de
-          várias áreas para existir. Com uma, há dois números e nenhuma relação a testar. Tire o
-          filtro para ver a comparação.
+          <strong>{tx("O veredito do cartão não cabe aqui.")}</strong>{" "}{tx("Saber se a coluna de risco antecipa quem sai é comparar o que cada área declarou com o que aconteceu em cada uma — precisa de várias áreas para existir. Com uma, há dois números e nenhuma relação a testar. Tire o filtro para ver a comparação.")}
         </p>
         <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
-          Risco declarado é o % que disse que não ficaria diante de uma oferta igual em outro lugar
-          — é intenção, não decisão. A saída observada é anualizada, para não comparar{' '}
-          {dados.mesesObservados} meses de saída com um percentual sem prazo.
+          {tx("Risco declarado é o % que disse que não ficaria diante de uma oferta igual em outro lugar — é intenção, não decisão. A saída observada é anualizada, para não comparar")}{' '}
+          {dados.mesesObservados}{" "}{tx("meses de saída com um percentual sem prazo.")}
         </p>
       </ChartCard>
     );
@@ -264,21 +259,19 @@ export default function RiscoPreviu({
 
   return (
     <ChartCard
-      title="O risco declarado previu as saídas?"
-      subtitle={`declarado em ${ondaLabel} · saídas ${
-        janela ? `em ${janela}` : `nos ${dados.mesesObservados} meses seguintes`
-      }`}
+      title={tx("O risco declarado previu as saídas?")}
+      subtitle={tx("declarado em {0} · saídas {1}", [ondaLabel, janela ? `em ${janela}` : `nos ${dados.mesesObservados} meses seguintes`])}
       ajuda="riscoPreviuSaidas"
       icon={Target}
     >
       <div className="rounded-md border px-3 py-2.5 mb-3" style={{ borderColor: `${l.cor}55`, background: `${l.cor}12` }}>
         <p className="text-sm font-semibold" style={{ color: l.cor }}>
-          {l.titulo}
+          {tx(l.titulo)}
           {dados.rho != null && (
-            <span className="font-normal text-muted-foreground"> · rho {fmt1(dados.rho)}</span>
+            <span className="font-normal text-muted-foreground">{" "}{tx("· rho")}{" "}{tx(fmt1(dados.rho))}</span>
           )}
         </p>
-        <p className="text-[13px] leading-relaxed mt-1">{l.texto}</p>
+        <p className="text-[13px] leading-relaxed mt-1">{tx(l.texto)}</p>
       </div>
 
       {pontos.length >= 4 && (
@@ -287,12 +280,12 @@ export default function RiscoPreviu({
             <ScatterChart margin={{ top: 16, right: 28, bottom: 28, left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
               <XAxis
-                type="number" dataKey="x" name="Risco declarado" unit="%"
+                type="number" dataKey="x" name={tx("Risco declarado")} unit="%"
                 domain={['dataMin - 3', 'dataMax + 3']} tick={{ fontSize: 11 }}
                 label={{ value: 'Risco declarado na pesquisa (%)', position: 'insideBottom', offset: -16, fontSize: 11 }}
               />
               <YAxis
-                type="number" dataKey="y" name="Saída voluntária" unit="%"
+                type="number" dataKey="y" name={tx("Saída voluntária")} unit="%"
                 domain={[0, 'dataMax + 4']} tick={{ fontSize: 11 }}
                 label={{ value: 'Saída voluntária (% a.a.)', angle: -90, position: 'insideLeft', fontSize: 11 }}
               />
@@ -303,15 +296,14 @@ export default function RiscoPreviu({
                   const q = payload[0].payload as (typeof pontos)[number];
                   return (
                     <div className="rounded-md border border-border bg-popover p-2.5 text-xs shadow-md max-w-[250px]">
-                      <div className="font-medium mb-1">{q.nome}</div>
-                      <div className="text-muted-foreground">Declararam risco: {fmt1(q.x)}%</div>
+                      <div className="font-medium mb-1">{tx(q.nome)}</div>
+                      <div className="text-muted-foreground">{tx("Declararam risco:")}{" "}{tx(fmt1(q.x))}%</div>
                       <div className="text-muted-foreground">
-                        Pediram demissão: {q.saidas} de ~{q.hc} ({fmt1(q.y)}% a.a.)
+                        {tx("Pediram demissão:")}{" "}{q.saidas}{" "}{tx("de ~")}{q.hc} ({tx(fmt1(q.y))}{tx("% a.a.)")}
                       </div>
                       {q.fragil && (
                         <div className="mt-1.5 pt-1.5 border-t border-border/60 text-[11px]" style={{ color: COLORS.warning }}>
-                          Poucas saídas para uma taxa estável — uma pessoa a mais ou a menos move
-                          bastante este ponto.
+                          {tx("Poucas saídas para uma taxa estável — uma pessoa a mais ou a menos move bastante este ponto.")}
                         </div>
                       )}
                     </div>
@@ -321,11 +313,11 @@ export default function RiscoPreviu({
               {/* Dois Scatter em vez de um: pontos frágeis vazados. Recharts não
                   aceita cor por ponto sem <Cell>, e <Cell> não distingue o traço --
                   que é justamente o que comunica "não confie neste ponto". */}
-              <Scatter name="≥5 saídas" data={pontos.filter((q) => !q.fragil)} fill={COLORS.flutter} fillOpacity={0.85}>
+              <Scatter name={tx("≥5 saídas")} data={pontos.filter((q) => !q.fragil)} fill={COLORS.flutter} fillOpacity={0.85}>
                 <LabelList dataKey="nome" position="top" style={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
               </Scatter>
               <Scatter
-                name="<5 saídas" data={pontos.filter((q) => q.fragil)}
+                name={tx("<5 saídas")} data={pontos.filter((q) => q.fragil)}
                 fill="transparent" stroke={COLORS.flutter} strokeWidth={1.6} strokeDasharray="2 2"
               >
                 <LabelList dataKey="nome" position="top" style={{ fontSize: 10, fill: 'var(--muted-foreground)' }} />
@@ -333,20 +325,16 @@ export default function RiscoPreviu({
             </ScatterChart>
           </ResponsiveContainer>
           <p className="text-[11px] text-muted-foreground -mt-1 leading-relaxed">
-            Cada ponto é uma área: à direita, mais gente disse que pensava em sair; acima, mais
-            gente de fato pediu demissão depois. Se a pesquisa previsse bem, os pontos formariam
-            uma diagonal subindo. Bolas cheias são áreas com {SAIDAS_MINIMAS_PARA_TAXA} ou mais
-            pedidos — só {pontos.filter((q) => !q.fragil).length} de {pontos.length}; nas vazadas,
-            a altura diz pouco.
+            {tx("Cada ponto é uma área: à direita, mais gente disse que pensava em sair; acima, mais gente de fato pediu demissão depois. Se a pesquisa previsse bem, os pontos formariam uma diagonal subindo. Bolas cheias são áreas com")}{" "}{SAIDAS_MINIMAS_PARA_TAXA}{" "}{tx("ou mais pedidos — só")}{" "}{pontos.filter((q) => !q.fragil).length}{" "}{tx("de")}{" "}{pontos.length}{tx("; nas vazadas, a altura diz pouco.")}
           </p>
         </div>
       )}
 
       <div className="space-y-0.5">
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-wider text-muted-foreground pb-1">
-          <span className="w-[112px] shrink-0">Área</span>
-          <span className="flex-1 text-right">Risco declarado</span>
-          <span className="flex-1">Saída observada (a.a.)</span>
+          <span className="w-[112px] shrink-0">{tx("Área")}</span>
+          <span className="flex-1 text-right">{tx("Risco declarado")}</span>
+          <span className="flex-1">{tx("Saída observada (a.a.)")}</span>
         </div>
 
         {dados.linhas.map((r) => (
@@ -364,13 +352,13 @@ export default function RiscoPreviu({
                 'w-[112px] shrink-0 truncate',
                 alvo && chave(r.area) === alvo && 'font-semibold',
               )}
-              title={r.area}
+              title={tx(r.area)}
             >
-              {r.area}
+              {tx(r.area)}
             </span>
 
             <div className="flex-1 flex items-center justify-end gap-1.5 min-w-0">
-              <span className="tabular-nums text-muted-foreground">{fmt1(r.riscoDeclarado)}%</span>
+              <span className="tabular-nums text-muted-foreground">{tx(fmt1(r.riscoDeclarado))}%</span>
               <div className="h-2 rounded-l-full" style={{
                 width: `${(r.riscoDeclarado / maxRisco) * 70}%`, background: COLORS.warning,
               }} />
@@ -380,15 +368,15 @@ export default function RiscoPreviu({
 
             <div className="flex-1 flex items-center gap-1.5 min-w-0">
               {r.saidaObservada == null ? (
-                <span className="text-muted-foreground">sem denominador</span>
+                <span className="text-muted-foreground">{tx("sem denominador")}</span>
               ) : (
                 <>
                   <div className="h-2 rounded-r-full" style={{
                     width: `${(r.saidaObservada / maxSaida) * 70}%`, background: COLORS.danger,
                   }} />
-                  <span className="tabular-nums">{fmt1(r.saidaObservada)}%</span>
+                  <span className="tabular-nums">{tx(fmt1(r.saidaObservada))}%</span>
                   <span className="text-[11px] text-muted-foreground">
-                    ({r.pediramDemissao} de {r.headcount ?? '—'})
+                    ({r.pediramDemissao}{" "}{tx("de")}{" "}{r.headcount ?? '—'})
                   </span>
                 </>
               )}
@@ -400,40 +388,31 @@ export default function RiscoPreviu({
       {observadaAgregada != null && declaradaMedia != null && (
         <div className="rounded-md border border-border p-3 mt-3">
           <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
-            Calibração — quanto a intenção supera o fato
+            {tx("Calibração — quanto a intenção supera o fato")}
           </p>
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className="text-2xl font-medium tabular-nums">{fmt1(declaradaMedia)}%</span>
-            <span className="text-xs text-muted-foreground">declararam risco</span>
+            <span className="text-2xl font-medium tabular-nums">{tx(fmt1(declaradaMedia))}%</span>
+            <span className="text-xs text-muted-foreground">{tx("declararam risco")}</span>
             <span className="text-muted-foreground">→</span>
             <span className="text-2xl font-medium tabular-nums" style={{ color: COLORS.nsx }}>
-              {fmt1(observadaAgregada)}%
+              {tx(fmt1(observadaAgregada))}%
             </span>
             <span className="text-xs text-muted-foreground">
-              pediram demissão de fato ({totalVol} pessoas de ~{totalHc}, anualizado)
+              {tx("pediram demissão de fato (")}{totalVol}{" "}{tx("pessoas de ~")}{totalHc}{tx(", anualizado)")}
             </span>
           </div>
           <p className="text-[11px] text-muted-foreground mt-2 leading-relaxed">
-            Dizer que se pensa em sair não custa nada; sair custa muito. Por isso a intenção sempre
-            fica acima do fato — o número útil é o <strong>fator</strong> entre os dois, aqui cerca
-            de {(declaradaMedia / Math.max(observadaAgregada, 0.1)).toFixed(1)}×. Guardado esse
-            fator, a próxima onda dá uma estimativa de perda no mesmo dia em que fecha, sem esperar
-            seis meses para conferir. Ele só vale de verdade depois de duas ou três ondas — com uma
-            medição, é ponto de partida, não régua.
+            {tx("Dizer que se pensa em sair não custa nada; sair custa muito. Por isso a intenção sempre fica acima do fato — o número útil é o")}{" "}<strong>{tx("fator")}</strong>{" "}{tx("entre os dois, aqui cerca de")}{" "}{tx((declaradaMedia / Math.max(observadaAgregada, 0.1)).toFixed(1))}{tx("×. Guardado esse fator, a próxima onda dá uma estimativa de perda no mesmo dia em que fecha, sem esperar seis meses para conferir. Ele só vale de verdade depois de duas ou três ondas — com uma medição, é ponto de partida, não régua.")}
           </p>
         </div>
       )}
 
       <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
-        Risco declarado é o % que disse que não ficaria diante de uma oferta igual em
-        outro lugar — é intenção, não decisão. A saída observada é anualizada, para
-        não comparar {dados.mesesObservados} meses de saída com um percentual sem
-        prazo. São {dados.pares} áreas com os dois números: é pouco, e um rho sobre
-        {' '}{dados.pares} pontos é indício, não prova.
+        {tx("Risco declarado é o % que disse que não ficaria diante de uma oferta igual em outro lugar — é intenção, não decisão. A saída observada é anualizada, para não comparar")}{" "}{dados.mesesObservados}{" "}{tx("meses de saída com um percentual sem prazo. São")}{" "}{dados.pares}{" "}{tx("áreas com os dois números: é pouco, e um rho sobre")}
+        {' '}{dados.pares}{" "}{tx("pontos é indício, não prova.")}
         {dados.jackknife && (
-          <> Refazendo a conta sem cada área, o rho vai de {fmt2(dados.jackknife.min)} a{' '}
-          {fmt2(dados.jackknife.max)} — é essa amplitude, e não o valor central, que diz
-          se o número descreve alguma coisa.</>
+          <>{" "}{tx("Refazendo a conta sem cada área, o rho vai de")}{" "}{tx(fmt2(dados.jackknife.min))}{" "}{tx("a")}{' '}
+          {tx(fmt2(dados.jackknife.max))}{" "}{tx("— é essa amplitude, e não o valor central, que diz se o número descreve alguma coisa.")}</>
         )}
       </p>
     </ChartCard>

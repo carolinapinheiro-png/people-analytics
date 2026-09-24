@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { LucideIcon } from 'lucide-react';
 
+import { tx } from '@/lib/i18n';
 interface SubSectionProps {
   title: string;
   children: ReactNode;
@@ -39,7 +40,7 @@ export function SubSection({
       <CardHeader className="pb-3">
         <CardTitle className="text-sm flex items-center gap-2 text-foreground">
           {Icon && <Icon className={cn('h-4 w-4', iconColors[variant])} />}
-          {title}
+          {tx(title)}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 pt-0">
@@ -74,9 +75,9 @@ export function MetricBox({
 }: MetricBoxProps) {
   return (
     <div className={cn('p-3 rounded-lg border text-center', metricBoxStyles[variant], className)}>
-      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{label}</p>
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{tx(label)}</p>
       <p className="text-xl font-bold">{value}</p>
-      {subtext && <p className="text-[10px] text-muted-foreground mt-1">{subtext}</p>}
+      {subtext && <p className="text-[10px] text-muted-foreground mt-1">{tx(subtext)}</p>}
     </div>
   );
 }
@@ -97,7 +98,7 @@ const listItemStyles = {
 export function ListItem({ label, value, variant = 'default' }: ListItemProps) {
   return (
     <div className={cn('flex items-center justify-between p-2 rounded border text-sm', listItemStyles[variant])}>
-      <span className="text-foreground">{label}</span>
+      <span className="text-foreground">{tx(label)}</span>
       <span className="font-medium text-foreground">{value}</span>
     </div>
   );

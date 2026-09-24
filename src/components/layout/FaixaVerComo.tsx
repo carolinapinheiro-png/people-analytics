@@ -4,6 +4,7 @@ import { definirVerComo, inscreverVerComo, lerVerComo } from '@/lib/ver-como/est
 import { useAuth } from '@/contexts/AuthContext';
 import { PROFILE_LABELS, type AccessProfile } from '@/lib/permissions';
 
+import { tx } from '@/lib/i18n';
 /**
  * A faixa que avisa que o painel está sendo visto pelos olhos de outra pessoa.
  *
@@ -97,15 +98,13 @@ export default function FaixaVerComo() {
       >
         <AlertTriangle className="h-4 w-4 shrink-0" />
         <span className="text-sm">
-          O pedido para ver como <strong>{alvo}</strong> não chegou ao servidor. O que
-          está na tela é a <strong>sua</strong> visão, não a dessa pessoa — não use
-          isto para conferir acesso.
+          {tx("O pedido para ver como")}{" "}<strong>{tx(alvo)}</strong>{" "}{tx("não chegou ao servidor. O que está na tela é a")}{" "}<strong>{tx("sua")}</strong>{" "}{tx("visão, não a dessa pessoa — não use isto para conferir acesso.")}
         </span>
         <button
           onClick={sairVerComo}
           className="inline-flex shrink-0 items-center gap-1 rounded-md border border-red-600/50 px-2 py-1 text-xs font-semibold hover:bg-red-500/25"
         >
-          <X className="h-3 w-3" /> Sair
+          <X className="h-3 w-3" />{" "}{tx("Sair")}
         </button>
       </div>
     );
@@ -123,15 +122,14 @@ export default function FaixaVerComo() {
     >
       <Eye className="h-4 w-4 shrink-0" />
       <span className="text-sm">
-        Você está vendo o painel <strong>como {alvo}</strong>
-        {perfil ? ` (${perfil})` : ''}. Os números na tela são os que essa pessoa
-        enxerga — não os da empresa inteira.
+        {tx("Você está vendo o painel")}{" "}<strong>{tx("como")}{" "}{tx(alvo)}</strong>
+        {perfil ? ` (${perfil})` : ''}{tx(". Os números na tela são os que essa pessoa enxerga — não os da empresa inteira.")}
       </span>
       <button
         onClick={sairVerComo}
         className="inline-flex shrink-0 items-center gap-1 rounded-md border border-amber-600/50 px-2 py-1 text-xs font-semibold hover:bg-amber-500/25"
       >
-        <X className="h-3 w-3" /> Sair
+        <X className="h-3 w-3" />{" "}{tx("Sair")}
       </button>
     </div>
   );

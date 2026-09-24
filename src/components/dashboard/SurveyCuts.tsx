@@ -13,6 +13,7 @@ import {
 } from '@/lib/aggregator/polly-survey';
 import { toneDe, rotuloDe, TONE_TEXT, type ChaveMetrica } from '@/lib/metric-help';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Cor sólida por trás de cada tom -- as barras usam a MESMA régua de
  * `metric-help.ts` que já pinta o KpiCard e o EngagementTab. Antes esta tela
@@ -61,7 +62,7 @@ const chaveArea = (t: string) =>
   (t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
 
 const fmt1 = (n: number | null | undefined) =>
-  n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  n == null ? '—' : Number(n).toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 
 /**
  * ------------------------------------------------------------------
@@ -190,7 +191,7 @@ function Painel({
   const valorDe = (r: SurveyCut) => (chave === 'riscoSaida' ? r.risco : r.enps);
   return (
     <div className="min-w-0">
-      <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">{rotulo}</p>
+      <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">{tx(rotulo)}</p>
       <div className="space-y-1.5">
         {rows.map((r) => {
           const v = valorDe(r);
@@ -200,9 +201,9 @@ function Painel({
             <div key={r.cutValue} className="flex items-center gap-2 text-xs">
               <span
                 className="w-[120px] shrink-0 truncate text-muted-foreground"
-                title={rotuloDeCorte(r.cutValue)}
+                title={tx(rotuloDeCorte(r.cutValue))}
               >
-                {rotuloDeCorte(r.cutValue)}
+                {tx(rotuloDeCorte(r.cutValue))}
               </span>
               <div className="flex-1 min-w-0">
                 <BarraAbsoluta
@@ -219,10 +220,10 @@ function Painel({
                 v == null ? 'w-[132px] text-muted-foreground' : 'w-[132px]',
                 v != null && TONE_TEXT[tom],
               )}>
-                {v == null ? 'oculto' : (
+                {v == null ? tx("oculto") : (
                   <>
                     {`${fmt1(v)}${sufixo}`}
-                    {selo && <span className="text-muted-foreground font-normal"> · {selo}</span>}
+                    {selo && <span className="text-muted-foreground font-normal"> · {tx(selo)}</span>}
                   </>
                 )}
               </span>
@@ -235,7 +236,7 @@ function Painel({
           quem só precisa saber "este grupo está bem ou mal". */}
       {baseEmpresa != null && (
         <p className="text-[10px] text-muted-foreground mt-1.5 pl-[120px]">
-          empresa: {fmt1(baseEmpresa)}{sufixo}
+          {tx("empresa:")}{" "}{tx(fmt1(baseEmpresa))}{tx(sufixo)}
         </p>
       )}
     </div>
@@ -276,7 +277,7 @@ function Bloco({
   return (
     <div className="rounded-lg border border-border/60 bg-muted/15 p-3">
       <div className="flex items-baseline justify-between mb-2.5">
-        <span className="text-sm font-medium">{titulo}</span>
+        <span className="text-sm font-medium">{tx(titulo)}</span>
       </div>
       <div className="grid lg:grid-cols-2 gap-x-6 gap-y-4">
         {/* "O NPS em negrito para ficar um pouco maior, um pouco mais
@@ -299,7 +300,7 @@ function Bloco({
           centroZero sufixo="" destacado baseEmpresa={empresa?.enps ?? null}
         />
         <Painel
-          rotulo="Risco de saída" rows={rows} chave="riscoSaida" escalaMin={0} escalaMax={40}
+          rotulo={tx("Risco de saída")} rows={rows} chave="riscoSaida" escalaMin={0} escalaMax={40}
           sufixo="%" baseEmpresa={empresa?.risco ?? null}
         />
       </div>
@@ -309,7 +310,7 @@ function Bloco({
       {cutType && rows.some((r) => temClima(r.cutValue)) && (
         <div className="mt-2.5 pt-2 border-t border-border/60 flex flex-wrap items-center gap-1.5">
           <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-            ver o clima de
+            {tx("ver o clima de")}
           </span>
           {rows.filter((r) => temClima(r.cutValue)).map((r) => {
             const nome = rotuloDeCorte(r.cutValue);
@@ -333,7 +334,7 @@ function Bloco({
                     eAberto ? 'rotate-0' : '-rotate-90',
                   )}
                 />
-                {nome}
+                {tx(nome)}
               </button>
             );
           })}
@@ -358,7 +359,7 @@ function Bloco({
           {composicao.length > 0 && (
             <>
               {' '}
-              Vêm de {composicao.map((f) => `${f.area} (${f.n})`).join(', ')}.
+              {tx("Vêm de")}{" "}{tx(composicao.map((f) => `${f.area} (${f.n})`).join(', '))}.
             </>
           )}
         </p>
@@ -366,12 +367,11 @@ function Bloco({
       {ocultos.length > 0 && (
         <p className="text-xs mt-2 flex items-start gap-1" style={{ color: COLORS.warning }}>
           <EyeOff className="h-3 w-3 mt-0.5 shrink-0" />
-          {ocultos.length === 1 ? 'Um grupo tem' : `${ocultos.length} grupos têm`} menos de 5
-          respostas — nota oculta para não apontar para pessoas.
+          {ocultos.length === 1 ? tx("Um grupo tem") : tx("{0} grupos têm", [ocultos.length])}{" "}{tx("menos de 5 respostas — nota oculta para não apontar para pessoas.")}
         </p>
       )}
       <p className="text-[11px] text-muted-foreground mt-2">
-        n por grupo: {rows.map((r) => `${rotuloDeCorte(r.cutValue)} ${r.n}`).join(' · ')}
+        {tx("n por grupo:")}{" "}{tx(rows.map((r) => `${rotuloDeCorte(r.cutValue)} ${r.n}`).join(' · '))}
       </p>
     </div>
   );
@@ -504,38 +504,33 @@ export default function SurveyCuts({
   return (
     <ChartCard
       title={departamentoSelecionado
-        ? `Quem está mais distante da média em ${departamentoSelecionado}`
-        : 'Quem está mais distante da média'}
+        ? tx("Quem está mais distante da média em {0}", [departamentoSelecionado])
+        : tx("Quem está mais distante da média")}
       ajuda="maisDistanteDaMedia"
-      subtitle={`comparado com a empresa: eNPS ${empresa.enps}, risco ${fmt1(empresa.risco)}%`}
+      subtitle={tx("comparado com a empresa: eNPS {0}, risco {1}%", [empresa.enps, fmt1(empresa.risco)])}
     >
       {/* Não é mais "este bloco não segue o filtro" -- todos seguem. É o que
           falta para esta área, e o que fazer a respeito. */}
       {faltando.length > 0 && (
         <p className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-          Sem {listar(faltando.map((b) => b.curto))} para{' '}
-          <strong>{departamentoSelecionado}</strong>: o cruzamento com área não foi calculado nas
-          ondas já carregadas. Não é limite do dado — cada resposta traz os dois campos juntos —,
-          e reimportar as ondas {faltando.length > 1 ? 'passa a trazê-los' : 'passa a trazê-lo'} por
-          área. Até lá {faltando.length > 1 ? 'ficam' : 'fica'} de fora, em vez de{' '}
-          {faltando.length > 1 ? 'aparecerem' : 'aparecer'} com o número da empresa inteira.
+          {tx("Sem")}{" "}{tx(listar(faltando.map((b) => b.curto)))}{" "}{tx("para")}{' '}
+          <strong>{tx(departamentoSelecionado)}</strong>{tx(": o cruzamento com área não foi calculado nas ondas já carregadas. Não é limite do dado — cada resposta traz os dois campos juntos —, e reimportar as ondas")}{" "}{faltando.length > 1 ? tx("passa a trazê-los") : tx("passa a trazê-lo")}{" "}{tx("por área. Até lá")}{" "}{faltando.length > 1 ? tx("ficam") : tx("fica")}{" "}{tx("de fora, em vez de")}{' '}
+          {faltando.length > 1 ? tx("aparecerem") : tx("aparecer")}{" "}{tx("com o número da empresa inteira.")}
         </p>
       )}
       {naoMapeados.length > 0 && (
         <p className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:text-amber-200">
-          A carga trouxe {naoMapeados.length === 1 ? 'um recorte' : 'recortes'} que esta tela ainda
-          não sabe nomear: <strong>{naoMapeados.join(', ')}</strong>. {naoMapeados.length === 1
-            ? 'Ele não está'
-            : 'Eles não estão'}{' '}
-          nos blocos abaixo — dê {naoMapeados.length === 1 ? 'a ele' : 'a eles'} um título em{' '}
+          {tx("A carga trouxe")}{" "}{naoMapeados.length === 1 ? tx("um recorte") : tx("recortes")}{" "}{tx("que esta tela ainda não sabe nomear:")}{" "}<strong>{tx(naoMapeados.join(', '))}</strong>. {naoMapeados.length === 1
+            ? tx("Ele não está")
+            : tx("Eles não estão")}{' '}
+          {tx("nos blocos abaixo — dê")}{" "}{naoMapeados.length === 1 ? tx("a ele") : tx("a eles")}{" "}{tx("um título em")}{' '}
           <code>BLOCOS</code>.
         </p>
       )}
       {destaque && (empresa.enps as number) - (destaque.enps as number) >= 8 && (
         <p className="text-sm leading-relaxed mb-3">
-          <strong>{rotuloDeCorte(destaque.cutValue)}</strong> está{' '}
-          {(empresa.enps as number) - (destaque.enps as number)} pontos de eNPS abaixo da empresa,
-          e são {destaque.n} pessoas. É um recorte que a leitura por área não mostra.
+          <strong>{tx(rotuloDeCorte(destaque.cutValue))}</strong>{" "}{tx("está")}{' '}
+          {(empresa.enps as number) - (destaque.enps as number)}{" "}{tx("pontos de eNPS abaixo da empresa, e são")}{" "}{destaque.n}{" "}{tx("pessoas. É um recorte que a leitura por área não mostra.")}
         </p>
       )}
       <div className="space-y-3">
@@ -545,7 +540,7 @@ export default function SurveyCuts({
             // O título diz de quem é o bloco. Sem isso, "Por marca" com os
             // números de Commercial e "Por marca" com os da empresa ficam
             // idênticos na tela e diferentes no dado.
-            titulo={b.daArea ? `${b.titulo} · ${departamentoSelecionado}` : b.titulo}
+            titulo={b.daArea ? `${b.titulo} · ${departamentoSelecionado}` : tx(b.titulo)}
             rows={b.rows}
             empresa={empresa}
             composicao={b.tipo === 'marca' ? composicaoCrossBrand : []}
@@ -556,11 +551,8 @@ export default function SurveyCuts({
         ))}
       </div>
       <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
-        A cor é sobre o valor do grupo, não sobre a distância até a empresa — a mesma régua que
-        pinta os outros cartões do painel (<strong className="text-emerald-600 dark:text-emerald-500">verde</strong> é
-        patamar bom, <strong className="text-amber-600 dark:text-amber-500">âmbar</strong> é atenção,{' '}
-        <strong className="text-red-600 dark:text-red-500">vermelho</strong> é crítico). O número da
-        empresa aparece embaixo de cada painel, como referência — não é mais o que decide a cor.
+        {tx("A cor é sobre o valor do grupo, não sobre a distância até a empresa — a mesma régua que pinta os outros cartões do painel (")}<strong className="text-emerald-600 dark:text-emerald-500">{tx("verde")}</strong>{" "}{tx("é patamar bom,")}{" "}<strong className="text-amber-600 dark:text-amber-500">{tx("âmbar")}</strong>{" "}{tx("é atenção,")}{' '}
+        <strong className="text-red-600 dark:text-red-500">{tx("vermelho")}</strong>{" "}{tx("é crítico). O número da empresa aparece embaixo de cada painel, como referência — não é mais o que decide a cor.")}
       </p>
     </ChartCard>
   );

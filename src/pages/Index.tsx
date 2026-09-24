@@ -21,6 +21,7 @@ import AttritionTab from '@/components/tabs/AttritionTab';
 import RecruitmentTab from '@/components/tabs/RecruitmentTab';
 
 
+import { tx } from '@/lib/i18n';
 /**
  * A queda para a série congelada deixa de ser muda.
  *
@@ -39,12 +40,7 @@ function AvisoSerie() {
   return (
     <div className="mx-4 md:mx-6 mt-3 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2">
       <p className="text-xs leading-relaxed text-amber-700 dark:text-amber-400">
-        <strong>Série de reserva no ar.</strong> A série oficial (Convenia) não
-        retornou nenhuma linha, então o painel está mostrando a cópia congelada,
-        que vai até {serie.ultimoMes ?? '—'}. Os números continuam válidos até
-        essa data — mas não incluem os meses seguintes. Rode a sincronização do
-        Convenia; se o problema persistir, é filtro de qualidade descartando a
-        série inteira.
+        <strong>{tx("Série de reserva no ar.")}</strong>{" "}{tx("A série oficial (Convenia) não retornou nenhuma linha, então o painel está mostrando a cópia congelada, que vai até")}{" "}{tx(serie.ultimoMes) ?? '—'}{tx(". Os números continuam válidos até essa data — mas não incluem os meses seguintes. Rode a sincronização do Convenia; se o problema persistir, é filtro de qualidade descartando a série inteira.")}
       </p>
     </div>
   );
@@ -70,12 +66,9 @@ function AvisoAno() {
   return (
     <div className="mx-4 md:mx-6 mt-3 rounded-lg border border-border bg-secondary/40 px-3 py-2">
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Em <strong className="text-foreground">{activeYear}</strong> só existe a
-        série de quadro. {abas.length === 1 ? 'A aba' : 'As abas'}{' '}
-        <strong className="text-foreground">{abas.join(', ')}</strong>{' '}
-        {abas.length === 1 ? 'aparece vazia' : 'aparecem vazias'} — a coleta
-        começou depois ({faltando.map((c) => `${c.label.toLowerCase()} em ${c.primeiroAno ?? '—'}`).join('; ')}).
-        Vazio aqui é dado que não existe, não ausência de acontecimento.
+        {tx("Em")}{" "}<strong className="text-foreground">{tx(activeYear)}</strong>{" "}{tx("só existe a série de quadro.")}{" "}{abas.length === 1 ? tx("A aba") : tx("As abas")}{' '}
+        <strong className="text-foreground">{tx(abas.join(', '))}</strong>{' '}
+        {abas.length === 1 ? tx("aparece vazia") : tx("aparecem vazias")}{" "}{tx("— a coleta começou depois (")}{tx(faltando.map((c) => `${c.label.toLowerCase()} em ${c.primeiroAno ?? '—'}`).join('; '))}{tx("). Vazio aqui é dado que não existe, não ausência de acontecimento.")}
       </p>
     </div>
   );
@@ -103,9 +96,9 @@ function DashboardContent() {
         <TopBar />
         <div className="max-w-md mx-auto text-center py-32 space-y-3">
           <h2 className="text-lg font-semibold text-foreground">
-            Não foi possível carregar os indicadores
+            {tx("Não foi possível carregar os indicadores")}
           </h2>
-          <p className="text-sm text-muted-foreground">{dataError}</p>
+          <p className="text-sm text-muted-foreground">{tx(dataError)}</p>
         </div>
       </div>
     );

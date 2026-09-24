@@ -51,6 +51,7 @@ import { scopeForDept } from "@/lib/engagement-context";
 import { recorteAtivo } from "@/lib/recorte-ativo";
 import { marcasDaEntidade } from "@/lib/recorte-entidade";
 
+import { tx, mesesCurtos, numLocale } from '@/lib/i18n';
 /**
  * Aba Experiencia: engajamento, jornada de entrada e inclusao.
  *
@@ -66,7 +67,7 @@ import { marcasDaEntidade } from "@/lib/recorte-entidade";
  */
 
 const fmt1 = (n: number | null | undefined) =>
-  n == null ? "—" : Number(n).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  n == null ? "—" : Number(n).toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 
 /**
  * Os limiares que pintam estes cartoes viviam AQUI, como `if (v >= 70)`.
@@ -87,7 +88,7 @@ function Loading() {
 
 /** "2026-02" + "2026-07" → "fev–jul/2026". Duas datas ISO na tela cansam. */
 function janelaLabel(inicio: string, fim: string): string {
-  const M = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  const M = mesesCurtos();
   const [ai, mi] = inicio.split("-");
   const [af, mf] = fim.split("-");
   const a = M[Number(mi) - 1] ?? mi;
@@ -329,8 +330,8 @@ function EngagementSection({
         janela,
       });
     } catch (e) {
-      toast.error('Não foi possível gerar o PDF', {
-        description: e instanceof Error ? e.message : 'Tente novamente.',
+      toast.error(tx("Não foi possível gerar o PDF"), {
+        description: e instanceof Error ? tx(e.message) : tx("Tente novamente."),
       });
     } finally {
       setExportando(false);
@@ -352,7 +353,7 @@ function EngagementSection({
           {exportando
             ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
             : <Download className="h-3.5 w-3.5" />}
-          {exportando ? 'Gerando PDF…' : 'Baixar PDF'}
+          {exportando ? tx("Gerando PDF…") : tx("Baixar PDF")}
         </button>
         <FreshnessBadge dataset="engagement" />
       </div>
@@ -384,7 +385,7 @@ function EngagementSection({
           drivers={survey.driversPorArea}
           cutType={recortePerfil.cutType}
           valor={recortePerfil.valor}
-          rotulo={recortePerfil.rotulo}
+          rotulo={tx(recortePerfil.rotulo)}
           soValor={recortePerfil.soValor}
           importancia={survey.importancia}
           minimoExibicao={survey.minimoExibicao ?? 5}
@@ -416,9 +417,7 @@ function EngagementSection({
 
       {semDadoDaArea && (
         <p className="rounded-lg border border-border/60 p-3 text-sm text-muted-foreground">
-          <strong>{deptSel}</strong> não aparece na pesquisa de engajamento — a onda de jan/26 tem
-          nove áreas, e esta não é uma delas. Os blocos abaixo que não têm recorte por área
-          continuam sendo da Flutter Brazil inteira.
+          <strong>{tx(deptSel)}</strong>{" "}{tx("não aparece na pesquisa de engajamento — a onda de jan/26 tem nove áreas, e esta não é uma delas. Os blocos abaixo que não têm recorte por área continuam sendo da Flutter Brazil inteira.")}
         </p>
       )}
 
@@ -426,9 +425,9 @@ function EngagementSection({
         <>
           {areaSel && (
             <p className="text-xs text-muted-foreground">
-              Números de <strong>{deptSel}</strong>
+              {tx("Números de")}{" "}<strong>{tx(deptSel)}</strong>
               {referencia?.enps != null
-                ? ` — a empresa toda está em eNPS ${fmt1(referencia.enps)}.`
+                ? tx(" — a empresa toda está em eNPS {0}.", [fmt1(referencia.enps)])
                 : "."}
             </p>
           )}
@@ -440,36 +439,36 @@ function EngagementSection({
               icon={Heart}
               delta={
                 foco.enps_delta == null ? undefined : (
-                  <Delta v={foco.enps_delta} periodo="a onda anterior" />
+                  <Delta v={foco.enps_delta} periodo={tx("a onda anterior")} />
                 )
               }
               tone={toneDe("enps", foco.enps)}
-              hint={rotuloDe("enps", foco.enps)}
+              hint={tx(rotuloDe("enps", foco.enps))}
               help="enps"
               helpValue={foco.enps}
             />
             <KpiCard
-              label="Satisfação"
+              label={tx("Satisfação")}
               value={`${fmt1(foco.satisfaction)}/10`}
               color={COLORS.nsx}
               icon={Sparkles}
               tone={toneDe("satisfacao", foco.satisfaction)}
-              hint={rotuloDe("satisfacao", foco.satisfaction)}
+              hint={tx(rotuloDe("satisfacao", foco.satisfaction))}
               help="satisfacao"
               helpValue={foco.satisfaction}
             />
             <KpiCard
-              label="Risco de saída"
+              label={tx("Risco de saída")}
               value={`${fmt1(foco.retention_risk)}%`}
               color={COLORS.warning}
               icon={TrendingUp}
               delta={
                 foco.rr_delta == null ? undefined : (
-                  <Delta v={foco.rr_delta} invertido periodo="a onda anterior" />
+                  <Delta v={foco.rr_delta} invertido periodo={tx("a onda anterior")} />
                 )
               }
               tone={toneDe("riscoSaida", foco.retention_risk)}
-              hint={rotuloDe("riscoSaida", foco.retention_risk)}
+              hint={tx(rotuloDe("riscoSaida", foco.retention_risk))}
               help="riscoSaida"
               helpValue={foco.retention_risk}
             />
@@ -511,7 +510,7 @@ function EngagementSection({
               const semTaxa = " · sem taxa: Cross Brand responde nas duas entidades";
               return (
                 <KpiCard
-                  label="Responderam"
+                  label={tx("Responderam")}
                   value={
                     segueFiltro
                       ? String(nDaArea)
@@ -528,16 +527,16 @@ function EngagementSection({
                     segueFiltro
                       ? participacaoDaArea!.elegiveis != null
                         ? daEntidade
-                          ? `${nDaArea} respostas · ${participacaoDaArea!.elegiveis} pessoas da ${daEntidade} em ${deptSel}${semTaxa}`
-                          : `${fmt1(taxa)}% dos ${participacaoDaArea!.elegiveis} elegíveis de ${deptSel}`
-                        : `${nDaArea} respostas em ${deptSel}`
+                          ? tx("{0} respostas · {1} pessoas da {2} em {3}{4}", [nDaArea, participacaoDaArea!.elegiveis, daEntidade, deptSel, semTaxa])
+                          : tx("{0}% dos {1} elegíveis de {2}", [fmt1(taxa), participacaoDaArea!.elegiveis, deptSel])
+                        : tx("{0} respostas em {1}", [nDaArea, deptSel])
                       : areaSel
-                        ? `${deptSel} não tem headcount no organograma, então a taxa desta área não é calculável`
+                        ? tx("{0} não tem headcount no organograma, então a taxa desta área não é calculável", [deptSel])
                         : daEntidade && survey?.elegiveis != null
-                          ? `${survey.respondentes} respostas · ${survey.elegiveis} pessoas na ${daEntidade}${semTaxa}`
+                          ? tx("{0} respostas · {1} pessoas na {2}{3}", [survey.respondentes, survey.elegiveis, daEntidade, semTaxa])
                           : taxa == null
                             ? undefined
-                            : `${fmt1(taxa)}% dos elegíveis`
+                            : tx("{0}% dos elegíveis", [fmt1(taxa)])
                   }
                   help="participacao"
                   helpValue={taxa}
@@ -556,8 +555,8 @@ function EngagementSection({
           quando há filtro, da empresa quando não há. A leitura não repete a
           regra de escopo -- repetir é o que faz duas versões divergirem. */}
       <TituloBloco
-        titulo="Diagnóstico"
-        resumo="quem respondeu e como o conjunto se moveu"
+        titulo={tx("Diagnóstico")}
+        resumo={tx("quem respondeu e como o conjunto se moveu")}
       />
 
       <EngagementReading
@@ -593,7 +592,7 @@ function EngagementSection({
 
       <TituloBloco
         titulo="eNPS"
-        resumo="o índice, por área e ao longo das ondas"
+        resumo={tx("o índice, por área e ao longo das ondas")}
       />
 
       {cross && (
@@ -609,7 +608,7 @@ function EngagementSection({
             elegiveisPorArea={survey?.elegiveisSaoDaEntidade ? undefined : survey?.elegiveisPorArea}
             motivoSemTaxa={
               survey?.elegiveisSaoDaEntidade
-                ? "sem taxa por entidade: Cross Brand responde nas duas entidades"
+                ? tx("sem taxa por entidade: Cross Brand responde nas duas entidades")
                 : undefined
             }
             drivers={survey?.driversPorArea ?? []}
@@ -699,8 +698,8 @@ function EngagementSection({
       )}
 
       <TituloBloco
-        titulo="Clima"
-        resumo="por tema primeiro, e a pergunta quando ela for necessária"
+        titulo={tx("Clima")}
+        resumo={tx("por tema primeiro, e a pergunta quando ela for necessária")}
       />
 
       {/* ------------------------------------------------------------------
@@ -758,8 +757,8 @@ function EngagementSection({
 
           Quem precisa da metodologia volta o filtro para Todos. */}
       <Detalhe
-        titulo="Detalhe e metodologia"
-        resumo="como a pesquisa evoluiu, tabela por área, e se ela antecipou as saídas"
+        titulo={tx("Detalhe e metodologia")}
+        resumo={tx("como a pesquisa evoluiu, tabela por área, e se ela antecipou as saídas")}
         open={detalheAberto}
         onOpenChange={setDetalheAberto}
       >
@@ -781,22 +780,22 @@ function EngagementSection({
         )}
 
         <ChartCard
-          title="Detalhe por departamento"
-          subtitle={cross ? `pesquisa × saídas em ${janela}` : undefined}
+          title={tx("Detalhe por departamento")}
+          subtitle={cross ? tx("pesquisa × saídas em {0}", [janela]) : undefined}
           icon={Users}
         >
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="p-2">Departamento</th>
-                  <th className="p-2 text-right">eNPS</th>
+                  <th className="p-2">{tx("Departamento")}</th>
+                  <th className="p-2 text-right">{tx("eNPS")}</th>
                   <th className="p-2 text-right">Δ</th>
-                  <th className="p-2 text-right">Risco</th>
-                  <th className="p-2 text-right">Satisfação</th>
-                  {cross && <th className="p-2 text-right">Pediram demissão</th>}
-                  {cross && <th className="p-2 text-right">Taxa a.a.</th>}
-                  <th className="p-2">Status</th>
+                  <th className="p-2 text-right">{tx("Risco")}</th>
+                  <th className="p-2 text-right">{tx("Satisfação")}</th>
+                  {cross && <th className="p-2 text-right">{tx("Pediram demissão")}</th>}
+                  {cross && <th className="p-2 text-right">{tx("Taxa a.a.")}</th>}
+                  <th className="p-2">{tx("Status")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -804,19 +803,19 @@ function EngagementSection({
                   const s = saidasPorScope.get(d.scope);
                   return (
                     <tr key={d.scope} className="border-b border-border/50">
-                      <td className="p-2 font-medium">{d.scope}</td>
-                      <td className="p-2 text-right tabular-nums">{fmt1(d.enps)}</td>
+                      <td className="p-2 font-medium">{tx(d.scope)}</td>
+                      <td className="p-2 text-right tabular-nums">{tx(fmt1(d.enps))}</td>
                       <td className="p-2 text-right">
-                        <Delta v={d.enps_delta} periodo="a onda anterior" />
+                        <Delta v={d.enps_delta} periodo={tx("a onda anterior")} />
                       </td>
-                      <td className="p-2 text-right tabular-nums">{fmt1(d.retention_risk)}%</td>
-                      <td className="p-2 text-right tabular-nums">{fmt1(d.satisfaction)}</td>
+                      <td className="p-2 text-right tabular-nums">{tx(fmt1(d.retention_risk))}%</td>
+                      <td className="p-2 text-right tabular-nums">{tx(fmt1(d.satisfaction))}</td>
                       {cross && (
                         <td className="p-2 text-right tabular-nums">
                           {s?.vol == null ? (
                             <span
                               className="text-muted-foreground"
-                              title="Área sem correspondência na base de desligados"
+                              title={tx("Área sem correspondência na base de desligados")}
                             >
                               —
                             </span>
@@ -824,7 +823,7 @@ function EngagementSection({
                             <>
                               {s.vol}
                               {s.total != null && s.total !== s.vol && (
-                                <span className="text-muted-foreground"> de {s.total}</span>
+                                <span className="text-muted-foreground">{" "}{tx("de")}{" "}{s.total}</span>
                               )}
                             </>
                           )}
@@ -840,7 +839,7 @@ function EngagementSection({
                         </td>
                       )}
                       <td className="p-2 text-xs text-muted-foreground">
-                        {d.status}
+                        {tx(d.status)}
                       </td>
                     </tr>
                   );
@@ -916,8 +915,8 @@ function EngagementSection({
 function TituloBloco({ titulo, resumo }: { titulo: string; resumo: string }) {
   return (
     <div data-pdf-block="true" className="pt-6 pb-1 first:pt-0">
-      <h3 className="text-sm font-semibold uppercase tracking-wider">{titulo}</h3>
-      <p className="text-xs text-muted-foreground">{resumo}</p>
+      <h3 className="text-sm font-semibold uppercase tracking-wider">{tx(titulo)}</h3>
+      <p className="text-xs text-muted-foreground">{tx(resumo)}</p>
     </div>
   );
 }
@@ -946,9 +945,8 @@ function EscopoEmpresa({
   if (!escopo?.restrito && !escopo?.departamento) return null;
   return (
     <p className="text-[11px] text-muted-foreground">
-      Números da <strong>Flutter Brazil</strong> inteira — esta seção ainda não foi carregada com
-      recorte por área. Serve de referência para comparar
-      {escopo?.departamento ? ` com ${escopo.departamento}` : " com a sua"}.
+      {tx("Números da")}{" "}<strong>{tx("Flutter Brazil")}</strong>{" "}{tx("inteira — esta seção ainda não foi carregada com recorte por área. Serve de referência para comparar")}
+      {escopo?.departamento ? tx(" com {0}", [escopo.departamento]) : tx(" com a sua")}.
     </p>
   );
 }
@@ -972,23 +970,10 @@ const METRIC_LABEL: Record<string, string> = {
   suporte_gestor: "Suporte do gestor",
 };
 const monthLabel = (m: string) => {
-  const map: Record<string, string> = {
-    "01": "jan",
-    "02": "fev",
-    "03": "mar",
-    "04": "abr",
-    "05": "mai",
-    "06": "jun",
-    "07": "jul",
-    "08": "ago",
-    "09": "set",
-    "10": "out",
-    "11": "nov",
-    "12": "dez",
-  };
   const mm = m.slice(-2);
   const yy = m.slice(2, 4);
-  return map[mm] ? `${map[mm]}/${yy}` : m;
+  const nome = mesesCurtos()[Number(mm) - 1];
+  return nome ? `${nome}/${yy}` : m;
 };
 
 /**
@@ -1040,16 +1025,14 @@ function OnboardingSection({ data }: { data: ExperienceData }) {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Jornada de entrada por etapa. Médias de 0 a 10. Recortes com n&lt;3 suprimidos; comentários
-        livres nunca no banco.
+        {tx("Jornada de entrada por etapa. Médias de 0 a 10. Recortes com n<3 suprimidos; comentários livres nunca no banco.")}
       </p>
 
       {/* As três notas de etapa e a tendência são da empresa; a tabela por
           área abaixo já vem restrita ao escopo de quem está olhando. */}
       {data.escopo?.restrito && (
         <p className="text-[11px] text-muted-foreground">
-          As notas por etapa e a tendência abaixo são da <strong>Flutter Brazil</strong> inteira. A
-          tabela por área mostra só a sua.
+          {tx("As notas por etapa e a tendência abaixo são da")}{" "}<strong>{tx("Flutter Brazil")}</strong>{" "}{tx("inteira. A tabela por área mostra só a sua.")}
         </p>
       )}
 
@@ -1061,17 +1044,17 @@ function OnboardingSection({ data }: { data: ExperienceData }) {
           return (
             <ChartCard
               key={stage}
-              title={STAGE_LABEL[stage] ?? stage}
-              subtitle={`n=${row.n}`}
+              title={tx(STAGE_LABEL[stage]) ?? tx(stage)}
+              subtitle={tx("n={0}", [row.n])}
               icon={Sparkles}
             >
               <div className="space-y-2">
                 {entries.map(([k, v]) => (
                   <div key={k} className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">{METRIC_LABEL[k] ?? k}</span>
+                      <span className="text-muted-foreground">{tx(METRIC_LABEL[k]) ?? tx(k)}</span>
                       <span className={`font-semibold tabular-nums ${notaClass(v)}`}>
-                        {fmt1(v)}
+                        {tx(fmt1(v))}
                       </span>
                     </div>
                     <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -1090,7 +1073,7 @@ function OnboardingSection({ data }: { data: ExperienceData }) {
 
       {trend.length > 0 && (
         <ChartCard
-          title="Satisfação com onboarding — tendência por mês de entrada"
+          title={tx("Satisfação com onboarding — tendência por mês de entrada")}
           icon={TrendingUp}
         >
           <ResponsiveContainer width="100%" height={240}>
@@ -1128,24 +1111,24 @@ function OnboardingSection({ data }: { data: ExperienceData }) {
 
       {byDept.length > 0 && (
         <ChartCard
-          title="Satisfação por departamento (por etapa)"
-          subtitle="n<3 suprimido"
+          title={tx("Satisfação por departamento (por etapa)")}
+          subtitle={tx("n<3 suprimido")}
           icon={Users}
         >
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="p-2">Departamento</th>
-                  <th className="p-2 text-right">1ª semana</th>
-                  <th className="p-2 text-right">45 dias</th>
-                  <th className="p-2 text-right">90 dias</th>
+                  <th className="p-2">{tx("Departamento")}</th>
+                  <th className="p-2 text-right">{tx("1ª semana")}</th>
+                  <th className="p-2 text-right">{tx("45 dias")}</th>
+                  <th className="p-2 text-right">{tx("90 dias")}</th>
                 </tr>
               </thead>
               <tbody>
                 {byDept.map((d) => (
                   <tr key={d.dept} className="border-b border-border/50">
-                    <td className="p-2 font-medium">{d.dept}</td>
+                    <td className="p-2 font-medium">{tx(d.dept)}</td>
                     <td className="p-2 text-right tabular-nums">
                       {d.s1 ? `${fmt1(d.s1.metrics.sat_onboarding)} (${d.s1.n})` : "—"}
                     </td>
@@ -1185,7 +1168,7 @@ function Distribution({
         return (
           <div key={r.category} className="space-y-0.5">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">{r.category}</span>
+              <span className="text-muted-foreground">{tx(r.category)}</span>
               <span className="font-semibold tabular-nums">
                 {unit === "%" ? `${fmt1(val)}%` : val}
               </span>
@@ -1218,23 +1201,22 @@ function InclusionSection({ data }: { data: ExperienceData }) {
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Polly Inclusion Survey 2026 — 327 respostas (≈55% da Flutter Brazil). Flutter Near You:
-        programa de conexão. Só distribuições agregadas.
+        {tx("Polly Inclusion Survey 2026 — 327 respostas (≈55% da Flutter Brazil). Flutter Near You: programa de conexão. Só distribuições agregadas.")}
       </p>
       <EscopoEmpresa escopo={data.escopo} />
 
       {pertencimento.length > 0 && (
         <ChartCard
-          title="Pertencimento"
-          subtitle="% que concorda (notas 4+5) · n=327"
+          title={tx("Pertencimento")}
+          subtitle={tx("% que concorda (notas 4+5) · n=327")}
           icon={HandHeart}
         >
           <div className="grid md:grid-cols-2 gap-x-8 gap-y-2">
             {pertencimento.map((p) => (
               <div key={p.question} className="space-y-0.5">
                 <div className="flex items-center justify-between text-xs gap-2">
-                  <span className="text-muted-foreground">{p.question}</span>
-                  <span className="font-semibold tabular-nums">{fmt1(p.pct)}%</span>
+                  <span className="text-muted-foreground">{tx(p.question)}</span>
+                  <span className="font-semibold tabular-nums">{tx(fmt1(p.pct))}%</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-muted overflow-hidden">
                   <div
@@ -1250,7 +1232,7 @@ function InclusionSection({ data }: { data: ExperienceData }) {
 
       <div className="grid md:grid-cols-2 gap-4">
         {qsOf("demografia").map((q) => (
-          <ChartCard key={q} title={q} subtitle="Polly 2026" icon={Users}>
+          <ChartCard key={q} title={tx(q)} subtitle={tx("Polly 2026")} icon={Users}>
             <Distribution rows={rowsOf("demografia", q)} />
           </ChartCard>
         ))}
@@ -1259,7 +1241,7 @@ function InclusionSection({ data }: { data: ExperienceData }) {
       {qsOf("dei").length > 0 && (
         <div className="grid md:grid-cols-2 gap-4">
           {qsOf("dei").map((q) => (
-            <ChartCard key={q} title={q} subtitle="Percepção DEI" icon={Heart}>
+            <ChartCard key={q} title={tx(q)} subtitle={tx("Percepção DEI")} icon={Heart}>
               <Distribution rows={rowsOf("dei", q)} color={COLORS.flutter} />
             </ChartCard>
           ))}
@@ -1269,7 +1251,7 @@ function InclusionSection({ data }: { data: ExperienceData }) {
       {qsOf("dei_conversas").length > 0 && (
         <div className="grid md:grid-cols-2 gap-4">
           {qsOf("dei_conversas").map((q) => (
-            <ChartCard key={q} title={q} subtitle="Conversas sobre DEI" icon={HandHeart}>
+            <ChartCard key={q} title={tx(q)} subtitle={tx("Conversas sobre DEI")} icon={HandHeart}>
               <Distribution rows={rowsOf("dei_conversas", q)} color={COLORS.nsx} />
             </ChartCard>
           ))}
@@ -1280,15 +1262,15 @@ function InclusionSection({ data }: { data: ExperienceData }) {
         <div className="grid md:grid-cols-2 gap-4">
           {fnyConexao.length > 0 && (
             <ChartCard
-              title="Flutter Near You — conexão"
-              subtitle="Ajudou a se sentir mais conectado? · n=71"
+              title={tx("Flutter Near You — conexão")}
+              subtitle={tx("Ajudou a se sentir mais conectado? · n=71")}
               icon={HandHeart}
             >
               <Distribution rows={fnyConexao} color={COLORS.success} />
             </ChartCard>
           )}
           {fnyCluster.length > 0 && (
-            <ChartCard title="Flutter Near You — elegíveis por cluster" icon={Users}>
+            <ChartCard title={tx("Flutter Near You — elegíveis por cluster")} icon={Users}>
               <Distribution rows={fnyCluster} unit="n" />
             </ChartCard>
           )}
@@ -1423,7 +1405,7 @@ export default function EngagementTab() {
   if (error)
     return (
       <p className="text-sm text-muted-foreground text-center py-24">
-        Não foi possível carregar a Experiência: {error}
+        {tx("Não foi possível carregar a Experiência:")}{" "}{tx(error)}
       </p>
     );
   if (!data) return <Loading />;
@@ -1442,15 +1424,15 @@ export default function EngagementTab() {
       <div>
         <h2 className="text-lg font-bold flex items-center gap-2">
           <Sparkles className="h-5 w-5 text-[hsl(var(--flutter))]" />
-          Experiência
+          {tx("Experiência")}
         </h2>
         {/* O subtitulo lista o que a aba tem. Prometer "jornada de entrada e
             inclusao" a quem so pode ver Engajamento manda a pessoa procurar
             duas secoes que nao existem para ela. */}
         <p className="text-sm text-muted-foreground">
           {subs.length > 1
-            ? "Engajamento, jornada de entrada e inclusão & pertencimento."
-            : "Resultado da pesquisa de engajamento."}
+            ? tx("Engajamento, jornada de entrada e inclusão & pertencimento.")
+            : tx("Resultado da pesquisa de engajamento.")}
         </p>
       </div>
 
@@ -1471,24 +1453,21 @@ export default function EngagementTab() {
         <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
           {marcasDaEntidade(brand) ? (
             <>
-              <strong className="text-foreground">{brand}</strong>: respostas de quem marcou{' '}
-              <strong className="text-foreground">{marcasDaEntidade(brand)!.join(' + ')}</strong> na
-              pesquisa. Cross Brand entra nas duas entidades, então Betfair BR + NSX soma mais que a
-              Flutter Brazil. Seguem da <strong className="text-foreground">Flutter Brazil inteira</strong>,
-              por não terem marca na pesquisa:{' '}
-              {[...new Set([
+              <strong className="text-foreground">{brand}</strong>{tx(": respostas de quem marcou")}{' '}
+              <strong className="text-foreground">{tx(marcasDaEntidade(brand)!.join(' + '))}</strong>{" "}{tx("na pesquisa. Cross Brand entra nas duas entidades, então Betfair BR + NSX soma mais que a Flutter Brazil. Seguem da")}{" "}<strong className="text-foreground">{tx("Flutter Brazil inteira")}</strong>{tx(", por não terem marca na pesquisa:")}{' '}
+              {tx([...new Set([
                 ...(data.entidade?.daEmpresaInteira ?? []),
                 ...(cross?.entidade?.daEmpresaInteira ?? []),
                 ...(survey?.entidade?.daEmpresaInteira ?? []),
-              ])].join(', ')}.
-              {' '}Jul/25 não perguntou marca e fica fora das séries.
+              ])].join(', '))}.
+              {' '}{tx("Jul/25 não perguntou marca e fica fora das séries.")}
 
             </>
           ) : (
             <>
-              A pesquisa não tem uma marca equivalente a{' '}
-              <strong className="text-foreground">{brand}</strong>, então os números abaixo são da{' '}
-              <strong className="text-foreground">Flutter Brazil inteira</strong>.
+              {tx("A pesquisa não tem uma marca equivalente a")}{' '}
+              <strong className="text-foreground">{brand}</strong>{tx(", então os números abaixo são da")}{' '}
+              <strong className="text-foreground">{tx("Flutter Brazil inteira")}</strong>.
             </>
           )}
         </p>
@@ -1509,19 +1488,19 @@ export default function EngagementTab() {
             {podeVer("engajamento") && (
               <TabsTrigger value="engajamento" className="gap-2">
                 <Heart className="h-4 w-4" />
-                Engajamento
+                {tx("Engajamento")}
               </TabsTrigger>
             )}
             {podeVer("onboarding") && (
               <TabsTrigger value="onboarding" className="gap-2">
                 <Sparkles className="h-4 w-4" />
-                Onboarding
+                {tx("Onboarding")}
               </TabsTrigger>
             )}
             {podeVer("inclusao") && (
               <TabsTrigger value="inclusao" className="gap-2">
                 <HandHeart className="h-4 w-4" />
-                Inclusão &amp; Pertencimento
+                {tx("Inclusão & Pertencimento")}
               </TabsTrigger>
             )}
           </TabsList>

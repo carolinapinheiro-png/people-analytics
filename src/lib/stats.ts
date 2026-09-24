@@ -1,3 +1,4 @@
+import { tx } from '@/lib/i18n';
 /**
  * Estatística mínima para os cruzamentos da aba Experiência.
  *
@@ -89,7 +90,7 @@ export function spearman(
   if (n < 4) {
     return {
       rho: null, n, significant: false, critical: null, strength: 'insuficiente',
-      verdict: `Só ${n} área${n === 1 ? '' : 's'} com os dois números. Não dá para falar em correlação.`,
+      verdict: tx('Só {0} área{1} com os dois números. Não dá para falar em correlação.', [n, n === 1 ? '' : 's']),
     };
   }
 
@@ -134,10 +135,10 @@ export function spearman(
   // dizer isso, porque quem apresenta vai ser perguntado exatamente sobre isso.
   const semSinal = Math.abs(rho) < 0.15;
   const verdict = significant
-    ? `Relação ${strength} e estatisticamente sustentável (ρ=${rho.toFixed(2)}, n=${n}): os dois indicadores andam na ${direcao}.`
+    ? tx('Relação {0} e estatisticamente sustentável (ρ={1}, n={2}): os dois indicadores andam na {3}.', [tx(strength), rho.toFixed(2), n, tx(direcao)])
     : semSinal
-      ? `Não há sinal de relação (ρ=${rho.toFixed(2)}, n=${n}) — os dois indicadores parecem independentes nestes dados. Isso não prova que não exista relação: com ${n} pontos, o teste não teria força para achá-la mesmo que ela estivesse lá.`
-      : `A inclinação existe (ρ=${rho.toFixed(2)}), mas com ${n} áreas não se sustenta estatisticamente — seria preciso ρ acima de ${critical?.toFixed(2) ?? '—'}. Trate como hipótese a investigar, não como conclusão.`;
+      ? tx('Não há sinal de relação (ρ={0}, n={1}) — os dois indicadores parecem independentes nestes dados. Isso não prova que não exista relação: com {1} pontos, o teste não teria força para achá-la mesmo que ela estivesse lá.', [rho.toFixed(2), n])
+      : tx('A inclinação existe (ρ={0}), mas com {1} áreas não se sustenta estatisticamente — seria preciso ρ acima de {2}. Trate como hipótese a investigar, não como conclusão.', [rho.toFixed(2), n, critical?.toFixed(2) ?? '—']);
 
   return { rho, n, significant, critical, strength, verdict };
 }

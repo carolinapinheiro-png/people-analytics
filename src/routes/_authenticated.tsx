@@ -3,6 +3,7 @@ import { createFileRoute, Navigate, Outlet } from '@tanstack/react-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 
+import { tx } from '@/lib/i18n';
 export const Route = createFileRoute('/_authenticated')({
   component: AuthenticatedLayout,
 });
@@ -43,18 +44,17 @@ function AuthenticatedLayout() {
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-lg font-semibold text-foreground">
-            Não foi possível verificar seu acesso
+            {tx("Não foi possível verificar seu acesso")}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Isso costuma ser instabilidade de conexão, não uma restrição de permissão.
-            Sua sessão continua ativa.
+            {tx("Isso costuma ser instabilidade de conexão, não uma restrição de permissão. Sua sessão continua ativa.")}
           </p>
           <div className="flex items-center justify-center gap-3 pt-2">
             <Button onClick={handleRetry} disabled={isRetrying}>
-              {isRetrying ? 'Verificando...' : 'Tentar novamente'}
+              {isRetrying ? tx("Verificando...") : tx("Tentar novamente")}
             </Button>
             <Button variant="outline" onClick={() => signOut()} disabled={isRetrying}>
-              Sair
+              {tx("Sair")}
             </Button>
           </div>
         </div>

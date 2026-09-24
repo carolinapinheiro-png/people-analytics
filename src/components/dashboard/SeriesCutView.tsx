@@ -19,6 +19,7 @@ import { COLORS } from '@/lib/colors';
 import { mLabel } from '@/data/helpers';
 import type { MonthRecord } from '@/data/raw-data';
 
+import { tx } from '@/lib/i18n';
 /**
  * Visão reduzida do Overview quando há um recorte de dimensão ativo
  * (nível, tempo de casa ou vínculo).
@@ -74,13 +75,10 @@ export default function SeriesCutView({
       {unreliable && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 space-y-1">
           <p className="text-sm font-medium text-destructive">
-            Este recorte não vale junto com o departamento selecionado
+            {tx("Este recorte não vale junto com o departamento selecionado")}
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Para a marca escolhida não existe a quebra exata por área, então a distribuição por
-            faixa continua sendo a da empresa inteira enquanto as saídas seriam só do
-            departamento — números de populações diferentes. Escolha a marca <strong>NSX</strong>,
-            que tem a quebra por área, ou remova o filtro de departamento.
+            {tx("Para a marca escolhida não existe a quebra exata por área, então a distribuição por faixa continua sendo a da empresa inteira enquanto as saídas seriam só do departamento — números de populações diferentes. Escolha a marca")}{" "}<strong>{tx("NSX")}</strong>{tx(", que tem a quebra por área, ou remova o filtro de departamento.")}
           </p>
         </div>
       )}
@@ -89,14 +87,11 @@ export default function SeriesCutView({
         <Info className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
         <div className="space-y-1">
           <p className="text-sm">
-            Recorte ativo: <Badge variant="secondary" className="text-[11px]">{label}</Badge>
+            {tx("Recorte ativo:")}{" "}<Badge variant="secondary" className="text-[11px]">{tx(label)}</Badge>
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Sob este recorte só <strong>headcount</strong>, <strong>saídas</strong> e{' '}
-            <strong>atrição</strong> têm valor exato — a série guarda a contagem por faixa, e as
-            saídas vêm da base individual de desligados. Ficam de fora: {suppressed.join(', ')}.
-            Esses números existem só no nível da empresa e do departamento; ratear por faixa daria
-            uma precisão que o dado não tem.
+            {tx("Sob este recorte só")}{" "}<strong>{tx("headcount")}</strong>, <strong>{tx("saídas")}</strong>{" "}{tx("e")}{' '}
+            <strong>{tx("atrição")}</strong>{" "}{tx("têm valor exato — a série guarda a contagem por faixa, e as saídas vêm da base individual de desligados. Ficam de fora:")}{" "}{tx(suppressed.join(', '))}{tx(". Esses números existem só no nível da empresa e do departamento; ratear por faixa daria uma precisão que o dado não tem.")}
           </p>
         </div>
       </div>
@@ -118,9 +113,9 @@ export default function SeriesCutView({
         ].map((k) => (
           <Card key={k.label}>
             <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground mb-1">{k.label}</p>
+              <p className="text-xs text-muted-foreground mb-1">{tx(k.label)}</p>
               <p className="text-2xl font-medium">{k.value}</p>
-              <p className="text-[11px] text-muted-foreground">{k.note}</p>
+              <p className="text-[11px] text-muted-foreground">{tx(k.note)}</p>
             </CardContent>
           </Card>
         ))}
@@ -128,9 +123,9 @@ export default function SeriesCutView({
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Headcount do recorte ao longo do tempo</CardTitle>
+          <CardTitle className="text-base">{tx("Headcount do recorte ao longo do tempo")}</CardTitle>
           <CardDescription className="text-xs">
-            Contagem exata por mês, lida da distribuição que a série já guarda.
+            {tx("Contagem exata por mês, lida da distribuição que a série já guarda.")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -149,7 +144,7 @@ export default function SeriesCutView({
               <Area
                 type="monotone"
                 dataKey="headcount"
-                name="Headcount"
+                name={tx("Headcount")}
                 stroke={brandColor}
                 strokeWidth={2}
                 fill="url(#cutHc)"
@@ -161,11 +156,9 @@ export default function SeriesCutView({
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Saídas e atrição do recorte</CardTitle>
+          <CardTitle className="text-base">{tx("Saídas e atrição do recorte")}</CardTitle>
           <CardDescription className="text-xs">
-            Saídas contadas pessoa a pessoa na base de desligados; atrição = saídas ÷ headcount do
-            mês. Entradas não aparecem porque não há registro individual de admissão com esta
-            dimensão.
+            {tx("Saídas contadas pessoa a pessoa na base de desligados; atrição = saídas ÷ headcount do mês. Entradas não aparecem porque não há registro individual de admissão com esta dimensão.")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -177,12 +170,12 @@ export default function SeriesCutView({
               <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 11 }} unit="%" />
               <Tooltip contentStyle={{ fontSize: 12 }} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar yAxisId="l" dataKey="saidas" name="Saídas" fill={COLORS.danger} radius={[3, 3, 0, 0]} />
+              <Bar yAxisId="l" dataKey="saidas" name={tx("Saídas")} fill={COLORS.danger} radius={[3, 3, 0, 0]} />
               <Line
                 yAxisId="r"
                 type="monotone"
                 dataKey="atricao"
-                name="Atrição (%)"
+                name={tx("Atrição (%)")}
                 stroke={COLORS.warning}
                 strokeWidth={2}
                 dot={{ r: 2 }}

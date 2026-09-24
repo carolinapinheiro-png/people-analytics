@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { COLORS } from '@/lib/colors';
 import { baseTalentMobility } from '@/lib/talent-mobility-base.functions';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * O download da base do Talent Mobility.
  *
@@ -33,7 +34,7 @@ export function TalentMobilityBaseCard() {
     d.setMonth(d.getMonth() - 1 - i);
     return {
       valor: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-      rotulo: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+      rotulo: d.toLocaleDateString(numLocale(), { month: 'long', year: 'numeric' }),
     };
   });
 
@@ -74,17 +75,14 @@ export function TalentMobilityBaseCard() {
       <div className="flex items-start gap-3">
         <FileSpreadsheet className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
-          <h3 className="text-base font-semibold">Base do Talent Mobility (Sandeep)</h3>
+          <h3 className="text-base font-semibold">{tx("Base do Talent Mobility (Sandeep)")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            As 51 colunas no vocabulário do Workday, na ordem do arquivo — pronto para colar.
-            O mapa de cada coluna foi medido contra as 654 pessoas de julho; o que não tem
-            fonte sai vazio, com a contagem abaixo.
+            {tx("As 51 colunas no vocabulário do Workday, na ordem do arquivo — pronto para colar. O mapa de cada coluna foi medido contra as 654 pessoas de julho; o que não tem fonte sai vazio, com a contagem abaixo.")}
           </p>
           {/* Dito na tela, e não só no log: quem baixa merece saber que o
               download fica registrado, em vez de descobrir depois. */}
           <p className="mt-2 text-xs text-muted-foreground">
-            Leva nome, data de nascimento e salário na mesma linha. Cada download é
-            registrado com quem baixou, quando e de que mês.
+            {tx("Leva nome, data de nascimento e salário na mesma linha. Cada download é registrado com quem baixou, quando e de que mês.")}
           </p>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -94,40 +92,38 @@ export function TalentMobilityBaseCard() {
               onChange={(e) => { setAlvo(e.target.value); setResumo(null); setVazios([]); }}
               disabled={baixando}
             >
-              {meses.map((m) => <option key={m.valor} value={m.valor}>{m.rotulo}</option>)}
+              {meses.map((m) => <option key={m.valor} value={m.valor}>{tx(m.rotulo)}</option>)}
             </select>
             <Button onClick={gerar} disabled={baixando} variant="outline">
               <RefreshCw className={`mr-2 h-4 w-4 ${baixando ? 'animate-spin' : ''}`} />
-              {baixando ? 'Montando…' : 'Baixar base'}
+              {baixando ? tx("Montando…") : tx("Baixar base")}
             </Button>
           </div>
 
-          {erro && <p className="mt-3 text-sm" style={{ color: COLORS.danger }}>{erro}</p>}
+          {erro && <p className="mt-3 text-sm" style={{ color: COLORS.danger }}>{tx(erro)}</p>}
 
           {orfas.length > 0 && (
             <div className="mt-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-xs">
               <p className="font-medium">
-                {orfas.length} {orfas.length === 1 ? 'coluna aponta' : 'colunas apontam'} para um
-                campo que não existe mais no cadastro
+                {orfas.length} {orfas.length === 1 ? tx("coluna aponta") : tx("colunas apontam")}{" "}{tx("para um campo que não existe mais no cadastro")}
               </p>
               <p className="mt-1 text-muted-foreground">
-                {orfas.map((o) => `${o.coluna} → ${o.campo}`).join(' · ')}
+                {tx(orfas.map((o) => `${o.coluna} → ${o.campo}`).join(' · '))}
               </p>
               <p className="mt-1 text-muted-foreground">
-                Provável renomeação no Convenia. Elas saem VAZIAS neste arquivo até alguém
-                reapontar no mapa abaixo.
+                {tx("Provável renomeação no Convenia. Elas saem VAZIAS neste arquivo até alguém reapontar no mapa abaixo.")}
               </p>
             </div>
           )}
-          {resumo && <p className="mt-3 text-xs leading-relaxed">{resumo}</p>}
+          {resumo && <p className="mt-3 text-xs leading-relaxed">{tx(resumo)}</p>}
 
           {vazios.length > 0 && (
             <details className="mt-2 text-xs" open>
               <summary className="cursor-pointer text-muted-foreground">
-                {vazios.length} colunas com célula vazia
+                {vazios.length}{" "}{tx("colunas com célula vazia")}
               </summary>
               <p className="mt-1 text-muted-foreground">
-                {vazios.map((v) => `${v.coluna} (${v.vazios})`).join(' · ')}
+                {tx(vazios.map((v) => `${v.coluna} (${v.vazios})`).join(' · '))}
               </p>
             </details>
           )}

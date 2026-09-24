@@ -24,6 +24,7 @@ import { COLORS } from '@/lib/colors';
 import TaSatisfactionSection from '@/components/dashboard/TaSatisfactionSection';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Aba de Recrutamento (InHire).
  *
@@ -50,7 +51,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
  */
 
 const fmt1 = (n: number | null | undefined) =>
-  n == null ? '—' : n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  n == null ? '—' : n.toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 
 const monthLabel = (ym: string) => {
   const [y, m] = ym.slice(0, 7).split('-');
@@ -221,13 +222,13 @@ export default function RecruitmentTab() {
     return (
       <Card>
         <CardContent className="p-6 text-sm text-destructive flex items-center gap-2">
-          <AlertTriangle className="h-4 w-4" /> {error}
+          <AlertTriangle className="h-4 w-4" /> {tx(error)}
         </CardContent>
       </Card>
     );
   }
   if (!data) {
-    return <Card><CardContent className="p-6 text-sm text-muted-foreground">Carregando…</CardContent></Card>;
+    return <Card><CardContent className="p-6 text-sm text-muted-foreground">{tx("Carregando…")}</CardContent></Card>;
   }
 
   const totalFechadas = porDepto.reduce((s, r) => s + r.fechadas, 0);
@@ -243,11 +244,11 @@ export default function RecruitmentTab() {
     return (
       <Card>
         <CardContent className="p-6 space-y-2">
-          <p className="text-sm font-medium">Nenhuma vaga no seu escopo</p>
+          <p className="text-sm font-medium">{tx("Nenhuma vaga no seu escopo")}</p>
           <p className="text-sm text-muted-foreground">
             {data.scopeDepartments.length > 0
-              ? `Não há vagas abertas nem fechadas em ${data.scopeDepartments.join(', ')} desde ${desde}, que é quando o ATS passou a registrar fechamentos.`
-              : `Não há vagas registradas desde ${desde}.`}
+              ? tx("Não há vagas abertas nem fechadas em {0} desde {1}, que é quando o ATS passou a registrar fechamentos.", [data.scopeDepartments.join(', '), desde])
+              : tx("Não há vagas registradas desde {0}.", [desde])}
           </p>
         </CardContent>
       </Card>
@@ -262,17 +263,14 @@ export default function RecruitmentTab() {
           a mesma informação (foto do dia, não responde a mês/trimestre/ano);
           irritava por dizer a mesma coisa duas vezes. */}
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <Badge variant="secondary" className="text-[10px]">InHire</Badge>
+        <Badge variant="secondary" className="text-[10px]">{tx("InHire")}</Badge>
         <span>
-          Foto de {data.asOf ? new Date(data.asOf + 'T12:00').toLocaleDateString('pt-BR') : '—'} — carga
-          semanal (o InHire é tempo real; esta é a última sincronização, pequenas diferenças são
-          esperadas). Fechadas, TTH e candidaturas recortam por{' '}
-          <strong>{periodo.tipo === 'todos' ? `todo o período desde ${desde}` : periodo.label}</strong>;
-          vagas abertas e congeladas são sempre a foto do dia, e não mudam com mês, trimestre ou ano.
+          {tx("Foto de")}{" "}{data.asOf ? tx(new Date(data.asOf + 'T12:00').toLocaleDateString(numLocale())) : '—'}{" "}{tx("— carga semanal (o InHire é tempo real; esta é a última sincronização, pequenas diferenças são esperadas). Fechadas, TTH e candidaturas recortam por")}{' '}
+          <strong>{periodo.tipo === 'todos' ? tx("todo o período desde {0}", [desde]) : tx(periodo.label)}</strong>{tx("; vagas abertas e congeladas são sempre a foto do dia, e não mudam com mês, trimestre ou ano.")}
         </span>
         {!data.global && data.scopeDepartments.length > 0 && (
           <Badge variant="outline" className="text-[10px]">
-            escopo: {data.scopeDepartments.join(', ')}
+            {tx("escopo:")}{" "}{tx(data.scopeDepartments.join(', '))}
           </Badge>
         )}
       </div>
@@ -280,10 +278,10 @@ export default function RecruitmentTab() {
       <Tabs defaultValue="funil" className="space-y-4">
         <TabsList>
           <TabsTrigger value="funil" className="gap-2">
-            <GitBranch className="h-4 w-4" />Funil
+            <GitBranch className="h-4 w-4" />{tx("Funil")}
           </TabsTrigger>
           <TabsTrigger value="satisfacao" className="gap-2">
-            <Gauge className="h-4 w-4" />Satisfação do gestor
+            <Gauge className="h-4 w-4" />{tx("Satisfação do gestor")}
           </TabsTrigger>
         </TabsList>
 
@@ -299,7 +297,7 @@ export default function RecruitmentTab() {
           { label: 'TTH médio', value: tthGeral == null ? '—' : `${tthGeral}d`, icon: Clock, note: 'dias ativos' },
           {
             label: 'Candidaturas',
-            value: porDepto.reduce((s, r) => s + r.cand, 0).toLocaleString('pt-BR'),
+            value: porDepto.reduce((s, r) => s + r.cand, 0).toLocaleString(numLocale()),
             icon: Users,
             note: 'nas vagas reais',
           },
@@ -308,10 +306,10 @@ export default function RecruitmentTab() {
             <CardContent className="p-3">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
                 <k.icon className="h-3.5 w-3.5" />
-                {k.label}
+                {tx(k.label)}
               </div>
               <p className="text-2xl font-medium">{k.value}</p>
-              <p className="text-[11px] text-muted-foreground">{k.note}</p>
+              <p className="text-[11px] text-muted-foreground">{tx(k.note)}</p>
             </CardContent>
           </Card>
         ))}
@@ -319,10 +317,9 @@ export default function RecruitmentTab() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Fechamentos e tempo de contratação</CardTitle>
+          <CardTitle className="text-base">{tx("Fechamentos e tempo de contratação")}</CardTitle>
           <CardDescription className="text-xs">
-            Barras = vagas fechadas no mês. Linha = TTH médio em dias ativos, já descontados os
-            períodos em que a vaga esteve congelada ou cancelada.
+            {tx("Barras = vagas fechadas no mês. Linha = TTH médio em dias ativos, já descontados os períodos em que a vaga esteve congelada ou cancelada.")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -337,8 +334,8 @@ export default function RecruitmentTab() {
                 formatter={(v, n) => [n === 'tth' ? `${v} dias` : v, n === 'tth' ? 'TTH médio' : 'Fechadas']}
               />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar yAxisId="l" dataKey="fechadas" name="Vagas fechadas" fill={COLORS.flutter} radius={[3, 3, 0, 0]} />
-              <Line yAxisId="r" type="monotone" dataKey="tth" name="TTH médio (dias)" stroke={COLORS.warning} strokeWidth={2} dot={{ r: 2 }} connectNulls />
+              <Bar yAxisId="l" dataKey="fechadas" name={tx("Vagas fechadas")} fill={COLORS.flutter} radius={[3, 3, 0, 0]} />
+              <Line yAxisId="r" type="monotone" dataKey="tth" name={tx("TTH médio (dias)")} stroke={COLORS.warning} strokeWidth={2} dot={{ r: 2 }} connectNulls />
             </ComposedChart>
           </ResponsiveContainer>
         </CardContent>
@@ -347,11 +344,9 @@ export default function RecruitmentTab() {
       {serieAbertas.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Evolução de vagas abertas e congeladas</CardTitle>
+            <CardTitle className="text-base">{tx("Evolução de vagas abertas e congeladas")}</CardTitle>
             <CardDescription className="text-xs">
-              Uma foto por mês (a última sincronização daquele mês) -- não é quantas abriram, é
-              quantas estavam abertas no fim de cada mês. A série começa em ago/2026, quando o
-              acesso à API do InHire foi liberado; meses antes disso não têm foto guardada.
+              {tx("Uma foto por mês (a última sincronização daquele mês) -- não é quantas abriram, é quantas estavam abertas no fim de cada mês. A série começa em ago/2026, quando o acesso à API do InHire foi liberado; meses antes disso não têm foto guardada.")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -362,8 +357,8 @@ export default function RecruitmentTab() {
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip contentStyle={{ fontSize: 12 }} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Line type="monotone" dataKey="aberta" name="Abertas" stroke={COLORS.flutter} strokeWidth={2} dot={{ r: 2 }} />
-                <Line type="monotone" dataKey="congelada" name="Congeladas" stroke={COLORS.warning} strokeWidth={2} dot={{ r: 2 }} />
+                <Line type="monotone" dataKey="aberta" name={tx("Abertas")} stroke={COLORS.flutter} strokeWidth={2} dot={{ r: 2 }} />
+                <Line type="monotone" dataKey="congelada" name={tx("Congeladas")} stroke={COLORS.warning} strokeWidth={2} dot={{ r: 2 }} />
               </ComposedChart>
             </ResponsiveContainer>
           </CardContent>
@@ -373,36 +368,35 @@ export default function RecruitmentTab() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Tempo de contratação por área</CardTitle>
+            <CardTitle className="text-base">{tx("Tempo de contratação por área")}</CardTitle>
             <CardDescription className="text-xs">
-              Da mais lenta para a mais rápida. Candidaturas por vaga ajuda a ler o número: poucas
-              candidaturas e TTH alto costuma ser dificuldade de atração, não de processo.
+              {tx("Da mais lenta para a mais rápida. Candidaturas por vaga ajuda a ler o número: poucas candidaturas e TTH alto costuma ser dificuldade de atração, não de processo.")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-1.5 text-sm">
               <div className="grid grid-cols-12 gap-2 text-[11px] text-muted-foreground pb-1 border-b border-border">
-                <span className="col-span-5">Área</span>
-                <span className="col-span-2 text-right">Fechadas</span>
-                <span className="col-span-2 text-right">TTH</span>
-                <span className="col-span-3 text-right">Cand./vaga</span>
+                <span className="col-span-5">{tx("Área")}</span>
+                <span className="col-span-2 text-right">{tx("Fechadas")}</span>
+                <span className="col-span-2 text-right">{tx("TTH")}</span>
+                <span className="col-span-3 text-right">{tx("Cand./vaga")}</span>
               </div>
               {porDepto.map((r) => (
                 <div key={r.dept} className="grid grid-cols-12 gap-2 items-center py-0.5">
                   <span className="col-span-5 truncate text-xs flex items-center gap-1">
-                    {r.dept}
+                    {tx(r.dept)}
                     {/* Amostra pequena no topo de um ranking engana: 3 vagas nao
                         sustentam "a area mais lenta". Marcar e mais honesto que
                         esconder a linha. */}
                     {r.fechadas < 5 && (
-                      <span className="text-[10px] text-muted-foreground" title="Poucas vagas: média instável">
-                        n baixo
+                      <span className="text-[10px] text-muted-foreground" title={tx("Poucas vagas: média instável")}>
+                        {tx("n baixo")}
                       </span>
                     )}
                   </span>
                   <span className="col-span-2 text-right text-xs text-muted-foreground">{r.fechadas}</span>
                   <span className="col-span-2 text-right text-xs font-medium">
-                    {r.tth == null ? '—' : `${r.tth}d`}
+                    {r.tth == null ? '—' : tx("{0}d", [r.tth])}
                   </span>
                   <span className="col-span-3 text-right text-xs text-muted-foreground">{r.porVaga}</span>
                 </div>
@@ -413,18 +407,15 @@ export default function RecruitmentTab() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Intensidade de contratação</CardTitle>
+            <CardTitle className="text-base">{tx("Intensidade de contratação")}</CardTitle>
             <CardDescription className="text-xs">
-              Vagas fechadas {periodo.tipo === 'todos' ? `desde ${desde}` : `em ${periodo.label}`} como % do headcount <em>atual</em> da área — o cruzamento
-              que o InHire não faz, porque ele não conhece o seu quadro. Atenção: é um fluxo de
-              vários meses dividido por uma foto de hoje, então serve para comparar áreas entre si,
-              não como taxa de um período.
+              {tx("Vagas fechadas")}{" "}{periodo.tipo === 'todos' ? tx("desde {0}", [desde]) : tx("em {0}", [periodo.label])}{" "}{tx("como % do headcount")}{" "}<em>{tx("atual")}</em>{" "}{tx("da área — o cruzamento que o InHire não faz, porque ele não conhece o seu quadro. Atenção: é um fluxo de vários meses dividido por uma foto de hoje, então serve para comparar áreas entre si, não como taxa de um período.")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {cruzamento.length === 0 ? (
               <p className="text-xs text-muted-foreground">
-                Sem sobreposição entre as áreas do InHire e os departamentos do quadro.
+                {tx("Sem sobreposição entre as áreas do InHire e os departamentos do quadro.")}
               </p>
             ) : (
               <ResponsiveContainer width="100%" height={240}>
@@ -449,10 +440,9 @@ export default function RecruitmentTab() {
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Vagas que estão envelhecendo</CardTitle>
+          <CardTitle className="text-base">{tx("Vagas que estão envelhecendo")}</CardTitle>
           <CardDescription className="text-xs">
-            Idade média em dias ativos das vagas ainda abertas ou congeladas. Congelada não corre
-            SLA — mas continua sendo uma cadeira vazia.
+            {tx("Idade média em dias ativos das vagas ainda abertas ou congeladas. Congelada não corre SLA — mas continua sendo uma cadeira vazia.")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -463,17 +453,17 @@ export default function RecruitmentTab() {
                 className="rounded-lg border border-border p-2.5 min-w-[150px]"
               >
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium">{o.department}</span>
+                  <span className="text-xs font-medium">{tx(o.department)}</span>
                   <Badge
                     variant={normalizaStatus(o.status) === 'congelada' ? 'outline' : 'secondary'}
                     className="text-[10px]"
                   >
-                    {normalizaStatus(o.status) === 'congelada' ? 'Congelada' : 'Aberta'}
+                    {normalizaStatus(o.status) === 'congelada' ? tx("Congelada") : tx("Aberta")}
                   </Badge>
                 </div>
-                <p className="text-xl font-medium mt-0.5">{o.avg_age_days ?? '—'}d</p>
+                <p className="text-xl font-medium mt-0.5">{o.avg_age_days ?? '—'}{tx("d")}</p>
                 <p className="text-[11px] text-muted-foreground">
-                  {o.jobs} vaga{o.jobs > 1 ? 's' : ''} · {o.applications} candidaturas
+                  {o.jobs}{" "}{tx("vaga")}{o.jobs > 1 ? tx("s") : ''} · {o.applications}{" "}{tx("candidaturas")}
                 </p>
               </div>
             ))}
@@ -482,13 +472,7 @@ export default function RecruitmentTab() {
       </Card>
 
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        <strong>Como o TTH é calculado:</strong> dias corridos entre a abertura e o fechamento,
-        descontados os períodos em que a vaga esteve congelada ou cancelada — a regra da aba
-        Diretrizes do InHire. O campo <code>sla</code> da API do InHire está vazio, então o número é
-        reconstruído do histórico de status. Excluídos: talent pools e 5 vagas fechadas no mesmo dia
-        da abertura (1 candidatura cada, não são processos reais). O ATS só registra fechamento
-        desde {desde} — antes disso não há medição, e não é zero. Depois disso, mês sem barra é
-        zero de verdade.
+        <strong>{tx("Como o TTH é calculado:")}</strong>{" "}{tx("dias corridos entre a abertura e o fechamento, descontados os períodos em que a vaga esteve congelada ou cancelada — a regra da aba Diretrizes do InHire. O campo")}{" "}<code>sla</code>{" "}{tx("da API do InHire está vazio, então o número é reconstruído do histórico de status. Excluídos: talent pools e 5 vagas fechadas no mesmo dia da abertura (1 candidatura cada, não são processos reais). O ATS só registra fechamento desde")}{" "}{tx(desde)}{" "}{tx("— antes disso não há medição, e não é zero. Depois disso, mês sem barra é zero de verdade.")}
       </p>
         </TabsContent>
 

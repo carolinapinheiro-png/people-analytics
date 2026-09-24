@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { COLORS } from '@/lib/colors';
 import { getConveniaDiagnostico, type ConveniaDiagnostico } from '@/lib/convenia.functions';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * O que cada token enxerga, antes de qualquer carga.
  *
@@ -42,25 +43,24 @@ export function ConveniaTokensCard() {
       <div className="flex items-start gap-3">
         <KeyRound className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
-          <h3 className="text-base font-semibold">Tokens — uma empresa por CNPJ</h3>
+          <h3 className="text-base font-semibold">{tx("Tokens — uma empresa por CNPJ")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            O Convenia é por CNPJ: cada empresa tem seu token e só enxerga a si mesma.
-            Aqui dá para ver o que cada uma entrega antes de qualquer carga.
+            {tx("O Convenia é por CNPJ: cada empresa tem seu token e só enxerga a si mesma. Aqui dá para ver o que cada uma entrega antes de qualquer carga.")}
           </p>
 
           <Button onClick={rodar} disabled={carregando} className="mt-4" variant="outline" size="sm">
             <RefreshCw className={`mr-2 h-4 w-4 ${carregando ? 'animate-spin' : ''}`} />
-            {carregando ? 'Consultando…' : 'Conferir tokens'}
+            {carregando ? tx("Consultando…") : tx("Conferir tokens")}
           </Button>
 
-          {d?.erro && <p className="mt-4 text-sm" style={{ color: COLORS.danger }}>{d.erro}</p>}
+          {d?.erro && <p className="mt-4 text-sm" style={{ color: COLORS.danger }}>{tx(d.erro)}</p>}
 
           {d && d.totalGeral != null && (
             <div className="mt-4 rounded-lg border border-border/60 p-3">
-              <div className="text-2xl font-semibold">{d.totalGeral.toLocaleString('pt-BR')}</div>
+              <div className="text-2xl font-semibold">{tx(d.totalGeral.toLocaleString(numLocale()))}</div>
               <div className="text-sm text-muted-foreground">
-                pessoas somando as {d.empresas.length} empresas já configuradas
-                {d.faltamSecrets.length > 0 && ` — faltam ${d.faltamSecrets.length}`}
+                {tx("pessoas somando as")}{" "}{d.empresas.length}{" "}{tx("empresas já configuradas")}
+                {d.faltamSecrets.length > 0 && tx(" — faltam {0}", [d.faltamSecrets.length])}
               </div>
             </div>
           )}
@@ -73,19 +73,19 @@ export function ConveniaTokensCard() {
                 ) : (
                   <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: COLORS.success }} />
                 )}
-                <span className="font-medium">{e.empresa}</span>
+                <span className="font-medium">{tx(e.empresa)}</span>
                 <span className="text-xs text-muted-foreground">
-                  {e.marca}{e.local ? ` · ${e.local}` : ''}
+                  {tx(e.marca)}{e.local ? ` · ${e.local}` : ''}
                 </span>
               </div>
 
               {e.erro ? (
-                <p className="mt-1 text-muted-foreground">{e.erro}</p>
+                <p className="mt-1 text-muted-foreground">{tx(e.erro)}</p>
               ) : (
                 <>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    Token "{e.nomeDoToken ?? '—'}" · {e.qtdPermissoes} permissões
-                    {e.permissoesEscrita > 0 && ` (${e.permissoesEscrita} de escrita)`}
+                    {tx("Token \"")}{tx(e.nomeDoToken) ?? '—'}" · {e.qtdPermissoes}{" "}{tx("permissões")}
+                    {e.permissoesEscrita > 0 && tx(" ({0} de escrita)", [e.permissoesEscrita])}
                   </div>
 
                   {/* Os NOMES das permissões, e não só a contagem.
@@ -96,13 +96,13 @@ export function ConveniaTokensCard() {
                   {e.permissoes.length > 0 && (
                     <details className="mt-1">
                       <summary className="cursor-pointer text-xs text-muted-foreground">
-                        ver os {e.permissoes.length} nomes de permissão
+                        {tx("ver os")}{" "}{e.permissoes.length}{" "}{tx("nomes de permissão")}
                       </summary>
                       <div className="mt-1 space-y-0.5">
                         {e.permissoes.map((p) => (
                           <div key={p.nome} className="flex flex-wrap gap-x-2 text-[10px]">
-                            <code className="font-mono">{p.nome}</code>
-                            <span className="text-muted-foreground">{p.traduzido}</span>
+                            <code className="font-mono">{tx(p.nome)}</code>
+                            <span className="text-muted-foreground">{tx(p.traduzido)}</span>
                           </div>
                         ))}
                       </div>
@@ -112,18 +112,18 @@ export function ConveniaTokensCard() {
                   {e.sondas.map((s) => (
                     <div key={s.recurso} className="mt-2">
                       <div className="text-xs">
-                        <span className="font-medium">{s.recurso}</span>
-                        {s.total != null && <span className="text-muted-foreground"> — {s.total} registros</span>}
+                        <span className="font-medium">{tx(s.recurso)}</span>
+                        {s.total != null && <span className="text-muted-foreground"> — {s.total}{" "}{tx("registros")}</span>}
                       </div>
                       {s.erro ? (
-                        <p className="text-xs" style={{ color: COLORS.warning }}>{s.erro}</p>
+                        <p className="text-xs" style={{ color: COLORS.warning }}>{tx(s.erro)}</p>
                       ) : (
                         <details>
                           <summary className="cursor-pointer text-xs text-muted-foreground">
-                            {s.camposVistos.length} campos na resposta
+                            {s.camposVistos.length}{" "}{tx("campos na resposta")}
                           </summary>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {s.camposVistos.join(', ') || '(nenhum)'}
+                            {tx(s.camposVistos.join(', ')) || tx("(nenhum)")}
                           </p>
                         </details>
                       )}
@@ -132,14 +132,14 @@ export function ConveniaTokensCard() {
 
                   {e.statusDosAtivos.length > 0 && (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Status na 1ª página:{' '}
-                      {e.statusDosAtivos.map((s) => `${s.valor} (${s.quantidade})`).join(' · ')}
+                      {tx("Status na 1ª página:")}{' '}
+                      {tx(e.statusDosAtivos.map((s) => `${s.valor} (${s.quantidade})`).join(' · '))}
                     </p>
                   )}
 
                   {e.faltando.length > 0 && (
                     <p className="mt-2 text-xs" style={{ color: COLORS.warning }}>
-                      Falta: {e.faltando.join(' · ')}
+                      {tx("Falta:")}{" "}{tx(e.faltando.join(' · '))}
                     </p>
                   )}
                 </>
@@ -149,7 +149,7 @@ export function ConveniaTokensCard() {
 
           {d && d.aposentadas.length > 0 && (
             <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
-              <div className="font-medium">Bases desligadas de propósito</div>
+              <div className="font-medium">{tx("Bases desligadas de propósito")}</div>
               {/* Ausência decidida não é pendência. A tela pedia que alguém
                   recriasse os secrets removidos e avisava que o headcount
                   estava incompleto -- as duas coisas falsas. Alerta que pede
@@ -159,8 +159,8 @@ export function ConveniaTokensCard() {
               <ul className="mt-2 space-y-1">
                 {d.aposentadas.map((a) => (
                   <li key={a.empresa} className="text-xs">
-                    <span className="font-medium">{a.empresa}</span>
-                    <span className="text-muted-foreground"> — {a.motivo}</span>
+                    <span className="font-medium">{tx(a.empresa)}</span>
+                    <span className="text-muted-foreground"> — {tx(a.motivo)}</span>
                   </li>
                 ))}
               </ul>
@@ -169,15 +169,15 @@ export function ConveniaTokensCard() {
 
           {d && d.faltamSecrets.length > 0 && (
             <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
-              <div className="font-medium">Empresas sem token cadastrado</div>
+              <div className="font-medium">{tx("Empresas sem token cadastrado")}</div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Crie um secret no Lovable com exatamente este nome para cada uma:
+                {tx("Crie um secret no Lovable com exatamente este nome para cada uma:")}
               </p>
               <ul className="mt-2 space-y-1">
                 {d.faltamSecrets.map((f) => (
                   <li key={f.env} className="text-xs">
-                    <code className="rounded bg-muted px-1 py-0.5">{f.env}</code>
-                    <span className="text-muted-foreground"> — {f.empresa}</span>
+                    <code className="rounded bg-muted px-1 py-0.5">{tx(f.env)}</code>
+                    <span className="text-muted-foreground"> — {tx(f.empresa)}</span>
                   </li>
                 ))}
               </ul>
@@ -186,17 +186,17 @@ export function ConveniaTokensCard() {
 
           {d?.veredito && (
             <div className="mt-3 rounded-lg border border-border/60 p-3 text-sm">
-              <div className="font-medium">Dá para reconstruir a série mensal?</div>
-              <p className="mt-1 text-muted-foreground">{d.veredito}</p>
+              <div className="font-medium">{tx("Dá para reconstruir a série mensal?")}</div>
+              <p className="mt-1 text-muted-foreground">{tx(d.veredito)}</p>
             </div>
           )}
 
           {d?.avisos.map((a) => (
-            <p key={a} className="mt-3 text-sm text-muted-foreground">⚠ {a}</p>
+            <p key={a} className="mt-3 text-sm text-muted-foreground">⚠ {tx(a)}</p>
           ))}
 
           <p className="mt-3 text-xs text-muted-foreground">
-            O diagnóstico devolve só nomes de campo — nenhum valor de cadastro sai daqui.
+            {tx("O diagnóstico devolve só nomes de campo — nenhum valor de cadastro sai daqui.")}
           </p>
 
         </div>

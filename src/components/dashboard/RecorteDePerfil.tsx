@@ -5,6 +5,7 @@ import DriverPriority from '@/components/dashboard/DriverPriority';
 import { COLORS } from '@/lib/colors';
 import type { SurveyCut, DriverPorRecorte, SurveyImportance } from '@/lib/survey.functions';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * A aba quando o recorte é um PERFIL, e não uma área.
  *
@@ -39,7 +40,7 @@ import type { SurveyCut, DriverPorRecorte, SurveyImportance } from '@/lib/survey
  */
 
 const fmt1 = (v: number | null | undefined) =>
-  v == null ? '—' : v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  v == null ? '—' : v.toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 
 export default function RecorteDePerfil({
   cuts,
@@ -99,21 +100,15 @@ export default function RecorteDePerfil({
         <p className="text-sm text-muted-foreground py-5 leading-relaxed">
           {vazio ? (
             <>
-              <strong>Ninguém respondeu com esta combinação nesta onda.</strong> Ou a pesquisa
-              desta onda não perguntou {rotulo.toLowerCase()} — modelo de trabalho, por exemplo, só
-              entrou em ago/26 — ou não há pessoa alguma que caia em todos os filtros ao mesmo
-              tempo.
+              <strong>{tx("Ninguém respondeu com esta combinação nesta onda.")}</strong>{" "}{tx("Ou a pesquisa desta onda não perguntou")}{" "}{tx(rotulo.toLowerCase())}{" "}{tx("— modelo de trabalho, por exemplo, só entrou em ago/26 — ou não há pessoa alguma que caia em todos os filtros ao mesmo tempo.")}
             </>
           ) : (
             <>
               <strong>
-                Este grupo tem {grupo.n} {grupo.n === 1 ? 'pessoa' : 'pessoas'}, abaixo do mínimo de{' '}
+                {tx("Este grupo tem")}{" "}{grupo.n} {grupo.n === 1 ? tx("pessoa") : tx("pessoas")}{tx(", abaixo do mínimo de")}{' '}
                 {minimoExibicao}.
               </strong>{' '}
-              O grupo existe — o que não aparece é a nota, porque com tão poucas respostas ela
-              apontaria para indivíduos. <strong className="text-foreground">Abaixo continua a
-              leitura da área</strong>, que não depende deste recorte; tire um dos filtros para
-              ver este grupo com número próprio.
+              {tx("O grupo existe — o que não aparece é a nota, porque com tão poucas respostas ela apontaria para indivíduos.")}{" "}<strong className="text-foreground">{tx("Abaixo continua a leitura da área")}</strong>{tx(", que não depende deste recorte; tire um dos filtros para ver este grupo com número próprio.")}
             </>
           )}
         </p>
@@ -142,11 +137,11 @@ export default function RecorteDePerfil({
     const bom = delta == null ? null : inverso ? delta <= 0 : delta >= 0;
     return (
       <div>
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{rot}</div>
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{tx(rot)}</div>
         <div className="flex items-baseline gap-1.5">
           <span className="text-2xl font-bold tabular-nums">
-            {fmt1(v)}
-            {sufixo}
+            {tx(fmt1(v))}
+            {tx(sufixo)}
           </span>
           {delta != null && (
             <span
@@ -154,7 +149,7 @@ export default function RecorteDePerfil({
               style={{ color: bom ? COLORS.success : COLORS.danger }}
             >
               {delta > 0 ? '+' : ''}
-              {fmt1(delta)} vs empresa
+              {tx(fmt1(delta))}{" "}{tx("vs empresa")}
             </span>
           )}
         </div>
@@ -172,22 +167,22 @@ export default function RecorteDePerfil({
       >
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Numero rot="eNPS" valor={grupo.enps} delta={dEnps} />
-          <Numero rot="Satisfação" valor={grupo.satisfacao} delta={dSatisf} />
-          <Numero rot="Risco de saída" valor={grupo.risco} delta={dRisco} sufixo="%" inverso />
+          <Numero rot={tx("Satisfação")} valor={grupo.satisfacao} delta={dSatisf} />
+          <Numero rot={tx("Risco de saída")} valor={grupo.risco} delta={dRisco} sufixo="%" inverso />
         </div>
 
         {grupo.promotores != null && (
           <div className="mt-3 pt-3 border-t border-border/60 flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-muted-foreground">
             <span>
               <strong className="text-emerald-600 dark:text-emerald-500">{grupo.promotores}</strong>{' '}
-              promotores
+              {tx("promotores")}
             </span>
             <span>
-              <strong className="text-foreground">{grupo.passivos ?? '—'}</strong> passivos
+              <strong className="text-foreground">{grupo.passivos ?? '—'}</strong>{" "}{tx("passivos")}
             </span>
             <span>
               <strong className="text-red-600 dark:text-red-500">{grupo.detratores ?? '—'}</strong>{' '}
-              detratores
+              {tx("detratores")}
             </span>
           </div>
         )}
@@ -204,18 +199,14 @@ export default function RecorteDePerfil({
           {cruzado ? (
             <>
               <strong>
-                Os números acima são só de quem está em TODOS os filtros ao mesmo tempo.
+                {tx("Os números acima são só de quem está em TODOS os filtros ao mesmo tempo.")}
               </strong>{' '}
-              Por isso o grupo é menor que a área inteira, e abaixo de {minimoExibicao} respostas a
-              nota fica oculta. A fila por área e a grade área × tema continuam fora: elas comparam
-              as áreas ENTRE si, e aqui há uma só.
+              {tx("Por isso o grupo é menor que a área inteira, e abaixo de")}{" "}{minimoExibicao}{" "}{tx("respostas a nota fica oculta. A fila por área e a grade área × tema continuam fora: elas comparam as áreas ENTRE si, e aqui há uma só.")}
             </>
           ) : (
             <>
-              <strong>Sem área selecionada, este recorte é da empresa inteira.</strong> Escolha um
-              departamento junto para estreitar — por exemplo, só quem tem 24+ meses{' '}
-              <em>dentro</em> de Marketing. A fila por área e a grade área × tema ficam de fora
-              enquanto houver recorte de perfil: elas comparam áreas entre si.
+              <strong>{tx("Sem área selecionada, este recorte é da empresa inteira.")}</strong>{" "}{tx("Escolha um departamento junto para estreitar — por exemplo, só quem tem 24+ meses")}{' '}
+              <em>{tx("dentro")}</em>{" "}{tx("de Marketing. A fila por área e a grade área × tema ficam de fora enquanto houver recorte de perfil: elas comparam áreas entre si.")}
             </>
           )}
         </p>
@@ -270,10 +261,9 @@ export default function RecorteDePerfil({
           minimoExibicao={minimoExibicao}
         />
       ) : (
-        <ChartCard title="Em que este grupo está mais longe da empresa">
+        <ChartCard title={tx("Em que este grupo está mais longe da empresa")}>
           <p className="text-sm text-muted-foreground py-5 leading-relaxed">
-            As notas por pergunta não foram carregadas com este recorte nesta onda. Os três números
-            acima vêm de outra tabela, que tem a quebra — por isso eles aparecem e o detalhe não.
+            {tx("As notas por pergunta não foram carregadas com este recorte nesta onda. Os três números acima vêm de outra tabela, que tem a quebra — por isso eles aparecem e o detalhe não.")}
           </p>
         </ChartCard>
       )}

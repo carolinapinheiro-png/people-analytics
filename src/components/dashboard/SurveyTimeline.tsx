@@ -2,6 +2,7 @@ import { COLORS } from '@/lib/colors';
 import { cn } from '@/lib/utils';
 import type { OndaResumo } from '@/lib/experience.functions';
 
+import { tx, mesesCurtos } from '@/lib/i18n';
 /**
  * A história do instrumento: como a pesquisa virou o que é hoje.
  *
@@ -56,7 +57,7 @@ const estadoDe = (o: OndaResumo): 'atual' | 'vazia' | 'passada' =>
 const mesAno = (iso: string): string => {
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return iso;
-  const M = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  const M = mesesCurtos();
   return `${M[d.getUTCMonth()]}/${String(d.getUTCFullYear()).slice(2)}`;
 };
 
@@ -68,7 +69,7 @@ export default function SurveyTimeline({ ondas }: { ondas?: OndaResumo[] }) {
     return (
       <div className="rounded-lg border border-border bg-card p-4">
         <p className="text-sm text-muted-foreground">
-          Nenhuma onda de pesquisa cadastrada ainda.
+          {tx("Nenhuma onda de pesquisa cadastrada ainda.")}
         </p>
       </div>
     );
@@ -79,11 +80,10 @@ export default function SurveyTimeline({ ondas }: { ondas?: OndaResumo[] }) {
   return (
     <div data-pdf-block="true" className="rounded-lg border border-border bg-card p-4">
       <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-        De onde vem este número
+        {tx("De onde vem este número")}
       </p>
       <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-        O questionário mudou de tamanho entre as ondas. É isso que explica por que algumas
-        perguntas têm comparação com a onda anterior e outras não.
+        {tx("O questionário mudou de tamanho entre as ondas. É isso que explica por que algumas perguntas têm comparação com a onda anterior e outras não.")}
       </p>
 
       <div className="relative">
@@ -110,14 +110,14 @@ export default function SurveyTimeline({ ondas }: { ondas?: OndaResumo[] }) {
 
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                   <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                    {mesAno(o.referenceDate)}
+                    {tx(mesAno(o.referenceDate))}
                   </span>
                   {estado === 'atual' && (
                     <span
                       className="text-[10px] px-1.5 py-px rounded-full font-medium"
                       style={{ background: `${COLORS.flutter}1f`, color: COLORS.flutter }}
                     >
-                      é o que a aba mostra
+                      {tx("é o que a aba mostra")}
                     </span>
                   )}
                   {estado === 'vazia' && (
@@ -125,25 +125,24 @@ export default function SurveyTimeline({ ondas }: { ondas?: OndaResumo[] }) {
                       className="text-[10px] px-1.5 py-px rounded-full font-medium"
                       style={{ background: `${COLORS.warning}22`, color: COLORS.warning }}
                     >
-                      registrada, sem dados
+                      {tx("registrada, sem dados")}
                     </span>
                   )}
                 </div>
 
-                <p className="text-sm font-semibold">{o.label}</p>
+                <p className="text-sm font-semibold">{tx(o.label)}</p>
 
                 <p className="text-[13px] text-muted-foreground leading-relaxed">
                   {estado === 'vazia' ? (
                     <>
-                      {o.respondents ?? '—'} respostas anotadas, mas nenhum recorte e nenhuma
-                      pergunta de driver carregados. Ela não entra em comparação nenhuma.
+                      {o.respondents ?? '—'}{" "}{tx("respostas anotadas, mas nenhum recorte e nenhuma pergunta de driver carregados. Ela não entra em comparação nenhuma.")}
                     </>
                   ) : (
                     <>
-                      {o.respondents ?? '—'} respostas
-                      {o.eligible ? ` de ${o.eligible} elegíveis` : ''}
-                      {o.participacao != null ? ` · ${o.participacao}% de participação` : ''}
-                      {' · '}{o.drivers} perguntas de driver em {o.recortes} recortes
+                      {o.respondents ?? '—'}{" "}{tx("respostas")}
+                      {o.eligible ? tx(" de {0} elegíveis", [o.eligible]) : ''}
+                      {o.participacao != null ? tx(" · {0}% de participação", [o.participacao]) : ''}
+                      {' · '}{o.drivers}{" "}{tx("perguntas de driver em")}{" "}{o.recortes}{" "}{tx("recortes")}
                     </>
                   )}
                 </p>
@@ -156,7 +155,7 @@ export default function SurveyTimeline({ ondas }: { ondas?: OndaResumo[] }) {
                     existia no banco, só não saía de lá. */}
                 {o.observacao && (
                   <p className="text-[12px] text-muted-foreground/80 leading-relaxed mt-0.5 italic">
-                    {o.observacao}
+                    {tx(o.observacao)}
                   </p>
                 )}
               </div>
@@ -167,9 +166,7 @@ export default function SurveyTimeline({ ondas }: { ondas?: OndaResumo[] }) {
 
       {semDado.length > 0 && (
         <p className="mt-4 text-[11px] text-muted-foreground leading-relaxed">
-          Onda marcada como <strong>registrada, sem dados</strong> aparece na série porque
-          aconteceu de verdade — mas nada dela foi carregado, então ela não sustenta nenhuma
-          comparação. Escondê-la faria a série parecer completa quando não é.
+          {tx("Onda marcada como")}{" "}<strong>{tx("registrada, sem dados")}</strong>{" "}{tx("aparece na série porque aconteceu de verdade — mas nada dela foi carregado, então ela não sustenta nenhuma comparação. Escondê-la faria a série parecer completa quando não é.")}
         </p>
       )}
     </div>

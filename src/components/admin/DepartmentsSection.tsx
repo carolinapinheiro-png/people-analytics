@@ -12,6 +12,7 @@ import {
 } from '@/lib/access.functions';
 import type { AllowedEmail, DepartmentOption } from './UsersAccessSection';
 
+import { tx } from '@/lib/i18n';
 export default function DepartmentsSection({
   departments,
   emails,
@@ -56,11 +57,11 @@ export default function DepartmentsSection({
   const aprovar = async (nome: string) => {
     try {
       await addDepartmentFn({ data: { name: nome.toUpperCase(), aliases: [] } });
-      toast.success(`${nome.toUpperCase()} entrou no catálogo.`);
+      toast.success(tx("{0} entrou no catálogo.", [nome.toUpperCase()]));
       carregarPendentes();
       onChanged();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao aprovar');
+      toast.error(e instanceof Error ? tx(e.message) : tx("Falha ao aprovar"));
     }
   };
 
@@ -82,12 +83,12 @@ export default function DepartmentsSection({
             .filter(Boolean),
         },
       });
-      toast.success('Departamento adicionado ao catálogo');
+      toast.success(tx("Departamento adicionado ao catálogo"));
       setNewName('');
       setNewAliases('');
       onChanged();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao adicionar departamento');
+      toast.error(error instanceof Error ? tx(error.message) : tx("Erro ao adicionar departamento"));
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -104,10 +105,10 @@ export default function DepartmentsSection({
     }
     try {
       await setDepartmentActiveFn({ data: { id: dept.id, active } });
-      toast.success(active ? 'Departamento ativado' : 'Departamento desativado');
+      toast.success(active ? tx("Departamento ativado") : tx("Departamento desativado"));
       onChanged();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Erro ao atualizar departamento');
+      toast.error(error instanceof Error ? tx(error.message) : tx("Erro ao atualizar departamento"));
       console.error(error);
     }
   };
@@ -119,21 +120,17 @@ export default function DepartmentsSection({
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Building2 className="h-5 w-5" />
-              No catálogo e sem ninguém no Convenia
+              {tx("No catálogo e sem ninguém no Convenia")}
             </CardTitle>
             <CardDescription>
-              Estes departamentos estão ativos e podem ser atribuídos como escopo, e não há uma
-              pessoa sequer neles no cadastro. Escolher um deles salva sem erro e entrega um painel
-              em branco — o que se lê como falta de dado, não de escopo. Não removo sozinha: uma
-              área pode estar vazia hoje e receber gente amanhã. Desative com o botão ao lado, na
-              lista abaixo.
+              {tx("Estes departamentos estão ativos e podem ser atribuídos como escopo, e não há uma pessoa sequer neles no cadastro. Escolher um deles salva sem erro e entrega um painel em branco — o que se lê como falta de dado, não de escopo. Não removo sozinha: uma área pode estar vazia hoje e receber gente amanhã. Desative com o botão ao lado, na lista abaixo.")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
               {orfaos.map((n) => (
                 <span key={n} className="rounded-md border border-border px-2 py-1 text-sm">
-                  {n}
+                  {tx(n)}
                 </span>
               ))}
             </div>
@@ -146,21 +143,16 @@ export default function DepartmentsSection({
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Inbox className="h-5 w-5" />
-              No Convenia e ainda não no catálogo
+              {tx("No Convenia e ainda não no catálogo")}
             </CardTitle>
             <CardDescription>
-              A fonte da lista é o Convenia; o catálogo guarda o de-para de grafias e o que pode
-              ser atribuído como escopo. Estes valores existem no cadastro das pessoas e ainda não
-              foram revisados — <strong>não aparecem no seletor de acesso</strong> até você
-              aprovar. Se for outra grafia de uma área que já existe, cadastre como apelido dela em
-              vez de aprovar aqui, senão a área se parte em duas.
+              {tx("A fonte da lista é o Convenia; o catálogo guarda o de-para de grafias e o que pode ser atribuído como escopo. Estes valores existem no cadastro das pessoas e ainda não foram revisados —")}{" "}<strong>{tx("não aparecem no seletor de acesso")}</strong>{" "}{tx("até você aprovar. Se for outra grafia de uma área que já existe, cadastre como apelido dela em vez de aprovar aqui, senão a área se parte em duas.")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {!pendentesMedido ? (
               <p className="text-sm text-muted-foreground">
-                Não consegui ler o organograma agora — isto não quer dizer que não haja pendentes,
-                quer dizer que não perguntei.
+                {tx("Não consegui ler o organograma agora — isto não quer dizer que não haja pendentes, quer dizer que não perguntei.")}
               </p>
             ) : (
               <div className="space-y-2">
@@ -170,13 +162,13 @@ export default function DepartmentsSection({
                     className="flex items-center justify-between gap-4 p-3 rounded-lg border border-border"
                   >
                     <div>
-                      <span className="text-sm font-medium">{p.nome}</span>
+                      <span className="text-sm font-medium">{tx(p.nome)}</span>
                       <span className="text-xs text-muted-foreground ml-2">
-                        {p.pessoas} pessoa{p.pessoas === 1 ? '' : 's'} no Convenia
+                        {p.pessoas}{" "}{tx("pessoa")}{p.pessoas === 1 ? '' : tx("s")}{" "}{tx("no Convenia")}
                       </span>
                     </div>
                     <Button size="sm" variant="outline" onClick={() => void aprovar(p.nome)}>
-                      Aprovar
+                      {tx("Aprovar")}
                     </Button>
                   </div>
                 ))}
@@ -190,18 +182,17 @@ export default function DepartmentsSection({
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Plus className="h-5 w-5" />
-            Novo departamento
+            {tx("Novo departamento")}
           </CardTitle>
           <CardDescription>
-            O nome canônico é salvo em maiúsculas e precisa bater com os dados do dashboard.
-            Apelidos cobrem variações vindas de outras fontes (ex.: engagement).
+            {tx("O nome canônico é salvo em maiúsculas e precisa bater com os dados do dashboard. Apelidos cobrem variações vindas de outras fontes (ex.: engagement).")}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleAdd} className="flex flex-col gap-2">
             <div className="flex flex-col sm:flex-row gap-2">
               <Input
-                placeholder="Nome canônico (ex.: TECHNOLOGY)"
+                placeholder={tx("Nome canônico (ex.: TECHNOLOGY)")}
                 value={newName}
                 maxLength={60}
                 onChange={(e) => setNewName(e.target.value)}
@@ -209,13 +200,13 @@ export default function DepartmentsSection({
                 className="flex-1"
               />
               <Input
-                placeholder="Apelidos, separados por vírgula (opcional)"
+                placeholder={tx("Apelidos, separados por vírgula (opcional)")}
                 value={newAliases}
                 onChange={(e) => setNewAliases(e.target.value)}
                 className="flex-1"
               />
               <Button type="submit" disabled={isLoading}>
-                {isLoading ? 'Adicionando...' : 'Adicionar'}
+                {isLoading ? tx("Adicionando...") : tx("Adicionar")}
               </Button>
             </div>
           </form>
@@ -226,12 +217,11 @@ export default function DepartmentsSection({
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Building2 className="h-5 w-5" />
-            Catálogo de departamentos
+            {tx("Catálogo de departamentos")}
           </CardTitle>
           <CardDescription>
-            {departments.length} departamento{departments.length !== 1 ? 's' : ''} mapeado
-            {departments.length !== 1 ? 's' : ''}. Perfis escopados só aceitam departamentos
-            ativos deste catálogo.
+            {departments.length}{" "}{tx("departamento")}{departments.length !== 1 ? tx("s") : ''}{" "}{tx("mapeado")}
+            {departments.length !== 1 ? tx("s") : ''}{tx(". Perfis escopados só aceitam departamentos ativos deste catálogo.")}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -245,23 +235,23 @@ export default function DepartmentsSection({
                 >
                   <div className="flex flex-col gap-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium">{dept.name}</span>
-                      {!dept.active && <Badge variant="destructive">Inativo</Badge>}
+                      <span className="text-sm font-medium">{tx(dept.name)}</span>
+                      {!dept.active && <Badge variant="destructive">{tx("Inativo")}</Badge>}
                       {inUse > 0 && (
                         <Badge variant="outline">
-                          {inUse} usuário{inUse !== 1 ? 's' : ''}
+                          {inUse}{" "}{tx("usuário")}{inUse !== 1 ? tx("s") : ''}
                         </Badge>
                       )}
                     </div>
                     {dept.aliases?.length > 0 && (
                       <span className="text-xs text-muted-foreground truncate">
-                        Também aparece como: {dept.aliases.join(', ')}
+                        {tx("Também aparece como:")}{" "}{tx(dept.aliases.join(', '))}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-muted-foreground">
-                      {dept.active ? 'Ativo' : 'Inativo'}
+                      {dept.active ? tx("Ativo") : tx("Inativo")}
                     </span>
                     <Switch
                       checked={dept.active}
@@ -273,7 +263,7 @@ export default function DepartmentsSection({
             })}
             {departments.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
-                Nenhum departamento no catálogo.
+                {tx("Nenhum departamento no catálogo.")}
               </p>
             )}
           </div>

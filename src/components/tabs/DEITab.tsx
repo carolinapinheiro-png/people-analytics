@@ -27,6 +27,7 @@ import {
   BarChart3
 } from 'lucide-react';
 
+import { tx } from '@/lib/i18n';
 /**
  * Donut de gênero com o percentual NO CENTRO.
  *
@@ -61,14 +62,14 @@ function DonutGenero({ data, pct, legenda, corDestaque }: {
           <span className="text-2xl font-bold leading-none" style={{ color: corDestaque }}>
             {total > 0 ? `${pct}%` : '—'}
           </span>
-          <span className="text-[10px] text-muted-foreground mt-1 max-w-[90px] text-center leading-tight">{legenda}</span>
+          <span className="text-[10px] text-muted-foreground mt-1 max-w-[90px] text-center leading-tight">{tx(legenda)}</span>
         </div>
       </div>
       <div className="flex items-center justify-center gap-4 mt-2 text-xs">
         {data.map((d, i) => (
           <span key={d.name} className="flex items-center gap-1.5 text-muted-foreground">
             <span className="inline-block w-2.5 h-2.5 rounded-full" style={{ background: cores[i] }} />
-            {d.name}
+            {tx(d.name)}
             <span className="font-semibold text-foreground">{d.value}</span>
           </span>
         ))}
@@ -263,19 +264,16 @@ export default function DEITab() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex gap-5 flex-wrap text-xs text-muted-foreground">
-        <span>Ref: <strong className="text-foreground">{mLabel(currentMonth)}</strong></span>
+        <span>{tx("Ref:")}{" "}<strong className="text-foreground">{tx(mLabel(currentMonth))}</strong></span>
         {cut.active && cut.label && (
-          <span>Recorte: <strong className="text-foreground">{cut.label}</strong></span>
+          <span>{tx("Recorte:")}{" "}<strong className="text-foreground">{tx(cut.label)}</strong></span>
         )}
       </div>
       {/* Gráfico vazio sem uma frase ao lado se lê como "não temos ninguém" --
           e num painel de DEI essa leitura errada é especialmente cara. */}
       {cut.active && currentData?.race_cross == null && (
         <p className="text-[11px] rounded-md border border-amber-500/40 p-2 text-amber-600 dark:text-amber-500">
-          A composição de <strong>{cut.label}</strong> não foi calculada: ou este mês é anterior à
-          quebra, ou o recorte está combinado com um departamento — a série guarda quem é de cada
-          área e quem é de cada fatia, nunca o cruzamento dos dois. Os gráficos abaixo ficam vazios
-          por isso, e não por ausência de pessoas.
+          {tx("A composição de")}{" "}<strong>{tx(cut.label)}</strong>{" "}{tx("não foi calculada: ou este mês é anterior à quebra, ou o recorte está combinado com um departamento — a série guarda quem é de cada área e quem é de cada fatia, nunca o cruzamento dos dois. Os gráficos abaixo ficam vazios por isso, e não por ausência de pessoas.")}
         </p>
       )}
 
@@ -285,33 +283,29 @@ export default function DEITab() {
           teria como saber que só os 4 KPIs abaixo mudam. */}
       {sel && (
         <p className="text-[11px] text-muted-foreground">
-          Os 4 KPIs abaixo são de <strong className="text-foreground">{raceFilter}</strong>; gráficos de tendência seguem company-wide.
+          {tx("Os 4 KPIs abaixo são de")}{" "}<strong className="text-foreground">{tx(raceFilter)}</strong>{tx("; gráficos de tendência seguem company-wide.")}
         </p>
       )}
 
       {recorteAproximado ? (
-        <ChartCard title={`Gênero e liderança em ${filteredDeptKey}`}>
+        <ChartCard title={tx("Gênero e liderança em {0}", [filteredDeptKey])}>
           <p className="text-sm text-muted-foreground py-4 leading-relaxed">
             <strong className="text-foreground">
-              A série não guarda a quebra de gênero deste departamento nesta marca ou neste período.
+              {tx("A série não guarda a quebra de gênero deste departamento nesta marca ou neste período.")}
             </strong>{' '}
-            Os números de mulheres, liderança e cor/raça ficam de fora do recorte em vez de
-            aparecerem rateados — o rateio multiplicaria os totais da empresa pela fatia de
-            headcount da área, o que produz gente que não existe e some com gente que existe.
-            Escolha uma marca específica, ou volte o departamento para <em>Todos</em>, para ver os
-            números de verdade.
+            {tx("Os números de mulheres, liderança e cor/raça ficam de fora do recorte em vez de aparecerem rateados — o rateio multiplicaria os totais da empresa pela fatia de headcount da área, o que produz gente que não existe e some com gente que existe. Escolha uma marca específica, ou volte o departamento para")}{" "}<em>{tx("Todos")}</em>{tx(", para ver os números de verdade.")}
           </p>
         </ChartCard>
       ) : (
         <>
           {/* KPI Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {kpis.map(k => <KpiCard key={k.label} label={k.label} value={k.value} color={k.color} sub={k.sub} icon={k.label.includes('Líder') ? Award : Users} help={k.help} helpValue={k.helpValue} />)}
+            {kpis.map(k => <KpiCard key={k.label} label={tx(k.label)} value={k.value} color={k.color} sub={tx(k.sub)} icon={k.label.includes('Líder') ? Award : Users} help={k.help} helpValue={k.helpValue} />)}
           </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Evolução de mulheres (%)" subtitle="Geral vs Liderança">
+        <ChartCard title={tx("Evolução de mulheres (%)")} subtitle={tx("Geral vs Liderança")}>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={genderTrend}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -319,13 +313,13 @@ export default function DEITab() {
               <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} domain={[0, 60]} />
               <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Line type="monotone" dataKey="overall" name="Geral" stroke={COLORS.female} strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="lideranca" name="Liderança" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="overall" name={tx("Geral")} stroke={COLORS.female} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="lideranca" name={tx("Liderança")} stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Composição de Liderança" subtitle="Líderes por gênero ao longo do tempo">
+        <ChartCard title={tx("Composição de Liderança")} subtitle={tx("Líderes por gênero ao longo do tempo")}>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={leaderStack}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -333,20 +327,20 @@ export default function DEITab() {
               <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
               <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Bar dataKey="female" name="Mulheres" stackId="a" fill={COLORS.female} />
-              <Bar dataKey="male" name="Homens" stackId="a" fill="#42a5f5" />
+              <Bar dataKey="female" name={tx("Mulheres")} stackId="a" fill={COLORS.female} />
+              <Bar dataKey="male" name={tx("Homens")} stackId="a" fill="#42a5f5" />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ChartCard title="Gênero — Geral" subtitle={`${curr.gender_female || 0} / ${curr.headcount || 0}`}>
+        <ChartCard title={tx("Gênero — Geral")} subtitle={`${curr.gender_female || 0} / ${curr.headcount || 0}`}>
           <DonutGenero data={genderDonut} pct={curr.gender_female_pct || 0} legenda="feminino" corDestaque={COLORS.female} />
         </ChartCard>
 
-        <ChartCard title="Gênero — Liderança" subtitle={`${curr.leader_female || 0} / ${curr.leaders || 0}`}>
-          <DonutGenero data={leaderDonut} pct={curr.leader_female_pct || 0} legenda="líderes mulheres" corDestaque={COLORS.purple} />
+        <ChartCard title={tx("Gênero — Liderança")} subtitle={`${curr.leader_female || 0} / ${curr.leaders || 0}`}>
+          <DonutGenero data={leaderDonut} pct={curr.leader_female_pct || 0} legenda={tx("líderes mulheres")} corDestaque={COLORS.purple} />
         </ChartCard>
           </div>
         </>
@@ -354,7 +348,7 @@ export default function DEITab() {
 
       {/* Liderança feminina por área */}
       {leaderByArea.length > 0 && (
-        <ChartCard title="Liderança feminina por área" subtitle={`${mLabel(currentMonth)} · áreas com ≥2 líderes`}>
+        <ChartCard title={tx("Liderança feminina por área")} subtitle={tx("{0} · áreas com ≥2 líderes", [mLabel(currentMonth)])}>
           <ResponsiveContainer width="100%" height={Math.max(200, leaderByArea.length * 34)}>
             <BarChart data={leaderByArea} layout="vertical" margin={{ left: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -371,32 +365,28 @@ export default function DEITab() {
       )}
 
       {!hasRaceCross && (curr.headcount || 0) > 0 && (
-        <ChartCard title="Recorte por raça">
+        <ChartCard title={tx("Recorte por raça")}>
           <p className="text-sm text-muted-foreground py-4 leading-relaxed">
             <strong className="text-foreground">
-              {comRaca} de {curr.headcount} pessoas têm cor/raça preenchida neste recorte
-              ({Math.round(coberturaRaca * 100)}%).
+              {comRaca}{" "}{tx("de")}{" "}{curr.headcount}{" "}{tx("pessoas têm cor/raça preenchida neste recorte (")}{Math.round(coberturaRaca * 100)}%).
             </strong>{' '}
-            Abaixo de 90% a tabela não é publicada: ela divide cada grupo pelo total do quadro, e
-            com parte das pessoas sem a informação os percentuais mediriam o preenchimento do
-            cadastro, não a representatividade. O dado que existe está guardado — o que falta é
-            cobertura para publicá-lo.
+            {tx("Abaixo de 90% a tabela não é publicada: ela divide cada grupo pelo total do quadro, e com parte das pessoas sem a informação os percentuais mediriam o preenchimento do cadastro, não a representatividade. O dado que existe está guardado — o que falta é cobertura para publicá-lo.")}
           </p>
         </ChartCard>
       )}
 
       {/* Recorte por raça (DEI) */}
       {hasRaceCross && (
-        <ChartCard title="Recorte por raça" subtitle={`${mLabel(currentMonth)} · representatividade e liderança por cor/raça (dado sensível, só agregado)`}>
+        <ChartCard title={tx("Recorte por raça")} subtitle={tx("{0} · representatividade e liderança por cor/raça (dado sensível, só agregado)", [mLabel(currentMonth)])}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-xs text-muted-foreground">
                 <tr className="border-b border-border text-left">
-                  <th className="p-2">Cor / Raça</th>
-                  <th className="p-2 text-right">Pessoas</th>
-                  <th className="p-2 text-right">% do quadro</th>
-                  <th className="p-2 text-right">% mulheres</th>
-                  <th className="p-2 text-right">% em liderança</th>
+                  <th className="p-2">{tx("Cor / Raça")}</th>
+                  <th className="p-2 text-right">{tx("Pessoas")}</th>
+                  <th className="p-2 text-right">{tx("% do quadro")}</th>
+                  <th className="p-2 text-right">{tx("% mulheres")}</th>
+                  <th className="p-2 text-right">{tx("% em liderança")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -406,22 +396,21 @@ export default function DEITab() {
                     onClick={() => setRaceFilter(raceFilter === r.race ? 'Todas' : r.race)}
                     className={`border-b border-border/50 cursor-pointer hover:bg-muted/40 ${raceFilter === r.race ? 'bg-muted/60' : ''}`}
                   >
-                    <td className="p-2 font-medium">{r.race}</td>
+                    <td className="p-2 font-medium">{tx(r.race)}</td>
                     <td className="p-2 text-right tabular-nums">{r.total}</td>
                     {/* Uma casa decimal: com grupos pequenos, o inteiro escondia
                         o movimento -- 1 pessoa indígena aparecia como "0% do
                         quadro", e a linha inteira parecia parada mês a mês. */}
-                    <td className="p-2 text-right tabular-nums">{r.pctQuadro.toFixed(1)}%</td>
-                    <td className="p-2 text-right tabular-nums">{r.pctFemale.toFixed(1)}%</td>
-                    <td className="p-2 text-right tabular-nums font-semibold">{r.pctLead.toFixed(1)}%</td>
+                    <td className="p-2 text-right tabular-nums">{tx(r.pctQuadro.toFixed(1))}%</td>
+                    <td className="p-2 text-right tabular-nums">{tx(r.pctFemale.toFixed(1))}%</td>
+                    <td className="p-2 text-right tabular-nums font-semibold">{tx(r.pctLead.toFixed(1))}%</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <p className="text-[11px] text-muted-foreground mt-2">
-            "% em liderança" = share de cada grupo que está em posição de liderança. Diferenças grandes
-            entre grupos (ex.: Parda vs Branca) apontam onde a representatividade na liderança falta.
+            {tx("\"% em liderança\" = share de cada grupo que está em posição de liderança. Diferenças grandes entre grupos (ex.: Parda vs Branca) apontam onde a representatividade na liderança falta.")}
           </p>
         </ChartCard>
       )}
@@ -430,8 +419,8 @@ export default function DEITab() {
       {hasLevel && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <ChartCard
-            title="Pirâmide de senioridade"
-            subtitle={`${mLabel(currentMonth)} · ${levelKnown} com nível${levelNA ? ` · ${levelNA} sem nível` : ''}`}
+            title={tx("Pirâmide de senioridade")}
+            subtitle={tx("{0} · {1} com nível{2}", [mLabel(currentMonth), levelKnown, levelNA ? ` · ${levelNA} sem nível` : ''])}
           >
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={levelPyramid} layout="vertical" margin={{ left: 8 }}>
@@ -439,7 +428,7 @@ export default function DEITab() {
                 <XAxis type="number" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
                 <YAxis type="category" dataKey="level" tick={{ fill: 'var(--chart-tick)', fontSize: 10 }} width={32} />
                 <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
-                <Bar dataKey="n" name="Pessoas" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="n" name={tx("Pessoas")} radius={[0, 4, 4, 0]}>
                   {levelPyramid.map((r) => (
                     <Cell key={r.level} fill={LEVEL_COLORS[LEVELS.indexOf(r.level)] || COLORS.flutter} />
                   ))}
@@ -448,7 +437,7 @@ export default function DEITab() {
             </ResponsiveContainer>
           </ChartCard>
 
-          <ChartCard title="Senioridade no tempo" subtitle="Distribuição por nível a cada mês (valor da época)">
+          <ChartCard title={tx("Senioridade no tempo")} subtitle={tx("Distribuição por nível a cada mês (valor da época)")}>
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={levelStack}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -457,7 +446,7 @@ export default function DEITab() {
                 <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} />
                 <Legend wrapperStyle={{ fontSize: 9 }} />
                 {LEVELS.map((l, i) => (
-                  <Bar key={l} dataKey={l} name={l} stackId="lv" fill={LEVEL_COLORS[i]} />
+                  <Bar key={l} dataKey={l} name={tx(l)} stackId="lv" fill={LEVEL_COLORS[i]} />
                 ))}
               </BarChart>
             </ResponsiveContainer>
@@ -467,10 +456,7 @@ export default function DEITab() {
 
       {hasLevel && (
         <p className="text-xs text-muted-foreground -mt-2">
-          Nível e liderança são reconstruídos com o valor <strong>da época</strong>: ancorados no
-          quadro atual e recuados apenas por eventos datados (promoções e transições para
-          liderança no histórico). Premissa documentada: 1 nível por promoção. Exato no mês mais
-          recente.
+          {tx("Nível e liderança são reconstruídos com o valor")}{" "}<strong>{tx("da época")}</strong>{tx(": ancorados no quadro atual e recuados apenas por eventos datados (promoções e transições para liderança no histórico). Premissa documentada: 1 nível por promoção. Exato no mês mais recente.")}
         </p>
       )}
 
@@ -479,7 +465,7 @@ export default function DEITab() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2 text-foreground">
             <BarChart3 className="h-5 w-5" style={{ color: brandColor }} />
-            Análise DEI — {mLabel(currentMonth)}
+            {tx("Análise DEI —")}{" "}{tx(mLabel(currentMonth))}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -487,23 +473,23 @@ export default function DEITab() {
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Users className="h-4 w-4" />
-                Visão Geral
+                {tx("Visão Geral")}
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Mulheres %</span>
+                  <span className="text-muted-foreground">{tx("Mulheres %")}</span>
                   <span className="font-bold text-pink-400">{curr.gender_female_pct}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Homens %</span>
-                  <span className="font-bold text-blue-400">{(100 - (curr.gender_female_pct || 0)).toFixed(1)}%</span>
+                  <span className="text-muted-foreground">{tx("Homens %")}</span>
+                  <span className="font-bold text-blue-400">{tx((100 - (curr.gender_female_pct || 0)).toFixed(1))}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Total mulheres</span>
+                  <span className="text-muted-foreground">{tx("Total mulheres")}</span>
                   <span className="font-bold">{curr.gender_female || 0}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Total homens</span>
+                  <span className="text-muted-foreground">{tx("Total homens")}</span>
                   <span className="font-bold">{curr.gender_male || 0}</span>
                 </div>
               </div>
@@ -512,23 +498,23 @@ export default function DEITab() {
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Award className="h-4 w-4" />
-                Liderança
+                {tx("Liderança")}
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Mulheres na liderança</span>
+                  <span className="text-muted-foreground">{tx("Mulheres na liderança")}</span>
                   <span className="font-bold text-purple-400">{curr.leader_female_pct}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Líderes mulheres</span>
+                  <span className="text-muted-foreground">{tx("Líderes mulheres")}</span>
                   <span className="font-bold">{curr.leader_female || 0}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Líderes homens</span>
+                  <span className="text-muted-foreground">{tx("Líderes homens")}</span>
                   <span className="font-bold">{(curr.leaders || 0) - (curr.leader_female || 0)}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Total Líderes</span>
+                  <span className="text-muted-foreground">{tx("Total Líderes")}</span>
                   <span className="font-bold">{curr.leaders || 0}</span>
                 </div>
               </div>
@@ -537,22 +523,22 @@ export default function DEITab() {
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Target className="h-4 w-4" />
-                Evolução no período
+                {tx("Evolução no período")}
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Início do período</span>
-                  <span className="font-bold">{startFemalePct.toFixed(1)}%</span>
+                  <span className="text-muted-foreground">{tx("Início do período")}</span>
+                  <span className="font-bold">{tx(startFemalePct.toFixed(1))}%</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Crescimento</span>
+                  <span className="text-muted-foreground">{tx("Crescimento")}</span>
                   <span className={`font-bold ${progressGrowth >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {progressGrowth >= 0 ? '+' : ''}{progressGrowth.toFixed(1)}pp
+                    {progressGrowth >= 0 ? '+' : ''}{tx(progressGrowth.toFixed(1))}{tx("pp")}
                   </span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Tendência</span>
-                  <span className="font-bold">{fpDelta >= 0 ? 'Subindo' : 'Descendo'}</span>
+                  <span className="text-muted-foreground">{tx("Tendência")}</span>
+                  <span className="font-bold">{fpDelta >= 0 ? tx("Subindo") : tx("Descendo")}</span>
                 </div>
               </div>
             </div>
@@ -562,12 +548,12 @@ export default function DEITab() {
             <div className="flex items-start gap-3">
               <Users className="h-5 w-5 mt-0.5 flex-shrink-0" />
               <div>
-                <strong>Panorama:</strong>{' '}
-                A representação feminina no quadro é de {curr.gender_female_pct}%
-                {' '}({fpDelta >= 0 ? '+' : ''}{fpDelta.toFixed(1)}pp vs mês anterior). Na liderança,
-                {' '}{curr.leader_female_pct}% são mulheres
-                {' '}({lpDelta >= 0 ? '+' : ''}{lpDelta.toFixed(1)}pp vs mês anterior). Desde o início
-                {' '}do período, a proporção geral variou {progressGrowth >= 0 ? '+' : ''}{progressGrowth.toFixed(1)}pp.
+                <strong>{tx("Panorama:")}</strong>{' '}
+                {tx("A representação feminina no quadro é de")}{" "}{curr.gender_female_pct}%
+                {' '}({fpDelta >= 0 ? '+' : ''}{tx(fpDelta.toFixed(1))}{tx("pp vs mês anterior). Na liderança,")}
+                {' '}{curr.leader_female_pct}{tx("% são mulheres")}
+                {' '}({lpDelta >= 0 ? '+' : ''}{tx(lpDelta.toFixed(1))}{tx("pp vs mês anterior). Desde o início")}
+                {' '}{tx("do período, a proporção geral variou")}{" "}{progressGrowth >= 0 ? '+' : ''}{tx(progressGrowth.toFixed(1))}{tx("pp.")}
               </div>
             </div>
           </div>
@@ -575,20 +561,20 @@ export default function DEITab() {
           <div className="bg-muted/40 border border-border/40 rounded-lg p-4">
             <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
-              Pontos de atenção
+              {tx("Pontos de atenção")}
             </h3>
             <ul className="space-y-2 text-sm text-foreground">
               <li className="flex items-start gap-2">
                 <span className="font-bold">1.</span>
-                <span><strong>Representatividade geral:</strong> acompanhar a evolução mensal da proporção de mulheres no quadro e o ritmo de contratações.</span>
+                <span><strong>{tx("Representatividade geral:")}</strong>{" "}{tx("acompanhar a evolução mensal da proporção de mulheres no quadro e o ritmo de contratações.")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">2.</span>
-                <span><strong>Liderança feminina:</strong> desenvolver pipeline interno e revisar processos de promoção para equilibrar a representatividade em posições de comando.</span>
+                <span><strong>{tx("Liderança feminina:")}</strong>{" "}{tx("desenvolver pipeline interno e revisar processos de promoção para equilibrar a representatividade em posições de comando.")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">3.</span>
-                <span><strong>Retenção:</strong> monitorar a taxa de atrito por gênero para garantir que mulheres não saiam em proporção maior.</span>
+                <span><strong>{tx("Retenção:")}</strong>{" "}{tx("monitorar a taxa de atrito por gênero para garantir que mulheres não saiam em proporção maior.")}</span>
               </li>
             </ul>
           </div>

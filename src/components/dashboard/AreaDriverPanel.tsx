@@ -4,6 +4,7 @@ import type { DriverPorRecorte } from '@/lib/survey.functions';
 import { COLORS } from '@/lib/colors';
 import { fraseTrajetoria, type HistoricoDeArea } from '@/lib/analise-engajamento';
 
+import { tx } from '@/lib/i18n';
 /**
  * O perfil de drivers de uma área, aberto ao clicar nela.
  *
@@ -112,9 +113,7 @@ export default function AreaDriverPanel({
     return (
       <div className="mt-1 mb-2 rounded-md border border-dashed border-border px-3 py-2.5">
         <p className="text-[12px] text-muted-foreground leading-relaxed">
-          Esta onda foi carregada só no nível da empresa — as notas por pergunta
-          não foram quebradas por área. Não é que <strong>{area}</strong> não
-          tenha nada a mostrar: é que essa medição não existe nesta onda.
+          {tx("Esta onda foi carregada só no nível da empresa — as notas por pergunta não foram quebradas por área. Não é que")}{" "}<strong>{tx(area)}</strong>{" "}{tx("não tenha nada a mostrar: é que essa medição não existe nesta onda.")}
         </p>
       </div>
     );
@@ -124,9 +123,7 @@ export default function AreaDriverPanel({
     return (
       <div className="mt-1 mb-2 rounded-md border border-dashed border-border px-3 py-2.5">
         <p className="text-[12px] text-muted-foreground leading-relaxed">
-          Sem notas comparáveis para <strong>{area}</strong> nesta onda. Com menos
-          de {minimoExibicao} respostas num recorte, a nota não é exibida — o
-          número existe, mas identificaria quem respondeu.
+          {tx("Sem notas comparáveis para")}{" "}<strong>{tx(area)}</strong>{" "}{tx("nesta onda. Com menos de")}{" "}{minimoExibicao}{" "}{tx("respostas num recorte, a nota não é exibida — o número existe, mas identificaria quem respondeu.")}
         </p>
       </div>
     );
@@ -138,12 +135,12 @@ export default function AreaDriverPanel({
         className="tabular-nums text-[11px] font-semibold w-11 shrink-0 text-right"
         style={{ color: (l.gap ?? 0) < 0 ? COLORS.danger : COLORS.success }}
       >
-        {sinal(l.gap)}
+        {tx(sinal(l.gap))}
       </span>
       <span className="text-[12px] leading-snug min-w-0">
-        {l.question}
+        {tx(l.question)}
         <span className="text-muted-foreground">
-          {' '}· {fmt(l.favoravel)} aqui contra {fmt(l.favoravelEmpresa)} na empresa
+          {' '}· {tx(fmt(l.favoravel))}{" "}{tx("aqui contra")}{" "}{tx(fmt(l.favoravelEmpresa))}{" "}{tx("na empresa")}
         </span>
       </span>
     </div>
@@ -152,7 +149,7 @@ export default function AreaDriverPanel({
   return (
     <div className="mt-1 mb-2 rounded-md border border-border bg-secondary/30 px-3 py-2.5">
       <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
-        {area} · distância da empresa, em pontos de % que concorda
+        {tx(area)}{" "}{tx("· distância da empresa, em pontos de % que concorda")}
       </p>
 
       {/* A segunda régua: a área contra ela mesma. A lista abaixo compara com a
@@ -161,18 +158,18 @@ export default function AreaDriverPanel({
         <p className="mb-2 text-[12px] leading-relaxed">
           <strong>
             {historico.trajetoria === 'queda'
-              ? 'Vem caindo em todas as pesquisas.'
+              ? tx("Vem caindo em todas as pesquisas.")
               : historico.trajetoria === 'subida'
-                ? 'Vem subindo em todas as pesquisas.'
-                : fraseTrajetoria(historico.trajetoria, historico.valores)}
+                ? tx("Vem subindo em todas as pesquisas.")
+                : tx(fraseTrajetoria(historico.trajetoria, historico.valores))}
           </strong>{' '}
-          eNPS{' '}
-          {historico.valores
+          {tx("eNPS")}{' '}
+          {tx(historico.valores
             .map((v, i) => `${ondas[i] ?? ''} ${v == null ? '—' : Math.round(v)}`.trim())
-            .join(' → ')}
+            .join(' → '))}
           {historico.mediaAnterior != null && (
             <>
-              {' '}— está{' '}
+              {' '}{tx("— está")}{' '}
               <strong
                 style={{
                   color:
@@ -186,7 +183,7 @@ export default function AreaDriverPanel({
                 {historico.contraSuaMedia > 0 ? '+' : ''}
                 {historico.contraSuaMedia}
               </strong>{' '}
-              contra a média das ondas anteriores desta área ({historico.mediaAnterior}).
+              {tx("contra a média das ondas anteriores desta área (")}{historico.mediaAnterior}).
             </>
           )}
         </p>
@@ -199,7 +196,7 @@ export default function AreaDriverPanel({
       {abaixo.length > 0 ? (
         <>
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">
-            Onde está abaixo
+            {tx("Onde está abaixo")}
           </p>
           <div className="space-y-0.5">
             {abaixo.map((l) => <Linha key={l.question} l={l} />)}
@@ -208,14 +205,14 @@ export default function AreaDriverPanel({
       ) : (
         // Lista vazia aqui é achado, não ausência -- e some se não for dita.
         <p className="text-[12px] leading-relaxed" style={{ color: COLORS.success }}>
-          {area} não está abaixo da empresa em nenhuma das {total} perguntas comparáveis.
+          {tx(area)}{" "}{tx("não está abaixo da empresa em nenhuma das")}{" "}{total}{" "}{tx("perguntas comparáveis.")}
         </p>
       )}
 
       {acima.length > 0 && (
         <>
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground mt-2.5 mb-1.5">
-            Onde está acima
+            {tx("Onde está acima")}
           </p>
           <div className="space-y-0.5">
             {acima.map((l) => <Linha key={l.question} l={l} />)}
@@ -240,21 +237,18 @@ export default function AreaDriverPanel({
           consegue conferir -- e este painel já carregou várias dessas que
           envelheceram para mentira. */}
       <p className="text-[11px] text-muted-foreground mt-2.5 leading-relaxed">
-        {total} perguntas comparáveis. A ordem é pela <strong>distância</strong> até a empresa, e
-        não pela nota — e as duas listas seriam bem diferentes.
+        {total}{" "}{tx("perguntas comparáveis. A ordem é pela")}{" "}<strong>{tx("distância")}</strong>{" "}{tx("até a empresa, e não pela nota — e as duas listas seriam bem diferentes.")}
         {aderencia && aderencia.areas > 1 && (
           <>
             {' '}
-            Por nota, o topo seria quase o mesmo para todo mundo: em{' '}
+            {tx("Por nota, o topo seria quase o mesmo para todo mundo: em")}{' '}
             <strong>
-              {aderencia.seguemAEmpresa} das {aderencia.areas} áreas
+              {aderencia.seguemAEmpresa}{" "}{tx("das")}{" "}{aderencia.areas}{" "}{tx("áreas")}
             </strong>{' '}
-            desta onda, a pergunta de pior nota está entre as três piores da empresa inteira. Por
-            distância, o topo muda: são <strong>{aderencia.distanciasDistintas}</strong> perguntas
-            diferentes encabeçando as {aderencia.areas} áreas.
+            {tx("desta onda, a pergunta de pior nota está entre as três piores da empresa inteira. Por distância, o topo muda: são")}{" "}<strong>{aderencia.distanciasDistintas}</strong>{" "}{tx("perguntas diferentes encabeçando as")}{" "}{aderencia.areas}{" "}{tx("áreas.")}
           </>
         )}{' '}
-        É o afastamento que separa problema daqui de problema de todo mundo.
+        {tx("É o afastamento que separa problema daqui de problema de todo mundo.")}
       </p>
     </div>
   );

@@ -16,13 +16,14 @@ import EquidadeCompRatio from '@/components/dashboard/EquidadeCompRatio';
 import AvisoPeriodo from '@/components/dashboard/AvisoPeriodo';
 import { CARTAO_SEM_PERIODO } from '@/lib/periodo';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * CompRatio individual (587 ativos). Dado sensivel: vem da server function
  * listCompRatio, que registra cada consulta. Nenhuma linha no bundle.
  */
 
 const fmt1 = (n: number | null | undefined) =>
-  n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  n == null ? '—' : Number(n).toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 
 const QUARTILE_ORDER = ['Below Range', 'Q1', 'Q2', 'Q3', 'Q4', 'Above range'];
 const quartileColor = (q: string) =>
@@ -174,7 +175,7 @@ export default function CompRatioTab() {
     return base.slice(0, 100);
   }, [rows, query]);
 
-  if (error) return <p className="text-sm text-muted-foreground text-center py-24">Não foi possível carregar o CompRatio: {error}</p>;
+  if (error) return <p className="text-sm text-muted-foreground text-center py-24">{tx("Não foi possível carregar o CompRatio:")}{" "}{tx(error)}</p>;
   if (!rows || !stats) return <div className="flex items-center justify-center py-24"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" /></div>;
 
   const qMax = Math.max(...stats.byQuartile.map((b) => b.n), 1);
@@ -187,18 +188,18 @@ export default function CompRatioTab() {
 
       {avisoRecorte && (
         <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200">
-          {avisoRecorte}
+          {tx(avisoRecorte)}
         </p>
       )}
       <div>
         <h2 className="text-lg font-bold flex items-center gap-2">
           <Scale className="h-5 w-5 text-[hsl(var(--flutter))]" />
-          Comp Ratio
+          {tx("Comp Ratio")}
         </h2>
         <p className="text-sm text-muted-foreground flex items-center gap-1.5">
           <ShieldAlert className="h-3.5 w-3.5" />
-          Comp-ratio individual (sem salário nominal exposto) — cada consulta é registrada.{' '}
-          {stats.comFaixa} de {stats.total} pessoas com banda salarial.
+          {tx("Comp-ratio individual (sem salário nominal exposto) — cada consulta é registrada.")}{' '}
+          {stats.comFaixa}{" "}{tx("de")}{" "}{stats.total}{" "}{tx("pessoas com banda salarial.")}
         </p>
       </div>
 
@@ -216,34 +217,33 @@ export default function CompRatioTab() {
       {stats.semFaixa > 0 && (
         <div className="text-sm rounded-md border border-amber-500/40 p-3 space-y-1">
           <p className="text-amber-600 dark:text-amber-500">
-            {stats.semFaixa} de {stats.total} pessoas não têm comp-ratio. As médias, os quartis e os
-            percentuais abaixo são sobre as {stats.comFaixa} que têm — não sobre a empresa toda.
+            {stats.semFaixa}{" "}{tx("de")}{" "}{stats.total}{" "}{tx("pessoas não têm comp-ratio. As médias, os quartis e os percentuais abaixo são sobre as")}{" "}{stats.comFaixa}{" "}{tx("que têm — não sobre a empresa toda.")}
           </p>
           <ul className="text-muted-foreground text-xs space-y-0.5">
             {stats.motivos.map((m) => (
-              <li key={m.motivo}>{m.n} — {m.motivo}</li>
+              <li key={m.motivo}>{m.n} — {tx(m.motivo)}</li>
             ))}
           </ul>
         </div>
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <KpiCard label="Pessoas com banda" value={`${stats.comFaixa} de ${stats.total}`} color={COLORS.flutter} icon={DollarSign} />
-        <KpiCard label="Comp ratio mediano" value={`${fmt1(stats.median)}%`} color={COLORS.nsx} icon={Scale} help="compRatio" helpValue={stats.median} />
+        <KpiCard label={tx("Pessoas com banda")} value={`${stats.comFaixa} de ${stats.total}`} color={COLORS.flutter} icon={DollarSign} />
+        <KpiCard label={tx("Comp ratio mediano")} value={`${fmt1(stats.median)}%`} color={COLORS.nsx} icon={Scale} help="compRatio" helpValue={stats.median} />
         {/* Base = quem tem faixa. "Acima da faixa" não é definido para quem
             não tem faixa, e dividir pela população daria um percentual menor
             que o real, na direção tranquilizadora. */}
-        <KpiCard label="Acima da faixa" value={stats.comFaixa ? `${stats.above} (${fmt1((stats.above / stats.comFaixa) * 100)}%)` : '—'} color={COLORS.warning} icon={TrendingUp} help="acimaDaFaixa" />
-        <KpiCard label="Abaixo da faixa" value={stats.comFaixa ? `${stats.below} (${fmt1((stats.below / stats.comFaixa) * 100)}%)` : '—'} color={COLORS.danger} icon={TrendingDown} help="abaixoDaFaixa" />
+        <KpiCard label={tx("Acima da faixa")} value={stats.comFaixa ? `${stats.above} (${fmt1((stats.above / stats.comFaixa) * 100)}%)` : '—'} color={COLORS.warning} icon={TrendingUp} help="acimaDaFaixa" />
+        <KpiCard label={tx("Abaixo da faixa")} value={stats.comFaixa ? `${stats.below} (${fmt1((stats.below / stats.comFaixa) * 100)}%)` : '—'} color={COLORS.danger} icon={TrendingDown} help="abaixoDaFaixa" />
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
-        <ChartCard title="Distribuição por quartil da banda" icon={Scale}>
+        <ChartCard title={tx("Distribuição por quartil da banda")} icon={Scale}>
           <div className="space-y-2 pt-1">
             {stats.byQuartile.map((b) => (
               <div key={b.q} className="space-y-1">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">{b.q}</span>
+                  <span className="text-muted-foreground">{tx(b.q)}</span>
                   <span className="font-semibold tabular-nums">{b.n}</span>
                 </div>
                 <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -254,28 +254,28 @@ export default function CompRatioTab() {
           </div>
         </ChartCard>
 
-        <ChartCard title="Comp ratio médio por área" icon={TrendingUp}>
+        <ChartCard title={tx("Comp ratio médio por área")} icon={TrendingUp}>
           <div className="overflow-x-auto max-h-64 overflow-y-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-card">
                 <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                  <th className="p-2">Área</th>
+                  <th className="p-2">{tx("Área")}</th>
                   {/* "Pessoas" era ambíguo e agora seria falso: a média é
                       sobre quem tem banda, e a coluna ao lado diz quantos
                       ficaram fora dela nesta área. Uma área com 4 de 30 tem
                       média, e ela não representa a área. */}
-                  <th className="p-2 text-right">Com banda</th>
-                  <th className="p-2 text-right">Sem banda</th>
-                  <th className="p-2 text-right">Comp ratio médio</th>
+                  <th className="p-2 text-right">{tx("Com banda")}</th>
+                  <th className="p-2 text-right">{tx("Sem banda")}</th>
+                  <th className="p-2 text-right">{tx("Comp ratio médio")}</th>
                 </tr>
               </thead>
               <tbody>
                 {stats.areas.map((a) => (
                   <tr key={a.area} className="border-b border-border/50">
-                    <td className="p-2 font-medium">{a.area}</td>
+                    <td className="p-2 font-medium">{tx(a.area)}</td>
                     <td className="p-2 text-right tabular-nums">{a.n}</td>
                     <td className="p-2 text-right tabular-nums text-muted-foreground">{a.sem || '—'}</td>
-                    <td className="p-2 text-right tabular-nums font-semibold">{fmt1(a.avg)}%</td>
+                    <td className="p-2 text-right tabular-nums font-semibold">{tx(fmt1(a.avg))}%</td>
                   </tr>
                 ))}
               </tbody>
@@ -285,22 +285,22 @@ export default function CompRatioTab() {
       </div>
 
       {levelArea && (
-        <ChartCard title="Pessoas por nível e área" subtitle="Distribuição do quadro atual" icon={Scale}>
+        <ChartCard title={tx("Pessoas por nível e área")} subtitle={tx("Distribuição do quadro atual")} icon={Scale}>
           <div className="overflow-x-auto max-h-80 overflow-y-auto">
             <table className="w-full text-xs">
               <thead className="sticky top-0 bg-card">
                 <tr className="text-muted-foreground">
-                  <th className="p-2 text-left">Área</th>
+                  <th className="p-2 text-left">{tx("Área")}</th>
                   {levelArea.levels.map((l) => (
-                    <th key={l} className="p-2 text-center tabular-nums">{l}</th>
+                    <th key={l} className="p-2 text-center tabular-nums">{tx(l)}</th>
                   ))}
-                  <th className="p-2 text-right">Total</th>
+                  <th className="p-2 text-right">{tx("Total")}</th>
                 </tr>
               </thead>
               <tbody>
                 {levelArea.areas.map((ar) => (
                   <tr key={ar} className="border-t border-border/50">
-                    <td className="p-2 font-medium whitespace-nowrap">{ar}</td>
+                    <td className="p-2 font-medium whitespace-nowrap">{tx(ar)}</td>
                     {levelArea.levels.map((l) => {
                       const n = levelArea.areaMap[ar][l] ?? 0;
                       return (
@@ -327,9 +327,9 @@ export default function CompRatioTab() {
         </ChartCard>
       )}
 
-      <ChartCard title="Indivíduos" subtitle={`${rows.length} ativos · mostrando ${filtered.length}`} icon={DollarSign}>
+      <ChartCard title={tx("Indivíduos")} subtitle={tx("{0} ativos · mostrando {1}", [rows.length, filtered.length])} icon={DollarSign}>
         <Input
-          placeholder="Buscar por nome, área, nível ou cargo..."
+          placeholder={tx("Buscar por nome, área, nível ou cargo...")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="mb-3 max-w-sm"
@@ -338,25 +338,25 @@ export default function CompRatioTab() {
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-card">
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
-                <th className="p-2">Nome</th>
-                <th className="p-2">Nível</th>
-                <th className="p-2">Área</th>
-                <th className="p-2">Cargo</th>
-                <th className="p-2 text-right">Comp ratio</th>
-                <th className="p-2">Quartil</th>
+                <th className="p-2">{tx("Nome")}</th>
+                <th className="p-2">{tx("Nível")}</th>
+                <th className="p-2">{tx("Área")}</th>
+                <th className="p-2">{tx("Cargo")}</th>
+                <th className="p-2 text-right">{tx("Comp ratio")}</th>
+                <th className="p-2">{tx("Quartil")}</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((r) => (
                 <tr key={r.id} className="border-b border-border/50">
-                  <td className="p-2 font-medium whitespace-nowrap">{r.name}</td>
-                  <td className="p-2">{r.level}</td>
-                  <td className="p-2 text-xs">{r.area}</td>
-                  <td className="p-2 text-xs text-muted-foreground max-w-[220px] truncate">{r.job_title}</td>
-                  <td className="p-2 text-right tabular-nums font-semibold">{fmt1(r.comp_ratio)}%</td>
+                  <td className="p-2 font-medium whitespace-nowrap">{tx(r.name)}</td>
+                  <td className="p-2">{tx(r.level)}</td>
+                  <td className="p-2 text-xs">{tx(r.area)}</td>
+                  <td className="p-2 text-xs text-muted-foreground max-w-[220px] truncate">{tx(r.job_title)}</td>
+                  <td className="p-2 text-right tabular-nums font-semibold">{tx(fmt1(r.comp_ratio))}%</td>
                   <td className="p-2">
                     <Badge variant="outline" className="text-[10px]" style={{ borderColor: quartileColor(r.quartile ?? ''), color: quartileColor(r.quartile ?? '') }}>
-                      {r.quartile}
+                      {tx(r.quartile)}
                     </Badge>
                   </td>
                 </tr>

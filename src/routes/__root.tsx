@@ -7,7 +7,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { Fragment, useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -15,21 +15,22 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { Toaster } from "@/components/ui/sonner";
 import FaixaVerComo from "@/components/layout/FaixaVerComo";
 
+import { tx, useLocale, carregarLocaleSalvo } from '@/lib/i18n';
 function NotFoundComponent() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">{tx("Page not found")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
+          {tx("The page you're looking for doesn't exist or has been moved.")}
         </p>
         <div className="mt-6">
           <Link
             to="/"
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Go home
+            {tx("Go home")}
           </Link>
         </div>
       </div>
@@ -48,10 +49,10 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
+          {tx("This page didn't load")}
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
+          {tx("Something went wrong on our end. You can try refreshing or head back home.")}
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -61,13 +62,13 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
             }}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
-            Try again
+            {tx("Try again")}
           </button>
           <a
             href="/"
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Go home
+            {tx("Go home")}
           </a>
         </div>
       </div>
@@ -128,6 +129,9 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const locale = useLocale();
+  // O idioma salvo só entra depois da hidratação (ver lib/i18n.ts).
+  useEffect(() => { carregarLocaleSalvo(); }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -136,10 +140,17 @@ function RootComponent() {
             aparecer em QUALQUER tela, inclusive na de erro de acesso. E o
             unico aviso de que os numeros na tela sao os de outra pessoa, e o
             unico caminho de volta. */}
-        <FaixaVerComo />
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-        <Toaster />
+        {/* key={locale}: trocar o idioma remonta a árvore abaixo, e todo
+            texto passa de novo por tx(). É o preço de tx() ser função comum e
+            não hook -- os filtros do painel voltam ao padrão na troca, o que
+            para uma escolha feita uma vez por pessoa é aceitável. Sessão e
+            cache de consultas ficam acima e não são refeitos. */}
+        <Fragment key={locale}>
+          <FaixaVerComo />
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+          <Toaster />
+        </Fragment>
       </AuthProvider>
     </QueryClientProvider>
   );

@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import type { SurveyImportance, DriverPorRecorte } from '@/lib/survey.functions';
 import { perguntasNoRecorte } from '@/lib/drill';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Nota × associação com o eNPS, pergunta a pergunta.
  *
@@ -46,7 +47,7 @@ import { perguntasNoRecorte } from '@/lib/drill';
  * começa em zero merece aviso.
  */
 
-const fmt2 = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmt2 = (n: number) => n.toLocaleString(numLocale(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // Ordem escolhida para bater com a posição espacial dos quadrantes no
 // gráfico (topo-esquerda → topo-direita → baixo-esquerda → baixo-direita), e
@@ -196,12 +197,12 @@ export default function DriverImportance({
 
   return (
     <ChartCard
-      title="O que anda junto com o engajamento"
+      title={tx("O que anda junto com o engajamento")}
       ajuda="andaJuntoComEngajamento"
       subtitle={
         departamentoSelecionado
-          ? `${pontos.length} perguntas · ${escopo.assocDaEmpresa ? `nota de ${departamentoSelecionado} × associação da empresa` : `tudo de ${departamentoSelecionado}`}`
-          : `${rows.length} perguntas · ${nMin === nMax ? `n=${nMax}` : `n de ${nMin} a ${nMax}`} pessoas`
+          ? tx("{0} perguntas · {1}", [pontos.length, escopo.assocDaEmpresa ? `nota de ${departamentoSelecionado} × associação da empresa` : `tudo de ${departamentoSelecionado}`])
+          : tx("{0} perguntas · {1} pessoas", [rows.length, nMin === nMax ? `n=${nMax}` : `n de ${nMin} a ${nMax}`])
       }
       icon={Compass}
     >
@@ -213,26 +214,20 @@ export default function DriverImportance({
         <p className="mb-3 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed">
           {escopo.assocDaEmpresa ? (
             <>
-              <strong>Os dois eixos têm origens diferentes.</strong> A altura é o que{' '}
-              <strong>{departamentoSelecionado}</strong> respondeu. A posição horizontal é a
-              associação com o eNPS medida na <strong>empresa inteira</strong>, porque{' '}
-              {departamentoSelecionado} tem menos que as {N_MINIMO_CORRELACAO} respostas que uma
-              correlação precisa. Então o gráfico responde: entre as perguntas que movem
-              engajamento na Flutter Brazil, quais {departamentoSelecionado} responde pior.
+              <strong>{tx("Os dois eixos têm origens diferentes.")}</strong>{" "}{tx("A altura é o que")}{' '}
+              <strong>{tx(departamentoSelecionado)}</strong>{" "}{tx("respondeu. A posição horizontal é a associação com o eNPS medida na")}{" "}<strong>{tx("empresa inteira")}</strong>{tx(", porque")}{' '}
+              {tx(departamentoSelecionado)}{" "}{tx("tem menos que as")}{" "}{N_MINIMO_CORRELACAO}{" "}{tx("respostas que uma correlação precisa. Então o gráfico responde: entre as perguntas que movem engajamento na Flutter Brazil, quais")}{" "}{tx(departamentoSelecionado)}{" "}{tx("responde pior.")}
             </>
           ) : (
             <>
-              <strong>Os dois eixos são de {departamentoSelecionado}.</strong> A altura é o que a
-              área respondeu; a posição horizontal é a associação com o eNPS calculada{' '}
-              <strong>dentro dela</strong>. Então o gráfico responde: o que move engajamento nesta
-              área — que pode não ser o que move na empresa.
+              <strong>{tx("Os dois eixos são de")}{" "}{tx(departamentoSelecionado)}.</strong>{" "}{tx("A altura é o que a área respondeu; a posição horizontal é a associação com o eNPS calculada")}{' '}
+              <strong>{tx("dentro dela")}</strong>{tx(". Então o gráfico responde: o que move engajamento nesta área — que pode não ser o que move na empresa.")}
             </>
           )}
           {escopo.suprimidas > 0 && (
             <>
               {' '}
-              {escopo.suprimidas} pergunta{escopo.suprimidas === 1 ? '' : 's'} ficou de fora por ter a nota da área
-              suprimida (grupo pequeno demais).
+              {escopo.suprimidas}{" "}{tx("pergunta")}{escopo.suprimidas === 1 ? '' : tx("s")}{" "}{tx("ficou de fora por ter a nota da área suprimida (grupo pequeno demais).")}
             </>
           )}
         </p>
@@ -260,10 +255,10 @@ export default function DriverImportance({
               const q = QUADRANTES[p.quad];
               return (
                 <div className="rounded-md border border-border bg-popover p-2.5 text-xs shadow-md max-w-[280px]">
-                  <div className="font-medium mb-1 leading-snug">{p.question}</div>
-                  <div className="text-muted-foreground">{p.driver}</div>
+                  <div className="font-medium mb-1 leading-snug">{tx(p.question)}</div>
+                  <div className="text-muted-foreground">{tx(p.driver)}</div>
                   <div className="text-muted-foreground mt-1">
-                    {Math.round(p.y)}% concordam · nota {fmt2(p.nota)} · associação {fmt2(p.x)}
+                    {Math.round(p.y)}{tx("% concordam · nota")}{" "}{tx(fmt2(p.nota))}{" "}{tx("· associação")}{" "}{tx(fmt2(p.x))}
                   </div>
                   <div className="mt-1.5 pt-1.5 border-t border-border/60" style={{ color: q.color }}>
                     {q.label}
@@ -319,7 +314,7 @@ export default function DriverImportance({
                         <span className="tabular-nums text-muted-foreground shrink-0">
                           {Math.round(p.y)}%
                         </span>
-                        <span>{p.question}</span>
+                        <span>{tx(p.question)}</span>
                       </li>
                     ))}
                 </ul>
@@ -331,27 +326,18 @@ export default function DriverImportance({
 
       <div className="mt-3 space-y-1.5">
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          <strong>Como ler:</strong> cada ponto é uma pergunta. Quanto mais à direita, mais as
-          respostas dela acompanham o eNPS da mesma pessoa. Quanto mais acima, maior a parcela que
-          concorda (respondeu 4 ou 5). As linhas tracejadas são as medianas das {pontos.length}{' '}
-          perguntas. <strong>O número na bolha</strong> é a posição da pergunta na ordem de
-          associação: 1 é a que mais anda junto com o eNPS. Clique num quadrante abaixo para ver
-          quais perguntas caem nele, com o número ao lado.{' '}
+          <strong>{tx("Como ler:")}</strong>{" "}{tx("cada ponto é uma pergunta. Quanto mais à direita, mais as respostas dela acompanham o eNPS da mesma pessoa. Quanto mais acima, maior a parcela que concorda (respondeu 4 ou 5). As linhas tracejadas são as medianas das")}{" "}{pontos.length}{' '}
+          {tx("perguntas.")}{" "}<strong>{tx("O número na bolha")}</strong>{" "}{tx("é a posição da pergunta na ordem de associação: 1 é a que mais anda junto com o eNPS. Clique num quadrante abaixo para ver quais perguntas caem nele, com o número ao lado.")}{' '}
           {/* Esta frase chegou a ser condicional por meia hora, quando só este
               cartão tinha passado a usar a nota da área e "Por onde começar"
               continuava na da empresa. Voltou a ser incondicional porque a
               troca virou uma função só (`perguntasNoRecorte`) que os dois
               chamam -- com ou sem filtro, a promessa se sustenta. */}
-          É a <strong>mesma régua</strong> usada em &quot;O que mais pesa, pergunta a
-          pergunta&quot;, e sobre a <strong>mesma população</strong>: uma pergunta cai no mesmo
-          quadrante nos dois cartões, filtrado ou não.
+          {tx("É a")}{" "}<strong>{tx("mesma régua")}</strong>{" "}{tx("usada em \"O que mais pesa, pergunta a pergunta\", e sobre a")}{" "}<strong>{tx("mesma população")}</strong>{tx(": uma pergunta cai no mesmo quadrante nos dois cartões, filtrado ou não.")}
         </p>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          <strong>Isto não é relação de causa.</strong> Todas as respostas vêm da mesma pessoa no
-          mesmo momento, e quem está satisfeito tende a marcar alto em tudo. Serve para ordenar as
-          perguntas entre si — não para prometer que mexer numa delas levanta o eNPS. O eixo
-          horizontal também não começa em zero: as correlações estão todas entre {fmt2(Math.min(...rows.map((r) => r.r)))} e{' '}
-          {fmt2(Math.max(...rows.map((r) => r.r)))}, e o que interessa é a posição relativa.
+          <strong>{tx("Isto não é relação de causa.")}</strong>{" "}{tx("Todas as respostas vêm da mesma pessoa no mesmo momento, e quem está satisfeito tende a marcar alto em tudo. Serve para ordenar as perguntas entre si — não para prometer que mexer numa delas levanta o eNPS. O eixo horizontal também não começa em zero: as correlações estão todas entre")}{" "}{tx(fmt2(Math.min(...rows.map((r) => r.r))))}{" "}{tx("e")}{' '}
+          {tx(fmt2(Math.max(...rows.map((r) => r.r))))}{tx(", e o que interessa é a posição relativa.")}
         </p>
       </div>
     </ChartCard>

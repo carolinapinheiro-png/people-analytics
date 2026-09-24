@@ -29,6 +29,8 @@ import TalentMobilityBaseCard from '@/components/admin/TalentMobilityBaseCard';
 import WilLocationCard from '@/components/admin/WilLocationCard';
 import TalentMobilityCard from '@/components/admin/TalentMobilityCard';
 
+import { tx } from '@/lib/i18n';
+import SeletorIdioma from '@/components/layout/SeletorIdioma';
 interface UserPaginationState {
   items: AllowedEmail[];
   count: number;
@@ -117,7 +119,7 @@ export default function AdminPage() {
         setPage(data.totalPages);
       }
     } catch (error) {
-      toast.error('Erro ao carregar emails autorizados');
+      toast.error(tx("Erro ao carregar emails autorizados"));
       console.error(error);
     }
   }, [getAllowedEmailsFn, search, page, limit, profileFilter, deptFilter]);
@@ -127,7 +129,7 @@ export default function AdminPage() {
       const data = await getDepartmentsFn();
       setDepartments(data as DepartmentOption[]);
     } catch (error) {
-      toast.error('Erro ao carregar catálogo de departamentos');
+      toast.error(tx("Erro ao carregar catálogo de departamentos"));
       console.error(error);
     }
   }, [getDepartmentsFn]);
@@ -137,7 +139,7 @@ export default function AdminPage() {
       const data = await getAccessLogsFn();
       setLogs(data as AccessLog[]);
     } catch (error) {
-      toast.error('Erro ao carregar logs');
+      toast.error(tx("Erro ao carregar logs"));
       console.error(error);
     }
   }, [getAccessLogsFn]);
@@ -181,41 +183,44 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-3xl mx-auto space-y-6">
+        <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Shield className="h-6 w-6" />
-            Gerenciar Acesso
+            {tx("Gerenciar Acesso")}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Administração de usuários, departamentos, auditoria e dados da plataforma.
+            {tx("Administração de usuários, departamentos, auditoria e dados da plataforma.")}
           </p>
           <Link
             to="/dashboard"
             className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mt-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            Voltar ao dashboard
+            {tx("Voltar ao dashboard")}
           </Link>
+        </div>
+        <SeletorIdioma />
         </div>
 
         <Tabs value={aba} onValueChange={setAba} className="space-y-6">
           <TabsList className="h-auto flex-wrap">
             <TabsTrigger value="access" className="gap-2">
               <Users className="h-4 w-4" />
-              Usuários
+              {tx("Usuários")}
             </TabsTrigger>
             <TabsTrigger value="departments" className="gap-2">
               <Building2 className="h-4 w-4" />
-              Departamentos
+              {tx("Departamentos")}
             </TabsTrigger>
             <TabsTrigger value="audit" className="gap-2">
               <ScrollText className="h-4 w-4" />
-              Auditoria
+              {tx("Auditoria")}
             </TabsTrigger>
             {isAdmin && (
               <TabsTrigger value="data" className="gap-2">
                 <Database className="h-4 w-4" />
-                Dados
+                {tx("Dados")}
               </TabsTrigger>
             )}
           </TabsList>
@@ -281,15 +286,15 @@ export default function AdminPage() {
                 <TabsList className="h-auto flex-wrap">
                   <TabsTrigger value="integracoes" className="gap-2">
                     <Plug className="h-4 w-4" />
-                    Integrações
+                    {tx("Integrações")}
                   </TabsTrigger>
                   <TabsTrigger value="convenia" className="gap-2">
                     <KeyRound className="h-4 w-4" />
-                    Convenia
+                    {tx("Convenia")}
                   </TabsTrigger>
                   <TabsTrigger value="reports" className="gap-2">
                     <FileSpreadsheet className="h-4 w-4" />
-                    Reports
+                    {tx("Reports")}
                   </TabsTrigger>
                 </TabsList>
 
@@ -324,9 +329,7 @@ export default function AdminPage() {
 
                 <TabsContent value="reports" className="space-y-6 mt-0">
                   <p className="text-sm text-muted-foreground">
-                    As bases que saem daqui para outras áreas — prontas para colar, no formato
-                    que quem recebe já usa. O dashboard responde perguntas; estes arquivos
-                    alimentam planilhas que não são nossas.
+                    {tx("As bases que saem daqui para outras áreas — prontas para colar, no formato que quem recebe já usa. O dashboard responde perguntas; estes arquivos alimentam planilhas que não são nossas.")}
                   </p>
                   <ControladoriaCard />
                   <TalentMobilityBaseCard />

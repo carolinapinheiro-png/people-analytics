@@ -1,3 +1,4 @@
+import { tx } from '@/lib/i18n';
 /**
  * Liga cada linha de remuneração à sua camada N no organograma.
  *
@@ -130,9 +131,9 @@ export function vincular(
 export function resumir(r: ResultadoVinculo, total: number): string {
   if (total === 0) return 'Nenhuma linha de remuneração para vincular.';
   const pct = Math.round((r.casados.length / total) * 100);
-  const partes = [`${r.casados.length} de ${total} linhas casaram (${pct}%)`];
-  if (r.semCorrespondencia.length) partes.push(`${r.semCorrespondencia.length} sem correspondência no Convenia`);
-  if (r.ambiguos.length) partes.push(`${r.ambiguos.length} com nome repetido — recusadas de propósito`);
-  if (r.semCamadaNaOrigem.length) partes.push(`${r.semCamadaNaOrigem.length} sem camada no organograma`);
+  const partes = [tx('{0} de {1} linhas casaram ({2}%)', [r.casados.length, total, pct])];
+  if (r.semCorrespondencia.length) partes.push(tx('{0} sem correspondência no Convenia', [r.semCorrespondencia.length]));
+  if (r.ambiguos.length) partes.push(tx('{0} com nome repetido — recusadas de propósito', [r.ambiguos.length]));
+  if (r.semCamadaNaOrigem.length) partes.push(tx('{0} sem camada no organograma', [r.semCamadaNaOrigem.length]));
   return partes.join(' · ');
 }

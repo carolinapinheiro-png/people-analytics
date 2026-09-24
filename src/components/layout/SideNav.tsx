@@ -12,6 +12,7 @@ import { visibleTabs, visibleExperienceSubTabs } from '@/lib/permissions';
 import { GROUPS, type NavItem } from './nav-config';
 import { readNavState, writeNavState } from '@/lib/nav-state';
 
+import { tx } from '@/lib/i18n';
 export default function SideNav() {
   const { activeTab, setActiveTab, activeSubTab, setActiveSubTab } = useDashboard();
   const { profile, extraTabs, tabs, subTabs, podeVerIndividual, loading } = useAuth();
@@ -98,13 +99,13 @@ export default function SideNav() {
       <div className="flex items-center justify-between px-3 py-3">
         {!collapsed && (
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Índice
+            {tx("Índice")}
           </span>
         )}
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
-          aria-label={collapsed ? 'Expandir índice' : 'Recolher índice'}
+          aria-label={collapsed ? tx("Expandir índice") : tx("Recolher índice")}
           className="ml-auto rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
@@ -116,7 +117,7 @@ export default function SideNav() {
           <div key={group.title} className="mb-4">
             {!collapsed && (
               <p className="px-4 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-primary">
-                {group.title}
+                {tx(group.title)}
               </p>
             )}
             <ul className="space-y-0.5 px-2">
@@ -134,7 +135,7 @@ export default function SideNav() {
                           setActiveTab(item.id);
                           if (item.subs) setOpen((o) => ({ ...o, [item.id]: true }));
                         }}
-                        title={collapsed ? item.label : undefined}
+                        title={collapsed ? tx(item.label) : undefined}
                         aria-current={active ? 'page' : undefined}
                         className={cn(
                           'flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-medium transition-colors',
@@ -145,7 +146,7 @@ export default function SideNav() {
                         )}
                       >
                         <Icon className="h-4 w-4 shrink-0" />
-                        {!collapsed && <span className="truncate">{item.label}</span>}
+                        {!collapsed && <span className="truncate">{tx(item.label)}</span>}
                       </button>
                       {!collapsed && item.subs && (
                         <button
@@ -155,8 +156,8 @@ export default function SideNav() {
                           }
                           aria-label={
                             expanded
-                              ? `Recolher sub-abas de ${item.label}`
-                              : `Expandir sub-abas de ${item.label}`
+                              ? tx("Recolher sub-abas de {0}", [item.label])
+                              : tx("Expandir sub-abas de {0}", [item.label])
                           }
                           aria-expanded={expanded}
                           className="ml-0.5 rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -190,7 +191,7 @@ export default function SideNav() {
                                     : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground',
                                 )}
                               >
-                                <span className="block truncate">{sub.label}</span>
+                                <span className="block truncate">{tx(sub.label)}</span>
                               </button>
                             </li>
                           );

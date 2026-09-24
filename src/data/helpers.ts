@@ -1,5 +1,6 @@
 import type { MonthRecord, DeptData, DeptBreakdownRecord } from './raw-data';
 
+import { mesesCurtos, numLocale } from '@/lib/i18n';
 export function getMonthsOrder(data: MonthRecord[]): string[] {
   return [...new Set(data.map(d => d.month))].sort();
 }
@@ -477,13 +478,13 @@ export function mLabel(m: string): string {
   }
   // Monthly format (e.g., "2025-01")
   const [y, mo] = m.split('-');
-  const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const months = mesesCurtos(true);
   return months[parseInt(mo) - 1] + ' ' + y;
 }
 
 export function fmt(n: number | null | undefined, d = 0): string {
   if (n === null || n === undefined || isNaN(n)) return '—';
-  return Number(n).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
+  return Number(n).toLocaleString(numLocale(), { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
 export function fmtC(n: number): string {

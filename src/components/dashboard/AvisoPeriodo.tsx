@@ -1,5 +1,6 @@
 import { CalendarOff } from 'lucide-react';
 
+import { tx } from '@/lib/i18n';
 /**
  * A frase que diz, em tela, que o filtro de mês/trimestre/ano NÃO recorta
  * aquele dado -- porque a base não guarda histórico dele (ver
@@ -17,7 +18,7 @@ export default function AvisoPeriodo({ motivo, className = '' }: { motivo: strin
     >
       <CalendarOff className="h-4 w-4 shrink-0 mt-0.5" />
       <span>
-        <strong>Foto do presente.</strong> {motivo}
+        <strong>{tx("Foto do presente.")}</strong> {tx(motivo)}
       </span>
     </div>
   );

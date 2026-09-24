@@ -8,6 +8,7 @@ import type { SurveyCut, SurveyImportance, DriverPorRecorte } from '@/lib/survey
 import { perguntasNoRecorte } from '@/lib/drill';
 import { ehCruzamento, rotuloDeCorte } from '@/lib/aggregator/polly-survey';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * A leitura da onda, em quatro frases, calculada dos próprios números.
  *
@@ -44,7 +45,7 @@ interface Linha {
 }
 
 const fmt1 = (n: number | null | undefined) =>
-  n == null ? '—' : Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  n == null ? '—' : Number(n).toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 
 export default function EngagementReading({
   enpsEmpresa,
@@ -101,13 +102,13 @@ export default function EngagementReading({
         cor: COLORS.flutter,
         texto: (
           <>
-            eNPS <strong>{enpsEmpresa}</strong>
-            {departamento ? ` em ${departamento}` : ''}, patamar {qualidade}
-            {respondentes ? `, com ${respondentes} respostas` : ''}
-            {participacao ? ` (${fmt1(participacao)}% dos elegíveis)` : ''}.{' '}
+            {tx("eNPS")}{" "}<strong>{enpsEmpresa}</strong>
+            {departamento ? tx(" em {0}", [departamento]) : ''}{tx(", patamar")}{" "}{qualidade}
+            {respondentes ? tx(", com {0} respostas", [respondentes]) : ''}
+            {participacao ? tx(" ({0}% dos elegíveis)", [fmt1(participacao)]) : ''}.{' '}
             {departamento
-              ? 'A leitura abaixo compara esta área com o resto da casa.'
-              : 'A média esconde diferença grande entre áreas — é onde a conversa começa.'}
+              ? tx("A leitura abaixo compara esta área com o resto da casa.")
+              : tx("A média esconde diferença grande entre áreas — é onde a conversa começa.")}
           </>
         ),
       });
@@ -124,14 +125,11 @@ export default function EngagementReading({
         cor: caiu.length > subiu.length ? COLORS.warning : COLORS.success,
         texto: maioria ? (
           <>
-            <strong>{caiu.length} de {comPrev.length} áreas caíram</strong> desde a onda anterior.
-            Quando quase todas se movem para o mesmo lado, a causa costuma ser da empresa, não de
-            cada gestor — vale procurar o que mudou no período antes de cobrar área por área.
+            <strong>{caiu.length}{" "}{tx("de")}{" "}{comPrev.length}{" "}{tx("áreas caíram")}</strong>{" "}{tx("desde a onda anterior. Quando quase todas se movem para o mesmo lado, a causa costuma ser da empresa, não de cada gestor — vale procurar o que mudou no período antes de cobrar área por área.")}
           </>
         ) : (
           <>
-            {caiu.length} áreas caíram e {subiu.length} subiram desde a onda anterior. Movimento
-            misto: aqui a explicação tende a ser local, de cada área.
+            {caiu.length}{" "}{tx("áreas caíram e")}{" "}{subiu.length}{" "}{tx("subiram desde a onda anterior. Movimento misto: aqui a explicação tende a ser local, de cada área.")}
           </>
         ),
       });
@@ -150,10 +148,8 @@ export default function EngagementReading({
         cor: COLORS.danger,
         texto: (
           <>
-            <strong>{alvo.scope}</strong> junta as duas coisas: engajamento abaixo do grupo
-            (eNPS {alvo.enps}) e risco de saída acima ({fmt1(alvo.risco)}%)
-            {criticas.length > 1 && `, junto com ${criticas.slice(1).map((c) => c.scope).join(' e ')}`}.
-            É a combinação que mais costuma virar saída nos meses seguintes.
+            <strong>{tx(alvo.scope)}</strong>{" "}{tx("junta as duas coisas: engajamento abaixo do grupo (eNPS")}{" "}{alvo.enps}{tx(") e risco de saída acima (")}{tx(fmt1(alvo.risco))}%)
+            {criticas.length > 1 && tx(", junto com {0}", [criticas.slice(1).map((c) => c.scope).join(' e ')])}{tx(". É a combinação que mais costuma virar saída nos meses seguintes.")}
           </>
         ),
       });
@@ -182,13 +178,11 @@ export default function EngagementReading({
                   -- `survey_driver_importance` não tem coluna de recorte. Com
                   filtro ligado, a frase precisa dizer isso, senão se lê como se
                   fossem as perguntas daquela área. */}
-              Das {prioridade.length} perguntas que {departamento ?? 'a empresa'} responde com
-              menor concordância entre as que mais acompanham o engajamento,{' '}
-              <strong>{quantas} são de {tema.toLowerCase()}</strong>. É onde o mesmo esforço tende
-              a render mais.
+              {tx("Das")}{" "}{prioridade.length}{" "}{tx("perguntas que")}{" "}{tx(departamento) ?? tx("a empresa")}{" "}{tx("responde com menor concordância entre as que mais acompanham o engajamento,")}{' '}
+              <strong>{quantas}{" "}{tx("são de")}{" "}{tx(tema.toLowerCase())}</strong>{tx(". É onde o mesmo esforço tende a render mais.")}
               {departamento
-                ? ' A ordem vem da associação medida na empresa inteira — não existe versão dela por área.'
-                : ' Mais que remuneração, que tem as piores notas mas acompanha menos.'}
+                ? tx(" A ordem vem da associação medida na empresa inteira — não existe versão dela por área.")
+                : tx(" Mais que remuneração, que tem as piores notas mas acompanha menos.")}
             </>
           ),
         });
@@ -217,9 +211,9 @@ export default function EngagementReading({
           cor: COLORS.info,
           texto: (
             <>
-              <strong>{nome}{rotuloDeCorte(pior.cutValue)}</strong> tem eNPS {pior.enps},{' '}
-              {(empresa.enps as number) - (pior.enps as number)} pontos abaixo da empresa, e são{' '}
-              {pior.n} pessoas. Recorte que não aparece na leitura por área
+              <strong>{tx(nome)}{tx(rotuloDeCorte(pior.cutValue))}</strong>{" "}{tx("tem eNPS")}{" "}{pior.enps},{' '}
+              {(empresa.enps as number) - (pior.enps as number)}{" "}{tx("pontos abaixo da empresa, e são")}{' '}
+              {pior.n}{" "}{tx("pessoas. Recorte que não aparece na leitura por área")}
               {departamento && ' — e que corta a empresa inteira, não só ' + departamento}.
             </>
           ),
@@ -242,14 +236,14 @@ export default function EngagementReading({
       }}
     >
       <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground mb-4">
-        A leitura desta onda
+        {tx("A leitura desta onda")}
       </p>
       <div className="space-y-4">
         {linhas.map((l) => (
           <div key={l.rotulo} className="flex gap-3.5">
             <div className="w-[3px] rounded-full shrink-0" style={{ background: l.cor }} />
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: l.cor }}>{l.rotulo}</p>
+              <p className="text-[11px] uppercase tracking-wider font-medium" style={{ color: l.cor }}>{tx(l.rotulo)}</p>
               <p className="text-sm leading-relaxed mt-0.5">{l.texto}</p>
             </div>
           </div>
@@ -257,7 +251,7 @@ export default function EngagementReading({
       </div>
       <p className="text-xs text-muted-foreground mt-4 pt-3 border-t border-border/50 flex items-center gap-1.5">
         <ArrowRight className="h-3 w-3 shrink-0" />
-        Cada frase acima sai dos gráficos abaixo, e muda sozinha quando o dado mudar.
+        {tx("Cada frase acima sai dos gráficos abaixo, e muda sozinha quando o dado mudar.")}
       </p>
     </div>
   );

@@ -4,6 +4,7 @@ import { FileSpreadsheet, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { baseControladoria } from '@/lib/controladoria.functions';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * A BASE DO REPORT DA CONTROLADORIA
  *
@@ -37,7 +38,7 @@ export function ControladoriaCard() {
     d.setDate(1);
     d.setMonth(d.getMonth() - 1 - i);
     const valor = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    return { valor, rotulo: d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) };
+    return { valor, rotulo: d.toLocaleDateString(numLocale(), { month: 'long', year: 'numeric' }) };
   });
 
   const gerarBase = async () => {
@@ -75,17 +76,12 @@ export function ControladoriaCard() {
       <div className="flex items-start gap-3">
         <FileSpreadsheet className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="flex-1">
-          <h3 className="text-base font-semibold">Base do report da Controladoria</h3>
+          <h3 className="text-base font-semibold">{tx("Base do report da Controladoria")}</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            As 17 colunas da aba <code>dados</code>, na ordem em que ela está — pronto para
-            colar. A coluna <strong>Company</strong> sai vazia para quem ainda não
-            tem o campo <code>Empresa</code> no Convenia: vazio é visível, empresa errada não é,
-            e a planilha é cortada por empresa.
+            {tx("As 17 colunas da aba")}{" "}<code>dados</code>{tx(", na ordem em que ela está — pronto para colar. A coluna")}{" "}<strong>{tx("Company")}</strong>{" "}{tx("sai vazia para quem ainda não tem o campo")}{" "}<code>Empresa</code>{" "}{tx("no Convenia: vazio é visível, empresa errada não é, e a planilha é cortada por empresa.")}
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
-            Meses anteriores são reconstruídos do cadastro de hoje: quem entrou depois fica de
-            fora, mas quem já saiu não volta. O resumo diz quantas pessoas faltam — quanto mais
-            antigo o mês, maior o número.
+            {tx("Meses anteriores são reconstruídos do cadastro de hoje: quem entrou depois fica de fora, mas quem já saiu não volta. O resumo diz quantas pessoas faltam — quanto mais antigo o mês, maior o número.")}
           </p>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -96,17 +92,17 @@ export function ControladoriaCard() {
               disabled={baixando}
             >
               {meses.map((m) => (
-                <option key={m.valor} value={m.valor}>{m.rotulo}</option>
+                <option key={m.valor} value={m.valor}>{tx(m.rotulo)}</option>
               ))}
             </select>
             <Button onClick={gerarBase} disabled={baixando} variant="outline">
               <RefreshCw className={`mr-2 h-4 w-4 ${baixando ? 'animate-spin' : ''}`} />
-              {baixando ? 'Montando…' : 'Baixar base'}
+              {baixando ? tx("Montando…") : tx("Baixar base")}
             </Button>
           </div>
 
           {resumoBase && (
-            <p className="mt-3 text-xs leading-relaxed">{resumoBase}</p>
+            <p className="mt-3 text-xs leading-relaxed">{tx(resumoBase)}</p>
           )}
         </div>
       </div>

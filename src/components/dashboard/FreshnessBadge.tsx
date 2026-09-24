@@ -3,6 +3,7 @@ import { useServerFn } from '@tanstack/react-start';
 import { Clock, AlertTriangle } from 'lucide-react';
 import { getDataFreshness, type DatasetFreshness } from '@/lib/freshness.functions';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Selo de idade do dado, para colar no topo de uma aba.
  *
@@ -54,15 +55,15 @@ export default function FreshnessBadge({ dataset }: { dataset: string }) {
           : 'bg-muted text-muted-foreground')
       }
       title={
-        (info.updatedAt ? `Última carga: ${new Date(info.updatedAt).toLocaleString('pt-BR')}. ` : '') +
+        (info.updatedAt ? `Última carga: ${new Date(info.updatedAt).toLocaleString(numLocale())}. ` : '') +
         `Fonte: ${info.source}.` +
         (info.note ? ` ${info.note}` : '')
       }
     >
       {info.stale ? <AlertTriangle className="h-3 w-3 shrink-0" /> : <Clock className="h-3 w-3 shrink-0" />}
-      {ageLabel(info.ageDays)}
+      {tx(ageLabel(info.ageDays))}
       {info.stale && info.ageDays != null && (
-        <span className="opacity-80">· esperado a cada {info.expectedDays}d</span>
+        <span className="opacity-80">{tx("· esperado a cada")}{" "}{info.expectedDays}{tx("d")}</span>
       )}
     </span>
   );

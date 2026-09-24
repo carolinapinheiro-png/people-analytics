@@ -22,6 +22,8 @@ import { toast } from 'sonner';
 import { Lock, Mail, LogIn, KeyRound } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
+import { tx } from '@/lib/i18n';
+import SeletorIdioma from '@/components/layout/SeletorIdioma';
 const INVALID_CREDENTIALS_MESSAGE = 'Email ou senha inválidos.';
 
 /**
@@ -58,10 +60,10 @@ const ForgotPasswordDialog = () => {
     });
 
     if (error) {
-      toast.error('Erro ao enviar email de recuperação');
+      toast.error(tx("Erro ao enviar email de recuperação"));
       console.error(error);
     } else {
-      toast.success('Email de recuperação enviado. Verifique sua caixa de entrada.');
+      toast.success(tx("Email de recuperação enviado. Verifique sua caixa de entrada."));
       setEmail('');
       setOpen(false);
     }
@@ -75,22 +77,22 @@ const ForgotPasswordDialog = () => {
           type="button"
           className="text-sm text-primary hover:underline underline-offset-4"
         >
-          Esqueci minha senha
+          {tx("Esqueci minha senha")}
         </button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <KeyRound className="h-5 w-5" />
-            Recuperar senha
+            {tx("Recuperar senha")}
           </DialogTitle>
           <DialogDescription>
-            Digite seu email autorizado. Você receberá um link para criar uma nova senha.
+            {tx("Digite seu email autorizado. Você receberá um link para criar uma nova senha.")}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 mt-2">
           <div className="space-y-2">
-            <Label htmlFor="reset-email">Email</Label>
+            <Label htmlFor="reset-email">{tx("Email")}</Label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -107,7 +109,7 @@ const ForgotPasswordDialog = () => {
             </div>
           </div>
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? 'Enviando...' : 'Enviar link de recuperação'}
+            {isLoading ? tx("Enviando...") : tx("Enviar link de recuperação")}
           </Button>
         </form>
       </DialogContent>
@@ -149,7 +151,7 @@ export default function LoginPage() {
     const denied = window.sessionStorage.getItem(ACCESS_DENIED_STORAGE_KEY);
     if (denied) {
       setAccessError(denied);
-      toast.error(denied);
+      toast.error(tx(denied));
       window.sessionStorage.removeItem(ACCESS_DENIED_STORAGE_KEY);
     }
   }, []);
@@ -160,13 +162,13 @@ export default function LoginPage() {
     setAccessError(null);
     try {
       await signIn(email, password);
-      toast.success('Login realizado com sucesso');
+      toast.success(tx("Login realizado com sucesso"));
       goAfterSignIn();
     } catch (error) {
       console.error('Login error details:', error);
       const message = describeLoginError(error);
       setAccessError(message);
-      toast.error(message);
+      toast.error(tx(message));
     } finally {
       setIsLoading(false);
     }
@@ -186,7 +188,7 @@ export default function LoginPage() {
       console.error('Google sign-in error:', error);
       const message = describeLoginError(error);
       setAccessError(message);
-      toast.error(message);
+      toast.error(tx(message));
       setIsGoogleLoading(false);
     }
   };
@@ -200,25 +202,26 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="relative min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="absolute top-4 right-4"><SeletorIdioma /></div>
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="w-12 h-12 rounded-xl mx-auto mb-4 flex items-center justify-center text-lg font-extrabold text-white"
             style={{ background: 'linear-gradient(to right bottom, rgb(92, 107, 192), rgb(38, 166, 154))' }}>
-            F
+            {tx("F")}
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Flutter Brazil · People Analytics</h1>
-          <p className="text-sm text-muted-foreground mt-1">Acesso restrito a usuários autorizados</p>
+          <h1 className="text-2xl font-bold tracking-tight">{tx("Flutter Brazil · People Analytics")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{tx("Acesso restrito a usuários autorizados")}</p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <LogIn className="h-5 w-5" />
-              Entrar
+              {tx("Entrar")}
             </CardTitle>
             <CardDescription>
-              Use seu email corporativo autorizado.
+              {tx("Use seu email corporativo autorizado.")}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -228,12 +231,12 @@ export default function LoginPage() {
                 aria-live="polite"
                 className="mb-4 p-3 rounded-lg border border-red-500/30 bg-red-950/40 text-red-200 text-sm"
               >
-                {accessError}
+                {tx(accessError)}
               </div>
             )}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">{tx("Email")}</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -251,7 +254,7 @@ export default function LoginPage() {
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Senha</Label>
+                  <Label htmlFor="password">{tx("Senha")}</Label>
                   <ForgotPasswordDialog />
                 </div>
                 <div className="relative">
@@ -270,7 +273,7 @@ export default function LoginPage() {
                 </div>
               </div>
               <Button type="submit" className="w-full" disabled={isBusy}>
-                {isLoading ? 'Entrando...' : 'Entrar'}
+                {isLoading ? tx("Entrando...") : tx("Entrar")}
               </Button>
             </form>
 
@@ -279,7 +282,7 @@ export default function LoginPage() {
                 <span className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="bg-card px-2 text-muted-foreground">ou</span>
+                <span className="bg-card px-2 text-muted-foreground">{tx("ou")}</span>
               </div>
             </div>
 
@@ -312,16 +315,16 @@ export default function LoginPage() {
                   />
                 </svg>
               )}
-              {isGoogleLoading ? 'Conectando ao Google...' : 'Entrar com Google'}
+              {isGoogleLoading ? tx("Conectando ao Google...") : tx("Entrar com Google")}
             </Button>
 
             <p className="mt-6 text-center text-xs text-muted-foreground">
-              Ainda não tem acesso?{' '}
+              {tx("Ainda não tem acesso?")}{' '}
               <Link
                 to="/signup-closed"
                 className="text-primary hover:underline underline-offset-4"
               >
-                Saiba como solicitar
+                {tx("Saiba como solicitar")}
               </Link>
             </p>
           </CardContent>

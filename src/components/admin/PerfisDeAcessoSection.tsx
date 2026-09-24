@@ -15,6 +15,7 @@ import { ALL_TABS, type DashboardTab } from '@/lib/permissions';
 import type { PerfilOpcao } from '@/components/admin/UsersAccessSection';
 import { TAB_LABELS, SUB_ABAS, SUB_ABA_LABEL } from '@/components/admin/UsersAccessSection';
 
+import { tx } from '@/lib/i18n';
 /**
  * Criar e editar os perfis de acesso.
  *
@@ -62,7 +63,7 @@ export default function PerfisDeAcessoSection() {
         setErro((r as { erro?: string | null }).erro ?? null);
       })
       .catch((e: unknown) => {
-        toast.error(e instanceof Error ? e.message : 'Falha ao carregar perfis');
+        toast.error(e instanceof Error ? tx(e.message) : tx("Falha ao carregar perfis"));
       })
       .finally(() => setCarregando(false));
   };
@@ -99,7 +100,7 @@ export default function PerfisDeAcessoSection() {
 
   const gravar = async () => {
     if (form.nome.trim().length < 2) {
-      toast.error('Dê um nome ao perfil.');
+      toast.error(tx("Dê um nome ao perfil."));
       return;
     }
     setSalvando(true);
@@ -118,13 +119,13 @@ export default function PerfisDeAcessoSection() {
       });
       toast.success(
         r.atingidos
-          ? `Perfil salvo. O acesso de ${r.atingidos} pessoa${r.atingidos === 1 ? '' : 's'} mudou agora.`
-          : 'Perfil salvo.',
+          ? tx("Perfil salvo. O acesso de {0} pessoa{1} mudou agora.", [r.atingidos, r.atingidos === 1 ? '' : 's'])
+          : tx("Perfil salvo."),
       );
       setEditando(null);
       recarregar();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao salvar');
+      toast.error(e instanceof Error ? tx(e.message) : tx("Falha ao salvar"));
     } finally {
       setSalvando(false);
     }
@@ -133,10 +134,10 @@ export default function PerfisDeAcessoSection() {
   const apagar = async (p: PerfilOpcao) => {
     try {
       await remover({ data: { id: p.id } });
-      toast.success(`Perfil ${p.nome} apagado.`);
+      toast.success(tx("Perfil {0} apagado.", [p.nome]));
       recarregar();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao apagar');
+      toast.error(e instanceof Error ? tx(e.message) : tx("Falha ao apagar"));
     }
   };
 
@@ -147,11 +148,10 @@ export default function PerfisDeAcessoSection() {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
-          <ShieldCheck className="h-4 w-4" /> Perfis de acesso
+          <ShieldCheck className="h-4 w-4" />{" "}{tx("Perfis de acesso")}
         </CardTitle>
         <CardDescription>
-          Um perfil define as abas e o alcance de um grupo de pessoas. Quem diverge do perfil ganha
-          uma exceção no próprio cadastro, e ela aparece marcada lá.
+          {tx("Um perfil define as abas e o alcance de um grupo de pessoas. Quem diverge do perfil ganha uma exceção no próprio cadastro, e ela aparece marcada lá.")}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -169,25 +169,23 @@ export default function PerfisDeAcessoSection() {
         {!migrado && (
           <div className="text-sm rounded-md border border-amber-500/40 p-3 text-amber-600 dark:text-amber-500 space-y-2">
             {erro ? (
-              <p>{erro}</p>
+              <p>{tx(erro)}</p>
             ) : (
               <p>
-                A tabela de perfis ainda não existe no banco. Rode as migrações{' '}
-                <code>20260908120000_perfis_de_acesso.sql</code> e{' '}
+                {tx("A tabela de perfis ainda não existe no banco. Rode as migrações")}{' '}
+                <code>20260908120000_perfis_de_acesso.sql</code>{" "}{tx("e")}{' '}
                 <code>20260908130000_perfis_iniciais.sql</code>.
               </p>
             )}
             <p className="text-muted-foreground">
-              Até lá os cadastros continuam funcionando avulsos — nada quebra, e nenhum perfil pode
-              ser criado.
+              {tx("Até lá os cadastros continuam funcionando avulsos — nada quebra, e nenhum perfil pode ser criado.")}
             </p>
           </div>
         )}
 
         {migrado && !carregando && perfis.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Nenhum perfil ainda. Crie o primeiro — ou rode a migração de perfis iniciais, que já
-            traz Business Partner e Admin com as abas decididas na reunião de 08/09.
+            {tx("Nenhum perfil ainda. Crie o primeiro — ou rode a migração de perfis iniciais, que já traz Business Partner e Admin com as abas decididas na reunião de 08/09.")}
           </p>
         )}
 
@@ -195,11 +193,11 @@ export default function PerfisDeAcessoSection() {
           {perfis.map((p) => (
             <div key={p.id} className="rounded-lg border border-border p-3 space-y-1.5">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-medium text-sm">{p.nome}</span>
+                <span className="font-medium text-sm">{tx(p.nome)}</span>
                 <span className="text-[11px] text-muted-foreground">
                   {p.quantos === 0
-                    ? 'ninguém usa'
-                    : `${p.quantos} pessoa${p.quantos === 1 ? '' : 's'}`}
+                    ? tx("ninguém usa")
+                    : tx("{0} pessoa{1}", [p.quantos, p.quantos === 1 ? '' : 's'])}
                 </span>
                 <div className="ml-auto flex gap-1">
                   <Button variant="ghost" size="sm" onClick={() => abrir(p)}>
@@ -210,8 +208,8 @@ export default function PerfisDeAcessoSection() {
                     size="sm"
                     disabled={p.quantos > 0}
                     title={p.quantos > 0
-                      ? 'Mova as pessoas para outro perfil antes de apagar'
-                      : 'Apagar'}
+                      ? tx("Mova as pessoas para outro perfil antes de apagar")
+                      : tx("Apagar")}
                     onClick={() => void apagar(p)}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -219,19 +217,19 @@ export default function PerfisDeAcessoSection() {
                 </div>
               </div>
               {p.descricao && (
-                <p className="text-[11px] text-muted-foreground">{p.descricao}</p>
+                <p className="text-[11px] text-muted-foreground">{tx(p.descricao)}</p>
               )}
               <div className="flex flex-wrap gap-1">
                 {p.tabs.map((t) => (
                   <span key={t} className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
-                    {TAB_LABELS[t as DashboardTab] ?? t}
+                    {tx(TAB_LABELS[t as DashboardTab]) ?? tx(t)}
                   </span>
                 ))}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                {p.veEmpresaToda ? 'A empresa toda' : 'Só as áreas atribuídas'} ·{' '}
-                {p.veIndividual ? 'com dado individual' : 'sem dado individual'}
-                {p.administraUsuarios ? ' · administra usuários' : ''}
+                {p.veEmpresaToda ? tx("A empresa toda") : tx("Só as áreas atribuídas")} ·{' '}
+                {p.veIndividual ? tx("com dado individual") : tx("sem dado individual")}
+                {p.administraUsuarios ? tx(" · administra usuários") : ''}
               </p>
             </div>
           ))}
@@ -239,7 +237,7 @@ export default function PerfisDeAcessoSection() {
 
         {migrado && editando === null && (
           <Button variant="outline" size="sm" onClick={() => abrir('novo')}>
-            <Plus className="h-4 w-4 mr-1.5" /> Novo perfil
+            <Plus className="h-4 w-4 mr-1.5" />{" "}{tx("Novo perfil")}
           </Button>
         )}
 
@@ -247,20 +245,20 @@ export default function PerfisDeAcessoSection() {
           <div className="rounded-lg border border-border p-3 space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Nome</Label>
+                <Label className="text-xs text-muted-foreground">{tx("Nome")}</Label>
                 <Input
                   value={form.nome}
                   maxLength={60}
-                  placeholder="Business Partner"
+                  placeholder={tx("Business Partner")}
                   onChange={(e) => setForm({ ...form, nome: e.target.value })}
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Descrição (opcional)</Label>
+                <Label className="text-xs text-muted-foreground">{tx("Descrição (opcional)")}</Label>
                 <Input
                   value={form.descricao}
                   maxLength={400}
-                  placeholder="Para que serve este perfil"
+                  placeholder={tx("Para que serve este perfil")}
                   onChange={(e) => setForm({ ...form, descricao: e.target.value })}
                 />
               </div>
@@ -293,7 +291,7 @@ export default function PerfisDeAcessoSection() {
                           : 'text-muted-foreground'
                       }`}
                     >
-                      {v ? 'Sim' : 'Não'}
+                      {v ? tx("Sim") : tx("Não")}
                     </button>
                   ))}
                 </div>
@@ -302,25 +300,25 @@ export default function PerfisDeAcessoSection() {
 
             <MultiSelect
               id="perfil-tabs"
-              label="Abas deste perfil"
+              label={tx("Abas deste perfil")}
               options={ALL_TABS.filter((t) => form.veIndividual || t !== 'individual')}
               labels={TAB_LABELS}
               value={form.tabs}
               onChange={(tabs) => setForm({ ...form, tabs })}
-              placeholder="Nenhuma — quem tiver este perfil entra e não vê nada"
-              searchPlaceholder="Buscar aba..."
+              placeholder={tx("Nenhuma — quem tiver este perfil entra e não vê nada")}
+              searchPlaceholder={tx("Buscar aba...")}
             />
 
             {subDisponiveis.length > 0 && (
               <MultiSelect
                 id="perfil-subtabs"
-                label="Sub-abas"
+                label={tx("Sub-abas")}
                 options={subDisponiveis.map((sb) => sb.id)}
                 labels={SUB_ABA_LABEL}
                 value={form.subTabs}
                 onChange={(subTabs) => setForm({ ...form, subTabs })}
-                placeholder="Vazio = todas as das abas acima"
-                searchPlaceholder="Buscar sub-aba..."
+                placeholder={tx("Vazio = todas as das abas acima")}
+                searchPlaceholder={tx("Buscar sub-aba...")}
               />
             )}
 
@@ -331,22 +329,21 @@ export default function PerfisDeAcessoSection() {
                 style={{ color: COLORS.warning }}
               >
                 <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                Salvar muda o acesso de <strong>{atingidos} pessoa
-                {atingidos === 1 ? '' : 's'}</strong> que herdam deste perfil, na mesma hora. Quem
-                tiver exceção no próprio cadastro não é afetado naquele campo.
+                {tx("Salvar muda o acesso de")}{" "}<strong>{atingidos}{" "}{tx("pessoa")}
+                {atingidos === 1 ? '' : tx("s")}</strong>{" "}{tx("que herdam deste perfil, na mesma hora. Quem tiver exceção no próprio cadastro não é afetado naquele campo.")}
               </p>
             )}
 
             <div className="flex gap-2">
               <Button size="sm" onClick={() => void gravar()} disabled={salvando}>
                 {salvando
-                  ? 'Salvando…'
+                  ? tx("Salvando…")
                   : atingidos > 0
-                    ? `Salvar e mudar ${atingidos} acesso${atingidos === 1 ? '' : 's'}`
-                    : 'Salvar perfil'}
+                    ? tx("Salvar e mudar {0} acesso{1}", [atingidos, atingidos === 1 ? '' : 's'])
+                    : tx("Salvar perfil")}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setEditando(null)}>
-                Cancelar
+                {tx("Cancelar")}
               </Button>
             </div>
           </div>

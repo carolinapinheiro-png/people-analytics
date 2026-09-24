@@ -6,6 +6,7 @@ import { matrizAreaDriver, perfilUniforme, type CelulaAreaDriver } from '@/lib/d
 import { cn } from '@/lib/utils';
 import type { DriverPorRecorte } from '@/lib/survey.functions';
 
+import { tx } from '@/lib/i18n';
 /**
  * A grade área × driver.
  *
@@ -112,11 +113,9 @@ export default function MatrizAreaDriver({
 
   return (
     <ChartCard
-      title="Cada área, tema por tema"
+      title={tx("Cada área, tema por tema")}
       ajuda="areaPorTema"
-      subtitle={`${m.drivers.length} temas × ${m.areas.length} ${
-        m.areas.length === 1 ? 'área' : 'áreas'
-      }${ondaLabel ? ` · ${ondaLabel}` : ''} · distância da Flutter Brazil na mesma onda, em pontos de % que concorda`}
+      subtitle={tx("{0} temas × {1} {2}{3} · distância da Flutter Brazil na mesma onda, em pontos de % que concorda", [m.drivers.length, m.areas.length, m.areas.length === 1 ? 'área' : 'áreas', ondaLabel ? ` · ${ondaLabel}` : ''])}
       icon={Grid3x3}
     >
       <div className="overflow-x-auto">
@@ -124,7 +123,7 @@ export default function MatrizAreaDriver({
           <thead>
             <tr>
               <th className="text-left font-normal text-muted-foreground pb-1 pr-2 sticky left-0 bg-background z-10">
-                tema
+                {tx("tema")}
               </th>
               {/* ------------------------------------------------------------
                 COLUNA FIXA DA EMPRESA -- A RÉGUA EM NÚMERO, NÃO SÓ EM COR
@@ -142,17 +141,17 @@ export default function MatrizAreaDriver({
                 referência que sobra. */}
               <th
                 className="font-normal text-muted-foreground pb-1 px-1 align-bottom border-r border-border"
-                title="Flutter Brazil inteira, na mesma onda -- a régua contra a qual toda célula é medida."
+                title={tx("Flutter Brazil inteira, na mesma onda -- a régua contra a qual toda célula é medida.")}
               >
-                <span className="block text-[10px] leading-tight">Flutter Brazil</span>
+                <span className="block text-[10px] leading-tight">{tx("Flutter Brazil")}</span>
               </th>
               {m.areas.map((a) => (
                 <th
                   key={a}
                   className="font-normal text-muted-foreground pb-1 px-1 align-bottom"
-                  title={a}
+                  title={tx(a)}
                 >
-                  <span className="block text-[10px] leading-tight">{a}</span>
+                  <span className="block text-[10px] leading-tight">{tx(a)}</span>
                 </th>
               ))}
             </tr>
@@ -164,17 +163,17 @@ export default function MatrizAreaDriver({
               <tr key={d}>
                 <td
                   className={`pr-3 py-0.5 ${NOME_DO_TEMA} sticky left-0 bg-background z-10`}
-                  title={d}
+                  title={tx(d)}
                 >
-                  {d}
+                  {tx(d)}
                 </td>
                 <td className="p-0 border-r border-border">
                   <div
                     className="w-full h-7 rounded tabular-nums flex items-center justify-center font-medium bg-muted/50"
                     title={
                       emp == null
-                        ? `Flutter Brazil · ${d}: sem dado suficiente`
-                        : `Flutter Brazil · ${d}: ${emp}% concordam`
+                        ? tx("Flutter Brazil · {0}: sem dado suficiente", [d])
+                        : tx("Flutter Brazil · {0}: {1}% concordam", [d, emp])
                     }
                   >
                     {emp == null ? '·' : `${emp}%`}
@@ -198,11 +197,11 @@ export default function MatrizAreaDriver({
                         style={{ background: cor.bg, color: cor.fg }}
                         title={
                           c?.favoravel == null
-                            ? `${a} · ${d}: sem dado suficiente`
-                            : `${a} · ${d}: ${c.favoravel}% concordam (empresa ${c.favoravelEmpresa}%)`
+                            ? tx("{0} · {1}: sem dado suficiente", [a, d])
+                            : tx("{0} · {1}: {2}% concordam (empresa {3}%)", [a, d, c.favoravel, c.favoravelEmpresa])
                         }
                       >
-                        {c?.gap == null ? '·' : sinal(c.gap)}
+                        {c?.gap == null ? '·' : tx(sinal(c.gap))}
                       </button>
                     </td>
                   );
@@ -217,7 +216,7 @@ export default function MatrizAreaDriver({
       {celula && celula.favoravel != null && (
         <div className="mt-3 rounded-md border border-border bg-muted/40 p-3 text-xs space-y-1.5">
           <div className="font-medium">
-            {celula.area} · {celula.driver}
+            {tx(celula.area)} · {tx(celula.driver)}
           </div>
           {/* ------------------------------------------------------------------
               "NA EMPRESA" NÃO DIZIA QUAL EMPRESA NEM DE QUANDO
@@ -245,12 +244,12 @@ export default function MatrizAreaDriver({
             {celula.favoravelAnterior != null && (
               <>
                 <span className="text-muted-foreground">
-                  {ondaAnteriorLabel ?? 'onda anterior'} · área
+                  {tx(ondaAnteriorLabel) ?? tx("onda anterior")}{" "}{tx("· área")}
                 </span>
                 <span>{celula.favoravelAnterior}%</span>
               </>
             )}
-            <span className="text-muted-foreground">{ondaLabel ?? 'esta onda'} · área</span>
+            <span className="text-muted-foreground">{tx(ondaLabel) ?? tx("esta onda")}{" "}{tx("· área")}</span>
             <span>
               <strong className="text-foreground">{celula.favoravel}%</strong>
               {celula.evolucao != null && (
@@ -258,22 +257,22 @@ export default function MatrizAreaDriver({
                   className="ml-2"
                   style={{ color: celula.evolucao < 0 ? COLORS.danger : COLORS.success }}
                 >
-                  {sinal(celula.evolucao)} desde {ondaAnteriorLabel ?? 'a onda anterior'}
+                  {tx(sinal(celula.evolucao))}{" "}{tx("desde")}{" "}{tx(ondaAnteriorLabel) ?? tx("a onda anterior")}
                 </span>
               )}
             </span>
             <span className="text-muted-foreground">
-              {ondaLabel ?? 'esta onda'} · Flutter Brazil
+              {tx(ondaLabel) ?? tx("esta onda")}{" "}{tx("· Flutter Brazil")}
             </span>
             <span>{celula.favoravelEmpresa}%</span>
-            <span className="text-muted-foreground">diferença área × Flutter Brazil</span>
+            <span className="text-muted-foreground">{tx("diferença área × Flutter Brazil")}</span>
             <span style={{ color: celula.gap! < 0 ? COLORS.danger : COLORS.success }}>
-              <strong>{sinal(celula.gap!)} pontos</strong>
+              <strong>{tx(sinal(celula.gap!))}{" "}{tx("pontos")}</strong>
             </span>
           </div>
           <div className="text-muted-foreground">
-            Média de {celula.perguntas} pergunta{celula.perguntas === 1 ? '' : 's'}, a menor com{' '}
-            {celula.nMinimo} respostas.
+            {tx("Média de")}{" "}{celula.perguntas}{" "}{tx("pergunta")}{celula.perguntas === 1 ? '' : tx("s")}{tx(", a menor com")}{' '}
+            {celula.nMinimo}{" "}{tx("respostas.")}
             {/* A evolução é medida só sobre as perguntas que existem nas duas
                 ondas. Quando esse conjunto é menor que o do tema, os dois
                 números de cima não são a média que aparece na célula -- e quem
@@ -281,14 +280,13 @@ export default function MatrizAreaDriver({
             {celula.favoravelAnterior != null
               && celula.perguntasComparaveis < celula.perguntas && (
               <>
-                {' '}A evolução compara só as {celula.perguntasComparaveis} pergunta
-                {celula.perguntasComparaveis === 1 ? '' : 's'} que existem nas duas ondas — as
-                outras entraram ou saíram do questionário.
+                {' '}{tx("A evolução compara só as")}{" "}{celula.perguntasComparaveis}{" "}{tx("pergunta")}
+                {celula.perguntasComparaveis === 1 ? '' : tx("s")}{" "}{tx("que existem nas duas ondas — as outras entraram ou saíram do questionário.")}
               </>
             )}
             {celula.favoravelAnterior == null && ondaAnteriorLabel && (
               <>
-                {' '}Sem evolução a mostrar: nenhuma pergunta deste tema existe nas duas ondas.
+                {' '}{tx("Sem evolução a mostrar: nenhuma pergunta deste tema existe nas duas ondas.")}
               </>
             )}
           </div>
@@ -310,16 +308,15 @@ export default function MatrizAreaDriver({
               contradizer um ao outro. */}
           {celula.pior && (
             <div className="text-muted-foreground pt-1 border-t border-border/60">
-              <strong className="text-foreground">A pergunta mais fraca do tema:</strong>{' '}
-              &quot;{celula.pior.question}&quot; —{' '}
+              <strong className="text-foreground">{tx("A pergunta mais fraca do tema:")}</strong>{' '}
+              &quot;{tx(celula.pior.question)}&quot; —{' '}
               <span className="tabular-nums">{celula.pior.favoravel}%</span>,{' '}
-              {sinal(celula.pior.gap!)} contra a Flutter Brazil.
+              {tx(sinal(celula.pior.gap!))}{" "}{tx("contra a Flutter Brazil.")}
               {celula.perguntas > 1 && (
                 <>
-                  {' '}O tema acima é a média das {celula.perguntas} perguntas, então esta pode
-                  estar abaixo{celula.gap != null && celula.gap > 0
-                    ? ' mesmo quando o tema está acima'
-                    : ''} — as outras compensam.
+                  {' '}{tx("O tema acima é a média das")}{" "}{celula.perguntas}{" "}{tx("perguntas, então esta pode estar abaixo")}{celula.gap != null && celula.gap > 0
+                    ? tx(" mesmo quando o tema está acima")
+                    : ''}{" "}{tx("— as outras compensam.")}
                 </>
               )}
             </div>
@@ -330,42 +327,36 @@ export default function MatrizAreaDriver({
       <div className="mt-3 space-y-1.5">
         {uniformes.length > 0 && (
           <p className="text-[11px] leading-relaxed">
-            <strong>O que a grade mostra e a leitura área a área não mostrava:</strong>{' '}
+            <strong>{tx("O que a grade mostra e a leitura área a área não mostrava:")}</strong>{' '}
             {uniformes.map((u, i) => (
               <span key={u.area}>
-                {i > 0 && (i === uniformes.length - 1 ? ' e ' : '; ')}
-                <strong>{u.area}</strong> está {u.direcao} da empresa em{' '}
-                {Math.round(u.proporcao * u.drivers)} dos {u.drivers} temas
+                {i > 0 && (i === uniformes.length - 1 ? tx(" e ") : '; ')}
+                <strong>{tx(u.area)}</strong>{" "}{tx("está")}{" "}{u.direcao}{" "}{tx("da empresa em")}{' '}
+                {Math.round(u.proporcao * u.drivers)}{" "}{tx("dos")}{" "}{u.drivers}{" "}{tx("temas")}
               </span>
             ))}
             .{' '}
             {uniformes.some((u) => u.direcao === 'abaixo') &&
-              'Uma área abaixo em quase tudo raramente tem um problema por tema — é mais provável que seja um só, e que ele apareça em todas as respostas daquele time.'}
+              tx("Uma área abaixo em quase tudo raramente tem um problema por tema — é mais provável que seja um só, e que ele apareça em todas as respostas daquele time.")}
           </p>
         )}
 
         <p className="text-[11px] text-muted-foreground leading-relaxed">
-          <strong>Como ler:</strong> a coluna <strong>Flutter Brazil</strong> é a régua em número —
-          o % de concordância da empresa inteira, na mesma onda, tema por tema. Cada célula à
-          direita dela é a distância daquela área para{' '}
-          <strong>essa mesma régua</strong> — não para a pesquisa anterior. É
-          posição, não evolução. Vermelho é abaixo, verde é acima; o tom forte começa em{' '}
-          {FORTE} pontos. Clique numa célula para ver a pergunta mais fraca do tema.
+          <strong>{tx("Como ler:")}</strong>{" "}{tx("a coluna")}{" "}<strong>{tx("Flutter Brazil")}</strong>{" "}{tx("é a régua em número — o % de concordância da empresa inteira, na mesma onda, tema por tema. Cada célula à direita dela é a distância daquela área para")}{' '}
+          <strong>{tx("essa mesma régua")}</strong>{" "}{tx("— não para a pesquisa anterior. É posição, não evolução. Vermelho é abaixo, verde é acima; o tom forte começa em")}{' '}
+          {FORTE}{" "}{tx("pontos. Clique numa célula para ver a pergunta mais fraca do tema.")}
           {/* A ordem das linhas é a amplitude ENTRE áreas. Com uma área só na
               tela não há amplitude nenhuma -- a ordem vira arbitrária, e
               anunciá-la como "os temas que mais separam as áreas" seria
               descrever um cálculo que não aconteceu. */}
           {varias ? (
             <>
-              {' '}As linhas estão ordenadas pelos temas que{' '}
-              <strong>mais separam as áreas</strong> — os de baixo são parecidos em todo lugar, e
-              por isso são decisão de empresa, não conversa de gestor.
+              {' '}{tx("As linhas estão ordenadas pelos temas que")}{' '}
+              <strong>{tx("mais separam as áreas")}</strong>{" "}{tx("— os de baixo são parecidos em todo lugar, e por isso são decisão de empresa, não conversa de gestor.")}
             </>
           ) : (
             <>
-              {' '}A ordem das linhas vem da comparação entre as áreas, que o filtro tirou da
-              tela — aqui ela não quer dizer nada. Tire o filtro de departamento para ver a grade
-              inteira.
+              {' '}{tx("A ordem das linhas vem da comparação entre as áreas, que o filtro tirou da tela — aqui ela não quer dizer nada. Tire o filtro de departamento para ver a grade inteira.")}
             </>
           )}
         </p>
@@ -376,23 +367,20 @@ export default function MatrizAreaDriver({
               mostrava 11 células vermelhas de 11 embaixo de uma frase dizendo
               que metade fica assim por construção -- a ressalva contradizia o
               que estava logo acima dela. */}
-          A régua é a empresa
+          {tx("A régua é a empresa")}
           {varias ? (
             <>
-              , então <strong>metade das células fica em vermelho por construção</strong> — é assim
-              que uma comparação com a média funciona.
+              {tx(", então")}{" "}<strong>{tx("metade das células fica em vermelho por construção")}</strong>{" "}{tx("— é assim que uma comparação com a média funciona.")}
             </>
           ) : (
-            <>, e não esta área — o vermelho mede distância do resto da casa, não do bom.</>
+            <>{tx(", e não esta área — o vermelho mede distância do resto da casa, não do bom.")}</>
           )}{' '}
-          Vermelho aqui significa &quot;abaixo do resto da casa&quot;, não &quot;ruim&quot;: uma
-          área pode estar −8 num tema em que ela própria tem 78% de concordância.
+          {tx("Vermelho aqui significa \"abaixo do resto da casa\", não \"ruim\": uma área pode estar −8 num tema em que ela própria tem 78% de concordância.")}
           {suprimidas > 0 && (
             <>
               {' '}
-              {suprimidas} célula{suprimidas === 1 ? '' : 's'} aparece{suprimidas === 1 ? '' : 'm'}{' '}
-              como &quot;·&quot;: o grupo era pequeno demais para publicar sem identificar quem
-              respondeu.
+              {suprimidas}{" "}{tx("célula")}{suprimidas === 1 ? '' : tx("s")}{" "}{tx("aparece")}{suprimidas === 1 ? '' : tx("m")}{' '}
+              {tx("como \"·\": o grupo era pequeno demais para publicar sem identificar quem respondeu.")}
             </>
           )}
         </p>

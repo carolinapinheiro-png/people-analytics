@@ -50,6 +50,7 @@ import {
   Scale
 } from 'lucide-react';
 
+import { tx } from '@/lib/i18n';
 function calcTotalCost(d: { headcount: number; leaders: number; avg_salary_leaders: number; avg_salary_non_leaders: number }) {
   const l = d.leaders || 0;
   const nl = Math.max(0, (d.headcount || 0) - l);
@@ -258,34 +259,33 @@ export default function SalaryTab() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex gap-5 flex-wrap text-xs text-muted-foreground">
-        <span>Ref: <strong className="text-foreground">{mLabel(currentMonth)}</strong></span>
-        <span>Carga horária: <strong className="text-foreground">220h/mês</strong></span>
+        <span>{tx("Ref:")}{" "}<strong className="text-foreground">{tx(mLabel(currentMonth))}</strong></span>
+        <span>{tx("Carga horária:")}{" "}<strong className="text-foreground">{tx("220h/mês")}</strong></span>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {kpis.map(k => <KpiCard key={k.label} label={k.label} value={k.value} color={k.color} icon={k.icon} />)}
+        {kpis.map(k => <KpiCard key={k.label} label={tx(k.label)} value={k.value} color={k.color} icon={k.icon} />)}
       </div>
       <p className="text-xs text-muted-foreground -mt-1">
-        O <strong>salário mediano</strong> ({medBrand?.med_salary != null ? fmtC(medBrand.med_salary) : '—'})
-        é a leitura mais robusta do &quot;típico&quot; da organização — menos puxada por poucos C-levels que a média.
+        {tx("O")}{" "}<strong>{tx("salário mediano")}</strong> ({medBrand?.med_salary != null ? tx(fmtC(medBrand.med_salary)) : '—'}{tx(") é a leitura mais robusta do \"típico\" da organização — menos puxada por poucos C-levels que a média.")}
       </p>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Evolução Custo por FTE" subtitle="Custo médio mensal por colaborador">
+        <ChartCard title={tx("Evolução Custo por FTE")} subtitle={tx("Custo médio mensal por colaborador")}>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={costTrend}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
               <XAxis dataKey="month" tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
               <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
               <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => fmtC(v)} />
-              <Line type="monotone" dataKey="custoFTE" name="Custo/FTE" stroke={COLORS.flutter} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="custoFTE" name={tx("Custo/FTE")} stroke={COLORS.flutter} strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Salário Médio por Grupo" subtitle="Líderes vs Não-Líderes">
+        <ChartCard title={tx("Salário Médio por Grupo")} subtitle={tx("Líderes vs Não-Líderes")}>
           <ResponsiveContainer width="100%" height={220}>
             <LineChart data={salaryTrend}>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
@@ -293,15 +293,15 @@ export default function SalaryTab() {
               <YAxis tick={{ fill: 'var(--chart-tick)', fontSize: 9 }} />
               <Tooltip contentStyle={{ background: 'var(--chart-tooltip-bg)', border: '1px solid var(--chart-tooltip-border)', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => fmtC(v)} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Line type="monotone" dataKey="lideres" name="Líderes" stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
-              <Line type="monotone" dataKey="naoLideres" name="Não-Líderes" stroke={COLORS.info} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="lideres" name={tx("Líderes")} stroke={COLORS.purple} strokeWidth={2} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="naoLideres" name={tx("Não-Líderes")} stroke={COLORS.info} strokeWidth={2} dot={{ r: 3 }} />
             </LineChart>
           </ResponsiveContainer>
         </ChartCard>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <ChartCard title="Comp-ratio médio por área" subtitle="Quadro atual · marca selecionada (n≥3)">
+        <ChartCard title={tx("Comp-ratio médio por área")} subtitle={tx("Quadro atual · marca selecionada (n≥3)")}>
           {areaComp && areaComp.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={areaComp} layout="vertical" margin={{ left: 8 }}>
@@ -317,12 +317,12 @@ export default function SalaryTab() {
             </ResponsiveContainer>
           ) : (
             <p className="text-sm text-muted-foreground py-16 text-center">
-              {comp ? 'Sem dados de comp para esta marca (ex.: Flutter International).' : 'Carregando…'}
+              {comp ? tx("Sem dados de comp para esta marca (ex.: Flutter International).") : tx("Carregando…")}
             </p>
           )}
         </ChartCard>
 
-        <ChartCard title="Composição CLT / PJ" subtitle="Quadro atual · contagem e salário médio">
+        <ChartCard title={tx("Composição CLT / PJ")} subtitle={tx("Quadro atual · contagem e salário médio")}>
           {contractMix && contractMix.total > 0 ? (
             <div className="space-y-3 pt-1">
               {contractMix.rows.map((r) => {
@@ -330,9 +330,9 @@ export default function SalaryTab() {
                 return (
                   <div key={r.contract} className="space-y-1">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{r.contract}</span>
+                      <span className="font-medium">{tx(r.contract)}</span>
                       <span className="text-muted-foreground text-xs">
-                        {r.n} ({pct.toFixed(0)}%){r.avg != null ? ` · ${fmtC(r.avg)} méd.` : ''}
+                        {r.n} ({tx(pct.toFixed(0))}%){r.avg != null ? tx(" · {0} méd.", [fmtC(r.avg)]) : ''}
                       </span>
                     </div>
                     <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -342,12 +342,12 @@ export default function SalaryTab() {
                 );
               })}
               <p className="text-[11px] text-muted-foreground pt-1">
-                Total com contrato informado: {contractMix.total}. Salário médio é do snapshot atual.
+                {tx("Total com contrato informado:")}{" "}{contractMix.total}{tx(". Salário médio é do snapshot atual.")}
               </p>
             </div>
           ) : (
             <p className="text-sm text-muted-foreground py-16 text-center">
-              {comp ? 'Sem dados de contrato para esta marca.' : 'Carregando…'}
+              {comp ? tx("Sem dados de contrato para esta marca.") : tx("Carregando…")}
             </p>
           )}
         </ChartCard>
@@ -355,7 +355,7 @@ export default function SalaryTab() {
 
       {/* Evolução CLT/PJ no tempo (NSX, reconstruído) */}
       {contractTrend.length > 0 && (
-        <ChartCard title="Evolução CLT / PJ" subtitle="NSX · reconstruído da época · empilhado bate com o headcount">
+        <ChartCard title={tx("Evolução CLT / PJ")} subtitle={tx("NSX · reconstruído da época · empilhado bate com o headcount")}>
           <ResponsiveContainer width="100%" height={280}>
             <AreaChart data={contractTrend} margin={{ left: 4, right: 8 }}>
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
@@ -368,7 +368,7 @@ export default function SalaryTab() {
                   key={c}
                   type="monotone"
                   dataKey={c}
-                  name={c}
+                  name={tx(c)}
                   stackId="1"
                   stroke={CONTRACT_COLORS[c]}
                   fill={CONTRACT_COLORS[c]}
@@ -378,40 +378,39 @@ export default function SalaryTab() {
             </AreaChart>
           </ResponsiveContainer>
           <p className="text-[11px] text-muted-foreground mt-1">
-            Só NSX (Betfair BR e Flutter vêm de outra fonte, sem série de vínculo). Vínculo <strong>da época</strong>
-            {' '}(reflete conversões PJ→CLT) do histórico; ativos por mês do Talent Mobility; totais ancorados no
-            headcount oficial. CLT e PJ começam parelhos em 2025 e o CLT dispara a partir de mar/2026.
+            {tx("Só NSX (Betfair BR e Flutter vêm de outra fonte, sem série de vínculo). Vínculo")}{" "}<strong>{tx("da época")}</strong>
+            {' '}{tx("(reflete conversões PJ→CLT) do histórico; ativos por mês do Talent Mobility; totais ancorados no headcount oficial. CLT e PJ começam parelhos em 2025 e o CLT dispara a partir de mar/2026.")}
           </p>
         </ChartCard>
       )}
 
       {/* Bandas de senioridade (#13) */}
       {levelBands && levelBands.length > 0 && (
-        <ChartCard title="Comp-ratio e salário por banda de senioridade" subtitle="Quadro atual · faixas de nível (n≥3)">
+        <ChartCard title={tx("Comp-ratio e salário por banda de senioridade")} subtitle={tx("Quadro atual · faixas de nível (n≥3)")}>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-xs text-muted-foreground">
                 <tr className="border-b border-border text-left">
-                  <th className="p-2">Banda</th>
-                  <th className="p-2 text-right">Pessoas</th>
-                  <th className="p-2 text-right">Comp-ratio médio</th>
-                  <th className="p-2 text-right">Salário médio</th>
+                  <th className="p-2">{tx("Banda")}</th>
+                  <th className="p-2 text-right">{tx("Pessoas")}</th>
+                  <th className="p-2 text-right">{tx("Comp-ratio médio")}</th>
+                  <th className="p-2 text-right">{tx("Salário médio")}</th>
                 </tr>
               </thead>
               <tbody>
                 {levelBands.map((b) => (
                   <tr key={b.band} className="border-b border-border/50">
-                    <td className="p-2 font-medium">{b.band}</td>
+                    <td className="p-2 font-medium">{tx(b.band)}</td>
                     <td className="p-2 text-right tabular-nums">{b.n}</td>
                     <td className="p-2 text-right tabular-nums font-semibold">{b.cr != null ? `${b.cr}%` : '—'}</td>
-                    <td className="p-2 text-right tabular-nums">{b.sal != null ? fmtC(b.sal) : '—'}</td>
+                    <td className="p-2 text-right tabular-nums">{b.sal != null ? tx(fmtC(b.sal)) : '—'}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <p className="text-[11px] text-muted-foreground mt-2">
-            Faixas não sobrepostas por nível. O split líder × IC e gestor × IC dentro do nível está logo abaixo.
+            {tx("Faixas não sobrepostas por nível. O split líder × IC e gestor × IC dentro do nível está logo abaixo.")}
             {' '}{CARTAO_SEM_PERIODO.bandas}
           </p>
         </ChartCard>
@@ -420,8 +419,8 @@ export default function SalaryTab() {
       {/* Split por papel dentro do nível (Caio #13) */}
       {roleTable && roleTable.rows.length > 0 && (
         <ChartCard
-          title="Salário por nível: papel dentro do nível"
-          subtitle="Mediana salarial e comp-ratio · dois eixos · NSX (n≥3)"
+          title={tx("Salário por nível: papel dentro do nível")}
+          subtitle={tx("Mediana salarial e comp-ratio · dois eixos · NSX (n≥3)")}
           icon={Users}
         >
           <div className="flex gap-2 mb-3">
@@ -430,42 +429,42 @@ export default function SalaryTab() {
               className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${roleDim === 'gestao' ? 'text-white' : 'text-muted-foreground border-border'}`}
               style={roleDim === 'gestao' ? { background: brandColor, borderColor: brandColor } : undefined}
             >
-              Gestor de pessoas × IC
+              {tx("Gestor de pessoas × IC")}
             </button>
             <button
               onClick={() => setRoleDim('lideranca')}
               className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${roleDim === 'lideranca' ? 'text-white' : 'text-muted-foreground border-border'}`}
               style={roleDim === 'lideranca' ? { background: brandColor, borderColor: brandColor } : undefined}
             >
-              Líder (flag) × Não-líder
+              {tx("Líder (flag) × Não-líder")}
             </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-xs text-muted-foreground">
                 <tr className="border-b border-border text-left">
-                  <th className="p-2">Nível</th>
+                  <th className="p-2">{tx("Nível")}</th>
                   {roleTable.groups.map((g) => (
-                    <th key={g} className="p-2 text-right">{g} <span className="font-normal">(n · mediana · CR)</span></th>
+                    <th key={g} className="p-2 text-right">{tx(g)} <span className="font-normal">{tx("(n · mediana · CR)")}</span></th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {roleTable.rows.map((row) => (
                   <tr key={row.level} className="border-b border-border/50">
-                    <td className="p-2 font-medium">{row.level}</td>
+                    <td className="p-2 font-medium">{tx(row.level)}</td>
                     {row.cells.map((c, i) => (
                       <td key={i} className="p-2 text-right tabular-nums">
                         {c && c.n >= 3 ? (
                           <>
                             <span className="text-muted-foreground">{c.n}</span>
                             {' · '}
-                            <span className="font-semibold">{c.med_salary != null ? fmtC(c.med_salary) : '—'}</span>
+                            <span className="font-semibold">{c.med_salary != null ? tx(fmtC(c.med_salary)) : '—'}</span>
                             {' · '}
                             <span className="text-muted-foreground">{c.med_cr != null ? `${c.med_cr}%` : '—'}</span>
                           </>
                         ) : (
-                          <span className="text-muted-foreground">{c && c.n > 0 ? `n=${c.n}` : '—'}</span>
+                          <span className="text-muted-foreground">{c && c.n > 0 ? tx("n={0}", [c.n]) : '—'}</span>
                         )}
                       </td>
                     ))}
@@ -475,10 +474,8 @@ export default function SalaryTab() {
             </table>
           </div>
           <p className="text-[11px] text-muted-foreground mt-2">
-            <strong>Dois eixos, populações diferentes</strong> (Gestor ≠ Líder): "gestor de pessoas" = tem reporte direto
-            na cadeia; "líder" = flag do cadastro. Mediana (mais robusta que a média). Só grupos com <strong>n≥3</strong>
-            aparecem com valor. Leitura útil: em L4/L5 o IC costuma ter mediana <strong>acima</strong> do gestor — reflete
-            engenheiros sênior/staff (PJ) vs. coordenadores de operação. Só NSX (população do arquivo de comp).
+            <strong>{tx("Dois eixos, populações diferentes")}</strong>{" "}{tx("(Gestor ≠ Líder): \"gestor de pessoas\" = tem reporte direto na cadeia; \"líder\" = flag do cadastro. Mediana (mais robusta que a média). Só grupos com")}{" "}<strong>{tx("n≥3")}</strong>
+            {tx("aparecem com valor. Leitura útil: em L4/L5 o IC costuma ter mediana")}{" "}<strong>{tx("acima")}</strong>{" "}{tx("do gestor — reflete engenheiros sênior/staff (PJ) vs. coordenadores de operação. Só NSX (população do arquivo de comp).")}
             {' '}{CARTAO_SEM_PERIODO.bandas}
           </p>
         </ChartCard>
@@ -489,7 +486,7 @@ export default function SalaryTab() {
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2 text-foreground">
             <BarChart3 className="h-5 w-5" style={{ color: brandColor }} />
-            Análise de Compensação — {mLabel(currentMonth)}
+            {tx("Análise de Compensação —")}{" "}{tx(mLabel(currentMonth))}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -497,25 +494,25 @@ export default function SalaryTab() {
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Wallet className="h-4 w-4" />
-                Visão Geral de Custos
+                {tx("Visão Geral de Custos")}
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Custo Total Est.</span>
-                  <span className="font-bold text-green-400">{fmtC(totalCost)}</span>
+                  <span className="text-muted-foreground">{tx("Custo Total Est.")}</span>
+                  <span className="font-bold text-green-400">{tx(fmtC(totalCost))}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Custo por FTE</span>
-                  <span className="font-bold">{fmtC(fteCost)}</span>
+                  <span className="text-muted-foreground">{tx("Custo por FTE")}</span>
+                  <span className="font-bold">{tx(fmtC(fteCost))}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Custo / Hora</span>
-                  <span className="font-bold">R$ {hourCost}</span>
+                  <span className="text-muted-foreground">{tx("Custo / Hora")}</span>
+                  <span className="font-bold">{tx("R$")}{" "}{tx(hourCost)}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Var. vs mês ant.</span>
+                  <span className="text-muted-foreground">{tx("Var. vs mês ant.")}</span>
                   <span className={`font-bold ${costDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {costDelta >= 0 ? '+' : ''}{costDelta.toFixed(1)}%
+                    {costDelta >= 0 ? '+' : ''}{tx(costDelta.toFixed(1))}%
                   </span>
                 </div>
               </div>
@@ -524,23 +521,23 @@ export default function SalaryTab() {
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <Scale className="h-4 w-4" />
-                Estrutura Salarial
+                {tx("Estrutura Salarial")}
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Média Líderes</span>
-                  <span className="font-bold text-purple-400">{fmtC(curr.avg_salary_leaders || 0)}</span>
+                  <span className="text-muted-foreground">{tx("Média Líderes")}</span>
+                  <span className="font-bold text-purple-400">{tx(fmtC(curr.avg_salary_leaders || 0))}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Média Não-Líderes</span>
-                  <span className="font-bold text-blue-400">{fmtC(curr.avg_salary_non_leaders || 0)}</span>
+                  <span className="text-muted-foreground">{tx("Média Não-Líderes")}</span>
+                  <span className="font-bold text-blue-400">{tx(fmtC(curr.avg_salary_non_leaders || 0))}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Gap Líder/NL</span>
-                  <span className="font-bold">{salaryGap}x</span>
+                  <span className="text-muted-foreground">{tx("Gap Líder/NL")}</span>
+                  <span className="font-bold">{tx(salaryGap)}{tx("x")}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Líderes / Total</span>
+                  <span className="text-muted-foreground">{tx("Líderes / Total")}</span>
                   <span className="font-bold">{leaders} / {curr.headcount || 0}</span>
                 </div>
               </div>
@@ -549,28 +546,28 @@ export default function SalaryTab() {
             <div className="bg-muted/50 rounded-lg p-4">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <TrendingUp className="h-4 w-4" />
-                Tendências
+                {tx("Tendências")}
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Var. Headcount</span>
+                  <span className="text-muted-foreground">{tx("Var. Headcount")}</span>
                   <span className={`font-bold ${hcDelta >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {hcDelta >= 0 ? '+' : ''}{hcDelta.toFixed(1)}%
+                    {hcDelta >= 0 ? '+' : ''}{tx(hcDelta.toFixed(1))}%
                   </span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Var. Custo/FTE (YoY)</span>
+                  <span className="text-muted-foreground">{tx("Var. Custo/FTE (YoY)")}</span>
                   <span className={`font-bold ${yoyCostChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {yoyCostChange >= 0 ? '+' : ''}{yoyCostChange.toFixed(1)}%
+                    {yoyCostChange >= 0 ? '+' : ''}{tx(yoyCostChange.toFixed(1))}%
                   </span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Maior Depto</span>
-                  <span className="font-bold">{highestDept?.name || '—'}</span>
+                  <span className="text-muted-foreground">{tx("Maior Depto")}</span>
+                  <span className="font-bold">{tx(highestDept?.name) || '—'}</span>
                 </div>
                 <div className="flex justify-between p-2 bg-muted/50 rounded border">
-                  <span className="text-muted-foreground">Menor Depto</span>
-                  <span className="font-bold">{lowestDept?.name || '—'}</span>
+                  <span className="text-muted-foreground">{tx("Menor Depto")}</span>
+                  <span className="font-bold">{tx(lowestDept?.name) || '—'}</span>
                 </div>
               </div>
             </div>
@@ -580,10 +577,10 @@ export default function SalaryTab() {
             <div className="flex items-start gap-3">
               <BarChart3 className="h-5 w-5 mt-0.5 flex-shrink-0" />
               <div>
-                <strong>Resumo:</strong>{' '}
-                Custo total estimado {fmtC(totalCost)} ({fmtC(fteCost)} por FTE), variação de
-                {' '}{costDelta >= 0 ? '+' : ''}{costDelta.toFixed(1)}% vs o mês anterior. O salário médio
-                {' '}de líderes é {salaryGap}x o dos não-líderes.
+                <strong>{tx("Resumo:")}</strong>{' '}
+                {tx("Custo total estimado")}{" "}{tx(fmtC(totalCost))} ({tx(fmtC(fteCost))}{" "}{tx("por FTE), variação de")}
+                {' '}{costDelta >= 0 ? '+' : ''}{tx(costDelta.toFixed(1))}{tx("% vs o mês anterior. O salário médio")}
+                {' '}{tx("de líderes é")}{" "}{tx(salaryGap)}{tx("x o dos não-líderes.")}
               </div>
             </div>
           </div>
@@ -591,20 +588,20 @@ export default function SalaryTab() {
           <div className="bg-muted/40 border border-border/40 rounded-lg p-4">
             <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
               <TrendingUp className="h-4 w-4" />
-              Pontos de atenção
+              {tx("Pontos de atenção")}
             </h3>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-start gap-2">
                 <span className="font-bold">1.</span>
-                <span><strong>Evolução salarial:</strong> acompanhar custo por FTE e a razão líder/não-líder ao longo do tempo.</span>
+                <span><strong>{tx("Evolução salarial:")}</strong>{" "}{tx("acompanhar custo por FTE e a razão líder/não-líder ao longo do tempo.")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">2.</span>
-                <span><strong>Comparabilidade:</strong> comparar comp-ratio por área e por banda de senioridade para leituras consistentes.</span>
+                <span><strong>{tx("Comparabilidade:")}</strong>{" "}{tx("comparar comp-ratio por área e por banda de senioridade para leituras consistentes.")}</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold">3.</span>
-                <span><strong>Cobertura do dado:</strong> Betfair/Flutter têm dado de comp parcial; considerar na leitura consolidada.</span>
+                <span><strong>{tx("Cobertura do dado:")}</strong>{" "}{tx("Betfair/Flutter têm dado de comp parcial; considerar na leitura consolidada.")}</span>
               </li>
             </ul>
           </div>

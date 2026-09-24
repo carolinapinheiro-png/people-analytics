@@ -16,6 +16,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 
+import { tx } from '@/lib/i18n';
 interface StorySectionProps {
   title: string;
   children: ReactNode;
@@ -52,7 +53,7 @@ export function StorySection({
       <CardHeader className="pb-3">
         <CardTitle className="text-lg flex items-center gap-2 text-foreground">
           <Icon className={cn("h-5 w-5", iconColors[variant])} />
-          {title}
+          {tx(title)}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -124,13 +125,13 @@ export function StoryMetric({
 }: StoryMetricProps & { color?: string; icon?: React.ElementType }) {
   return (
     <div className={cn("text-center p-4 bg-muted/50 rounded-lg border border-border/50", className)}>
-      <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">{label}</p>
+      <p className="text-xs text-muted-foreground mb-1 uppercase tracking-wider">{tx(label)}</p>
       <p className={cn(
         'text-3xl font-bold',
         color ? '' : 'text-foreground'
       )} style={color ? { color } : undefined}>{value}</p>
       {subtext && (
-        <p className="text-xs text-muted-foreground mt-1">{subtext}</p>
+        <p className="text-xs text-muted-foreground mt-1">{tx(subtext)}</p>
       )}
       {trend && (
         <div className={cn(
@@ -142,7 +143,7 @@ export function StoryMetric({
           {trendDirection === 'up' && <TrendingUp className="h-3 w-3" />}
           {trendDirection === 'down' && <TrendingDown className="h-3 w-3" />}
           {trendDirection === 'neutral' && <Activity className="h-3 w-3" />}
-          {trend}
+          {tx(trend)}
         </div>
       )}
     </div>
@@ -196,9 +197,9 @@ export function StoryAlert({
         <Icon className="h-5 w-5 mt-0.5 flex-shrink-0 opacity-80" />
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-2">
-            <h4 className="font-semibold">{title}</h4>
+            <h4 className="font-semibold">{tx(title)}</h4>
             <Badge variant="outline" className={badge.class}>
-              {badge.text}
+              {tx(badge.text)}
             </Badge>
           </div>
           <div className="text-sm opacity-90 leading-relaxed">{children}</div>
@@ -233,16 +234,16 @@ export function ExecutiveSummary({
   children
 }: ExecutiveSummaryProps) {
   return (
-    <StorySection title={title} icon={Target} variant="highlight">
+    <StorySection title={tx(title)} icon={Target} variant="highlight">
       <p className="text-sm text-foreground leading-relaxed">
-        {summary}
+        {tx(summary)}
       </p>
       
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {highlights.map((h, i) => (
           <StoryMetric
             key={i}
-            label={h.label}
+            label={tx(h.label)}
             value={h.value}
             trendDirection={h.trend}
           />
@@ -254,10 +255,10 @@ export function ExecutiveSummary({
           {alerts.map((alert, i) => (
             <StoryAlert
               key={i}
-              title={alert.title}
+              title={tx(alert.title)}
               severity={alert.severity}
             >
-              {alert.description}
+              {tx(alert.description)}
             </StoryAlert>
           ))}
         </div>

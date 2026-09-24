@@ -6,6 +6,7 @@ import { METRICAS, type Metrica } from "@/lib/metricas-pesquisa";
 import { cn } from "@/lib/utils";
 import type { OndaEnps, PontoOnda } from "@/lib/experience.functions";
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Os três indicadores por área ao longo das ondas.
  *
@@ -100,7 +101,7 @@ const pct = (parte: number | null, total: number | null) =>
   parte == null || !total ? null : Math.round((parte / total) * 100);
 
 const fmt1 = (v: number | null) =>
-  v == null ? "—" : v.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  v == null ? "—" : v.toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 
 
 
@@ -216,16 +217,13 @@ export default function EnpsSerie({
   if (departamentoSelecionado && daArea == null && dimensao !== "área") {
     return (
       <ChartCard
-        title={`Os três indicadores por ${dimensao} ao longo das pesquisas`}
-        subtitle={departamentoSelecionado}
+        title={tx("Os três indicadores por {0} ao longo das pesquisas", [dimensao])}
+        subtitle={tx(departamentoSelecionado)}
         icon={Activity}
       >
         <p className="text-sm text-muted-foreground py-5 leading-relaxed">
-          O cruzamento entre área e {dimensao} não foi calculado nas ondas já carregadas, então não
-          há esta série para{" "}
-          <strong className="text-foreground">{departamentoSelecionado}</strong>. Não é limite do
-          dado — cada resposta traz os dois campos juntos —, e reimportar as ondas passa a trazer.
-          Até lá fica de fora, em vez de mostrar as {dimensaoPlural} da empresa inteira no lugar.
+          {tx("O cruzamento entre área e")}{" "}{tx(dimensao)}{" "}{tx("não foi calculado nas ondas já carregadas, então não há esta série para")}{" "}
+          <strong className="text-foreground">{tx(departamentoSelecionado)}</strong>{tx(". Não é limite do dado — cada resposta traz os dois campos juntos —, e reimportar as ondas passa a trazer. Até lá fica de fora, em vez de mostrar as")}{" "}{tx(dimensaoPlural)}{" "}{tx("da empresa inteira no lugar.")}
         </p>
       </ChartCard>
     );
@@ -233,10 +231,8 @@ export default function EnpsSerie({
 
   return (
     <ChartCard
-      title={`Os três indicadores por ${dimensao} ao longo das pesquisas`}
-      subtitle={`${ondas.length} ondas · ${ondas[0].label} → ${ondas.at(-1)?.label}${
-        daArea ? ` · ${daArea}` : ""
-      }`}
+      title={tx("Os três indicadores por {0} ao longo das pesquisas", [dimensao])}
+      subtitle={tx("{0} ondas · {1} → {2}{3}", [ondas.length, ondas[0].label, ondas.at(-1)?.label, daArea ? ` · ${daArea}` : ""])}
       ajuda="serieIndicadores"
       icon={Activity}
     >
@@ -285,11 +281,11 @@ export default function EnpsSerie({
                   className="h-2.5 w-2.5 shrink-0 rounded-full"
                   style={{ background: a.cor }}
                 />
-                <span className="min-w-0 flex-1 truncate">{a.scope}</span>
+                <span className="min-w-0 flex-1 truncate">{tx(a.scope)}</span>
                 <span className="shrink-0 tabular-nums text-muted-foreground">
                   {fim == null ? "—" : Math.round(fim.enps)}
                   {" · "}
-                  {fim == null ? "—" : fmt1(fim.satisfacao)}
+                  {fim == null ? "—" : tx(fmt1(fim.satisfacao))}
                   {" · "}
                   {fim == null || fim.risco == null ? "—" : `${fmt1(fim.risco)}%`}
                 </span>
@@ -298,26 +294,21 @@ export default function EnpsSerie({
           })}
         </div>
         <p className="mt-1.5 px-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-          os três números são da última onda, na ordem dos gráficos
+          {tx("os três números são da última onda, na ordem dos gráficos")}
         </p>
       </div>
 
       {ondasSemDado.length > 0 && (
         <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
           <strong className="text-foreground">
-            {ondasSemDado.join(', ')} {ondasSemDado.length > 1 ? 'ficam' : 'fica'} de fora
+            {tx(ondasSemDado.join(', '))} {ondasSemDado.length > 1 ? tx("ficam") : tx("fica")}{" "}{tx("de fora")}
           </strong>{' '}
-          porque {ondasSemDado.length > 1 ? 'aquelas pesquisas não perguntaram' : 'aquela pesquisa não perguntou'}{' '}
-          a {dimensao} de quem respondeu. Não é recorte que deixou de ser calculado: a pergunta não
-          foi feita, então não há o que recortar. A série começa na primeira onda que a trouxe.
+          {tx("porque")}{" "}{ondasSemDado.length > 1 ? tx("aquelas pesquisas não perguntaram") : tx("aquela pesquisa não perguntou")}{' '}
+          {tx("a")}{" "}{tx(dimensao)}{" "}{tx("de quem respondeu. Não é recorte que deixou de ser calculado: a pergunta não foi feita, então não há o que recortar. A série começa na primeira onda que a trouxe.")}
         </p>
       )}
       <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
-        Passe o mouse numa {dimensao} — no gráfico ou na legenda — e ela se destaca nos três
-        painéis ao mesmo tempo. É aí que aparece o que um gráfico sozinho escondia: quem cai em
-        eNPS sem cair em satisfação, ou quem mantém o eNPS enquanto o risco de saída sobe. Onde a
-        linha interrompe, não houve resposta naquela onda: o traço não atravessa o buraco, porque
-        atravessar afirmaria uma trajetória que ninguém mediu.
+        {tx("Passe o mouse numa")}{" "}{tx(dimensao)}{" "}{tx("— no gráfico ou na legenda — e ela se destaca nos três painéis ao mesmo tempo. É aí que aparece o que um gráfico sozinho escondia: quem cai em eNPS sem cair em satisfação, ou quem mantém o eNPS enquanto o risco de saída sobe. Onde a linha interrompe, não houve resposta naquela onda: o traço não atravessa o buraco, porque atravessar afirmaria uma trajetória que ninguém mediu.")}
       </p>
     </ChartCard>
   );
@@ -371,8 +362,8 @@ function Painel({
   return (
     <div>
       <div className="mb-1 flex items-baseline justify-between gap-2">
-        <span className="text-xs font-medium">{metrica.titulo}</span>
-        <span className="text-[10px] text-muted-foreground">{metrica.nota}</span>
+        <span className="text-xs font-medium">{tx(metrica.titulo)}</span>
+        <span className="text-[10px] text-muted-foreground">{tx(metrica.nota)}</span>
       </div>
 
       <div className="relative w-full">
@@ -381,7 +372,7 @@ function Painel({
           className="w-full"
           style={{ height: H }}
           role="img"
-          aria-label={`${metrica.titulo} por ${dimensao} em ${ondas.length} ondas`}
+          aria-label={tx("{0} por {1} em {2} ondas", [metrica.titulo, dimensao, ondas.length])}
           onMouseLeave={() => onAlvo(null)}
         >
           {ondas.map((o, i) => (
@@ -401,7 +392,7 @@ function Painel({
                 fontSize={10}
                 fill="var(--chart-tick)"
               >
-                {o.label}
+                {tx(o.label)}
               </text>
             </g>
           ))}
@@ -546,10 +537,10 @@ function Balao({ alvo }: { alvo: Alvo }) {
       }}
     >
       <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-        {alvo.ondaLabel}
+        {tx(alvo.ondaLabel)}
       </p>
       <p className="text-sm font-semibold" style={{ color: alvo.cor }}>
-        {alvo.area}
+        {tx(alvo.area)}
       </p>
 
       {(() => {
@@ -558,10 +549,10 @@ function Balao({ alvo }: { alvo: Alvo }) {
         return (
           <div className="mt-1.5 flex items-baseline gap-2">
             <span className="text-2xl font-bold tabular-nums">
-              {v == null ? "—" : emFoco.formatar(v)}
+              {v == null ? "—" : tx(emFoco.formatar(v))}
             </span>
             <span className="text-[11px] text-muted-foreground">
-              {emFoco.titulo} · {alvo.ponto.n ?? "—"} respostas
+              {tx(emFoco.titulo)} · {alvo.ponto.n ?? "—"}{" "}{tx("respostas")}
             </span>
           </div>
         );
@@ -608,8 +599,8 @@ function Balao({ alvo }: { alvo: Alvo }) {
           const v = m.valor(alvo.ponto);
           return (
             <div key={m.chave} className="flex items-center justify-between gap-3 text-[11px]">
-              <span className="text-muted-foreground">{m.titulo}</span>
-              <span className="tabular-nums">{v == null ? "—" : m.formatar(v)}</span>
+              <span className="text-muted-foreground">{tx(m.titulo)}</span>
+              <span className="tabular-nums">{v == null ? "—" : tx(m.formatar(v))}</span>
             </div>
           );
         })}
@@ -620,7 +611,7 @@ function Balao({ alvo }: { alvo: Alvo }) {
           sobre o que as pessoas acham. */}
       {alvo.ponto.n != null && alvo.ponto.n > 0 && alvo.ponto.n < 30 && (
         <p className="mt-2 text-[10px] leading-snug text-amber-600 dark:text-amber-500">
-          Área pequena: uma pessoa move o eNPS em {Math.round((100 / alvo.ponto.n) * 10) / 10} pontos.
+          {tx("Área pequena: uma pessoa move o eNPS em")}{" "}{Math.round((100 / alvo.ponto.n) * 10) / 10}{" "}{tx("pontos.")}
         </p>
       )}
     </div>

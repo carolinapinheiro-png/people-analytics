@@ -4,6 +4,7 @@ import LeaversTab from './LeaversTab';
 import UnwantedTab from './UnwantedTab';
 import { useDashboard } from '@/data/DashboardContext';
 
+import { tx } from '@/lib/i18n';
 /**
  * Atricao numa secao unica (decisao da area): comeca por Desligamentos (o dash
  * factual) e tem uma sub-aba separada so para a Atricao Nao Desejada (a
@@ -22,11 +23,11 @@ export default function AttritionTab() {
       <TabsList>
         <TabsTrigger value="desligamentos" className="gap-2">
           <LogOut className="h-4 w-4" />
-          Desligamentos
+          {tx("Desligamentos")}
         </TabsTrigger>
         <TabsTrigger value="nao-desejada" className="gap-2">
           <UserX className="h-4 w-4" />
-          Atrição não desejada
+          {tx("Atrição não desejada")}
         </TabsTrigger>
       </TabsList>
       <TabsContent value="desligamentos" className="mt-0"><LeaversTab /></TabsContent>

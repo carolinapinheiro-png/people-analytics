@@ -4,6 +4,7 @@ import { AlertTriangle, CheckCircle2, Database, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getMigracoesPendentes, type EstadoMigracoes } from '@/lib/migracoes.functions';
 
+import { tx } from '@/lib/i18n';
 /**
  * O banco tem o que as migrations prometeram?
  *
@@ -62,30 +63,26 @@ export function MigracoesCard() {
         <Database className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="font-semibold">Estrutura do banco</h3>
+            <h3 className="font-semibold">{tx("Estrutura do banco")}</h3>
             <Button onClick={rodar} disabled={carregando} variant="outline" size="sm">
               <RefreshCw className={carregando ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
-              <span className="ml-1.5">Conferir</span>
+              <span className="ml-1.5">{tx("Conferir")}</span>
             </Button>
           </div>
 
           <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
-            Lê o que cada migration promete criar e confere se existe. Não olha a
-            tabela de controle do Supabase de propósito: ela conhece 5 dos 46
-            arquivos, e as outras 41 foram aplicadas por outros caminhos — um
-            alerta com 41 falsos positivos seria desligado na primeira semana.
+            {tx("Lê o que cada migration promete criar e confere se existe. Não olha a tabela de controle do Supabase de propósito: ela conhece 5 dos 46 arquivos, e as outras 41 foram aplicadas por outros caminhos — um alerta com 41 falsos positivos seria desligado na primeira semana.")}
           </p>
 
           {erro && (
-            <p className="mt-3 text-sm text-red-600 dark:text-red-500">{erro}</p>
+            <p className="mt-3 text-sm text-red-600 dark:text-red-500">{tx(erro)}</p>
           )}
 
           {naoRodou && (
             <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-500" />
               <p className="text-[13px] leading-relaxed text-amber-700 dark:text-amber-400">
-                Nenhum arquivo de migration foi lido. Isto não quer dizer que o
-                banco está em dia — quer dizer que a conferência não aconteceu.
+                {tx("Nenhum arquivo de migration foi lido. Isto não quer dizer que o banco está em dia — quer dizer que a conferência não aconteceu.")}
               </p>
             </div>
           )}
@@ -94,8 +91,8 @@ export function MigracoesCard() {
             <div className="mt-3 flex items-center gap-2">
               <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-500" />
               <p className="text-sm">
-                Tudo o que as {e.arquivosLidos} migrations prometem existe no banco.
-                <span className="text-muted-foreground"> {e.promessas} objetos conferidos.</span>
+                {tx("Tudo o que as")}{" "}{e.arquivosLidos}{" "}{tx("migrations prometem existe no banco.")}
+                <span className="text-muted-foreground"> {e.promessas}{" "}{tx("objetos conferidos.")}</span>
               </p>
             </div>
           )}
@@ -105,21 +102,19 @@ export function MigracoesCard() {
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-500" />
                 <p className="text-sm font-medium">
-                  {e.faltando.length} {e.faltando.length === 1 ? 'objeto prometido não existe' : 'objetos prometidos não existem'}
+                  {e.faltando.length} {e.faltando.length === 1 ? tx("objeto prometido não existe") : tx("objetos prometidos não existem")}
                 </p>
               </div>
               <ul className="mt-2 space-y-1">
                 {e.faltando.map((f) => (
                   <li key={`${f.tipo}|${f.nome}`} className="text-[13px] leading-relaxed">
-                    <code className="text-foreground">{f.nome}</code>
-                    <span className="text-muted-foreground"> — {f.tipo}, declarada em {f.arquivo}</span>
+                    <code className="text-foreground">{tx(f.nome)}</code>
+                    <span className="text-muted-foreground"> — {f.tipo}{tx(", declarada em")}{" "}{tx(f.arquivo)}</span>
                   </li>
                 ))}
               </ul>
               <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
-                Rode o arquivo indicado. Enquanto o objeto não existir, qualquer
-                consulta que o mencione falha inteira — e o erro costuma aparecer
-                como uma tela vazia, não como uma mensagem.
+                {tx("Rode o arquivo indicado. Enquanto o objeto não existir, qualquer consulta que o mencione falha inteira — e o erro costuma aparecer como uma tela vazia, não como uma mensagem.")}
               </p>
             </div>
           )}

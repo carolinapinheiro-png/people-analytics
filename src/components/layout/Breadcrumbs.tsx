@@ -10,6 +10,7 @@ import {
 import { useDashboard } from '@/data/DashboardContext';
 import { findNav } from './nav-config';
 
+import { tx } from '@/lib/i18n';
 /**
  * Trilha "Dashboard > Grupo > Aba > Sub-aba".
  *
@@ -58,13 +59,13 @@ export default function Breadcrumbs() {
               <BreadcrumbLink asChild className="flex items-center gap-1.5 cursor-pointer">
                 <button type="button" onClick={() => setActiveTab('overview')}>
                   <Home className="h-3.5 w-3.5" />
-                  <span>Dashboard</span>
+                  <span>{tx("Dashboard")}</span>
                 </button>
               </BreadcrumbLink>
             ) : (
               <BreadcrumbPage className="flex items-center gap-1.5 font-medium">
                 <Home className="h-3.5 w-3.5" />
-                <span>Dashboard</span>
+                <span>{tx("Dashboard")}</span>
               </BreadcrumbPage>
             )}
           </BreadcrumbItem>
@@ -74,7 +75,7 @@ export default function Breadcrumbs() {
           </BreadcrumbSeparator>
           <BreadcrumbItem>
             {/* Texto, nunca link: grupo é seção do menu, não página. */}
-            <span className="text-muted-foreground">{group.title}</span>
+            <span className="text-muted-foreground">{tx(group.title)}</span>
           </BreadcrumbItem>
 
           <BreadcrumbSeparator>
@@ -87,11 +88,11 @@ export default function Breadcrumbs() {
                   type="button"
                   onClick={() => setActiveSubTab(item.defaultSub ?? null)}
                 >
-                  {item.label}
+                  {tx(item.label)}
                 </button>
               </BreadcrumbLink>
             ) : (
-              <BreadcrumbPage className="font-medium">{item.label}</BreadcrumbPage>
+              <BreadcrumbPage className="font-medium">{tx(item.label)}</BreadcrumbPage>
             )}
           </BreadcrumbItem>
 
@@ -101,7 +102,7 @@ export default function Breadcrumbs() {
                 <ChevronRight className="h-3.5 w-3.5" />
               </BreadcrumbSeparator>
               <BreadcrumbItem>
-                <BreadcrumbPage className="font-medium">{subEscolhida.label}</BreadcrumbPage>
+                <BreadcrumbPage className="font-medium">{tx(subEscolhida.label)}</BreadcrumbPage>
               </BreadcrumbItem>
             </>
           )}

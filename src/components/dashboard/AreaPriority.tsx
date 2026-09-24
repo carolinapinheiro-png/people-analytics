@@ -17,6 +17,7 @@ import {
 import type { EngagementContextRow } from "@/lib/engagement-context";
 import type { SurveyCut } from "@/lib/survey.functions";
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Uma lista por área, ordenada por prioridade. Substitui três visões.
  *
@@ -71,7 +72,7 @@ const chave = (s: string) =>
     .toUpperCase();
 
 const fmt1 = (n: number | null | undefined) =>
-  n == null ? "—" : Number(n).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  n == null ? "—" : Number(n).toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 
 const VEREDITO: Record<Veredito, { label: string; cor: string; explica: string }> = {
   agir: {
@@ -184,20 +185,20 @@ function Trajetoria({ h }: { h: HistoricoDeArea | undefined }) {
               style={{ color: h.contraSuaMedia === 0 ? undefined : positivo ? COLORS.success : COLORS.danger }}
             >
               {positivo ? "+" : ""}
-              {fmt1(h.contraSuaMedia)}
+              {tx(fmt1(h.contraSuaMedia))}
             </span>
           </span>
         </TooltipTrigger>
         <TooltipContent className="max-w-[280px] text-xs leading-relaxed">
-          eNPS por onda: {h.valores.map((v) => (v == null ? "—" : Math.round(v))).join(" → ")}.
+          {tx("eNPS por onda:")}{" "}{tx(h.valores.map((v) => (v == null ? "—" : Math.round(v))).join(" → "))}.
           {h.mediaAnterior != null && (
-            <> A média das ondas anteriores é {fmt1(h.mediaAnterior)}.</>
+            <>{" "}{tx("A média das ondas anteriores é")}{" "}{tx(fmt1(h.mediaAnterior))}.</>
           )}{" "}
           {h.trajetoria === "queda"
-            ? "Caiu em todas as passagens — é tendência, não oscilação."
+            ? tx("Caiu em todas as passagens — é tendência, não oscilação.")
             : h.trajetoria === "oscila"
-              ? "Sobe e desce sem direção clara, o que é comum em área pequena."
-              : fraseTrajetoria(h.trajetoria, h.valores)}
+              ? tx("Sobe e desce sem direção clara, o que é comum em área pequena.")
+              : tx(fraseTrajetoria(h.trajetoria, h.valores))}
         </TooltipContent>
       </UiTooltip>
     </TooltipProvider>
@@ -319,7 +320,7 @@ export default function AreaPriority({
 
   return (
     <ChartCard
-      title="Por onde começar, área por área"
+      title={tx("Por onde começar, área por área")}
       ajuda="filaPorArea"
       subtitle={
         comparavel
@@ -340,10 +341,10 @@ export default function AreaPriority({
             // acima do típico.
             //
             // Nada disso aparecia. Só a palavra "grupo", que não é nada disso.
-            `ordenado por prioridade · mediana das ${itens.length} áreas: eNPS ${fmt1(medianas.enps)}, risco ${fmt1(medianas.risco)}%`
+            tx("ordenado por prioridade · mediana das {0} áreas: eNPS {1}, risco {2}%", [itens.length, fmt1(medianas.enps), fmt1(medianas.risco)])
           : // Sem grupo, "grupo: eNPS 48" seria o eNPS da própria área devolvido
             // como se fosse a régua -- a área comparada consigo mesma.
-            'sem grupo para comparar · a régua da fila são as outras áreas'
+            tx("sem grupo para comparar · a régua da fila são as outras áreas")
       }
     >
       {/* ------------------------------------------------------------------
@@ -372,17 +373,17 @@ export default function AreaPriority({
             <div key={g.veredito}>
               <div className="flex items-center gap-1.5 pb-2">
                 <span className="h-2 w-2 rounded-full shrink-0" style={{ background: v.cor }} />
-                <span className="text-[11px] font-medium">{v.label}</span>
+                <span className="text-[11px] font-medium">{tx(v.label)}</span>
                 <span className="text-[10px] text-muted-foreground">({g.itens.length})</span>
                 <TooltipProvider delayDuration={200}>
                   <UiTooltip>
                     <TooltipTrigger asChild>
-                      <button aria-label={`O que significa ${v.label}`}>
+                      <button aria-label={tx("O que significa {0}", [v.label])}>
                         <Info className="h-3 w-3 text-muted-foreground" />
                       </button>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-[260px] text-xs leading-relaxed">
-                      {v.explica}
+                      {tx(v.explica)}
                     </TooltipContent>
                   </UiTooltip>
                 </TooltipProvider>
@@ -401,7 +402,7 @@ export default function AreaPriority({
                       type="button"
                       onClick={() => setAberta(eAberta ? null : i.scope)}
                       aria-expanded={eAberta}
-                      aria-label={`Ver as perguntas de ${i.scope}`}
+                      aria-label={tx("Ver as perguntas de {0}", [i.scope])}
                       className={cn(
                         "rounded-lg border p-3 text-left transition-colors",
                         eAberta
@@ -414,8 +415,8 @@ export default function AreaPriority({
                         <span className="text-[10px] tabular-nums text-muted-foreground shrink-0">
                           {i.posicao}
                         </span>
-                        <span className="text-xs font-medium truncate" title={i.scope}>
-                          {i.scope}
+                        <span className="text-xs font-medium truncate" title={tx(i.scope)}>
+                          {tx(i.scope)}
                         </span>
                         {/* Veredito decidido por menos que uma resposta. Vem ANTES
                             do número, porque a ressalva precisa chegar antes. */}
@@ -425,23 +426,22 @@ export default function AreaPriority({
                               <TooltipTrigger asChild>
                                 <span
                                   className="shrink-0 rounded px-1 text-[9px] uppercase tracking-wide border border-amber-500/50 text-amber-600 dark:text-amber-500"
-                                  aria-label="Veredito no limite"
+                                  aria-label={tx("Veredito no limite")}
                                 >
-                                  limite
+                                  {tx("limite")}
                                 </span>
                               </TooltipTrigger>
                               <TooltipContent className="max-w-[280px] text-xs leading-relaxed">
-                                {i.scope} está a {fmt1(i.distanciaEnps)} ponto
-                                {i.distanciaEnps === 1 ? "" : "s"} da mediana de eNPS
+                                {tx(i.scope)}{" "}{tx("está a")}{" "}{tx(fmt1(i.distanciaEnps))}{" "}{tx("ponto")}
+                                {i.distanciaEnps === 1 ? "" : tx("s")}{" "}{tx("da mediana de eNPS")}
                                 {i.distanciaRisco != null &&
-                                  ` e a ${fmt1(i.distanciaRisco)} p.p. da de risco`}
+                                  tx(" e a {0} p.p. da de risco", [fmt1(i.distanciaRisco)])}
                                 .
                                 {i.pesoDeUmaResposta != null && (
                                   <>
                                     {" "}
-                                    Uma resposta aqui vale {fmt1(i.pesoDeUmaResposta)} ponto
-                                    {i.pesoDeUmaResposta === 1 ? "" : "s"} — este veredito pode
-                                    virar sozinho na próxima onda, sem nada ter mudado.
+                                    {tx("Uma resposta aqui vale")}{" "}{tx(fmt1(i.pesoDeUmaResposta))}{" "}{tx("ponto")}
+                                    {i.pesoDeUmaResposta === 1 ? "" : tx("s")}{" "}{tx("— este veredito pode virar sozinho na próxima onda, sem nada ter mudado.")}
                                   </>
                                 )}
                               </TooltipContent>
@@ -456,7 +456,7 @@ export default function AreaPriority({
                             {i.enps}
                           </span>
                           <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                            eNPS
+                            {tx("eNPS")}
                           </span>
                         </div>
                         {historico && <Trajetoria h={historico.get(chave(i.scope))} />}
@@ -467,7 +467,7 @@ export default function AreaPriority({
                       <div className="mt-2 pt-2 border-t border-border/60 grid grid-cols-2 gap-1 text-[11px]">
                         <div>
                           <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
-                            Risco
+                            {tx("Risco")}
                           </div>
                           <div
                             className={cn(
@@ -477,12 +477,12 @@ export default function AreaPriority({
                                 : "text-foreground",
                             )}
                           >
-                            {fmt1(i.risco)}%
+                            {tx(fmt1(i.risco))}%
                           </div>
                         </div>
                         <div>
                           <div className="text-[9px] uppercase tracking-wider text-muted-foreground">
-                            Respostas
+                            {tx("Respostas")}
                           </div>
                           <div
                             className={cn(
@@ -493,8 +493,8 @@ export default function AreaPriority({
                             )}
                             title={
                               eleg
-                                ? `${n} de ${eleg} pessoas responderam (${taxa}%)`
-                                : motivoSemTaxa ?? "sem headcount da área para calcular a taxa"
+                                ? tx("{0} de {1} pessoas responderam ({2}%)", [n, eleg, taxa])
+                                : tx(motivoSemTaxa) ?? tx("sem headcount da área para calcular a taxa")
                             }
                           >
                             {n == null ? "—" : eleg ? `${n}/${eleg}` : n}
@@ -516,20 +516,20 @@ export default function AreaPriority({
                             <strong className="text-emerald-600 dark:text-emerald-500">
                               {c.promotores}
                             </strong>{" "}
-                            prom.
+                            {tx("prom.")}
                           </span>
                           <span>
-                            <strong className="text-foreground">{c.passivos ?? "—"}</strong> pass.
+                            <strong className="text-foreground">{c.passivos ?? "—"}</strong>{" "}{tx("pass.")}
                           </span>
                           <span>
                             <strong className="text-red-600 dark:text-red-500">
                               {c.detratores ?? "—"}
                             </strong>{" "}
-                            detr.
+                            {tx("detr.")}
                           </span>
                           {c.satisfacao != null && (
                             <span>
-                              satisf. <strong className="text-foreground">{c.satisfacao}</strong>
+                              {tx("satisf.")}{" "}<strong className="text-foreground">{c.satisfacao}</strong>
                             </span>
                           )}
                         </div>
@@ -563,28 +563,20 @@ export default function AreaPriority({
           cores querem dizer, e o que é FI. */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-3 pt-2.5 border-t border-border/60 text-xs text-muted-foreground">
         <span>
-          a <strong className="text-foreground">borda colorida</strong> e o agrupamento dizem o que
-          fazer; o número antes do nome é a posição na fila
+          {tx("a")}{" "}<strong className="text-foreground">{tx("borda colorida")}</strong>{" "}{tx("e o agrupamento dizem o que fazer; o número antes do nome é a posição na fila")}
         </span>
         <span>
-          <strong className="text-amber-600 dark:text-amber-500">âmbar em Risco</strong> = acima da
-          mediana das áreas
+          <strong className="text-amber-600 dark:text-amber-500">{tx("âmbar em Risco")}</strong>{" "}{tx("= acima da mediana das áreas")}
         </span>
         <span>
-          <strong className="text-amber-600 dark:text-amber-500">âmbar em Respostas</strong> = menos
-          de dois terços responderam
+          <strong className="text-amber-600 dark:text-amber-500">{tx("âmbar em Respostas")}</strong>{" "}{tx("= menos de dois terços responderam")}
         </span>
         <span>
-          <strong className="text-foreground">Histórico</strong> = trajetória do eNPS nas ondas e
-          distância para a média anterior <em>desta</em> área
+          <strong className="text-foreground">{tx("Histórico")}</strong>{" "}{tx("= trajetória do eNPS nas ondas e distância para a média anterior")}{" "}<em>{tx("desta")}</em>{" "}{tx("área")}
         </span>
         <span className="basis-full">
-          A régua desta fila é a <strong className="text-foreground">mediana das áreas</strong>,
-          onde cada área conta uma vez. Os cartões do topo trazem o número{' '}
-          <strong className="text-foreground">da empresa</strong>, calculado sobre todas as
-          respostas — então área grande pesa mais lá e não pesa aqui. Os dois divergirem é normal, e
-          a diferença diz algo: risco mediano abaixo do risco da empresa significa que as áreas
-          maiores estão acima do típico.
+          {tx("A régua desta fila é a")}{" "}<strong className="text-foreground">{tx("mediana das áreas")}</strong>{tx(", onde cada área conta uma vez. Os cartões do topo trazem o número")}{' '}
+          <strong className="text-foreground">{tx("da empresa")}</strong>{tx(", calculado sobre todas as respostas — então área grande pesa mais lá e não pesa aqui. Os dois divergirem é normal, e a diferença diz algo: risco mediano abaixo do risco da empresa significa que as áreas maiores estão acima do típico.")}
         </span>
       </div>
 
@@ -604,24 +596,14 @@ export default function AreaPriority({
                inexistente é pior que não ter proteção. */}
         {comparavel ? (
           <>
-            A ordem não é por eNPS: a área de pior eNPS é também a de menor risco de saída, e agir
-            ali primeiro seria gastar esforço onde ninguém está saindo. A fila combina engajamento
-            baixo, risco alto e tamanho da área. O corte é a <strong>mediana das áreas</strong> —
-            metade fica de cada lado por construção, então &quot;abaixo&quot; quer dizer abaixo do
-            resto da casa, não ruim. Onde a distância até a linha é menor do que uma única resposta
-            moveria, a área leva o selo <strong>limite</strong>.{" "}
+            {tx("A ordem não é por eNPS: a área de pior eNPS é também a de menor risco de saída, e agir ali primeiro seria gastar esforço onde ninguém está saindo. A fila combina engajamento baixo, risco alto e tamanho da área. O corte é a")}{" "}<strong>{tx("mediana das áreas")}</strong>{" "}{tx("— metade fica de cada lado por construção, então \"abaixo\" quer dizer abaixo do resto da casa, não ruim. Onde a distância até a linha é menor do que uma única resposta moveria, a área leva o selo")}{" "}<strong>{tx("limite")}</strong>.{" "}
           </>
         ) : (
           <>
-            Esta fila ordena <strong>comparando as áreas entre si</strong>, e o filtro deixou poucas
-            na tela — por isso não há veredito. Os números continuam corretos; o que falta é a régua
-            para dizer se são altos ou baixos.{" "}
+            {tx("Esta fila ordena")}{" "}<strong>{tx("comparando as áreas entre si")}</strong>{tx(", e o filtro deixou poucas na tela — por isso não há veredito. Os números continuam corretos; o que falta é a régua para dizer se são altos ou baixos.")}{" "}
           </>
         )}
-        Repare na <strong>taxa de resposta</strong>: uma nota de 24 pessoas significa coisas opostas
-        se a área tem 25 ou 46. Elegíveis é o headcount do mês em que a pesquisa começou — a mesma
-        base do cartão de participação lá em cima, e não o número de convites enviados. Em área
-        pequena, além disso, uma pessoa move o eNPS em vários pontos.
+        {tx("Repare na")}{" "}<strong>{tx("taxa de resposta")}</strong>{tx(": uma nota de 24 pessoas significa coisas opostas se a área tem 25 ou 46. Elegíveis é o headcount do mês em que a pesquisa começou — a mesma base do cartão de participação lá em cima, e não o número de convites enviados. Em área pequena, além disso, uma pessoa move o eNPS em vários pontos.")}
       </p>
     </ChartCard>
   );

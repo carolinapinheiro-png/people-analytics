@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Lock, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 
+import { tx } from '@/lib/i18n';
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -24,7 +25,7 @@ export default function UpdatePasswordPage() {
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         if (error) {
-          toast.error('Link de recuperação inválido ou expirado.');
+          toast.error(tx("Link de recuperação inválido ou expirado."));
           console.error(error);
         }
         setIsVerifying(false);
@@ -37,14 +38,14 @@ export default function UpdatePasswordPage() {
           type: 'recovery',
         });
         if (error) {
-          toast.error('Link de recuperação inválido ou expirado.');
+          toast.error(tx("Link de recuperação inválido ou expirado."));
           console.error(error);
         }
         setIsVerifying(false);
         return;
       }
 
-      toast.error('Link de recuperação inválido.');
+      toast.error(tx("Link de recuperação inválido."));
       setIsVerifying(false);
     };
 
@@ -55,12 +56,12 @@ export default function UpdatePasswordPage() {
     e.preventDefault();
 
     if (password.length < 6) {
-      toast.error('A senha deve ter pelo menos 6 caracteres.');
+      toast.error(tx("A senha deve ter pelo menos 6 caracteres."));
       return;
     }
 
     if (password !== confirmPassword) {
-      toast.error('As senhas não coincidem.');
+      toast.error(tx("As senhas não coincidem."));
       return;
     }
 
@@ -68,10 +69,10 @@ export default function UpdatePasswordPage() {
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      toast.error('Erro ao atualizar senha.');
+      toast.error(tx("Erro ao atualizar senha."));
       console.error(error);
     } else {
-      toast.success('Senha atualizada com sucesso!');
+      toast.success(tx("Senha atualizada com sucesso!"));
       navigate({ to: '/dashboard', replace: true });
     }
     setIsLoading(false);
@@ -93,24 +94,24 @@ export default function UpdatePasswordPage() {
             className="w-12 h-12 rounded-xl mx-auto mb-4 flex items-center justify-center text-lg font-extrabold text-white"
             style={{ background: 'linear-gradient(to right bottom, rgb(92, 107, 192), rgb(38, 166, 154))' }}
           >
-            F
+            {tx("F")}
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">Nova senha</h1>
-          <p className="text-sm text-muted-foreground mt-1">Defina uma nova senha para sua conta.</p>
+          <h1 className="text-2xl font-bold tracking-tight">{tx("Nova senha")}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{tx("Defina uma nova senha para sua conta.")}</p>
         </div>
 
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Lock className="h-5 w-5" />
-              Atualizar senha
+              {tx("Atualizar senha")}
             </CardTitle>
-            <CardDescription>A senha deve ter pelo menos 6 caracteres.</CardDescription>
+            <CardDescription>{tx("A senha deve ter pelo menos 6 caracteres.")}</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="password">Nova senha</Label>
+                <Label htmlFor="password">{tx("Nova senha")}</Label>
                 <Input
                   id="password"
                   type="password"
@@ -121,7 +122,7 @@ export default function UpdatePasswordPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirm-password">Confirmar nova senha</Label>
+                <Label htmlFor="confirm-password">{tx("Confirmar nova senha")}</Label>
                 <Input
                   id="confirm-password"
                   type="password"
@@ -132,7 +133,7 @@ export default function UpdatePasswordPage() {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? 'Atualizando...' : 'Atualizar senha'}
+                {isLoading ? tx("Atualizando...") : tx("Atualizar senha")}
               </Button>
             </form>
           </CardContent>

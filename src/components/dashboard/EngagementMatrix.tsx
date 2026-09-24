@@ -23,6 +23,7 @@ import {
 } from "@/lib/cruzamento-area-pergunta";
 import type { EngagementContextRow } from "@/lib/engagement-context";
 
+import { tx } from '@/lib/i18n';
 /**
  * Matriz de ação: eNPS no eixo X, risco de retenção no Y, tamanho da bolha pelo
  * headcount.
@@ -192,9 +193,9 @@ export default function EngagementMatrix({
 
   return (
     <ChartCard
-      title="Matriz de ação"
+      title={tx("Matriz de ação")}
       ajuda="matrizDeAcao"
-      subtitle={`eNPS × risco de saída${ondaLabel ? ` · ${ondaLabel}` : ""} · bolha = tamanho da área · os dois eixos crescem, então o melhor lugar é o canto inferior direito`}
+      subtitle={tx("eNPS × risco de saída{0} · bolha = tamanho da área · os dois eixos crescem, então o melhor lugar é o canto inferior direito", [ondaLabel ? ` · ${ondaLabel}` : ""])}
       icon={Target}
     >
       <ResponsiveContainer width="100%" height={330}>
@@ -216,7 +217,7 @@ export default function EngagementMatrix({
           <YAxis
             type="number"
             dataKey="y"
-            name="Risco"
+            name={tx("Risco")}
             unit="%"
             domain={limY}
             tick={{ fontSize: 11 }}
@@ -227,7 +228,7 @@ export default function EngagementMatrix({
               fontSize: 11,
             }}
           />
-          <ZAxis type="number" dataKey="z" range={[80, 900]} name="Headcount" />
+          <ZAxis type="number" dataKey="z" range={[80, 900]} name={tx("Headcount")} />
 
           {/* Os quatro quadrantes pintados por baixo dos pontos. Sem isso é
               preciso descer até os cards para saber em que zona cada bolha
@@ -283,11 +284,11 @@ export default function EngagementMatrix({
               const q = QUADRANTES[p.quadrante as keyof typeof QUADRANTES];
               return (
                 <div className="rounded-md border border-border bg-popover p-2.5 text-xs shadow-md max-w-[240px]">
-                  <div className="font-medium mb-1">{p.nome}</div>
+                  <div className="font-medium mb-1">{tx(p.nome)}</div>
                   <div className="text-muted-foreground">
-                    eNPS {p.x} · risco {p.y}%
+                    {tx("eNPS")}{" "}{p.x}{" "}{tx("· risco")}{" "}{p.y}%
                   </div>
-                  <div className="text-muted-foreground">~{p.z} pessoas</div>
+                  <div className="text-muted-foreground">~{p.z}{" "}{tx("pessoas")}</div>
                   <div
                     className="mt-1.5 pt-1.5 border-t border-border/60"
                     style={{ color: q.color }}
@@ -296,13 +297,12 @@ export default function EngagementMatrix({
                   </div>
                   {onEscolherArea && (
                     <div className="mt-1.5 text-[11px] text-muted-foreground">
-                      Clique para ver as perguntas desta área.
+                      {tx("Clique para ver as perguntas desta área.")}
                     </div>
                   )}
                   {p.noLimite && (
                     <div className="mt-1.5 text-[11px] leading-relaxed text-amber-600 dark:text-amber-500">
-                      No limite: este veredito foi decidido por uma distância menor do que uma única
-                      resposta moveria. Pode virar sozinho na próxima onda.
+                      {tx("No limite: este veredito foi decidido por uma distância menor do que uma única resposta moveria. Pode virar sozinho na próxima onda.")}
                     </div>
                   )}
                 </div>
@@ -378,9 +378,9 @@ export default function EngagementMatrix({
               </p>
               <p className="text-[11px]">
                 {areas.length ? (
-                  areas.map((a) => a.nome).join(", ")
+                  tx(areas.map((a) => a.nome).join(", "))
                 ) : (
-                  <span className="text-muted-foreground">nenhuma área</span>
+                  <span className="text-muted-foreground">{tx("nenhuma área")}</span>
                 )}
               </p>
             </div>
@@ -396,19 +396,17 @@ export default function EngagementMatrix({
           com as áreas daqui. Agora a conta vem feita. */}
       {achados.length > 0 && (
         <div className="mt-3 rounded-md border border-border bg-secondary/40 p-3">
-          <p className="text-xs font-medium mb-2">Onde agir primeiro, e em quê</p>
+          <p className="text-xs font-medium mb-2">{tx("Onde agir primeiro, e em quê")}</p>
           <div className="space-y-2">
             {achados.map((a) => (
               <p key={a.area} className="text-[11.5px] leading-relaxed text-muted-foreground">
-                Em <strong className="text-foreground">{a.area}</strong>, das perguntas que mais
-                rendem, {a.perguntas.length === 1 ? "uma está" : `${a.perguntas.length} estão`} bem
-                abaixo da empresa:{" "}
+                {tx("Em")}{" "}<strong className="text-foreground">{tx(a.area)}</strong>{tx(", das perguntas que mais rendem,")}{" "}{a.perguntas.length === 1 ? tx("uma está") : tx("{0} estão", [a.perguntas.length])}{" "}{tx("bem abaixo da empresa:")}{" "}
                 {a.perguntas.map((q, idx) => (
                   <span key={q.question}>
-                    {idx > 0 && (idx === a.perguntas.length - 1 ? " e " : ", ")}
-                    <span className="text-foreground">“{q.question.replace(/\.$/, "")}”</span>{" "}
+                    {idx > 0 && (idx === a.perguntas.length - 1 ? tx(" e ") : ", ")}
+                    <span className="text-foreground">“{tx(q.question.replace(/\.$/, ""))}”</span>{" "}
                     <span className="tabular-nums text-amber-600 dark:text-amber-500">
-                      {q.area}% contra {q.empresa}%
+                      {q.area}{tx("% contra")}{" "}{q.empresa}%
                     </span>
                   </span>
                 ))}
@@ -417,20 +415,13 @@ export default function EngagementMatrix({
             ))}
           </div>
           <p className="text-[10.5px] text-muted-foreground/80 mt-2 leading-relaxed">
-            Só perguntas com pelo menos 8 pontos percentuais de diferença e cinco respostas na área.
-            Área que aparece na matriz e não aqui está mal pela combinação de eNPS e risco, não por
-            uma pergunta específica — o problema dela não está nesta lista.
+            {tx("Só perguntas com pelo menos 8 pontos percentuais de diferença e cinco respostas na área. Área que aparece na matriz e não aqui está mal pela combinação de eNPS e risco, não por uma pergunta específica — o problema dela não está nesta lista.")}
           </p>
         </div>
       )}
 
       <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
-        Bolha com <strong>contorno tracejado</strong> teve o veredito decidido por uma margem menor
-        do que uma única resposta moveria — o rótulo vale, mas não é estável. Passe o mouse para ver
-        de quanto foi. As linhas tracejadas são a <strong>mediana</strong> do grupo (eNPS {corteX},
-        risco {corteY}%), não uma meta. Metade das áreas cai de cada lado por construção — então
-        &quot;abaixo da linha&quot; significa &quot;abaixo das outras&quot;, não &quot;ruim&quot;.
-        Quando houver meta acordada, trocamos a linha e a leitura passa a ser absoluta.
+        {tx("Bolha com")}{" "}<strong>{tx("contorno tracejado")}</strong>{" "}{tx("teve o veredito decidido por uma margem menor do que uma única resposta moveria — o rótulo vale, mas não é estável. Passe o mouse para ver de quanto foi. As linhas tracejadas são a")}{" "}<strong>{tx("mediana")}</strong>{" "}{tx("do grupo (eNPS")}{" "}{corteX}{tx(", risco")}{" "}{corteY}{tx("%), não uma meta. Metade das áreas cai de cada lado por construção — então \"abaixo da linha\" significa \"abaixo das outras\", não \"ruim\". Quando houver meta acordada, trocamos a linha e a leitura passa a ser absoluta.")}
       </p>
     </ChartCard>
   );

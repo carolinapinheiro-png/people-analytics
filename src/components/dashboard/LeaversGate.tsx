@@ -1,6 +1,7 @@
 import { useDashboard } from '@/data/DashboardContext';
 import { Button } from '@/components/ui/button';
 
+import { tx } from '@/lib/i18n';
 /**
  * As abas de desligados dependem de dado individual, que agora vem do servidor
  * em vez de estar no bundle. Tratar carga e erro aqui, no ponto de troca de
@@ -22,10 +23,10 @@ export default function LeaversGate({ children }: { children: React.ReactNode })
     return (
       <div className="max-w-md mx-auto text-center py-24 space-y-4">
         <h2 className="text-lg font-semibold text-foreground">
-          Não foi possível carregar os desligados
+          {tx("Não foi possível carregar os desligados")}
         </h2>
-        <p className="text-sm text-muted-foreground">{leaversError}</p>
-        <Button onClick={() => reloadLeavers()}>Tentar novamente</Button>
+        <p className="text-sm text-muted-foreground">{tx(leaversError)}</p>
+        <Button onClick={() => reloadLeavers()}>{tx("Tentar novamente")}</Button>
       </div>
     );
   }

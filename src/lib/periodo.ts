@@ -1,4 +1,5 @@
-/**
+
+import { mesesCurtos } from '@/lib/i18n';/**
  * O PERÍODO EM ESCOPO -- ANO + VISÃO + MÊS, RESOLVIDOS UMA VEZ SÓ.
  *
  * ===========================================================================
@@ -72,7 +73,7 @@ export function rotuloTrimestre(mes: string): string {
 export function rotuloMes(mes: string): string {
   const [ano, m] = ym(mes).split('-').map(Number);
   if (!ano || !m) return '';
-  return `${MES_LABEL[m - 1]}/${ano}`;
+  return `${mesesCurtos()[m - 1]}/${ano}`;
 }
 
 export function resolverPeriodo(opts: {

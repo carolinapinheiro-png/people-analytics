@@ -6,6 +6,7 @@ import {
   AJUDA, descreverFaixa, faixaDe, type AjudaMetrica, type ChaveMetrica, type KpiTone,
 } from '@/lib/metric-help';
 
+import { tx } from '@/lib/i18n';
 /**
  * A ajuda de uma métrica: o que é, como ler, em que faixa está agora.
  *
@@ -52,22 +53,22 @@ export default function MetricHelp({
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={`O que é ${rotulo ?? a.titulo}`}
+          aria-label={tx("O que é {0}", [rotulo ?? a.titulo])}
           className="rounded-full p-0.5 text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
         >
           <HelpCircle className="h-3.5 w-3.5" />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[300px] space-y-2 text-sm">
-        <div className="font-semibold">{rotulo ?? a.titulo}</div>
-        <p className="text-muted-foreground leading-relaxed">{a.oQueE}</p>
+        <div className="font-semibold">{tx(rotulo) ?? tx(a.titulo)}</div>
+        <p className="text-muted-foreground leading-relaxed">{tx(a.oQueE)}</p>
 
-        {a.comoLer && <p className="text-muted-foreground leading-relaxed">{a.comoLer}</p>}
+        {a.comoLer && <p className="text-muted-foreground leading-relaxed">{tx(a.comoLer)}</p>}
 
         {a.faixas && (
           <div className="space-y-1 pt-1">
             <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-              O que a cor diz
+              {tx("O que a cor diz")}
             </div>
             {a.faixas.map((f, i) => {
               const ehAtual = atual === f;
@@ -77,16 +78,15 @@ export default function MetricHelp({
                   className={`flex items-center gap-2 text-[12px] ${ehAtual ? 'font-medium' : 'text-muted-foreground'}`}
                 >
                   <span className={`h-2 w-2 shrink-0 rounded-full ${PONTO[f.tone]}`} />
-                  <span className="shrink-0">{descreverFaixa(metrica, i)}</span>
-                  <span className="truncate">— {f.rotulo}</span>
-                  {ehAtual && <span className="ml-auto shrink-0 text-[10px] uppercase">agora</span>}
+                  <span className="shrink-0">{tx(descreverFaixa(metrica, i))}</span>
+                  <span className="truncate">— {tx(f.rotulo)}</span>
+                  {ehAtual && <span className="ml-auto shrink-0 text-[10px] uppercase">{tx("agora")}</span>}
                 </div>
               );
             })}
             {a.inverso && (
               <p className="pt-1 text-[11px] text-muted-foreground">
-                Aqui <strong>subir é ruim</strong>: as cores são invertidas em relação
-                aos outros cartões.
+                {tx("Aqui")}{" "}<strong>{tx("subir é ruim")}</strong>{tx(": as cores são invertidas em relação aos outros cartões.")}
               </p>
             )}
           </div>
@@ -94,7 +94,7 @@ export default function MetricHelp({
 
         {a.cuidado && (
           <p className="rounded-md bg-secondary/60 p-2 text-[12px] leading-relaxed">
-            <strong>Atenção:</strong> {a.cuidado}
+            <strong>{tx("Atenção:")}</strong> {tx(a.cuidado)}
           </p>
         )}
       </PopoverContent>

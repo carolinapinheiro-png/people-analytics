@@ -8,6 +8,7 @@ import {
   exportAllowedEmailsCsv, importAllowedEmailsCsv,
 } from '@/lib/access.functions';
 
+import { tx } from '@/lib/i18n';
 /**
  * Entrada e saída em CSV da lista de usuários.
  *
@@ -63,9 +64,9 @@ export default function UsersCsvCard({ onChanged }: { onChanged: () => void }) {
       a.download = `usuarios-acesso-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success(`${linhas} usuário(s) exportado(s).`);
+      toast.success(tx("{0} usuário(s) exportado(s).", [linhas]));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao exportar');
+      toast.error(e instanceof Error ? tx(e.message) : tx("Falha ao exportar"));
     } finally {
       setOcupado(false);
     }
@@ -77,17 +78,17 @@ export default function UsersCsvCard({ onChanged }: { onChanged: () => void }) {
   };
 
   const rodar = async (confirm: boolean) => {
-    if (!texto.trim()) { toast.error('Escolha um arquivo primeiro.'); return; }
+    if (!texto.trim()) { toast.error(tx("Escolha um arquivo primeiro.")); return; }
     setOcupado(true);
     try {
       const r = await importar({ data: { texto, confirm } }) as Resultado;
       setRes(r);
       if (confirm) {
-        toast.success(`${r.criar} criado(s), ${r.atualizar} atualizado(s).`);
+        toast.success(tx("{0} criado(s), {1} atualizado(s).", [r.criar, r.atualizar]));
         onChanged();
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Falha ao ler o arquivo');
+      toast.error(e instanceof Error ? tx(e.message) : tx("Falha ao ler o arquivo"));
     } finally {
       setOcupado(false);
     }
@@ -98,22 +99,21 @@ export default function UsersCsvCard({ onChanged }: { onChanged: () => void }) {
   return (
     <Card>
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Planilha de usuários</CardTitle>
+        <CardTitle className="text-lg">{tx("Planilha de usuários")}</CardTitle>
         <CardDescription>
-          Exporte para conferir ou editar em massa. O arquivo que sai é o mesmo
-          que entra — dá para abrir no Excel, mexer e reimportar.
+          {tx("Exporte para conferir ou editar em massa. O arquivo que sai é o mesmo que entra — dá para abrir no Excel, mexer e reimportar.")}
         </CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={baixar} disabled={ocupado}>
-            <Download className="mr-2 h-4 w-4" /> Exportar CSV
+            <Download className="mr-2 h-4 w-4" />{" "}{tx("Exportar CSV")}
           </Button>
 
           <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-secondary">
             <FileUp className="h-4 w-4" />
-            Escolher arquivo
+            {tx("Escolher arquivo")}
             <input
               type="file"
               accept=".csv,text/csv"
@@ -124,7 +124,7 @@ export default function UsersCsvCard({ onChanged }: { onChanged: () => void }) {
 
           {texto && (
             <Button variant="outline" size="sm" onClick={() => rodar(false)} disabled={ocupado}>
-              Conferir antes de gravar
+              {tx("Conferir antes de gravar")}
             </Button>
           )}
         </div>
@@ -132,35 +132,35 @@ export default function UsersCsvCard({ onChanged }: { onChanged: () => void }) {
         {res && (
           <div className="rounded-lg border border-border/60 p-3 text-sm space-y-3">
             <div className="flex flex-wrap gap-3 text-[13px]">
-              <span><strong>{res.criar}</strong> a criar</span>
-              <span><strong>{res.atualizar}</strong> a atualizar</span>
-              <span className="text-muted-foreground">{res.semMudanca} sem mudança</span>
+              <span><strong>{res.criar}</strong>{" "}{tx("a criar")}</span>
+              <span><strong>{res.atualizar}</strong>{" "}{tx("a atualizar")}</span>
+              <span className="text-muted-foreground">{res.semMudanca}{" "}{tx("sem mudança")}</span>
               {res.problemas.length > 0 && (
                 <span className="text-amber-600 dark:text-amber-500">
-                  {res.problemas.length} linha(s) recusada(s)
+                  {res.problemas.length}{" "}{tx("linha(s) recusada(s)")}
                 </span>
               )}
             </div>
 
             {res.ignorados.length > 0 && (
               <p className="text-[11px] text-muted-foreground">
-                Colunas não reconhecidas (ignoradas): {res.ignorados.join(', ')}.
+                {tx("Colunas não reconhecidas (ignoradas):")}{" "}{tx(res.ignorados.join(', '))}.
               </p>
             )}
 
             {res.problemas.length > 0 && (
               <div className="space-y-1">
                 <div className="flex items-center gap-1.5 text-[12px] font-medium text-amber-600 dark:text-amber-500">
-                  <AlertTriangle className="h-3.5 w-3.5" /> Recusadas — corrija e reenvie
+                  <AlertTriangle className="h-3.5 w-3.5" />{" "}{tx("Recusadas — corrija e reenvie")}
                 </div>
                 {res.problemas.slice(0, 12).map((p, i) => (
                   <div key={i} className="text-[12px] text-muted-foreground">
-                    {p.linha ? `linha ${p.linha}` : p.email} — {p.motivo}
+                    {p.linha ? tx("linha {0}", [p.linha]) : tx(p.email)} — {tx(p.motivo)}
                   </div>
                 ))}
                 {res.problemas.length > 12 && (
                   <div className="text-[11px] text-muted-foreground">
-                    …e mais {res.problemas.length - 12}.
+                    {tx("…e mais")}{" "}{res.problemas.length - 12}.
                   </div>
                 )}
               </div>
@@ -172,8 +172,8 @@ export default function UsersCsvCard({ onChanged }: { onChanged: () => void }) {
               <div className="max-h-64 space-y-1 overflow-y-auto">
                 {res.previa.filter((p) => p.acao !== 'sem mudanca').map((p) => (
                   <div key={p.email} className="text-[12px]">
-                    <span className={p.acao === 'criar' ? 'font-medium' : ''}>{p.email}</span>
-                    <span className="text-muted-foreground"> — {p.acao}: {p.mudancas.join('; ')}</span>
+                    <span className={p.acao === 'criar' ? 'font-medium' : ''}>{tx(p.email)}</span>
+                    <span className="text-muted-foreground"> — {p.acao}: {tx(p.mudancas.join('; '))}</span>
                   </div>
                 ))}
               </div>
@@ -182,19 +182,17 @@ export default function UsersCsvCard({ onChanged }: { onChanged: () => void }) {
             {!res.gravado && vaiMudar > 0 && (
               <Button onClick={() => rodar(true)} disabled={ocupado}>
                 <Upload className="mr-2 h-4 w-4" />
-                Gravar {vaiMudar} mudança(s)
+                {tx("Gravar")}{" "}{vaiMudar}{" "}{tx("mudança(s)")}
               </Button>
             )}
             {res.gravado && (
-              <p className="text-[12px] text-muted-foreground">Gravado.</p>
+              <p className="text-[12px] text-muted-foreground">{tx("Gravado.")}</p>
             )}
           </div>
         )}
 
         <p className="text-[11px] text-muted-foreground">
-          Colunas aceitas: email, perfil, departamentos, job_families, abas, cargo,
-          level, validade, dado_individual. Só <strong>email</strong> e <strong>perfil</strong> são
-          obrigatórios. Linha com problema é recusada, nunca corrigida por conta própria.
+          {tx("Colunas aceitas: email, perfil, departamentos, job_families, abas, cargo, level, validade, dado_individual. Só")}{" "}<strong>{tx("email")}</strong>{" "}{tx("e")}{" "}<strong>{tx("perfil")}</strong>{" "}{tx("são obrigatórios. Linha com problema é recusada, nunca corrigida por conta própria.")}
         </p>
       </CardContent>
     </Card>

@@ -30,3 +30,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# i18n: saídas regeneráveis dos scripts
+scripts/i18n-keys.json
+scripts/i18n-missing.json
+scripts/i18n-ts-estaticos.json
+scripts/i18n-ts-templates.json

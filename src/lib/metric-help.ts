@@ -1,3 +1,4 @@
+import { tx } from '@/lib/i18n';
 /**
  * O que cada número quer dizer, e o que a cor dele quer dizer.
  *
@@ -305,7 +306,7 @@ export function descreverFaixa(chave: ChaveMetrica, i: number): string {
   if (!f) return '';
   const fmt = a.formatar ?? cru;
   const anterior = faixas[i - 1];
-  if (f.min === -Infinity) return anterior ? `abaixo de ${fmt(anterior.min)}` : 'qualquer valor';
-  if (!anterior) return `${fmt(f.min)} ou mais`;
-  return `de ${fmt(f.min)} até menos de ${fmt(anterior.min)}`;
+  if (f.min === -Infinity) return anterior ? tx('abaixo de {0}', [fmt(anterior.min)]) : tx('qualquer valor');
+  if (!anterior) return tx('{0} ou mais', [fmt(f.min)]);
+  return tx('de {0} até menos de {1}', [fmt(f.min), fmt(anterior.min)]);
 }

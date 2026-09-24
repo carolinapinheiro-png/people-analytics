@@ -1,3 +1,4 @@
+import { tx } from '@/lib/i18n';
 /**
  * ===========================================================================
  * ATÉ ONDE CADA BASE ALCANÇA
@@ -63,6 +64,6 @@ export function rotuloAno(ano: string, cobertura: readonly CoberturaBase[]): str
   const faltando = basesSemDado(ano, cobertura);
   if (!faltando.length) return ano;
   const tem = cobertura.filter((c) => alcanca(c, ano));
-  if (!tem.length) return `${ano} · sem dado`;
-  return `${ano} · só ${tem.map((c) => c.label.toLowerCase()).join(' e ')}`;
+  if (!tem.length) return tx('{0} · sem dado', [ano]);
+  return tx('{0} · só {1}', [ano, tem.map((c) => tx(c.label).toLowerCase()).join(tx(' e '))]);
 }

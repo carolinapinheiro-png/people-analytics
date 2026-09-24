@@ -3,6 +3,7 @@ import {
   Popover, PopoverContent, PopoverTrigger,
 } from '@/components/ui/popover';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * A variação vs. o período anterior.
  *
@@ -38,34 +39,32 @@ export default function Delta({
   const cor = v === 0
     ? 'text-muted-foreground'
     : bom ? 'text-emerald-600 dark:text-emerald-500' : 'text-amber-600 dark:text-amber-500';
-  const fmt = Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  const fmt = Number(v).toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={`Variação de ${fmt} contra ${periodo}. O que isto significa?`}
+          aria-label={tx("Variação de {0} contra {1}. O que isto significa?", [fmt, periodo])}
           className={`inline-flex items-center gap-0.5 rounded px-0.5 text-[11px] hover:bg-secondary transition-colors ${cor}`}
         >
           {v !== 0 && <Icon className="h-3 w-3" />}
-          {v > 0 ? '+' : ''}{fmt}
+          {v > 0 ? '+' : ''}{tx(fmt)}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[280px] space-y-2 text-sm">
-        <div className="font-semibold">Δ — variação</div>
+        <div className="font-semibold">{tx("Δ — variação")}</div>
         <p className="text-muted-foreground leading-relaxed">
-          Quanto o indicador mudou contra {periodo}. Aqui, {v > 0 ? 'subiu' : v < 0 ? 'caiu' : 'ficou igual'}
-          {v !== 0 ? ` ${Math.abs(Number(v)).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}` : ''}.
+          {tx("Quanto o indicador mudou contra")}{" "}{tx(periodo)}{tx(". Aqui,")}{" "}{v > 0 ? tx("subiu") : v < 0 ? tx("caiu") : tx("ficou igual")}
+          {v !== 0 ? ` ${Math.abs(Number(v)).toLocaleString(numLocale(), { maximumFractionDigits: 1 })}` : ''}.
         </p>
         <p className="text-muted-foreground leading-relaxed">
-          A <strong>seta</strong> aponta o movimento real. A <strong>cor</strong> diz se o
-          movimento é bom: verde melhorou, âmbar piorou.
+          {tx("A")}{" "}<strong>{tx("seta")}</strong>{" "}{tx("aponta o movimento real. A")}{" "}<strong>{tx("cor")}</strong>{" "}{tx("diz se o movimento é bom: verde melhorou, âmbar piorou.")}
         </p>
         {invertido && (
           <p className="rounded-md bg-secondary/60 p-2 text-[12px] leading-relaxed">
-            Neste indicador <strong>subir é ruim</strong> — por isso uma seta para cima
-            pode aparecer em âmbar.
+            {tx("Neste indicador")}{" "}<strong>{tx("subir é ruim")}</strong>{" "}{tx("— por isso uma seta para cima pode aparecer em âmbar.")}
           </p>
         )}
       </PopoverContent>

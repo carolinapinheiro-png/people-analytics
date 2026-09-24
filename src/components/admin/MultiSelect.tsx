@@ -13,6 +13,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 
+import { tx } from '@/lib/i18n';
 /**
  * Selecao multipla em dropdown, no lugar de despejar a lista inteira na tela.
  *
@@ -75,7 +76,7 @@ export default function MultiSelect({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <Label className="text-xs text-muted-foreground" htmlFor={id}>
-          {label}
+          {tx(label)}
         </Label>
         {value.length > 0 && !disabled && (
           <button
@@ -83,7 +84,7 @@ export default function MultiSelect({
             onClick={clear}
             className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2"
           >
-            limpar
+            {tx("limpar")}
           </button>
         )}
       </div>
@@ -116,17 +117,17 @@ export default function MultiSelect({
           >
             <span className={value.length ? '' : 'text-muted-foreground'}>
               {value.length === 0
-                ? placeholder
-                : `${value.length} selecionado${value.length > 1 ? 's' : ''}`}
+                ? tx(placeholder)
+                : tx("{0} selecionado{1}", [value.length, value.length > 1 ? 's' : ''])}
             </span>
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
           <Command>
-            <CommandInput placeholder={searchPlaceholder} />
+            <CommandInput placeholder={tx(searchPlaceholder)} />
             <CommandList>
-              <CommandEmpty>Nada encontrado.</CommandEmpty>
+              <CommandEmpty>{tx("Nada encontrado.")}</CommandEmpty>
               <CommandGroup>
                 {options.map((opt) => {
                   const selected = value.includes(opt);
@@ -142,7 +143,7 @@ export default function MultiSelect({
                       >
                         {selected && <Check className="h-3 w-3" />}
                       </span>
-                      {rotulo(opt)}
+                      {tx(rotulo(opt))}
                     </CommandItem>
                   );
                 })}
@@ -162,12 +163,12 @@ export default function MultiSelect({
               variant="secondary"
               className={`text-[11px] font-normal gap-1 pr-1 ${disabled ? 'opacity-50' : ''}`}
             >
-              {rotulo(v)}
+              {tx(rotulo(v))}
               <button
                 type="button"
                 onClick={() => toggle(v)}
                 disabled={disabled}
-                aria-label={`Remover ${rotulo(v)}`}
+                aria-label={tx("Remover {0}", [rotulo(v)])}
                 className="rounded-full hover:bg-background/60 p-0.5"
               >
                 <X className="h-3 w-3" />
@@ -177,7 +178,7 @@ export default function MultiSelect({
         </div>
       )}
 
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-[11px] text-muted-foreground">{tx(hint)}</p>}
     </div>
   );
 }

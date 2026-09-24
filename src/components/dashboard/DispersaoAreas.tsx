@@ -6,6 +6,7 @@ import { dispersaoEntreAreas } from '@/lib/analise-engajamento';
 import type { DriverPorRecorte } from '@/lib/survey.functions';
 import { ehResidual } from '@/lib/engagement-context';
 
+import { tx } from '@/lib/i18n';
 /**
  * O mesmo em toda a empresa, ou depende da área?
  *
@@ -96,21 +97,21 @@ export default function DispersaoAreas({
           className="tabular-nums text-[11px] font-semibold w-9 shrink-0 text-right"
           style={{ color: local ? COLORS.warning : COLORS.info }}
         >
-          {local ? `${Math.round(d.amplitude)}pp` : '≈'}
+          {local ? tx("{0}pp", [Math.round(d.amplitude)]) : '≈'}
         </span>
         <span className="text-[12px] leading-snug min-w-0 flex-1">
-          {d.question}
-          <span className="text-muted-foreground"> · {d.driver}</span>
+          {tx(d.question)}
+          <span className="text-muted-foreground"> · {tx(d.driver)}</span>
         </span>
         <span className="text-[11px] tabular-nums text-muted-foreground shrink-0">
-          empresa {fmt0(d.empresa)}
+          {tx("empresa")}{" "}{tx(fmt0(d.empresa))}
         </span>
       </div>
       {local && (
         <p className="text-[11px] text-muted-foreground mt-0.5 ml-11">
-          <strong className="text-emerald-600 dark:text-emerald-500">{d.melhor.area} {fmt0(d.melhor.favoravel)}</strong>
+          <strong className="text-emerald-600 dark:text-emerald-500">{tx(d.melhor.area)} {tx(fmt0(d.melhor.favoravel))}</strong>
           {' · '}
-          <strong className="text-red-600 dark:text-red-500">{d.pior.area} {fmt0(d.pior.favoravel)}</strong>
+          <strong className="text-red-600 dark:text-red-500">{tx(d.pior.area)} {tx(fmt0(d.pior.favoravel))}</strong>
         </p>
       )}
     </div>
@@ -118,19 +119,18 @@ export default function DispersaoAreas({
 
   return (
     <ChartCard
-      title="O mesmo em toda a empresa, ou depende da área?"
+      title={tx("O mesmo em toda a empresa, ou depende da área?")}
       ajuda="empresaOuArea"
-      subtitle="quanto cada pergunta varia entre as áreas"
+      subtitle={tx("quanto cada pergunta varia entre as áreas")}
       icon={SplitSquareHorizontal}
     >
       {locais.length > 0 && (
         <>
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">
-            Depende de onde a pessoa está
+            {tx("Depende de onde a pessoa está")}
           </p>
           <p className="text-[12px] text-muted-foreground mb-1.5 leading-relaxed">
-            A mesma empresa produz experiências muito diferentes aqui. Existe algo
-            local a fazer — e alguém de quem aprender.
+            {tx("A mesma empresa produz experiências muito diferentes aqui. Existe algo local a fazer — e alguém de quem aprender.")}
           </p>
           <div>{locais.map((d) => <Linha key={d.question} d={d} local />)}</div>
         </>
@@ -139,21 +139,17 @@ export default function DispersaoAreas({
       {daEmpresa.length > 0 && (
         <>
           <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1 mt-4">
-            Igual em todo lugar, e com nota baixa
+            {tx("Igual em todo lugar, e com nota baixa")}
           </p>
           <p className="text-[12px] text-muted-foreground mb-1.5 leading-relaxed">
-            Todas as áreas respondem parecido. Cobrar o líder da pior nota não
-            resolve: ele não tem alavanca, e a nota dele é a de todo mundo. Isto é
-            política, processo ou estrutura.
+            {tx("Todas as áreas respondem parecido. Cobrar o líder da pior nota não resolve: ele não tem alavanca, e a nota dele é a de todo mundo. Isto é política, processo ou estrutura.")}
           </p>
           <div>{daEmpresa.map((d) => <Linha key={d.question} d={d} local={false} />)}</div>
         </>
       )}
 
       <p className="text-[11px] text-muted-foreground mt-3 leading-relaxed">
-        A medida é a distância em pontos percentuais entre a área que mais concorda e
-        a que menos concorda. Áreas com poucas respostas ficam de fora — com três
-        pessoas, a diferença diz mais sobre quem respondeu que sobre a área.
+        {tx("A medida é a distância em pontos percentuais entre a área que mais concorda e a que menos concorda. Áreas com poucas respostas ficam de fora — com três pessoas, a diferença diz mais sobre quem respondeu que sobre a área.")}
       </p>
     </ChartCard>
   );

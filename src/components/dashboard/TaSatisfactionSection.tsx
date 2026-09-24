@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { getTaSatisfaction, type TaSatisfactionData } from '@/lib/ta-satisfaction.functions';
 import FreshnessBadge from '@/components/dashboard/FreshnessBadge';
 
+import { tx } from '@/lib/i18n';
 /**
  * Satisfacao do cliente interno (gestor contratante) com o servico de TA.
  *
@@ -40,10 +41,9 @@ export default function TaSatisfactionSection() {
     return (
       <Card>
         <CardContent className="p-6 space-y-1">
-          <p className="text-sm font-medium">Nenhuma resposta no seu escopo</p>
+          <p className="text-sm font-medium">{tx("Nenhuma resposta no seu escopo")}</p>
           <p className="text-sm text-muted-foreground">
-            A pesquisa é respondida pelo gestor contratante depois do aceite da oferta. Se a área
-            não teve contratação recente, é esperado que não haja resposta.
+            {tx("A pesquisa é respondida pelo gestor contratante depois do aceite da oferta. Se a área não teve contratação recente, é esperado que não haja resposta.")}
           </p>
         </CardContent>
       </Card>
@@ -52,7 +52,7 @@ export default function TaSatisfactionSection() {
   if (!d) {
     return (
       <Card>
-        <CardContent className="p-6 text-sm text-muted-foreground">Carregando…</CardContent>
+        <CardContent className="p-6 text-sm text-muted-foreground">{tx("Carregando…")}</CardContent>
       </Card>
     );
   }
@@ -64,12 +64,11 @@ export default function TaSatisfactionSection() {
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Gauge className="h-4 w-4" />
-          Satisfação do gestor com o serviço de TA
+          {tx("Satisfação do gestor com o serviço de TA")}
         </CardTitle>
         <CardDescription className="text-xs flex flex-wrap items-center gap-2">
           <span>
-            Pesquisa respondida pelo gestor contratante após o aceite da oferta. A planilha do
-            formulário é lida toda semana e as respostas novas entram sozinhas.
+            {tx("Pesquisa respondida pelo gestor contratante após o aceite da oferta. A planilha do formulário é lida toda semana e as respostas novas entram sozinhas.")}
           </span>
           <FreshnessBadge dataset="ta_satisfaction" />
         </CardDescription>
@@ -79,22 +78,22 @@ export default function TaSatisfactionSection() {
             menos do que parece, e a ordem na tela deve refletir isso. */}
         <div className="flex flex-wrap gap-3">
           <div className="rounded-lg bg-muted/50 px-3 py-2">
-            <p className="text-[11px] text-muted-foreground">Respostas</p>
+            <p className="text-[11px] text-muted-foreground">{tx("Respostas")}</p>
             <p className="text-xl font-medium">{d.responses}</p>
           </div>
           {cobertura != null && (
             <div className="rounded-lg bg-muted/50 px-3 py-2">
-              <p className="text-[11px] text-muted-foreground">Cobertura</p>
+              <p className="text-[11px] text-muted-foreground">{tx("Cobertura")}</p>
               <p className="text-xl font-medium">{cobertura}%</p>
               <p className="text-[11px] text-muted-foreground">
-                de {d.closedJobs} vagas fechadas
+                {tx("de")}{" "}{d.closedJobs}{" "}{tx("vagas fechadas")}
               </p>
             </div>
           )}
           <div className="rounded-lg bg-muted/50 px-3 py-2">
-            <p className="text-[11px] text-muted-foreground">Satisfação geral</p>
+            <p className="text-[11px] text-muted-foreground">{tx("Satisfação geral")}</p>
             <p className="text-xl font-medium">
-              {d.dimensions.find((x) => x.key === 'overall')?.avg.toFixed(2) ?? '—'}
+              {tx(d.dimensions.find((x) => x.key === 'overall')?.avg.toFixed(2)) ?? '—'}
               <span className="text-xs text-muted-foreground font-normal"> / 5</span>
             </p>
           </div>
@@ -102,24 +101,21 @@ export default function TaSatisfactionSection() {
 
         {/* Dimensoes: numero + n, sem barra. */}
         <div>
-          <p className="text-xs font-medium mb-1.5">Por dimensão</p>
+          <p className="text-xs font-medium mb-1.5">{tx("Por dimensão")}</p>
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             {d.dimensions.map((dim) => (
               <div key={dim.key} className="rounded-md border border-border p-2">
-                <p className="text-[11px] text-muted-foreground leading-tight h-8">{dim.label}</p>
-                <p className="text-lg font-medium">{dim.avg.toFixed(2)}</p>
-                <p className="text-[10px] text-muted-foreground">n = {dim.n}</p>
+                <p className="text-[11px] text-muted-foreground leading-tight h-8">{tx(dim.label)}</p>
+                <p className="text-lg font-medium">{tx(dim.avg.toFixed(2))}</p>
+                <p className="text-[10px] text-muted-foreground">{tx("n =")}{" "}{dim.n}</p>
               </div>
             ))}
           </div>
           {d.ceilingEffect && (
             <p className="text-[11px] text-amber-600 dark:text-amber-500 mt-2 leading-relaxed">
-              As cinco dimensões estão entre{' '}
-              {Math.min(...d.dimensions.map((x) => x.avg)).toFixed(2)} e{' '}
-              {Math.max(...d.dimensions.map((x) => x.avg)).toFixed(2)} — a escala não está
-              separando nada. Isso não indica que o serviço é uniformemente ótimo; indica que este
-              instrumento, com este volume, não discrimina. Use os comentários para saber o que
-              mudar, e a série ao longo do tempo para saber se piorou.
+              {tx("As cinco dimensões estão entre")}{' '}
+              {tx(Math.min(...d.dimensions.map((x) => x.avg)).toFixed(2))}{" "}{tx("e")}{' '}
+              {tx(Math.max(...d.dimensions.map((x) => x.avg)).toFixed(2))}{" "}{tx("— a escala não está separando nada. Isso não indica que o serviço é uniformemente ótimo; indica que este instrumento, com este volume, não discrimina. Use os comentários para saber o que mudar, e a série ao longo do tempo para saber se piorou.")}
             </p>
           )}
         </div>
@@ -140,31 +136,29 @@ export default function TaSatisfactionSection() {
             muda é que elas não definem mais o topo. */}
         {d.byArea.length > 1 && (
           <div>
-            <p className="text-xs font-medium mb-1.5">Por área contratante</p>
+            <p className="text-xs font-medium mb-1.5">{tx("Por área contratante")}</p>
             <div className="space-y-1">
               {[...d.byArea]
                 .sort((x, y) => (x.n >= 3 ? 0 : 1) - (y.n >= 3 ? 0 : 1) || x.avg - y.avg)
                 .map((a) => (
                 <div key={a.area} className="flex items-center justify-between text-xs py-0.5">
                   <span className="flex items-center gap-1.5">
-                    {a.area}
+                    {tx(a.area)}
                     {a.n < 3 && (
                       <span className="text-[10px] text-muted-foreground">
-                        {a.n === 1 ? 'uma resposta só' : 'n baixo'}
+                        {a.n === 1 ? tx("uma resposta só") : tx("n baixo")}
                       </span>
                     )}
                   </span>
                   <span className="text-muted-foreground">
-                    {a.avg.toFixed(2)} · {a.n} resposta{a.n > 1 ? 's' : ''}
+                    {tx(a.avg.toFixed(2))} · {a.n}{" "}{tx("resposta")}{a.n > 1 ? tx("s") : ''}
                   </span>
                 </div>
               ))}
             </div>
             {d.byArea.some((a) => a.n < 3) && (
               <p className="text-[11px] text-muted-foreground mt-1.5 leading-relaxed">
-                As áreas com menos de três respostas ficam no fim da lista, não porque estejam bem,
-                mas porque com uma ou duas respostas a &quot;média da área&quot; é a opinião de uma
-                pessoa. Elas contam quem falou, não como a área pensa.
+                {tx("As áreas com menos de três respostas ficam no fim da lista, não porque estejam bem, mas porque com uma ou duas respostas a \"média da área\" é a opinião de uma pessoa. Elas contam quem falou, não como a área pensa.")}
               </p>
             )}
           </div>
@@ -174,32 +168,31 @@ export default function TaSatisfactionSection() {
         <div>
           <p className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
             <MessageSquare className="h-3.5 w-3.5" />
-            O que os gestores escreveram
+            {tx("O que os gestores escreveram")}
           </p>
           {!d.canSeeComments ? (
             <p className="text-xs text-muted-foreground flex items-start gap-1.5">
               <Lock className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-              Os comentários citam recrutadoras pelo nome, então seguem a mesma regra de salário e
-              desligamento: só perfis com acesso a dado individual os veem.
+              {tx("Os comentários citam recrutadoras pelo nome, então seguem a mesma regra de salário e desligamento: só perfis com acesso a dado individual os veem.")}
             </p>
           ) : d.comments.length === 0 ? (
-            <p className="text-xs text-muted-foreground">Nenhum comentário no período.</p>
+            <p className="text-xs text-muted-foreground">{tx("Nenhum comentário no período.")}</p>
           ) : (
             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
               {d.comments.map((c, i) => (
                 <div key={i} className="rounded-md border border-border p-2.5">
                   <div className="flex items-center gap-2 mb-1">
                     <Badge variant="secondary" className="text-[10px] font-normal">
-                      {c.area}
+                      {tx(c.area)}
                     </Badge>
-                    <span className="text-[10px] text-muted-foreground">{c.period}</span>
+                    <span className="text-[10px] text-muted-foreground">{tx(c.period)}</span>
                     {c.overall != null && c.overall <= 4 && (
                       <span className="text-[10px] text-amber-600 dark:text-amber-500">
-                        nota {c.overall}
+                        {tx("nota")}{" "}{c.overall}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{c.text}</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{tx(c.text)}</p>
                 </div>
               ))}
             </div>

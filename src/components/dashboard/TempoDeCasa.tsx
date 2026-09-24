@@ -8,6 +8,7 @@ import {
 } from '@/lib/analise-engajamento';
 import { TEMPO_ORDEM } from '@/lib/aggregator/polly-survey';
 
+import { tx, numLocale } from '@/lib/i18n';
 /**
  * Onde a queda aconteceu.
  *
@@ -53,7 +54,7 @@ import { TEMPO_ORDEM } from '@/lib/aggregator/polly-survey';
  */
 
 const fmt1 = (v: number | null) =>
-  v == null ? '—' : v.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+  v == null ? '—' : v.toLocaleString(numLocale(), { maximumFractionDigits: 1 });
 const sinal = (v: number | null) => (v == null ? '—' : `${v > 0 ? '+' : ''}${fmt1(v)}`);
 
 /**
@@ -138,17 +139,13 @@ export default function TempoDeCasa({
   if (departamentoSelecionado && daArea == null) {
     return (
       <ChartCard
-        title="Onde a queda aconteceu"
+        title={tx("Onde a queda aconteceu")}
       ajuda="ondeAQuedaAconteceu"
-        subtitle={`eNPS por tempo de casa · ${departamentoSelecionado}`}
+        subtitle={tx("eNPS por tempo de casa · {0}", [departamentoSelecionado])}
         icon={Hourglass}
       >
         <p className="text-sm text-muted-foreground py-5 leading-relaxed">
-          O cruzamento entre área e tempo de casa não foi calculado nas ondas já carregadas, então
-          não há esta série para <strong className="text-foreground">{departamentoSelecionado}</strong>.
-          Não é limite do dado — cada resposta traz os dois campos juntos —, e reimportar as ondas
-          passa a trazer a série desta área. Até lá ela fica de fora, em vez de aparecer com as
-          faixas da empresa inteira no lugar.
+          {tx("O cruzamento entre área e tempo de casa não foi calculado nas ondas já carregadas, então não há esta série para")}{" "}<strong className="text-foreground">{tx(departamentoSelecionado)}</strong>{tx(". Não é limite do dado — cada resposta traz os dois campos juntos —, e reimportar as ondas passa a trazer a série desta área. Até lá ela fica de fora, em vez de aparecer com as faixas da empresa inteira no lugar.")}
         </p>
       </ChartCard>
     );
@@ -166,21 +163,21 @@ export default function TempoDeCasa({
 
   return (
     <ChartCard
-      title="Onde a queda aconteceu"
+      title={tx("Onde a queda aconteceu")}
       ajuda="ondeAQuedaAconteceu"
-      subtitle={`eNPS por tempo de casa${daArea ? ` em ${daArea}` : ''} · ${ondas
+      subtitle={tx("eNPS por tempo de casa{0} · {1}", [daArea ? ` em ${daArea}` : '', ondas
         .map((o) => o.label)
-        .join(' → ')}`}
+        .join(' → ')])}
       icon={Hourglass}
     >
       <div className="flex items-center gap-2 pb-1 text-[10px] uppercase tracking-wider text-muted-foreground">
-        <span className="w-[92px] shrink-0">Tempo de casa</span>
+        <span className="w-[92px] shrink-0">{tx("Tempo de casa")}</span>
         {ondas.map((o) => (
-          <span key={o.label} className="w-14 text-right shrink-0">{rotuloCompacto(o.label)}</span>
+          <span key={o.label} className="w-14 text-right shrink-0">{tx(rotuloCompacto(o.label))}</span>
         ))}
         <span className="flex-1" />
-        <span className="w-11 text-right shrink-0">total</span>
-        {temTrajetoria && <span className="w-[74px] text-right shrink-0">trajetória</span>}
+        <span className="w-11 text-right shrink-0">{tx("total")}</span>
+        {temTrajetoria && <span className="w-[74px] text-right shrink-0">{tx("trajetória")}</span>}
       </div>
 
       <div className="space-y-0.5">
@@ -190,7 +187,7 @@ export default function TempoDeCasa({
           const continua = l.trajetoria === 'queda' || l.trajetoria === 'subida';
           return (
             <div key={l.faixa} className="flex items-center gap-2 py-1 text-[12px]">
-              <span className="w-[92px] shrink-0 truncate">{l.faixa}</span>
+              <span className="w-[92px] shrink-0 truncate">{tx(l.faixa)}</span>
 
               {l.valores.map((x, i) => (
                 <span
@@ -224,7 +221,7 @@ export default function TempoDeCasa({
               </div>
 
               <span className="tabular-nums w-11 text-right font-semibold shrink-0" style={{ color: cor }}>
-                {sinal(v)}
+                {tx(sinal(v))}
               </span>
 
               {temTrajetoria && (
@@ -235,7 +232,7 @@ export default function TempoDeCasa({
                   )}
                   style={continua ? { color: cor } : undefined}
                 >
-                  {rotuloTrajetoria(l.trajetoria, l.valores)}
+                  {tx(rotuloTrajetoria(l.trajetoria, l.valores))}
                 </span>
               )}
             </div>
@@ -276,33 +273,29 @@ export default function TempoDeCasa({
             que não oscilavam. Agora a frase lista quem de fato oscila. */}
         {temTrajetoria && quedas.length > 0 && (
           <p className="text-[13px] leading-relaxed">
-            <strong>{sujeitoDaQueda(quedas.map((q) => q.faixa))}</strong> — caíram em cada passagem,
-            de {ondas.map((o) => o.label).join(' para ')}.
+            <strong>{tx(sujeitoDaQueda(quedas.map((q) => q.faixa)))}</strong>{" "}{tx("— caíram em cada passagem, de")}{" "}{tx(ondas.map((o) => o.label).join(' para '))}.
           </p>
         )}
         {temTrajetoria && quedasNaUltima.length > 0 && (
           <p className="text-[13px] leading-relaxed">
             <strong>
               {quedasNaUltima.length === 1
-                ? `Quem tem ${quedasNaUltima[0].faixa} de casa caiu só na última pesquisa`
-                : `Caíram só na última pesquisa: ${quedasNaUltima.map((q) => q.faixa).join(', ')}`}
+                ? tx("Quem tem {0} de casa caiu só na última pesquisa", [quedasNaUltima[0].faixa])
+                : tx("Caíram só na última pesquisa: {0}", [quedasNaUltima.map((q) => q.faixa).join(', ')])}
             </strong>{' '}
-            — estavam estáveis até {ondas[ondas.length - 2]?.label} e caíram em{' '}
-            {ondas[ondas.length - 1]?.label}. Uma queda só ainda não é tendência; a próxima
-            pesquisa diz se ela continua.
+            {tx("— estavam estáveis até")}{" "}{tx(ondas[ondas.length - 2]?.label)}{" "}{tx("e caíram em")}{' '}
+            {tx(ondas[ondas.length - 1]?.label)}{tx(". Uma queda só ainda não é tendência; a próxima pesquisa diz se ela continua.")}
           </p>
         )}
         {temTrajetoria && (quedas.length > 0 || quedasNaUltima.length > 0) && (
           <>
           {oscilam.length > 0 && (
             <p className="text-[13px] leading-relaxed">
-              Sobem e descem sem direção clara: {oscilam.map((o) => o.faixa).join(', ')}.
+              {tx("Sobem e descem sem direção clara:")}{" "}{tx(oscilam.map((o) => o.faixa).join(', '))}.
             </p>
           )}
           <p className="text-[13px] text-muted-foreground leading-relaxed">
-            A diferença importa: piorar em toda pesquisa seguida é tendência; subir e descer é o
-            que grupos pequenos costumam fazer por acaso. Comparando só a primeira pesquisa com a
-            última, as duas coisas teriam exatamente a mesma cara.
+            {tx("A diferença importa: piorar em toda pesquisa seguida é tendência; subir e descer é o que grupos pequenos costumam fazer por acaso. Comparando só a primeira pesquisa com a última, as duas coisas teriam exatamente a mesma cara.")}
           </p>
           </>
         )}
@@ -319,31 +312,24 @@ export default function TempoDeCasa({
               A objeção agora vem primeiro e em português ("a empresa cresceu,
               será que é só isso?"), e a conta aparece como o teste dela. É a
               mesma aritmética; muda quem consegue segui-la. */}
-          <strong>A empresa contratou muita gente nova no período.</strong> Dá para desconfiar,
-          então, que o eNPS caiu só porque mudou quem responde — e não porque alguém mudou de
-          ideia. Dá para testar: refazendo a conta como se a empresa ainda tivesse hoje a mesma
-          mistura de tempo de casa de {ondas[0].label}, o eNPS seria{' '}
-          <strong>{fmt1(comp.contrafactual)}</strong> em vez de {fmt1(comp.atual)}.{' '}
+          <strong>{tx("A empresa contratou muita gente nova no período.")}</strong>{" "}{tx("Dá para desconfiar, então, que o eNPS caiu só porque mudou quem responde — e não porque alguém mudou de ideia. Dá para testar: refazendo a conta como se a empresa ainda tivesse hoje a mesma mistura de tempo de casa de")}{" "}{tx(ondas[0].label)}{tx(", o eNPS seria")}{' '}
+          <strong>{tx(fmt1(comp.contrafactual))}</strong>{" "}{tx("em vez de")}{" "}{tx(fmt1(comp.atual))}.{' '}
           {mixRelevante ? (
             <>
-              A diferença é grande: {fmt1(Math.abs(comp.efeitoMix as number))} dos{' '}
-              {fmt1(Math.abs(comp.variacaoTotal))} pontos de variação vêm de ter mudado quem são as
-              pessoas. Boa parte do movimento é quadro novo, não opinião nova.
+              {tx("A diferença é grande:")}{" "}{tx(fmt1(Math.abs(comp.efeitoMix as number)))}{" "}{tx("dos")}{' '}
+              {tx(fmt1(Math.abs(comp.variacaoTotal)))}{" "}{tx("pontos de variação vêm de ter mudado quem são as pessoas. Boa parte do movimento é quadro novo, não opinião nova.")}
             </>
           ) : (
             <>
-              É praticamente o mesmo número — só {fmt1(Math.abs(comp.efeitoMix as number))} dos{' '}
-              {fmt1(Math.abs(comp.variacaoTotal))} pontos vêm da mudança de quadro. Os outros{' '}
-              {fmt1(Math.abs(comp.variacaoTotal) - Math.abs(comp.efeitoMix as number))} são pessoas
-              que passaram a responder diferente.
+              {tx("É praticamente o mesmo número — só")}{" "}{tx(fmt1(Math.abs(comp.efeitoMix as number)))}{" "}{tx("dos")}{' '}
+              {tx(fmt1(Math.abs(comp.variacaoTotal)))}{" "}{tx("pontos vêm da mudança de quadro. Os outros")}{' '}
+              {tx(fmt1(Math.abs(comp.variacaoTotal) - Math.abs(comp.efeitoMix as number)))}{" "}{tx("são pessoas que passaram a responder diferente.")}
             </>
           )}
         </p>
 
         <p className="text-[13px] text-muted-foreground leading-relaxed">
-          As faixas não são as mesmas pessoas: quem estava em 12-18 meses na primeira
-          onda está em 24+ agora. Isto compara quem tinha X de casa então com quem tem
-          X de casa hoje — é um retrato de faixas, não o acompanhamento de uma coorte.
+          {tx("As faixas não são as mesmas pessoas: quem estava em 12-18 meses na primeira onda está em 24+ agora. Isto compara quem tinha X de casa então com quem tem X de casa hoje — é um retrato de faixas, não o acompanhamento de uma coorte.")}
         </p>
       </div>
     </ChartCard>
