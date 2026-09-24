@@ -748,15 +748,16 @@ function EngagementSection({
       {survey && <DispersaoAreas drivers={survey.driversPorArea} />}
 
       {/* ------------------------------------------------------------------
-          A COMPARAÇÃO QUE O PAINEL DEIXOU PARA TRÁS
+          O FORMATO DO DECK, PARA CADA PAR DE ONDAS
           ------------------------------------------------------------------
-          Tudo acima compara a onda mais recente com a anterior. Com a
-          terceira onda, Jul/25 -> Jan/26 -- a do slide "Engagement
-          Highlights (2/3)" -- sumiu do painel, e o time voltava ao PPT para
-          vê-la (Thais, 24/09). Esta seção só ACRESCENTA: nada acima muda. */}
+          A tabela do slide "Engagement Highlights (2/3)" -- Fav% da área e da
+          empresa, Δ e gap -- para cada par de ondas seguidas, abrindo em
+          Jan/26 -> Ago/26. Nasceu porque, com a terceira onda, Jul/25 ->
+          Jan/26 sumiu do painel e o time voltava ao PPT (Thais, 24/09).
+          Esta seção só ACRESCENTA: nada acima muda. */}
       {survey && (
         <TendenciaComparaveis
-          ondaWave={survey.ondaAnteriorWave ?? null}
+          ondas={survey.ondas ?? []}
           department={filters.departamento}
           brand={brand}
           areaFixa={deptSelPesquisa}

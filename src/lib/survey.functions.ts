@@ -269,6 +269,12 @@ export interface SurveyWaveData {
    * a comparação que o painel principal deixou para trás.
    */
   ondaAnteriorWave: string | null;
+  /**
+   * Todas as ondas, da mais recente para a mais antiga. A seção de tendência
+   * no formato do deck oferece cada par de ondas seguidas; com a lista vinda
+   * daqui, uma onda nova entra no seletor sem ninguém tocar na tela.
+   */
+  ondas: Array<{ wave: string; label: string }>;
   /** Quantos recortes tiveram a nota escondida para este perfil. */
   suprimidos: number;
   minimoExibicao: number;
@@ -789,6 +795,9 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       driversAnteriores,
       ondaAnteriorLabel: ondaAnterior ? String(ondaAnterior.label) : null,
       ondaAnteriorWave: ondaAnterior ? String(ondaAnterior.wave) : null,
+      ondas: (waves ?? []).map((w: { wave: string; label: string }) => ({
+        wave: String(w.wave), label: String(w.label),
+      })),
       elegiveisPorArea,
       suprimidos: cuts.filter((c) => c.suprimido).length,
       minimoExibicao: N_MINIMO_EXIBICAO,

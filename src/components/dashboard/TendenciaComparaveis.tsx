@@ -11,11 +11,16 @@ import { tx } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 /**
- * A comparação da onda ANTERIOR, no formato do slide "Engagement Highlights
- * (2/3)". Ver lib/tendencia-comparaveis.ts para o porquê.
+ * A tendência entre duas ondas seguidas, no formato do slide "Engagement
+ * Highlights (2/3)". Ver lib/tendencia-comparaveis.ts para o porquê.
  *
- * Busca a onda anterior pelo MESMO `getSurveyWave` da aba -- escopo, entidade
- * e supressão aplicados no servidor como em qualquer outra visão. Nada do
+ * Um seletor oferece cada par de ondas seguidas (Jan/26 -> Ago/26,
+ * Jul/25 -> Jan/26...), abrindo no mais recente. A Carolina foi clara: o
+ * ponto é o FORMATO do deck para todos os comparativos, não só para o que o
+ * painel principal deixou para trás.
+ *
+ * Busca a onda pelo MESMO `getSurveyWave` da aba -- escopo, entidade e
+ * supressão aplicados no servidor como em qualquer outra visão. Nada do
  * painel principal muda; esta seção só acrescenta.
  */
 
@@ -33,16 +38,24 @@ const corGap = (v: number | null) =>
     : v <= -LIMIAR_SINAL_PP ? 'font-semibold text-red-600' : '';
 
 export default function TendenciaComparaveis({
-  ondaWave, department, brand, areaFixa,
+  ondas, department, brand, areaFixa,
 }: {
-  /** Código da onda anterior à mais recente. Null: só existe uma onda. */
-  ondaWave: string | null;
+  /** Todas as ondas, da mais recente para a mais antiga. */
+  ondas: ReadonlyArray<{ wave: string; label: string }>;
   /** O valor cru do filtro, como a aba manda para o servidor. */
   department: string | undefined | null;
   brand: Brand;
   /** Área (vocabulário da pesquisa) já escolhida no filtro ou pelo escopo. */
   areaFixa: string | null;
 }) {
+  // Um par por onda que tem anterior: a onda pedida ao servidor vem com a
+  // anterior dela. A última da lista não tem com quem comparar.
+  const pares = ondas.slice(0, -1).map((o, i) => ({
+    wave: o.wave,
+    rotulo: `${ondas[i + 1].label} → ${o.label}`,
+  }));
+  const [ondaEscolhida, setOndaEscolhida] = useState<string | null>(null);
+  const ondaWave = pares.find((p) => p.wave === ondaEscolhida)?.wave ?? pares[0]?.wave ?? null;
   const fetchSurvey = useServerFn(getSurveyWave);
   const [dado, setDado] = useState<SurveyWaveData | null>(null);
   const [combinado, setCombinado] = useState<SurveyWaveData | null>(null);
@@ -56,16 +69,21 @@ export default function TendenciaComparaveis({
     setCarregando(true);
     setFalhou(false);
     // Com entidade, a onda antiga pode não ter o recorte (jul/25 não
-    // perguntou marca). A visão combinada vem junto só para dizer QUAIS
-    // perguntas são comparáveis -- ver `chavesComparaveis`. Nenhum número
-    // dela vai para a tabela.
+    // perguntou marca). SÓ nesse caso a visão combinada é pedida, e só para
+    // dizer QUAIS perguntas são comparáveis -- ver `chavesComparaveis`.
+    // Nenhum número dela vai para a tabela. Jan/26 -> Ago/26 com entidade tem
+    // as duas ondas e não precisa da segunda consulta.
     const pedir = (b: Brand) =>
       fetchSurvey({ data: { wave: ondaWave, department: department ?? null, brand: b } });
-    Promise.all([pedir(brand), brand === 'combined' ? Promise.resolve(null) : pedir('combined')])
-      .then(([d, comb]) => {
+    pedir(brand)
+      .then(async (d) => {
+        const w = d as SurveyWaveData | null;
+        const faltaAntiga = !!w && brand !== 'combined'
+          && !w.driversAnteriores.some((x) => x.cutType === 'company');
+        const comb = faltaAntiga ? ((await pedir('combined')) as SurveyWaveData | null) : null;
         if (cancelado) return;
-        setDado(d as SurveyWaveData | null);
-        setCombinado(comb as SurveyWaveData | null);
+        setDado(w);
+        setCombinado(comb);
       })
       .catch((e: unknown) => {
         console.error('tendência dos itens comparáveis indisponível:', e);
@@ -119,7 +137,7 @@ export default function TendenciaComparaveis({
   );
 
   let corpo: ReactNode;
-  if (carregando && !dado) {
+  if (carregando) {
     corpo = (
       <div className="flex items-center gap-2 py-8 justify-center text-xs text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />{tx('Carregando…')}
@@ -152,9 +170,32 @@ export default function TendenciaComparaveis({
           <p className="text-xs text-muted-foreground">
             {tx('Só itens diretamente comparáveis: isola a mudança real do efeito da expansão do questionário.')}
           </p>
-          {seletor}
+          <div className="flex flex-wrap items-center gap-2">
+            {pares.length > 1 && (
+              <div role="radiogroup" aria-label={tx('Comparativo')} className="inline-flex rounded-md border border-border overflow-hidden">
+                {pares.map((p) => (
+                  <button
+                    key={p.wave}
+                    type="button"
+                    role="radio"
+                    aria-checked={p.wave === ondaWave}
+                    onClick={() => setOndaEscolhida(p.wave)}
+                    className={cn(
+                      'px-2.5 py-1 text-[11px] font-semibold transition-colors',
+                      p.wave === ondaWave
+                        ? 'bg-[hsl(var(--flutter))] text-white'
+                        : 'bg-card text-muted-foreground hover:bg-secondary',
+                    )}
+                  >
+                    {tx(p.rotulo)}
+                  </button>
+                ))}
+              </div>
+            )}
+            {seletor}
+          </div>
         </div>
-        {antigaSemRecorte && linhas.length > 0 && (
+        {!carregando && antigaSemRecorte && linhas.length > 0 && (
           <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
             {tx('{0} não perguntou marca: para {1}, a seção mostra só {2} e a posição contra a empresa. Para ver a variação entre as duas pesquisas, use Combinado no seletor de entidade.', [antes, brand, depois])}
           </p>
