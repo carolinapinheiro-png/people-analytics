@@ -625,32 +625,6 @@ function EngagementSection({
         </div>
       )}
 
-      {/* ------------------------------------------------------------------
-          A MATRIZ SOBE, E A RAZÃO ANTIGA FICA REGISTRADA
-          ------------------------------------------------------------------
-          Ela ficava embaixo com esta justificativa: "é densa, e só faz sentido
-          depois de a leitura ter estabelecido o que os temas são". Parecia
-          sólida e nunca tinha sido testada com alguém de fora.
-
-          Foi testada. A Marilia leu a aba inteira e pediu justamente o
-          contrário -- que este gráfico subisse, "por ser visualmente mais
-          informativo", e que ficasse ACIMA do detalhamento pergunta a
-          pergunta, porque olhar pergunta isolada leva a conclusão errada
-          antes de o tema estar na cabeça.
-
-          Ou seja: a ordem antiga supunha que a leitura precede a grade,
-          quando a grade É a leitura mais rápida. Justificativa de layout que
-          ninguém verificou tem o mesmo efeito das outras deste painel --
-          congela uma escolha e depois é lida como razão. */}
-      {survey && temQuebraPorArea(survey.driversPorArea) && (
-        <MatrizAreaDriver
-          linhas={survey.driversPorArea}
-          ondaLabel={survey.label}
-          anteriores={survey.driversAnteriores}
-          ondaAnteriorLabel={survey.ondaAnteriorLabel}
-        />
-      )}
-
       {/* Duas ondas: slope, que responde "o que mudou desde a última pesquisa".
           Três ou mais: série, porque o slope só enxerga as duas pontas e uma
           área que caiu, subiu e voltou apareceria idêntica a uma parada.
@@ -709,6 +683,38 @@ function EngagementSection({
         titulo={tx("Clima")}
         resumo={tx("por tema primeiro, e a pergunta quando ela for necessária")}
       />
+
+      {/* ------------------------------------------------------------------
+          A MATRIZ SOBE, E A RAZÃO ANTIGA FICA REGISTRADA
+          ------------------------------------------------------------------
+          Ela ficava embaixo com esta justificativa: "é densa, e só faz sentido
+          depois de a leitura ter estabelecido o que os temas são". Parecia
+          sólida e nunca tinha sido testada com alguém de fora.
+
+          Foi testada. A Marilia leu a aba inteira e pediu justamente o
+          contrário -- que este gráfico subisse, "por ser visualmente mais
+          informativo", e que ficasse ACIMA do detalhamento pergunta a
+          pergunta, porque olhar pergunta isolada leva a conclusão errada
+          antes de o tema estar na cabeça.
+
+          Ou seja: a ordem antiga supunha que a leitura precede a grade,
+          quando a grade É a leitura mais rápida. Justificativa de layout que
+          ninguém verificou tem o mesmo efeito das outras deste painel --
+          congela uma escolha e depois é lida como razão.
+
+          24/09: SAI DO MEIO DO eNPS E ABRE O CLIMA. Ela ficava entre a fila
+          por área e a série de eNPS, e a Carolina achou que se perdia ali:
+          é um quadro de clima (temas), cercado de eNPS, e o clima só voltava
+          depois. Continua acima do pergunta a pergunta, que era o ponto da
+          Marilia. */}
+      {survey && temQuebraPorArea(survey.driversPorArea) && (
+        <MatrizAreaDriver
+          linhas={survey.driversPorArea}
+          ondaLabel={survey.label}
+          anteriores={survey.driversAnteriores}
+          ondaAnteriorLabel={survey.ondaAnteriorLabel}
+        />
+      )}
 
       {/* ------------------------------------------------------------------
           POR TEMA ANTES DE POR PERGUNTA -- AS DUAS REVISÕES PEDIRAM ISSO
