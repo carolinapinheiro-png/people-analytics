@@ -45,7 +45,6 @@ import {
 } from "recharts";
 import { Heart, Users, Sparkles, TrendingUp, TrendingDown, HandHeart } from "lucide-react";
 import { COLORS } from "@/lib/colors";
-import FreshnessBadge from "@/components/dashboard/FreshnessBadge";
 import { useDashboard } from "@/data/DashboardContext";
 import { semFiltro, valorFiltro } from "@/lib/filtro-sentinela";
 import { scopeForDept } from "@/lib/engagement-context";
@@ -356,7 +355,6 @@ function EngagementSection({
             : <Download className="h-3.5 w-3.5" />}
           {exportando ? tx("Gerando PDF…") : tx("Baixar PDF")}
         </button>
-        <FreshnessBadge dataset="engagement" />
       </div>
 
       {/* Tudo que entra no PDF fica dentro deste bloco: a exportação captura o
