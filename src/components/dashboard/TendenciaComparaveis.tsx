@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useServerFn } from '@tanstack/react-start';
-import { History, Loader2 } from 'lucide-react';
+import { ChevronDown, History, Loader2 } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { getSurveyWave, type SurveyWaveData } from '@/lib/survey.functions';
 import {
-  chavesComparaveis, montarTendencia, sinaisDaTendencia, LIMIAR_SINAL_PP,
+  agruparPorTema, chavesComparaveis, montarTendencia, sinaisDaTendencia, LIMIAR_SINAL_PP,
   type LinhaTendencia, type Sinal,
 } from '@/lib/tendencia-comparaveis';
 import { tx } from '@/lib/i18n';
@@ -226,7 +226,16 @@ function Tabela({
   depois: string;
   sinais: Sinal[];
 }) {
-  // O deck põe em negrito o maior movimento de cada lado; aqui, os que viraram
+  // ------------------------------------------------------------------
+  // POR TEMA, E A PERGUNTA SÓ QUANDO A PESSOA PEDE
+  // ------------------------------------------------------------------
+  // Mesmo desenho de "Tema por tema, e o que a média esconde" (Carolina,
+  // 24/09): uma linha por tema; clicar abre as perguntas dele. Um aberto por
+  // vez, como lá -- vários abertos devolvem a tabela de 31 linhas que o
+  // agrupamento existe para evitar.
+  const temas = useMemo(() => agruparPorTema(linhas, area), [linhas, area]);
+  const [aberto, setAberto] = useState<string | null>(null);
+  // O deck põe em negrito o maior movimento; aqui, as perguntas que viraram
   // sinal -- a mesma regra que escreve o texto embaixo.
   const emDestaque = new Set(
     sinais.filter((s) => s.tipo !== 'destaque').map((s) => s.linha.chave),
@@ -235,12 +244,36 @@ function Tabela({
   const td = 'px-2 py-1.5 text-center tabular-nums whitespace-nowrap';
   const tdAntes = cn(td, 'text-muted-foreground');
   const sep = 'border-l border-border';
+
+  const celulas = (
+    v: {
+      areaAntes: number | null; areaDepois: number | null; deltaArea: number | null;
+      empresaAntes: number | null; empresaDepois: number | null; deltaEmpresa: number | null;
+      gap: number | null;
+    },
+    negritoDelta = false,
+  ) => (
+    <>
+      {area && (
+        <>
+          <td className={cn(tdAntes, sep)}>{pct(v.areaAntes)}</td>
+          <td className={td}>{pct(v.areaDepois)}</td>
+          <td className={cn(td, negritoDelta && 'font-bold')}>{pp(v.deltaArea)}</td>
+        </>
+      )}
+      <td className={cn(tdAntes, sep)}>{pct(v.empresaAntes)}</td>
+      <td className={td}>{pct(v.empresaDepois)}</td>
+      <td className={td}>{pp(v.deltaEmpresa)}</td>
+      {area && <td className={cn(td, sep, corGap(v.gap))}>{pp(v.gap)}</td>}
+    </>
+  );
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs border border-border">
         <thead>
           <tr className="bg-muted text-[11px] uppercase tracking-wider">
-            <th className={cn(th, 'text-left')} rowSpan={2}>{tx('Pergunta')}</th>
+            <th className={cn(th, 'text-left')} rowSpan={2}>{tx('Tema')}</th>
             {area && <th className={cn(th, sep)} colSpan={3}>{area}</th>}
             <th className={cn(th, sep)} colSpan={3}>{tx('Empresa')}</th>
             {area && <th className={cn(th, sep)}>{tx('Gap {0}', [depois])}</th>}
@@ -260,24 +293,53 @@ function Tabela({
           </tr>
         </thead>
         <tbody>
-          {linhas.map((l) => (
-            <tr key={l.chave} className="border-t border-border">
-              <td className="px-2 py-1.5 text-left" title={l.pergunta}>{tx(l.rotulo)}</td>
-              {area && (
-                <>
-                  <td className={cn(tdAntes, sep)}>{pct(l.areaAntes)}</td>
-                  <td className={td}>{pct(l.areaDepois)}</td>
-                  <td className={cn(td, emDestaque.has(l.chave) && 'font-bold')}>{pp(l.deltaArea)}</td>
-                </>
-              )}
-              <td className={cn(tdAntes, sep)}>{pct(l.empresaAntes)}</td>
-              <td className={td}>{pct(l.empresaDepois)}</td>
-              <td className={td}>{pp(l.deltaEmpresa)}</td>
-              {area && <td className={cn(td, sep, corGap(l.gap))}>{pp(l.gap)}</td>}
-            </tr>
-          ))}
+          {temas.map((t) => {
+            const estaAberto = aberto === t.tema;
+            return (
+              <Fragment key={t.tema}>
+                <tr
+                  className={cn(
+                    'border-t border-border cursor-pointer transition-colors',
+                    estaAberto ? 'bg-muted/60' : 'hover:bg-muted/30',
+                  )}
+                  onClick={() => setAberto(estaAberto ? null : t.tema)}
+                >
+                  <td className="px-2 py-1.5 text-left">
+                    <button
+                      type="button"
+                      aria-expanded={estaAberto}
+                      className="flex items-center gap-1.5 text-left font-semibold text-foreground"
+                    >
+                      <ChevronDown
+                        className={cn(
+                          'h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform',
+                          estaAberto ? 'rotate-0' : '-rotate-90',
+                        )}
+                      />
+                      <span>{tx(t.tema)}</span>
+                      <span className="font-normal text-muted-foreground">
+                        · {t.perguntas.length}{' '}{t.perguntas.length === 1 ? tx('pergunta') : tx('perguntas')}
+                      </span>
+                    </button>
+                  </td>
+                  {celulas(t)}
+                </tr>
+                {estaAberto && t.perguntas.map((l) => (
+                  <tr key={l.chave} className="border-t border-border/60 bg-muted/20">
+                    <td className="py-1.5 pl-8 pr-2 text-left text-muted-foreground" title={l.pergunta}>
+                      {tx(l.rotulo)}
+                    </td>
+                    {celulas(l, emDestaque.has(l.chave))}
+                  </tr>
+                ))}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
+      <p className="mt-1.5 text-[11px] text-muted-foreground">
+        {tx('Clique num tema para ver as perguntas. O Fav% do tema é a média simples das perguntas dele.')}
+      </p>
     </div>
   );
 }

@@ -34,6 +34,8 @@
 
 /** O mínimo de uma linha de `survey_driver_scores` que esta conta usa. */
 export interface LinhaDriver {
+  /** O tema (driver). Jul/25 grava tudo como "Geral"; o tema vem da onda nova. */
+  driver?: string;
   question: string;
   cutType: string;
   cutValue: string;
@@ -132,6 +134,8 @@ export function rotuloDaPergunta(q: string): string {
 
 export interface LinhaTendencia {
   chave: string;
+  /** Tema da pergunta na onda mais nova. */
+  tema: string;
   rotulo: string;
   /** Redação da onda mais nova, para o tooltip. */
   pergunta: string;
@@ -208,6 +212,7 @@ export function montarTendencia(
     const aa = areaA.get(chave)?.favoravel ?? null;
     linhas.push({
       chave,
+      tema: ed.driver ?? 'Geral',
       rotulo: rotuloDaPergunta(ed.question),
       pergunta: ed.question,
       areaAntes: aa,
@@ -255,4 +260,58 @@ export function sinaisDaTendencia(linhas: readonly LinhaTendencia[]): Sinal[] {
   const queda = [...comDelta].sort((a, b) => a.deltaArea! - b.deltaArea!)[0];
   if (queda && queda.deltaArea! <= -LIMIAR_SINAL_PP) out.push({ tipo: 'queda', linha: queda });
   return out;
+}
+
+// ===========================================================================
+// POR TEMA PRIMEIRO, A PERGUNTA QUANDO FOR NECESSÁRIA
+// ===========================================================================
+// Pedido da Carolina (24/09), no mesmo espírito de "Tema por tema, e o que a
+// média esconde": a tabela abre por tema, e as perguntas de cada um aparecem
+// ao clicar. Com Jan/26 -> Ago/26 são 31 perguntas; por tema, oito linhas.
+
+export interface TemaTendencia {
+  tema: string;
+  /** Perguntas comparáveis do tema, na ordem da tabela. */
+  perguntas: LinhaTendencia[];
+  areaAntes: number | null;
+  areaDepois: number | null;
+  deltaArea: number | null;
+  empresaAntes: number | null;
+  empresaDepois: number | null;
+  deltaEmpresa: number | null;
+  gap: number | null;
+}
+
+/**
+ * Fav% do tema = média simples do Fav% das perguntas do tema, a mesma leitura
+ * de "Tema por tema" (cada pergunta pesa igual). Δ e gap saem das médias, e só
+ * das perguntas com valor NOS DOIS lados da conta -- senão uma pergunta sem
+ * nota na área mudaria o Δ sem que nada tivesse mudado.
+ */
+export function agruparPorTema(linhas: readonly LinhaTendencia[], area: string | null): TemaTendencia[] {
+  const media = (vs: Array<number | null>) => {
+    const ok = vs.filter((v): v is number => v != null);
+    return ok.length ? Math.round((ok.reduce((a, b) => a + b, 0) / ok.length) * 10) / 10 : null;
+  };
+  /** Diferença das médias, usando só as perguntas com os dois valores. */
+  const difPareada = (ls: LinhaTendencia[], a: keyof LinhaTendencia, b: keyof LinhaTendencia) => {
+    const par = ls.filter((l) => l[a] != null && l[b] != null);
+    if (!par.length) return null;
+    return dif(media(par.map((l) => l[a] as number)), media(par.map((l) => l[b] as number)));
+  };
+  const grupos = new Map<string, LinhaTendencia[]>();
+  for (const l of linhas) grupos.set(l.tema, [...(grupos.get(l.tema) ?? []), l]);
+  const temas = [...grupos].map(([tema, ls]) => ({
+    tema,
+    perguntas: ls,
+    areaAntes: media(ls.map((l) => l.areaAntes)),
+    areaDepois: media(ls.map((l) => l.areaDepois)),
+    deltaArea: difPareada(ls, 'areaDepois', 'areaAntes'),
+    empresaAntes: media(ls.map((l) => l.empresaAntes)),
+    empresaDepois: media(ls.map((l) => l.empresaDepois)),
+    deltaEmpresa: difPareada(ls, 'empresaDepois', 'empresaAntes'),
+    gap: difPareada(ls, 'areaDepois', 'empresaDepois'),
+  }));
+  const peso = (t: TemaTendencia) => (area ? t.gap : t.deltaEmpresa) ?? -Infinity;
+  return temas.sort((a, b) => (peso(b) - peso(a)) || a.tema.localeCompare(b.tema));
 }

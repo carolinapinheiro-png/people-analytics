@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  chaveDaPergunta, chavesComparaveis, montarTendencia, sinaisDaTendencia, type LinhaDriver,
+  agruparPorTema, chaveDaPergunta, chavesComparaveis, montarTendencia, sinaisDaTendencia, type LinhaDriver,
 } from '@/lib/tendencia-comparaveis';
 
 const JUL_RECOMP = 'Sou recompensado de forma justa (ex: salário, promoção, treinamentos) pelas minhas contribuições para a Flutter Brazil.';
@@ -89,4 +89,33 @@ test('entidade: onda antiga sem o recorte mantém a nova, com a antiga vazia', (
   assert.equal(g.deltaArea, null);
   // Sem delta não há melhora nem queda; o destaque contra a empresa continua.
   assert.deepEqual(sinaisDaTendencia(t).map((s) => s.tipo), ['destaque']);
+});
+
+test('agrupa por tema da onda nova, com média simples e Δ pareado', () => {
+  const lj: LinhaDriver[] = [
+    { driver: 'Gestor', question: GESTOR, cutType: 'company', cutValue: 'company', n: 30, favoravel: 80 },
+    { driver: 'Gestor', question: GESTOR, cutType: 'area', cutValue: 'X', n: 10, favoravel: 90 },
+    { driver: 'Gestor', question: CARREIRA, cutType: 'company', cutValue: 'company', n: 30, favoravel: 60 },
+    // Sem nota da área nesta pergunta: fica fora do Δ e do gap da área.
+    { driver: 'Carreira', question: JAN_RECOMP, cutType: 'company', cutValue: 'company', n: 30, favoravel: 70 },
+    { driver: 'Carreira', question: JAN_RECOMP, cutType: 'area', cutValue: 'X', n: 10, favoravel: 50 },
+  ];
+  const lu: LinhaDriver[] = [
+    { driver: 'Geral', question: GESTOR, cutType: 'company', cutValue: 'company', n: 30, favoravel: 70 },
+    { driver: 'Geral', question: GESTOR, cutType: 'area', cutValue: 'X', n: 10, favoravel: 80 },
+    { driver: 'Geral', question: CARREIRA, cutType: 'company', cutValue: 'company', n: 30, favoravel: 60 },
+    { driver: 'Geral', question: JUL_RECOMP, cutType: 'company', cutValue: 'company', n: 30, favoravel: 60 },
+    { driver: 'Geral', question: JUL_RECOMP, cutType: 'area', cutValue: 'X', n: 10, favoravel: 60 },
+  ];
+  const temas = agruparPorTema(montarTendencia(lj, lu, 'X'), 'X');
+  // Jul/25 é tudo "Geral": o tema vem de jan.
+  assert.deepEqual(temas.map((t) => t.tema), ['Gestor', 'Carreira']);
+  const g = temas[0];
+  assert.equal(g.perguntas.length, 2);
+  assert.equal(g.empresaDepois, 70);
+  assert.equal(g.deltaEmpresa, 5);
+  // Área: só GESTOR tem nota nos dois lados.
+  assert.equal(g.deltaArea, 10);
+  assert.equal(g.gap, 10); // 90 - 80, pareado na mesma pergunta
+  assert.equal(temas[1].gap, -20);
 });
