@@ -4,7 +4,7 @@ import { History, Loader2 } from 'lucide-react';
 import ChartCard from '@/components/dashboard/ChartCard';
 import { getSurveyWave, type SurveyWaveData } from '@/lib/survey.functions';
 import {
-  montarTendencia, sinaisDaTendencia, LIMIAR_SINAL_PP,
+  chavesComparaveis, montarTendencia, sinaisDaTendencia, LIMIAR_SINAL_PP,
   type LinhaTendencia, type Sinal,
 } from '@/lib/tendencia-comparaveis';
 import { tx } from '@/lib/i18n';
@@ -45,6 +45,7 @@ export default function TendenciaComparaveis({
 }) {
   const fetchSurvey = useServerFn(getSurveyWave);
   const [dado, setDado] = useState<SurveyWaveData | null>(null);
+  const [combinado, setCombinado] = useState<SurveyWaveData | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [falhou, setFalhou] = useState(false);
   const [areaLocal, setAreaLocal] = useState<string | null>(null);
@@ -54,8 +55,18 @@ export default function TendenciaComparaveis({
     let cancelado = false;
     setCarregando(true);
     setFalhou(false);
-    fetchSurvey({ data: { wave: ondaWave, department: department ?? null, brand } })
-      .then((d) => { if (!cancelado) setDado(d as SurveyWaveData | null); })
+    // Com entidade, a onda antiga pode não ter o recorte (jul/25 não
+    // perguntou marca). A visão combinada vem junto só para dizer QUAIS
+    // perguntas são comparáveis -- ver `chavesComparaveis`. Nenhum número
+    // dela vai para a tabela.
+    const pedir = (b: Brand) =>
+      fetchSurvey({ data: { wave: ondaWave, department: department ?? null, brand: b } });
+    Promise.all([pedir(brand), brand === 'combined' ? Promise.resolve(null) : pedir('combined')])
+      .then(([d, comb]) => {
+        if (cancelado) return;
+        setDado(d as SurveyWaveData | null);
+        setCombinado(comb as SurveyWaveData | null);
+      })
       .catch((e: unknown) => {
         console.error('tendência dos itens comparáveis indisponível:', e);
         if (!cancelado) setFalhou(true);
@@ -70,10 +81,20 @@ export default function TendenciaComparaveis({
     (dado?.driversPorArea ?? []).filter((d) => d.cutType === 'area').map((d) => d.cutValue),
   )].sort((a, b) => a.localeCompare(b)), [dado]);
 
+  // A onda antiga veio sem nenhuma linha da empresa: não tem este recorte.
+  const antigaSemRecorte = !!dado
+    && !dado.driversAnteriores.some((d) => d.cutType === 'company');
+  const comparaveis = useMemo(
+    () => (antigaSemRecorte && combinado
+      ? chavesComparaveis(combinado.driversPorArea, combinado.driversAnteriores)
+      : undefined),
+    [antigaSemRecorte, combinado],
+  );
+
   const area = areaFixa ?? (areaLocal && areas.includes(areaLocal) ? areaLocal : null);
   const linhas = useMemo(
-    () => (dado ? montarTendencia(dado.driversPorArea, dado.driversAnteriores, area) : []),
-    [dado, area],
+    () => (dado ? montarTendencia(dado.driversPorArea, dado.driversAnteriores, area, comparaveis) : []),
+    [dado, area, comparaveis],
   );
   const sinais = useMemo(() => sinaisDaTendencia(linhas), [linhas]);
 
@@ -133,6 +154,11 @@ export default function TendenciaComparaveis({
           </p>
           {seletor}
         </div>
+        {antigaSemRecorte && linhas.length > 0 && (
+          <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            {tx('{0} não perguntou marca: para {1}, a seção mostra só {2} e a posição contra a empresa. Para ver a variação entre as duas pesquisas, use Combinado no seletor de entidade.', [antes, brand, depois])}
+          </p>
+        )}
         {corpo}
         {area && sinais.length > 0 && (
           <div className="border-t border-border pt-3">

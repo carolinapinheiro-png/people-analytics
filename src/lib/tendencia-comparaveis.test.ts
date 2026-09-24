@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  chaveDaPergunta, montarTendencia, sinaisDaTendencia, type LinhaDriver,
+  chaveDaPergunta, chavesComparaveis, montarTendencia, sinaisDaTendencia, type LinhaDriver,
 } from '@/lib/tendencia-comparaveis';
 
 const JUL_RECOMP = 'Sou recompensado de forma justa (ex: salário, promoção, treinamentos) pelas minhas contribuições para a Flutter Brazil.';
@@ -74,4 +74,19 @@ test('sinais: destaque, melhora e queda, só acima do limiar', () => {
     'X',
   ));
   assert.deepEqual(calmo, []);
+});
+
+test('entidade: onda antiga sem o recorte mantém a nova, com a antiga vazia', () => {
+  // jul/25 não perguntou marca: com NSX, a onda antiga chega sem nada.
+  const comparaveis = chavesComparaveis(jan, jul);
+  const t = montarTendencia(jan, [], 'Product', comparaveis);
+  assert.deepEqual(t.map((x) => x.chave).sort(),
+    ['crescimento-carreira', 'gestor-se-importa', 'recompensa-justa']);
+  const g = t.find((x) => x.chave === 'gestor-se-importa')!;
+  assert.equal(g.areaDepois, 100);
+  assert.equal(g.gap, 10.7);
+  assert.equal(g.areaAntes, null);
+  assert.equal(g.deltaArea, null);
+  // Sem delta não há melhora nem queda; o destaque contra a empresa continua.
+  assert.deepEqual(sinaisDaTendencia(t).map((s) => s.tipo), ['destaque']);
 });

@@ -1893,4 +1893,5 @@ export const EN: Record<string, string> = {
   "Posso contar com colegas": "Rely on colleagues",
   "Feedback suficiente": "Enough feedback",
   "Contribuição para as metas do time": "Contribution to team goals",
+  "{0} não perguntou marca: para {1}, a seção mostra só {2} e a posição contra a empresa. Para ver a variação entre as duas pesquisas, use Combinado no seletor de entidade.": "{0} did not ask about brand: for {1}, this section shows only {2} and the position against the company. To see the change between the two surveys, use Combined in the entity selector.",
 };

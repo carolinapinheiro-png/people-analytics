@@ -157,11 +157,35 @@ const dif = (a: number | null, b: number | null) =>
  * nova de jan/26 não tem com o que comparar e ficaria com meia linha vazia.
  *
  * `area` null devolve só as colunas da empresa preenchidas.
+ *
+ * ------------------------------------------------------------------
+ * QUANDO A ONDA ANTIGA NÃO TEM O RECORTE
+ * ------------------------------------------------------------------
+ * Com entidade (NSX, Betfair BR), jan/26 tem o recorte e jul/25 não --
+ * jul/25 não perguntou marca. Sem par nas duas ondas a regra acima zeraria a
+ * tabela, e a entidade perderia até o Jan/26 que ela tem.
+ *
+ * Então `chavesComparaveis` -- calculado pela tela sobre a Flutter Brazil
+ * inteira, onde as duas ondas existem -- diz quais perguntas são comparáveis,
+ * e as colunas da onda antiga ficam vazias. A definição de "comparável"
+ * continua a mesma; só deixa de depender do recorte que falta.
  */
+export function chavesComparaveis(
+  depois: readonly LinhaDriver[],
+  antes: readonly LinhaDriver[],
+): Set<string> {
+  const da = (ls: readonly LinhaDriver[]) => new Set(
+    ls.filter((l) => l.cutType === 'company').map((l) => chaveDaPergunta(l.question)),
+  );
+  const a = da(antes);
+  return new Set([...da(depois)].filter((k) => a.has(k)));
+}
+
 export function montarTendencia(
   depois: readonly LinhaDriver[],
   antes: readonly LinhaDriver[],
   area: string | null,
+  comparaveis?: ReadonlySet<string>,
 ): LinhaTendencia[] {
   const indexar = (ls: readonly LinhaDriver[], cutType: string, cutValue: string | null) => {
     const m = new Map<string, LinhaDriver>();
@@ -179,7 +203,7 @@ export function montarTendencia(
   const linhas: LinhaTendencia[] = [];
   for (const [chave, ed] of empD) {
     const ea = empA.get(chave);
-    if (!ea) continue;
+    if (comparaveis ? !comparaveis.has(chave) : !ea) continue;
     const ad = areaD.get(chave)?.favoravel ?? null;
     const aa = areaA.get(chave)?.favoravel ?? null;
     linhas.push({
@@ -189,9 +213,9 @@ export function montarTendencia(
       areaAntes: aa,
       areaDepois: ad,
       deltaArea: dif(ad, aa),
-      empresaAntes: ea.favoravel,
+      empresaAntes: ea?.favoravel ?? null,
       empresaDepois: ed.favoravel,
-      deltaEmpresa: dif(ed.favoravel, ea.favoravel),
+      deltaEmpresa: dif(ed.favoravel, ea?.favoravel ?? null),
       gap: dif(ad, ed.favoravel),
     });
   }
