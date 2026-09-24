@@ -17,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
-import GlossaryDialog from '@/components/dashboard/GlossaryDialog';
 import SeletorIdioma from '@/components/layout/SeletorIdioma';
 
 import { tx } from '@/lib/i18n';
@@ -188,9 +187,6 @@ export default function TopBar() {
             <ChevronRight className="w-4 h-4" />
           </button>
         </div>
-
-        {/* Glossario: disponivel em qualquer aba, para qualquer perfil. */}
-        <GlossaryDialog />
 
         {/* Theme toggle */}
         <ThemeToggle />
