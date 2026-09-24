@@ -61,7 +61,6 @@ export default function TendenciaComparaveis({
   const [combinado, setCombinado] = useState<SurveyWaveData | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [falhou, setFalhou] = useState(false);
-  const [areaLocal, setAreaLocal] = useState<string | null>(null);
 
   useEffect(() => {
     if (!ondaWave) return;
@@ -93,12 +92,6 @@ export default function TendenciaComparaveis({
     return () => { cancelado = true; };
   }, [fetchSurvey, ondaWave, department, brand]);
 
-  // Áreas que a pessoa pode escolher: as que o servidor devolveu (já passaram
-  // pelo escopo). Com filtro ou escopo de uma área só, não há o que escolher.
-  const areas = useMemo(() => [...new Set(
-    (dado?.driversPorArea ?? []).filter((d) => d.cutType === 'area').map((d) => d.cutValue),
-  )].sort((a, b) => a.localeCompare(b)), [dado]);
-
   // A onda antiga veio sem nenhuma linha da empresa: não tem este recorte.
   const antigaSemRecorte = !!dado
     && !dado.driversAnteriores.some((d) => d.cutType === 'company');
@@ -109,7 +102,10 @@ export default function TendenciaComparaveis({
     [antigaSemRecorte, combinado],
   );
 
-  const area = areaFixa ?? (areaLocal && areas.includes(areaLocal) ? areaLocal : null);
+  // A área vem SÓ do filtro de departamento do topo (ou do escopo de quem
+  // tem uma área só), como em toda a aba. Um filtro próprio aqui faria a
+  // seção mostrar Product sob um topo que diz Technology.
+  const area = areaFixa;
   const linhas = useMemo(
     () => (dado ? montarTendencia(dado.driversPorArea, dado.driversAnteriores, area, comparaveis) : []),
     [dado, area, comparaveis],
@@ -124,17 +120,6 @@ export default function TendenciaComparaveis({
     ? tx('Tendência dos itens comparáveis ({0} → {1})', [antes, depois])
     : tx('Tendência dos itens comparáveis');
 
-  const seletor = !areaFixa && areas.length > 0 && (
-    <select
-      value={area ?? ''}
-      onChange={(e) => setAreaLocal(e.target.value || null)}
-      aria-label={tx('Área')}
-      className="border border-border rounded-md bg-card py-1 pl-2 pr-6 text-[11px] font-semibold text-foreground cursor-pointer hover:bg-secondary transition-colors focus:outline-none focus:ring-1"
-    >
-      <option value="">{tx('Só a empresa')}</option>
-      {areas.map((a) => <option key={a} value={a}>{a}</option>)}
-    </select>
-  );
 
   let corpo: ReactNode;
   if (carregando) {
@@ -192,12 +177,16 @@ export default function TendenciaComparaveis({
                 ))}
               </div>
             )}
-            {seletor}
           </div>
         </div>
         {!carregando && antigaSemRecorte && linhas.length > 0 && (
           <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
             {tx('{0} não perguntou marca: para {1}, a seção mostra só {2} e a posição contra a empresa. Para ver a variação entre as duas pesquisas, use Combinado no seletor de entidade.', [antes, brand, depois])}
+          </p>
+        )}
+        {!carregando && !area && linhas.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {tx('Mostrando a empresa. Escolha um departamento no filtro do topo para ver a área contra a empresa.')}
           </p>
         )}
         {corpo}
