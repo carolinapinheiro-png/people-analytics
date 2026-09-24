@@ -508,7 +508,13 @@ function EngagementSection({
               // sem %. O Cross Brand responde nas duas e está no headcount de
               // uma só (Betfair BR Technology daria 15/3 = 500%).
               const daEntidade = survey?.elegiveisSaoDaEntidade ? survey.entidade?.brand ?? null : null;
-              const semTaxa = " · sem taxa: Cross Brand responde nas duas entidades";
+              // Texto curto no cartão; o porquê fica no "?" (a Thaís leu
+              // "36 pessoas" como respondentes e "sem taxa: Cross Brand" como
+              // "sem respondentes Cross Brand").
+              const semTaxa = " · taxa indisponível";
+              const notaSemTaxa = daEntidade
+                ? "Colaboradores Cross Brand podem responder pelas duas entidades, mas contam no headcount de uma só. Por isso as respostas podem passar do headcount, e a taxa de resposta não é calculada neste recorte."
+                : undefined;
               return (
                 <KpiCard
                   label={tx("Responderam")}
@@ -528,19 +534,20 @@ function EngagementSection({
                     segueFiltro
                       ? participacaoDaArea!.elegiveis != null
                         ? daEntidade
-                          ? tx("{0} respostas · {1} pessoas da {2} em {3}{4}", [nDaArea, participacaoDaArea!.elegiveis, daEntidade, deptSel, semTaxa])
+                          ? tx("{0} respostas · headcount de {1} ({2} · {3}){4}", [nDaArea, participacaoDaArea!.elegiveis, daEntidade, deptSel, tx(semTaxa)])
                           : tx("{0}% dos {1} elegíveis de {2}", [fmt1(taxa), participacaoDaArea!.elegiveis, deptSel])
                         : tx("{0} respostas em {1}", [nDaArea, deptSel])
                       : areaSel
                         ? tx("{0} não tem headcount no organograma, então a taxa desta área não é calculável", [deptSel])
                         : daEntidade && survey?.elegiveis != null
-                          ? tx("{0} respostas · {1} pessoas na {2}{3}", [survey.respondentes, survey.elegiveis, daEntidade, semTaxa])
+                          ? tx("{0} respostas · headcount de {1} ({2}){3}", [survey.respondentes, survey.elegiveis, daEntidade, tx(semTaxa)])
                           : taxa == null
                             ? undefined
                             : tx("{0}% dos elegíveis", [fmt1(taxa)])
                   }
                   help="participacao"
                   helpValue={taxa}
+                  helpNote={notaSemTaxa}
                 />
               );
             })()}

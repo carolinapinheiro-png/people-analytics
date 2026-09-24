@@ -51,10 +51,12 @@ interface KpiCardProps {
   help?: ChaveMetrica;
   /** Valor numerico cru, so para o tooltip destacar a faixa atual. */
   helpValue?: number | null;
+  /** Nota do recorte atual, mostrada em destaque dentro do tooltip. */
+  helpNote?: string;
 }
 
 export default function KpiCard({
-  label, value, color, sub, icon: Icon, delta, tone = 'neutral', hint, help, helpValue,
+  label, value, color, sub, icon: Icon, delta, tone = 'neutral', hint, help, helpValue, helpNote,
 }: KpiCardProps) {
   return (
     <div className={cn(
@@ -66,7 +68,7 @@ export default function KpiCard({
         <div className="flex-1">
           <div className="flex items-center gap-1 mb-1.5">
             <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{tx(label)}</span>
-            {help && <MetricHelp metrica={help} valor={helpValue} rotulo={tx(label)} />}
+            {help && <MetricHelp metrica={help} valor={helpValue} rotulo={tx(label)} nota={helpNote} />}
           </div>
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <div className={cn(

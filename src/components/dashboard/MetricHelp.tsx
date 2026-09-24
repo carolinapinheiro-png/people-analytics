@@ -37,13 +37,18 @@ const PONTO: Record<KpiTone, string> = {
 };
 
 export default function MetricHelp({
-  metrica, valor, rotulo,
+  metrica, valor, rotulo, nota,
 }: {
   metrica: ChaveMetrica;
   /** Valor atual, para destacar a faixa em que ele cai. */
   valor?: number | null;
   /** Sobrescreve o título — útil quando o cartão usa outro nome na tela. */
   rotulo?: string;
+  /**
+   * Explicação que vale só para o recorte atual (ex.: por que a taxa não
+   * aparece com filtro de entidade). O cartão fica curto e o porquê mora aqui.
+   */
+  nota?: string;
 }) {
   const a = AJUDA[metrica] as AjudaMetrica;
   const atual = faixaDe(metrica, valor);
@@ -62,6 +67,12 @@ export default function MetricHelp({
       <PopoverContent align="start" className="w-[300px] space-y-2 text-sm">
         <div className="font-semibold">{tx(rotulo) ?? tx(a.titulo)}</div>
         <p className="text-muted-foreground leading-relaxed">{tx(a.oQueE)}</p>
+
+        {nota && (
+          <p className="rounded-md bg-secondary/60 p-2 text-[12px] leading-relaxed">
+            <strong>{tx("Neste recorte:")}</strong> {tx(nota)}
+          </p>
+        )}
 
         {a.comoLer && <p className="text-muted-foreground leading-relaxed">{tx(a.comoLer)}</p>}
 
