@@ -26,6 +26,7 @@ import RiscoPreviu from "@/components/dashboard/RiscoPreviu";
 import DriversDeepDive from "@/components/dashboard/DriversDeepDive";
 import RecorteDePerfil from "@/components/dashboard/RecorteDePerfil";
 import MatrizAreaDriver from "@/components/dashboard/MatrizAreaDriver";
+import TendenciaComparaveis from "@/components/dashboard/TendenciaComparaveis";
 import { temQuebraPorArea } from "@/lib/drill";
 import KpiCard from "@/components/dashboard/KpiCard";
 import Delta from "@/components/dashboard/Delta";
@@ -105,7 +106,7 @@ function EngagementSection({
   cross: EngagementCrossData | null;
   survey: SurveyWaveData | null;
 }) {
-  const { filters } = useDashboard();
+  const { filters, brand } = useDashboard();
   // ------------------------------------------------------------------
   // QUAL RECORTE DE PERFIL ESTÁ ATIVO, SE ALGUM
   // ------------------------------------------------------------------
@@ -745,6 +746,22 @@ function EngagementSection({
       {/* Depois da lista de perguntas, porque responde a pergunta seguinte:
           esta nota baixa é de todo mundo ou de alguém? */}
       {survey && <DispersaoAreas drivers={survey.driversPorArea} />}
+
+      {/* ------------------------------------------------------------------
+          A COMPARAÇÃO QUE O PAINEL DEIXOU PARA TRÁS
+          ------------------------------------------------------------------
+          Tudo acima compara a onda mais recente com a anterior. Com a
+          terceira onda, Jul/25 -> Jan/26 -- a do slide "Engagement
+          Highlights (2/3)" -- sumiu do painel, e o time voltava ao PPT para
+          vê-la (Thais, 24/09). Esta seção só ACRESCENTA: nada acima muda. */}
+      {survey && (
+        <TendenciaComparaveis
+          ondaWave={survey.ondaAnteriorWave ?? null}
+          department={filters.departamento}
+          brand={brand}
+          areaFixa={deptSelPesquisa}
+        />
+      )}
 
       {/* ------------------------------------------------------------------
           O DETALHE FICA DENTRO DO TERNÁRIO

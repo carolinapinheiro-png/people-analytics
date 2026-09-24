@@ -263,6 +263,12 @@ export interface SurveyWaveData {
   driversAnteriores: DriverPorRecorte[];
   /** O rótulo da onda anterior, para a tela nomear contra o que compara. */
   ondaAnteriorLabel: string | null;
+  /**
+   * O código da onda anterior ('jan_2026'). A seção de tendência dos itens
+   * comparáveis pede ESSA onda -- que vem com a anterior dela -- para mostrar
+   * a comparação que o painel principal deixou para trás.
+   */
+  ondaAnteriorWave: string | null;
   /** Quantos recortes tiveram a nota escondida para este perfil. */
   suprimidos: number;
   minimoExibicao: number;
@@ -782,6 +788,7 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       driversPorArea,
       driversAnteriores,
       ondaAnteriorLabel: ondaAnterior ? String(ondaAnterior.label) : null,
+      ondaAnteriorWave: ondaAnterior ? String(ondaAnterior.wave) : null,
       elegiveisPorArea,
       suprimidos: cuts.filter((c) => c.suprimido).length,
       minimoExibicao: N_MINIMO_EXIBICAO,
