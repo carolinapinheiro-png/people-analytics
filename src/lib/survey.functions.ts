@@ -14,9 +14,35 @@ import { semFiltro } from '@/lib/filtro-sentinela';
 import { recorteVisivel } from '@/lib/recorte-visivel';
 import { headcountDaArea } from '@/lib/headcount-area';
 import {
-  marcasDaEntidade, rebasearCuts, rebasearDrivers,
+  marcasDaEntidade, rebasearCuts, rebasearDrivers, basesRefeitas,
   type CutLinha, type DriverLinha, type RecorteEntidade,
 } from '@/lib/recorte-entidade';
+import { CRUZAMENTOS_MARCA } from '@/lib/aggregator/polly-survey';
+
+/**
+ * Todas as linhas de uma consulta, em páginas de 1.000.
+ *
+ * O PostgREST deste projeto devolve no máximo 1.000 linhas por resposta,
+ * com ou sem `.limit()` -- ago/26 já pediu 2.822 e recebeu 1.000, sem erro.
+ * Com as versões "+ marca" (24/09), os recortes de UMA onda passam disso.
+ * Paginar é a única forma de o teto não voltar a cortar em silêncio.
+ *
+ * `montar` é chamada a cada página porque a consulta do supabase-js é
+ * consumida ao ser aguardada. A ordem explícita é o que torna as páginas
+ * estáveis.
+ */
+async function todasAsLinhas(
+  montar: () => { range: (de: number, ate: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }> },
+): Promise<{ data: unknown[]; error: { message: string } | null }> {
+  const PAGINA = 1000;
+  const out: unknown[] = [];
+  for (let de = 0; ; de += PAGINA) {
+    const { data, error } = await montar().range(de, de + PAGINA - 1);
+    if (error) return { data: out, error };
+    out.push(...(data ?? []));
+    if (!data || data.length < PAGINA) return { data: out, error: null };
+  }
+}
 
 /**
  * Carga e leitura da pesquisa de engajamento.
@@ -462,8 +488,14 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     const idxAtual = (waves ?? []).findIndex((w: { wave: string }) => w.wave === wave.wave);
     const ondaAnterior = idxAtual >= 0 ? (waves ?? [])[idxAtual + 1] : undefined;
 
-    const [cutRes, impRes, drvRes, hcRes, cruzRes, antRes, drvMarcaRes] = await Promise.all([
-      db.from('survey_cut_scores').select('*').eq('wave', wave.wave),
+    const [cutRes, impRes, drvRes, hcRes, cruzRes, cruzMarcaRes, antRes, drvMarcaRes] = await Promise.all([
+      // Paginado: com as versões "+ marca" uma onda passa de 1.000 recortes.
+      // Sem entidade elas não servem para nada e nem são pedidas.
+      todasAsLinhas(() => {
+        const q = db.from('survey_cut_scores').select('*').eq('wave', wave.wave);
+        return (marcas ? q : q.not('cut_type', 'in', `(${CRUZAMENTOS_MARCA.map((t) => `"${t}"`).join(',')})`))
+          .order('cut_type').order('cut_value');
+      }),
       db.from('survey_driver_importance').select('*').eq('wave', wave.wave).order('r', { ascending: false }),
       // ------------------------------------------------------------------
       // TODOS OS RECORTES, DESDE QUE A TELA PASSOU A USÁ-LOS
@@ -521,6 +553,16 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
             .eq('cut_type', cruzadoPedido.tipo)
             .eq('cut_value', cruzadoPedido.valor)
         : Promise.resolve({ data: [], error: null }),
+      // O mesmo cruzado por marca, para a entidade somar as suas. Vazio
+      // quando a onda não tem essa versão -- aí o de cima segue da área
+      // inteira, e a tela diz.
+      cruzadoPedido && marcas
+        ? db.from('survey_driver_scores')
+            .select('driver, question, cut_type, cut_value, n, score, favoravel')
+            .eq('wave', wave.wave)
+            .eq('cut_type', `${cruzadoPedido.tipo}+marca`)
+            .in('cut_value', marcas.map((m) => comporCruzamento(cruzadoPedido.valor, m)))
+        : Promise.resolve({ data: [], error: null }),
       ondaAnterior
         ? db.from('survey_driver_scores')
             .select('driver, question, cut_type, cut_value, n, score, favoravel')
@@ -532,12 +574,14 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
         : Promise.resolve({ data: [], error: null }),
       // 'area+marca' dos drivers: é cruzamento, então não vem em
       // `tiposDeDriver`. Só é pedido quando a entidade vai precisar dele.
+      // Com os transversais "+ marca" (função, tempo, modelo), passa de
+      // 1.000 linhas: paginado.
       marcas
-        ? db.from('survey_driver_scores')
+        ? todasAsLinhas(() => db.from('survey_driver_scores')
             .select('driver, question, cut_type, cut_value, n, score, favoravel')
             .eq('wave', wave.wave)
-            .eq('cut_type', 'area+marca')
-            .limit(5000)
+            .in('cut_type', ['area+marca', ...CRUZAMENTOS_MARCA.filter((t) => !t.startsWith('area+'))])
+            .order('cut_type').order('cut_value').order('driver').order('question'))
         : Promise.resolve({ data: [], error: null }),
     ]);
     if (cutRes.error) throw new Error(`Falha ao carregar recortes: ${cutRes.error.message}`);
@@ -547,6 +591,9 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
     // qualquer outra regra: escopo, seleção e supressão seguem valendo sobre
     // as linhas refeitas exatamente como valiam sobre as originais.
     const cutLinhas = (cutRes.data ?? []) as unknown as CutLinha[];
+    // Quais recortes esta onda consegue refazer para a entidade (ver
+    // `daEmpresaInteira` na resposta).
+    const refeitas = marcas ? basesRefeitas(cutLinhas) : new Set<string>();
     const cutsBase: CutLinha[] =
       marcas ? rebasearCuts(cutLinhas, marcas) : cutLinhas;
     const brutos = cutsBase.map((c) => ({
@@ -663,10 +710,15 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
       ...((drvRes.error ? [] : drvRes.data ?? []) as Array<Record<string, unknown>>),
       ...((drvMarcaRes.error ? [] : drvMarcaRes.data ?? []) as Array<Record<string, unknown>>),
     ] as unknown as DriverLinha[];
-    const driversBrutos = [
-      ...((marcas ? rebasearDrivers(driversSimples, marcas) : driversSimples) as unknown as Array<Record<string, unknown>>),
+    // O cruzado de perfil entra NA soma quando há entidade: se a onda tem a
+    // versão "+ marca" dele, ele é refeito; se não, segue da área inteira.
+    const cruzados = [
       ...((cruzRes.error ? [] : cruzRes.data ?? []) as Array<Record<string, unknown>>),
-    ];
+      ...((cruzMarcaRes.error ? [] : cruzMarcaRes.data ?? []) as Array<Record<string, unknown>>),
+    ] as unknown as DriverLinha[];
+    const driversBrutos = (marcas
+      ? rebasearDrivers([...driversSimples, ...cruzados], marcas)
+      : [...driversSimples, ...cruzados]) as unknown as Array<Record<string, unknown>>;
     const driversNoEscopo = driversBrutos
       // A MESMA porta dos cuts, e não uma segunda implementação da ideia.
       // Ver `podeVerORecorte`: foi a divergência entre estas duas linhas que
@@ -770,8 +822,15 @@ export const getSurveyWave = createServerFn({ method: 'GET' })
         ? {
             brand: data.brand,
             marcas: marcas ?? [],
+            // Só o que a onda NÃO conseguiu refazer. Carregada com as
+            // versões "+ marca", tempo, modelo e função saem desta lista.
             daEmpresaInteira: marcas
-              ? ['tempo de casa', 'modelo de trabalho', 'função', 'o que mais pesa no eNPS']
+              ? [
+                ...([['tempo', 'tempo de casa'], ['modelo', 'modelo de trabalho'], ['funcao', 'função']] as const)
+                  .filter(([t]) => !refeitas.has(t)).map(([, rotulo]) => rotulo),
+                ...(refeitas.has('area+tempo') ? ['notas por pergunta de área × tempo de casa, modelo ou função'] : []),
+                'o que mais pesa no eNPS',
+              ]
               : ['tudo'],
           }
         : null,

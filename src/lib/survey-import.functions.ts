@@ -114,9 +114,17 @@ const MAX_AREAS = 20;          // 9 hoje
 const MAX_FAIXAS = 12;         // 7 faixas de tempo de casa
 const MAX_RECORTES_SIMPLES = 40;
 
-/** Simples + os quatro cruzamentos com área. */
-/** Recortes simples + área × (tempo, marca, função, modelo). */
-const MAX_GRUPOS = MAX_RECORTES_SIMPLES + MAX_AREAS * (MAX_FAIXAS + 3 + 2 + 3);
+const MAX_MODELOS = 4;         // 3 hoje
+const MAX_MARCAS = 4;          // 3 hoje
+
+/**
+ * Simples + tempo × modelo + área × (tempo, marca, função, modelo, tempo ×
+ * modelo) -- e, desde 24/09, a versão "+ marca" de cada um (ver
+ * CRUZAMENTOS_MARCA): cada grupo pode se repetir por marca.
+ */
+const MAX_SEM_MARCA = MAX_RECORTES_SIMPLES + MAX_FAIXAS * MAX_MODELOS
+  + MAX_AREAS * (MAX_FAIXAS + MAX_MARCAS + 2 + MAX_MODELOS + MAX_FAIXAS * MAX_MODELOS);
+const MAX_GRUPOS = MAX_SEM_MARCA * (1 + MAX_MARCAS);
 const MAX_CUTS = MAX_GRUPOS;
 /** Uma linha por pergunta × recorte. */
 // Os drivers passaram a ter os cruzados, então o teto é o mesmo de `cuts`:

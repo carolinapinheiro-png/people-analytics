@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  marcasDaEntidade, entidadeSemMarca, rebasearCuts, rebasearDrivers,
+  marcasDaEntidade, entidadeSemMarca, rebasearCuts, rebasearDrivers, basesRefeitas,
 } from './recorte-entidade';
 
 const c = (cut_type: string, cut_value: string, n: number, P: number, Pa: number, D: number, risco: number, sat: number, wave = 'ago_2026') =>
@@ -78,4 +78,46 @@ test('drivers: nota ponderada por n, por pergunta', () => {
   assert.equal(emp.n, 120);
   assert.equal(emp.score, 3.25);
   assert.equal(emp.favoravel, 55);
+});
+
+// ---------------------------------------------------------------------------
+// 24/09: TODO RECORTE COM A VERSÃO "+ MARCA" SEGUE A ENTIDADE
+// ---------------------------------------------------------------------------
+// O caso da Thais: NSX + Product, e "Gestores e contribuidores · Product"
+// mostrava as três marcas.
+const COM_MARCA = [
+  ...AGO,
+  c('funcao', 'Gestores', 60, 40, 15, 5, 14, 8.6),
+  c('funcao+marca', 'Gestores || Betnacional', 40, 30, 8, 2, 10, 8.8),
+  c('funcao+marca', 'Gestores || Betfair', 5, 2, 2, 1, 20, 8.1),
+  c('funcao+marca', 'Gestores || Cross Brand', 15, 8, 5, 2, 20, 8.4),
+  c('area+funcao', 'Product || Gestores', 7, 7, 0, 0, 14.3, 9.4),
+  c('area+funcao+marca', 'Product || Gestores || Betnacional', 6, 6, 0, 0, 16.7, 9.5),
+  c('area+funcao+marca', 'Product || Gestores || Betfair', 1, 1, 0, 0, 0, 9),
+];
+
+test('função e área × função refeitas pela entidade', () => {
+  const r = rebasearCuts(COM_MARCA, marcasDaEntidade('NSX')!);
+  const g = r.filter((x) => x.cut_type === 'funcao');
+  assert.deepEqual(g.map((x) => [x.cut_value, x.n]), [['Gestores', 55]]);
+  const pg = r.filter((x) => x.cut_type === 'area+funcao');
+  assert.deepEqual(pg.map((x) => [x.cut_value, x.n]), [['Product || Gestores', 6]]);
+  // As versões "+ marca" não seguem para a tela.
+  assert.ok(!r.some((x) => x.cut_type.endsWith('+marca') && x.cut_type !== 'area+marca'));
+});
+
+test('"Por marca" segue só com as marcas da entidade', () => {
+  const r = rebasearCuts(COM_MARCA, marcasDaEntidade('NSX')!);
+  assert.deepEqual(
+    r.filter((x) => x.cut_type === 'marca').map((x) => x.cut_value).sort(),
+    ['Betnacional', 'Cross Brand'],
+  );
+  assert.ok(r.filter((x) => x.cut_type === 'area+marca').every((x) => !x.cut_value.endsWith('Betfair')));
+});
+
+test('onda sem a versão "+ marca" de um recorte mantém o da empresa inteira', () => {
+  // AGO não tem 'tempo+marca': tempo segue intacto, como antes.
+  const r = rebasearCuts(COM_MARCA, marcasDaEntidade('NSX')!);
+  assert.ok(r.some((x) => x.cut_type === 'tempo' && x.n === 200));
+  assert.deepEqual([...basesRefeitas(COM_MARCA)].sort(), ['area', 'area+funcao', 'company', 'funcao']);
 });

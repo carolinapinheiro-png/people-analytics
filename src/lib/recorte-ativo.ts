@@ -1,4 +1,4 @@
-import { comporCruzamento, CUTS_PADRAO } from '@/lib/aggregator/polly-survey';
+import { comporCruzamento, CUTS_PADRAO, CRUZAMENTOS_MARCA } from '@/lib/aggregator/polly-survey';
 import { semFiltro, valorFiltro } from '@/lib/filtro-sentinela';
 
 /**
@@ -87,7 +87,12 @@ const PERFIS = [
  */
 export function combinacaoGravada(tipos: readonly string[]): boolean {
   if (!tipos.length) return true;
-  const lista = CUTS_PADRAO as readonly string[];
+  // As versões "+ marca" (24/09) existem para o seletor de ENTIDADE refazer
+  // os recortes, não para o filtro de marca de produto combinar com tempo ou
+  // modelo: as notas por pergunta de área × perfil × marca não são gravadas
+  // (ver CUTS_DRIVERS), e a combinação chegaria à tela sem clima.
+  const lista = (CUTS_PADRAO as readonly string[])
+    .filter((t) => !(CRUZAMENTOS_MARCA as readonly string[]).includes(t));
   return lista.includes(tipos.join('+')) && lista.includes(['area', ...tipos].join('+'));
 }
 

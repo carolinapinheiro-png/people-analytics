@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { parsePollyExport } from '@/lib/aggregator/polly-parser';
 import {
-  computeCuts, computeDriverScores, computeDriverImportance, CUTS_PADRAO,
+  computeCuts, computeDriverScores, computeDriverImportance, CUTS_DRIVERS,
 } from '@/lib/aggregator/polly-survey';
 import {
   importSurveyWave, listSurveyWaves, type ResultadoCarga,
@@ -144,7 +144,8 @@ export function PesquisaCard() {
         // mínimo de 5 respostas, área × tempo cobre 87% das pessoas em ago/26
         // e 84% em jan/26; área × função, 99%. As combinações que caem fora
         // são as pequenas, e essas já seriam suprimidas de qualquer forma.
-        driverScores: computeDriverScores(p.responses, CUTS_PADRAO),
+        // Sem os de área × perfil × marca: ver CUTS_DRIVERS no agregador.
+        driverScores: computeDriverScores(p.responses, CUTS_DRIVERS),
         importance: computeDriverImportance(p.responses),
       });
     } catch (e) {

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   computeCuts, computeDriverScores, computeDriverImportance,
-  CRUZAMENTOS, CUTS_PADRAO, SEPARADOR_CRUZAMENTO,
+  CRUZAMENTOS, CUTS_PADRAO, CUTS_DRIVERS, SEPARADOR_CRUZAMENTO,
   ehCruzamento, partesDoCruzamento, comporCruzamento, type PollyResponse,
 } from "./aggregator/polly-survey";
 import { areaDoRecorte, recorteVisivel } from "./recorte-visivel";
@@ -291,4 +291,39 @@ test("comporCruzamento é o único que escreve o separador", () => {
   // Sem área, não sobra separador solto na frente -- uma chave que não casa
   // com nada, e "não casa com nada" chega à tela como "não existe".
   assert.equal(comporCruzamento("", "24+ meses"), "24+ meses");
+});
+
+// ---------------------------------------------------------------------------
+// A VERSÃO "+ MARCA" DE CADA RECORTE (24/09)
+// ---------------------------------------------------------------------------
+test('cada recorte ganha a versão "+ marca", com a marca no último campo', () => {
+  const rows = computeCuts(BASE);
+  // Commercial, Contribuidor, Betnacional: só a primeira resposta da BASE.
+  const g = acha(rows, 'area+funcao+marca', `Commercial${SEPARADOR_CRUZAMENTO}Contribuidores individuais${SEPARADOR_CRUZAMENTO}Betnacional`);
+  assert.ok(g, 'area+funcao+marca ausente');
+  const t = acha(rows, 'tempo+marca', `12-18 meses${SEPARADOR_CRUZAMENTO}Betnacional`);
+  assert.ok(t && t.n >= 2);
+  const tm = rows.filter((x) => x.cutType === 'area+tempo+modelo+marca');
+  assert.ok(tm.length > 0);
+  assert.ok(tm.every((x) => x.cutValue.split(SEPARADOR_CRUZAMENTO).length === 4));
+});
+
+test('versões "+ marca" transversais não passam pela porta de área', () => {
+  for (const tipo of ['funcao+marca', 'tempo+marca', 'modelo+marca', 'tempo+modelo+marca']) {
+    assert.ok(ehCruzamento(tipo), tipo);
+    assert.ok(recorteVisivel(tipo, `x${SEPARADOR_CRUZAMENTO}Betfair`, () => false), `${tipo} barrado`);
+  }
+  // As de área, sim.
+  assert.equal(
+    recorteVisivel('area+funcao+marca', `Commercial${SEPARADOR_CRUZAMENTO}Gestores${SEPARADOR_CRUZAMENTO}Betfair`, () => false),
+    false,
+  );
+});
+
+test('as notas por pergunta não levam área × perfil × marca', () => {
+  const tipos = new Set<string>(CUTS_DRIVERS);
+  assert.ok(tipos.has('tempo+marca'));
+  assert.ok(tipos.has('area+marca'));
+  assert.ok(!tipos.has('area+funcao+marca'));
+  assert.ok(!tipos.has('area+tempo+modelo+marca'));
 });

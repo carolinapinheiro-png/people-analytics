@@ -25,10 +25,19 @@
  * de 'marca' e 'area+marca', somando as marcas da entidade. O resto do código
  * continua lendo 'company' e 'area' sem saber que elas mudaram.
  *
- * O que não tem marca cruzada (tempo de casa, modelo, função, importância,
- * onboarding, inclusão, drivers do deck) segue da empresa inteira, e quem
- * chama devolve isso à tela para ela avisar. Ondas sem a pergunta de marca
- * (jul/25) não entram: não dá para saber a entidade de ninguém nelas.
+ * 24/09: VALE PARA TODO RECORTE QUE TEM A VERSÃO "+ MARCA". O agregador
+ * passou a gravar 'funcao+marca', 'area+tempo+marca' etc. (ver
+ * CRUZAMENTOS_MARCA), e a mesma soma refaz função, tempo de casa e modelo --
+ * com e sem área -- para a entidade. Antes, com NSX e Product filtrados, o
+ * bloco "Gestores e contribuidores · Product" mostrava todas as marcas ao
+ * lado de uma régua só da NSX (Thais).
+ *
+ * Um recorte só é trocado quando a onda TEM a versão "+ marca" dele. Onda
+ * carregada antes disso mantém o recorte da Flutter Brazil inteira, e
+ * `basesRefeitas` diz à tela quais foram refeitos, para ela avisar dos
+ * outros. Importância, onboarding, inclusão e drivers do deck seguem da
+ * empresa inteira. Ondas sem a pergunta de marca (jul/25) não entram: não dá
+ * para saber a entidade de ninguém nelas.
  *
  * ------------------------------------------------------------------
  * A CONTA
@@ -47,7 +56,9 @@
  * "quero que mostre tudo de todos". Fica só o mínimo de 5 respostas no grupo
  * mostrado, que é a regra do painel inteiro.
  */
-import { partesDoCruzamento, rotuloDeCorte, CROSS_BRAND } from '@/lib/aggregator/polly-survey';
+import {
+  rotuloDeCorte, CROSS_BRAND, baseSemMarca, comporCruzamento, SEPARADOR_CRUZAMENTO,
+} from '@/lib/aggregator/polly-survey';
 
 export type Entidade = 'combined' | 'NSX' | 'Betfair BR' | 'Flutter International';
 
@@ -90,17 +101,42 @@ function ponderada(partes: Array<{ n: number; v: number | null }>, casas: number
 
 /**
  * Para qual linha sintetizada esta linha contribui, se alguma.
- * 'marca' Betfair -> company; 'area+marca' "Legal || Betfair" -> area Legal.
+ *   'marca' Betfair ........................ company
+ *   'area+marca' "Legal || Betfair" ........ area "Legal"
+ *   'area+funcao+marca' "Legal || Gestores || Betfair"
+ *                                       .... area+funcao "Legal || Gestores"
+ * A marca é sempre o ÚLTIMO campo (ver CRUZAMENTOS_MARCA).
  */
 function destino(r: Base, marcas: string[]): { cut_type: string; cut_value: string } | null {
-  if (r.cut_type === 'marca') {
+  const base = baseSemMarca(r.cut_type);
+  if (!base) return null;
+  if (base === 'company') {
     return marcas.includes(rotuloDeCorte(r.cut_value)) ? { cut_type: 'company', cut_value: 'company' } : null;
   }
-  if (r.cut_type === 'area+marca') {
-    const p = partesDoCruzamento(r.cut_value);
-    return p && marcas.includes(rotuloDeCorte(p.valor)) ? { cut_type: 'area', cut_value: p.area } : null;
+  const partes = String(r.cut_value ?? '').split(SEPARADOR_CRUZAMENTO).map((x) => x.trim());
+  if (partes.length < 2) return null;
+  const marca = partes.pop() as string;
+  return marcas.includes(rotuloDeCorte(marca))
+    ? { cut_type: base, cut_value: comporCruzamento(...partes) }
+    : null;
+}
+
+/**
+ * Quais recortes cada onda consegue refazer para a entidade -- os que têm a
+ * versão "+ marca" gravada. Chave: onda + tipo base.
+ */
+function refeitosPorOnda(linhas: readonly Base[]): Set<string> {
+  const out = new Set<string>();
+  for (const r of linhas) {
+    const base = baseSemMarca(r.cut_type);
+    if (base) out.add(`${r.wave ?? ''}\u0001${base}`);
   }
-  return null;
+  return out;
+}
+
+/** Os tipos base refeitos para a entidade nestas linhas (todas as ondas). */
+export function basesRefeitas(linhas: readonly Base[]): Set<string> {
+  return new Set([...linhas].map((r) => baseSemMarca(r.cut_type)).filter((b): b is string => !!b));
 }
 
 function rebasear<T extends Base>(
@@ -119,8 +155,22 @@ function rebasear<T extends Base>(
     grupos.set(k, g);
   }
   // As linhas originais de empresa e área saem -- inclusive nas ondas sem
-  // marca, onde não há o que pôr no lugar. O resto passa intacto.
-  const mantidas = linhas.filter((r) => r.cut_type !== 'company' && r.cut_type !== 'area');
+  // marca, onde não há o que pôr no lugar. Os outros recortes saem só onde a
+  // onda tem a versão "+ marca" deles para pôr no lugar.
+  //
+  // E as versões "+ marca" em si não seguem para a tela, com uma exceção:
+  // 'marca' e 'area+marca' alimentam o bloco "Por marca", e seguem SÓ com as
+  // marcas da entidade -- a Betfair não aparece dentro da NSX.
+  const refeitos = refeitosPorOnda(linhas);
+  const mantidas = linhas.filter((r) => {
+    if (r.cut_type === 'company' || r.cut_type === 'area') return false;
+    if (refeitos.has(`${r.wave ?? ''}\u0001${r.cut_type}`)) return false;
+    if (r.cut_type === 'marca' || r.cut_type === 'area+marca') {
+      const partes = String(r.cut_value ?? '').split(SEPARADOR_CRUZAMENTO);
+      return marcas.includes(rotuloDeCorte(partes[partes.length - 1].trim()));
+    }
+    return !baseSemMarca(r.cut_type);
+  });
   const sintetizadas = [...grupos.values()].map(({ alvo, partes }) => combinar(partes, alvo));
   return [...mantidas, ...sintetizadas];
 }

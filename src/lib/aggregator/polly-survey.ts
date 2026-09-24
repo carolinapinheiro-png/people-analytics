@@ -334,13 +334,55 @@ export type CutTypeCruzado =
   // A lista das que sobrevivem é um achado por si: quase tudo é
   // Technology·Remoto e Customer Service·Presencial. O modelo de trabalho é
   // quase determinado pela área.
-  | 'tempo+modelo' | 'area+tempo+modelo';
+  | 'tempo+modelo' | 'area+tempo+modelo'
+  // ------------------------------------------------------------------
+  // A VERSÃO "+ MARCA" DE CADA RECORTE, PARA O SELETOR DE ENTIDADE
+  // ------------------------------------------------------------------
+  // O seletor de entidade (NSX = Betnacional + Cross Brand; Betfair BR =
+  // Betfair + Cross Brand) refazia só empresa e área, a partir de 'marca' e
+  // 'area+marca'. Gestores/contribuidores, tempo de casa e modelo de trabalho
+  // continuavam da Flutter Brazil inteira -- e, com uma área filtrada, a tela
+  // mostrava "Product" de todas as marcas ao lado de uma régua só da NSX
+  // (Thais, 24/09). A Carolina pediu: todos os recortes seguem a entidade.
+  //
+  // Cada recorte ganha a versão com a marca no ÚLTIMO campo -- a mesma ordem
+  // de `recorte-ativo.ts` (tempo, modelo, marca) --, e o servidor soma as
+  // marcas da entidade exatamente como já soma para empresa e área. Ver
+  // `rebasear` em recorte-entidade.ts.
+  | 'funcao+marca' | 'tempo+marca' | 'modelo+marca' | 'tempo+modelo+marca'
+  | 'area+funcao+marca' | 'area+tempo+marca' | 'area+modelo+marca'
+  | 'area+tempo+modelo+marca';
 export type CutType = CutTypeSimples | CutTypeCruzado;
 
 export const CRUZAMENTOS: CutTypeCruzado[] = [
   'area+tempo', 'area+marca', 'area+funcao', 'area+modelo',
   'tempo+modelo', 'area+tempo+modelo',
 ];
+
+/**
+ * Os recortes que ganham uma versão "+ marca", e o nome dela. A ordem de
+ * CRUZAMENTOS acima fica intacta; estes entram depois, separados, porque
+ * existem só para o seletor de entidade e nenhum bloco os desenha direto.
+ */
+export const BASES_COM_MARCA = [
+  'funcao', 'tempo', 'modelo', 'tempo+modelo',
+  'area+funcao', 'area+tempo', 'area+modelo', 'area+tempo+modelo',
+] as const;
+export const CRUZAMENTOS_MARCA = BASES_COM_MARCA.map(
+  (b) => `${b}+marca` as CutTypeCruzado,
+);
+
+/**
+ * 'area+funcao+marca' -> 'area+funcao'; 'marca' -> 'company';
+ * 'area+marca' -> 'area'. null quando o tipo não é uma versão "+ marca".
+ * É o que diz em qual recorte a linha entra quando o servidor soma as marcas
+ * de uma entidade.
+ */
+export function baseSemMarca(cutType: string): string | null {
+  if (cutType === 'marca') return 'company';
+  if (cutType === 'area+marca') return 'area';
+  return cutType.endsWith('+marca') ? cutType.slice(0, -'+marca'.length) : null;
+}
 
 /**
  * Os cruzamentos que NÃO carregam uma área no primeiro campo.
@@ -352,10 +394,15 @@ export const CRUZAMENTOS: CutTypeCruzado[] = [
  * que todo perfil pode ver seria barrado -- aparecendo na tela como "não
  * existe".
  */
-export const CRUZAMENTOS_SEM_AREA: CutTypeCruzado[] = ['tempo+modelo'];
+export const CRUZAMENTOS_SEM_AREA: CutTypeCruzado[] = [
+  'tempo+modelo',
+  // As versões "+ marca" dos recortes transversais também não começam por área.
+  'funcao+marca', 'tempo+marca', 'modelo+marca', 'tempo+modelo+marca',
+];
 
 export function ehCruzamento(cutType: string): cutType is CutTypeCruzado {
-  return (CRUZAMENTOS as string[]).includes(cutType);
+  return (CRUZAMENTOS as string[]).includes(cutType)
+    || (CRUZAMENTOS_MARCA as string[]).includes(cutType);
 }
 
 /**
@@ -423,11 +470,45 @@ const CUT_KEY: Record<CutType, (r: PollyResponse) => string | null> = {
     r.area && r.tempoCasa && r.modelo
       ? comporCruzamento(r.area, r.tempoCasa, r.modelo)
       : null,
+  // As versões "+ marca": a chave da base com a marca no fim. Ver
+  // BASES_COM_MARCA. Preenchidas logo abaixo, a partir das próprias bases,
+  // para não haver uma segunda cópia de cada regra de chave.
+  'funcao+marca': () => null,
+  'tempo+marca': () => null,
+  'modelo+marca': () => null,
+  'tempo+modelo+marca': () => null,
+  'area+funcao+marca': () => null,
+  'area+tempo+marca': () => null,
+  'area+modelo+marca': () => null,
+  'area+tempo+modelo+marca': () => null,
 };
+for (const base of BASES_COM_MARCA) {
+  const daBase = CUT_KEY[base];
+  CUT_KEY[`${base}+marca` as CutType] = (r) => {
+    const k = daBase(r);
+    return k && r.marca ? comporCruzamento(k, r.marca) : null;
+  };
+}
 
 export const CUTS_PADRAO: CutType[] = [
   'company', 'area', 'funcao', 'marca', 'tempo', 'modelo', ...CRUZAMENTOS,
+  ...CRUZAMENTOS_MARCA,
 ];
+
+/**
+ * Os recortes das NOTAS POR PERGUNTA. Todos, menos os de área × perfil ×
+ * marca.
+ *
+ * Medida antes de decidir: com as 34 perguntas em todos os cruzamentos com
+ * marca, a carga de uma onda passaria de ~5 mil para ~23 mil linhas, num
+ * único envio do navegador. Os cruzamentos de área × perfil × marca são a
+ * maior parte disso e os que menos passam de meia dúzia de pessoas. Para
+ * eles, eNPS, risco e satisfação seguem a entidade (vêm de `CUTS_PADRAO`); o
+ * clima por pergunta segue da área inteira, e a tela avisa.
+ */
+export const CUTS_DRIVERS: CutType[] = CUTS_PADRAO.filter(
+  (t) => !(t.startsWith('area+') && t.endsWith('+marca') && t !== 'area+marca'),
+);
 
 export function computeCuts(rs: PollyResponse[], tipos: CutType[] = CUTS_PADRAO): CutRow[] {
   const out: CutRow[] = [];
