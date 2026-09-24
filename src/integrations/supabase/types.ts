@@ -371,9 +371,9 @@ export type Database = {
           department: string | null
           detalhe_versao: number | null
           dismissal_date: string | null
+          dismissal_month: string | null
           dismissal_motive: string | null
           dismissal_raw: Json | null
-          dismissal_month: string | null
           dismissal_type: string | null
           empresa: string
           exit_type: string | null
@@ -395,9 +395,9 @@ export type Database = {
           department?: string | null
           detalhe_versao?: number | null
           dismissal_date?: string | null
+          dismissal_month?: string | null
           dismissal_motive?: string | null
           dismissal_raw?: Json | null
-          dismissal_month?: string | null
           dismissal_type?: string | null
           empresa: string
           exit_type?: string | null
@@ -419,9 +419,9 @@ export type Database = {
           department?: string | null
           detalhe_versao?: number | null
           dismissal_date?: string | null
+          dismissal_month?: string | null
           dismissal_motive?: string | null
           dismissal_raw?: Json | null
-          dismissal_month?: string | null
           dismissal_type?: string | null
           empresa?: string
           exit_type?: string | null
@@ -1110,6 +1110,7 @@ export type Database = {
           tenure_base: Json
           tenure_breakdown: Json | null
           updated_at: string | null
+          work_model_base: Json
         }
         Insert: {
           apprentice?: number
@@ -1153,6 +1154,7 @@ export type Database = {
           tenure_base?: Json
           tenure_breakdown?: Json | null
           updated_at?: string | null
+          work_model_base?: Json
         }
         Update: {
           apprentice?: number
@@ -1196,6 +1198,7 @@ export type Database = {
           tenure_base?: Json
           tenure_breakdown?: Json | null
           updated_at?: string | null
+          work_model_base?: Json
         }
         Relationships: []
       }
