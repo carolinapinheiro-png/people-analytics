@@ -148,7 +148,17 @@ export function visibleExperienceSubTabs(
   // A escolha individual NÃO amplia o preset do perfil: um engagement_viewer
   // com 'onboarding' marcado continua sem onboarding. Perfil de aba única é
   // exatamente o que foi autorizado -- ver `tabsDoPerfil`.
-  return escolhidas.filter((s) => preset.includes(s));
+  //
+  // UMA EXCEÇÃO, e só uma: 'apresentacao' para `dept_leader`. O preset dele
+  // ficou como era (quem não tem lista não passa a ver nada novo), mas o
+  // perfil "Business Partner" do cadastro É `dept_leader` por baixo. Sem esta
+  // exceção, os BPs -- para quem a sub-aba foi feita -- não a viam mesmo com
+  // ela marcada, e só os admins enxergavam o botão (25/09). Os 127 gestores
+  // do perfil "Department Leader (Engagement)" também são `dept_leader`, mas
+  // a lista deles não tem 'apresentacao', então nada muda para eles.
+  const concedivel: ExperienceSubTab[] =
+    profile === 'dept_leader' ? [...preset, 'apresentacao'] : preset;
+  return escolhidas.filter((s) => concedivel.includes(s));
 }
 
 /**

@@ -237,15 +237,23 @@ test('sub-abas: sem lista própria, vale o preset do perfil', () => {
   assert.deepEqual(visibleExperienceSubTabs('engagement_viewer'), ['engajamento']);
 });
 
-test('apresentação: HRBP recebe; gestor e Department Leader não, nem marcando no cadastro', () => {
-  // É o roteiro do deck de quem conduz a sessão. Gestor (engagement_viewer)
-  // fica fora; Department Leader também, a pedido da Carolina de não mexer
-  // nesse perfil. A lista individual não amplia o preset, então marcar
-  // 'apresentacao' no cadastro deles não concede.
+test('apresentação: preset de HRBP tem; gestor e Department Leader sem lista não', () => {
   assert.equal(canSeeExperienceSubTab('hrbp', 'apresentacao'), true);
   assert.equal(canSeeExperienceSubTab('engagement_viewer', 'apresentacao'), false);
   assert.equal(canSeeExperienceSubTab('dept_leader', 'apresentacao'), false);
-  assert.deepEqual(visibleExperienceSubTabs('dept_leader', ['engajamento', 'apresentacao']), ['engajamento']);
+});
+
+test('apresentação: marcada no cadastro, vale para dept_leader (o perfil "Business Partner")', () => {
+  // Regressão de 25/09: os BPs do cadastro são `dept_leader` por baixo, tinham
+  // a sub-aba marcada e não a viam -- só os admins enxergavam o botão.
+  assert.deepEqual(
+    visibleExperienceSubTabs('dept_leader', ['engajamento', 'desligamentos', 'nao-desejada', 'apresentacao']),
+    ['engajamento', 'apresentacao'],
+  );
+  // Os gestores (lista só com engajamento) seguem sem ela.
+  assert.deepEqual(visibleExperienceSubTabs('dept_leader', ['engajamento']), ['engajamento']);
+  // E a exceção é só de dept_leader: engagement_viewer continua sem ampliar.
+  assert.deepEqual(visibleExperienceSubTabs('engagement_viewer', ['engajamento', 'apresentacao']), ['engajamento']);
 });
 
 test('sub-abas: lista própria reduz', () => {
