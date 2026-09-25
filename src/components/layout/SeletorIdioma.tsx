@@ -32,7 +32,7 @@ export default function SeletorIdioma() {
             type="button"
             onClick={() => setLocale(i.k)}
             aria-pressed={ativo}
-            title={i.nome}
+            title={tx(i.nome)}
             lang={i.k === 'en' ? 'en' : 'pt-BR'}
             className={
               'rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide transition-colors ' +
@@ -41,7 +41,7 @@ export default function SeletorIdioma() {
                 : 'text-muted-foreground hover:text-foreground hover:bg-secondary')
             }
           >
-            {i.sigla}
+            {tx(i.sigla)}
           </button>
         );
       })}

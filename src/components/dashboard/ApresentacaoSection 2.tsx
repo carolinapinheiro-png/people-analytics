@@ -61,8 +61,8 @@ function Kpi({ rotulo, valor, detalhe }: { rotulo: string; valor: string; detalh
   return (
     <div className="rounded-md border border-border p-3">
       <p className="text-xs text-muted-foreground">{tx(rotulo)}</p>
-      <p className="text-2xl font-semibold tabular-nums">{valor}</p>
-      {detalhe && <p className="text-xs text-muted-foreground">{detalhe}</p>}
+      <p className="text-2xl font-semibold tabular-nums">{tx(valor)}</p>
+      {detalhe && <p className="text-xs text-muted-foreground">{tx(detalhe)}</p>}
     </div>
   );
 }
@@ -85,7 +85,7 @@ function Barras({ dados, chaves, formato }: {
         <Tooltip formatter={(v: number) => formato(v)} />
         <Legend wrapperStyle={{ fontSize: 11 }} />
         {chaves.map((c) => (
-          <Bar key={c.k} dataKey={c.k} name={c.nome} fill={c.cor} radius={[3, 3, 0, 0]}>
+          <Bar key={c.k} dataKey={c.k} name={tx(c.nome)} fill={c.cor} radius={[3, 3, 0, 0]}>
             <LabelList dataKey={c.k} position="top" formatter={(v: number) => (v == null ? '' : formato(v))} className="text-[10px]" />
           </Bar>
         ))}
@@ -106,8 +106,8 @@ function ListaCandidatos({ titulo, itens, formato }: {
         <ul className="space-y-1">
           {itens.map(({ p, v }) => (
             <li key={p.pergunta} className="text-xs leading-snug">
-              <span className="font-semibold tabular-nums">{formato(v)}</span>{' '}
-              <span className="text-muted-foreground">{p.driver} ·</span> {p.pergunta}
+              <span className="font-semibold tabular-nums">{tx(formato(v))}</span>{' '}
+              <span className="text-muted-foreground">{tx(p.driver)} ·</span> {tx(p.pergunta)}
             </li>
           ))}
         </ul>
@@ -190,7 +190,7 @@ export default function ApresentacaoSection() {
     }
   }
 
-  if (erro) return <p className="py-16 text-center text-sm text-muted-foreground">{tx('Não foi possível carregar: ')}{erro}</p>;
+  if (erro) return <p className="py-16 text-center text-sm text-muted-foreground">{tx('Não foi possível carregar: ')}{tx(erro)}</p>;
   if (carregando) return <div className="flex justify-center py-16"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>;
   if (!ondas) return <p className="py-16 text-center text-sm text-muted-foreground">{tx('Nenhuma onda da pesquisa carregada.')}</p>;
   if (!dados) {
@@ -218,7 +218,7 @@ export default function ApresentacaoSection() {
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold">
             <Presentation className="h-4 w-4 text-[hsl(var(--flutter))]" />
-            {d.area} · {d.onda.label}
+            {tx(d.area)} · {tx(d.onda.label)}
           </p>
           <p className="text-xs text-muted-foreground">
             {tx('Os números na ordem dos slides do template. O deck sai com os dados preenchidos e com os campos de leitura do HRBP em aberto.')}
@@ -230,22 +230,22 @@ export default function ApresentacaoSection() {
         </Button>
       </div>
 
-      <Bloco slide="Slide 3" titulo="Como ouvimos — participação"
+      <Bloco slide={tx("Slide 3")} titulo={tx("Como ouvimos — participação")}
         nota={d.participacao.semTaxa
-          ? 'Com entidade selecionada não há taxa: o Cross Brand responde pelas duas entidades.'
-          : 'Elegíveis = headcount do departamento no Convenia no mês de referência. A área declarada na pesquisa pode ser outra, então taxa perto ou acima de 100% pede ressalva.'}>
+          ? tx("Com entidade selecionada não há taxa: o Cross Brand responde pelas duas entidades.")
+          : tx("Elegíveis = headcount do departamento no Convenia no mês de referência. A área declarada na pesquisa pode ser outra, então taxa perto ou acima de 100% pede ressalva.")}>
         <div className="grid gap-3 sm:grid-cols-4">
-          <Kpi rotulo="Taxa de participação" valor={d.participacao.semTaxa ? '—' : fmtPct(d.participacao.taxa, 0)} detalhe={`${d.bench}: ${fmtPct(d.participacao.taxaBench, 1)}`} />
-          <Kpi rotulo="Pessoas elegíveis" valor={fmtNum(d.participacao.elegiveis)} />
-          <Kpi rotulo="Respostas recebidas" valor={fmtNum(d.participacao.respostas)} />
-          <Kpi rotulo="Drivers medidos" valor={String(d.drivers.length)} detalhe={`${d.perguntas.length} ${tx('perguntas')}`} />
+          <Kpi rotulo={tx("Taxa de participação")} valor={d.participacao.semTaxa ? '—' : fmtPct(d.participacao.taxa, 0)} detalhe={`${d.bench}: ${fmtPct(d.participacao.taxaBench, 1)}`} />
+          <Kpi rotulo={tx("Pessoas elegíveis")} valor={fmtNum(d.participacao.elegiveis)} />
+          <Kpi rotulo={tx("Respostas recebidas")} valor={fmtNum(d.participacao.respostas)} />
+          <Kpi rotulo={tx("Drivers medidos")} valor={String(d.drivers.length)} detalhe={`${d.perguntas.length} ${tx('perguntas')}`} />
         </div>
       </Bloco>
 
-      <Bloco slide="Slides 5 e 16" titulo={`Como o sentimento evoluiu em ${d.area}`} nota="Área vs empresa em cada onda disponível.">
+      <Bloco slide={tx("Slides 5 e 16")} titulo={tx("Como o sentimento evoluiu em {0}", [d.area])} nota={tx("Área vs empresa em cada onda disponível.")}>
         <div className="grid gap-4 lg:grid-cols-2">
           <div>
-            <p className="text-xs font-semibold">eNPS</p>
+            <p className="text-xs font-semibold">{tx("eNPS")}</p>
             <Barras dados={histDados} formato={(v) => fmtNum(v)}
               chaves={[{ k: 'enpsA', nome: d.area, cor: COR_AREA }, { k: 'enpsB', nome: d.bench, cor: COR_BENCH }]} />
           </div>
@@ -258,14 +258,14 @@ export default function ApresentacaoSection() {
         <div className="mt-3 overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="text-left text-muted-foreground">
-              <tr><th className="py-1">{tx('Onda')}</th><th>n</th><th>eNPS</th><th>{tx('Satisfação')}</th><th>{tx('Risco')}</th><th>eNPS {d.bench}</th><th>{tx('Risco')} {d.bench}</th></tr>
+              <tr><th className="py-1">{tx('Onda')}</th><th>{tx("n")}</th><th>{tx("eNPS")}</th><th>{tx('Satisfação')}</th><th>{tx('Risco')}</th><th>{tx("eNPS")}{" "}{tx(d.bench)}</th><th>{tx('Risco')} {tx(d.bench)}</th></tr>
             </thead>
             <tbody className="tabular-nums">
               {d.historico.map((h) => (
                 <tr key={h.wave} className="border-t border-border">
-                  <td className="py-1">{h.label}</td><td>{fmtNum(h.area.n)}</td><td>{fmtNum(h.area.enps)}</td>
-                  <td>{fmtNum(h.area.satisfacao, 1)}</td><td>{fmtPct(h.area.risco, 1)}</td>
-                  <td>{fmtNum(h.bench.enps)}</td><td>{fmtPct(h.bench.risco, 1)}</td>
+                  <td className="py-1">{tx(h.label)}</td><td>{tx(fmtNum(h.area.n))}</td><td>{tx(fmtNum(h.area.enps))}</td>
+                  <td>{tx(fmtNum(h.area.satisfacao, 1))}</td><td>{tx(fmtPct(h.area.risco, 1))}</td>
+                  <td>{tx(fmtNum(h.bench.enps))}</td><td>{tx(fmtPct(h.bench.risco, 1))}</td>
                 </tr>
               ))}
             </tbody>
@@ -273,27 +273,27 @@ export default function ApresentacaoSection() {
         </div>
       </Bloco>
 
-      <Bloco slide="Slide 6" titulo="Onde estamos hoje">
+      <Bloco slide={tx("Slide 6")} titulo={tx("Onde estamos hoje")}>
         <div className="grid gap-3 sm:grid-cols-4">
-          <Kpi rotulo="eNPS" valor={fmtNum(a.enps)} detalhe={`${fmtDelta(dif(a.enps, ant?.enps ?? null))} vs ${antCurto} · ${fmtDelta(dif(a.enps, b.enps))} vs ${d.bench}`} />
-          <Kpi rotulo="Satisfação" valor={`${fmtNum(a.satisfacao, 1)} / 10`} detalhe={`${fmtDelta(dif(a.satisfacao, ant?.satisfacao ?? null), 1)} vs ${antCurto} · ${fmtDelta(dif(a.satisfacao, b.satisfacao), 1)} vs ${d.bench}`} />
-          <Kpi rotulo="Risco de retenção" valor={fmtPct(a.risco, 1)} detalhe={`${fmtDelta(dif(a.risco, ant?.risco ?? null), 1, ' pp')} vs ${antCurto} · ${fmtDelta(dif(a.risco, b.risco), 1, ' pp')} vs ${d.bench}`} />
-          <Kpi rotulo="Participação" valor={d.participacao.semTaxa ? '—' : fmtPct(d.participacao.taxa, 0)} detalhe={`n = ${fmtNum(a.n)}`} />
+          <Kpi rotulo="eNPS" valor={fmtNum(a.enps)} detalhe={tx("{0} vs {1} · {2} vs {3}", [fmtDelta(dif(a.enps, ant?.enps ?? null)), antCurto, fmtDelta(dif(a.enps, b.enps)), d.bench])} />
+          <Kpi rotulo={tx("Satisfação")} valor={`${fmtNum(a.satisfacao, 1)} / 10`} detalhe={tx("{0} vs {1} · {2} vs {3}", [fmtDelta(dif(a.satisfacao, ant?.satisfacao ?? null), 1), antCurto, fmtDelta(dif(a.satisfacao, b.satisfacao), 1), d.bench])} />
+          <Kpi rotulo={tx("Risco de retenção")} valor={fmtPct(a.risco, 1)} detalhe={tx("{0} vs {1} · {2} vs {3}", [fmtDelta(dif(a.risco, ant?.risco ?? null), 1, ' pp'), antCurto, fmtDelta(dif(a.risco, b.risco), 1, ' pp'), d.bench])} />
+          <Kpi rotulo={tx("Participação")} valor={d.participacao.semTaxa ? '—' : fmtPct(d.participacao.taxa, 0)} detalhe={tx("n = {0}", [fmtNum(a.n)])} />
         </div>
         <p className="mt-3 text-xs text-muted-foreground">
-          {tx('Composição do eNPS')} ({d.onda.curto}): {fmtNum(a.promotores)} {tx('promotores')}, {fmtNum(a.passivos)} {tx('neutros')}, {fmtNum(a.detratores)} {tx('detratores')}
-          {ant && <> · {antCurto}: {fmtNum(ant.promotores)} / {fmtNum(ant.passivos)} / {fmtNum(ant.detratores)}</>}
+          {tx('Composição do eNPS')} ({tx(d.onda.curto)}): {tx(fmtNum(a.promotores))} {tx('promotores')}, {tx(fmtNum(a.passivos))} {tx('neutros')}, {tx(fmtNum(a.detratores))} {tx('detratores')}
+          {ant && <> · {tx(antCurto)}: {tx(fmtNum(ant.promotores))} / {tx(fmtNum(ant.passivos))} / {tx(fmtNum(ant.detratores))}</>}
         </p>
       </Bloco>
 
       {cand && (
-        <Bloco slide="Slides 7, 8 e 11" titulo="Pistas para âncoras e fricções"
-          nota="Três réguas, como pede o template: movimento, comparação com a empresa e associação com o eNPS. São pistas — a escolha do que proteger, tratar ou aprofundar é do HRBP.">
+        <Bloco slide={tx("Slides 7, 8 e 11")} titulo={tx("Pistas para âncoras e fricções")}
+          nota={tx("Três réguas, como pede o template: movimento, comparação com a empresa e associação com o eNPS. São pistas — a escolha do que proteger, tratar ou aprofundar é do HRBP.")}>
           <div className="grid gap-4 md:grid-cols-2">
-            <ListaCandidatos titulo={`Maiores quedas vs ${antCurto} (pp)`} itens={cand.maioresQuedas} formato={(v) => fmtDelta(v, 1)} />
-            <ListaCandidatos titulo={`Mais abaixo de ${d.bench} (pp)`} itens={cand.abaixoDaEmpresa} formato={(v) => fmtDelta(v, 1)} />
-            <ListaCandidatos titulo={`Mais acima de ${d.bench} (pp)`} itens={cand.acimaDaEmpresa} formato={(v) => fmtDelta(v, 1)} />
-            <ListaCandidatos titulo="Mais ligadas ao eNPS na área (r)" itens={cand.maisLigadasAoEnps} formato={(v) => fmtNum(v, 2)} />
+            <ListaCandidatos titulo={tx("Maiores quedas vs {0} (pp)", [antCurto])} itens={cand.maioresQuedas} formato={(v) => fmtDelta(v, 1)} />
+            <ListaCandidatos titulo={tx("Mais abaixo de {0} (pp)", [d.bench])} itens={cand.abaixoDaEmpresa} formato={(v) => fmtDelta(v, 1)} />
+            <ListaCandidatos titulo={tx("Mais acima de {0} (pp)", [d.bench])} itens={cand.acimaDaEmpresa} formato={(v) => fmtDelta(v, 1)} />
+            <ListaCandidatos titulo={tx("Mais ligadas ao eNPS na área (r)")} itens={cand.maisLigadasAoEnps} formato={(v) => fmtNum(v, 2)} />
           </div>
           {cand.maisLigadasAoEnps.length === 0 && (
             <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><Info className="h-3 w-3" />{tx('A associação com o eNPS só é calculada em áreas com 30 ou mais respostas.')}</p>
@@ -301,21 +301,21 @@ export default function ApresentacaoSection() {
         </Bloco>
       )}
 
-      <Bloco slide="Slides 9 e 17" titulo="Diferenças entre populações"
-        nota={`Benchmark = a mesma população em ${d.bench}. n pequeno é indicativo; com n = 1 ou 2 o dado é praticamente individual — avalie antes de levar à sessão.`}>
+      <Bloco slide={tx("Slides 9 e 17")} titulo={tx("Diferenças entre populações")}
+        nota={tx("Benchmark = a mesma população em {0}. n pequeno é indicativo; com n = 1 ou 2 o dado é praticamente individual — avalie antes de levar à sessão.", [d.bench])}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="text-left text-muted-foreground">
-              <tr><th className="py-1">{tx('Recorte')}</th><th>{tx('Segmento')}</th><th>n</th><th>eNPS</th><th>{tx('Risco')}</th><th>{tx('Risco')} {d.bench}</th><th>{tx('Diferença')}</th><th>eNPS {d.bench}</th></tr>
+              <tr><th className="py-1">{tx('Recorte')}</th><th>{tx('Segmento')}</th><th>{tx("n")}</th><th>{tx("eNPS")}</th><th>{tx('Risco')}</th><th>{tx('Risco')} {tx(d.bench)}</th><th>{tx('Diferença')}</th><th>{tx("eNPS")}{" "}{tx(d.bench)}</th></tr>
             </thead>
             <tbody className="tabular-nums">
               {d.populacoes.map((p) => {
                 const df = dif(p.risco, p.riscoBench);
                 return (
                   <tr key={p.grupo + p.segmento} className={cn('border-t border-border', (p.n ?? 0) < 5 && 'text-muted-foreground')}>
-                    <td className="py-1">{tx(p.grupo)}</td><td>{tx(p.segmento)}</td><td>{fmtNum(p.n)}</td><td>{fmtNum(p.enps)}</td>
-                    <td>{fmtPct(p.risco, 1)}</td><td>{fmtPct(p.riscoBench, 1)}</td>
-                    <td className={cn(corDelta(df == null ? null : -df))}>{fmtDelta(df, 1, ' pp')}</td><td>{fmtNum(p.enpsBench)}</td>
+                    <td className="py-1">{tx(p.grupo)}</td><td>{tx(p.segmento)}</td><td>{tx(fmtNum(p.n))}</td><td>{tx(fmtNum(p.enps))}</td>
+                    <td>{tx(fmtPct(p.risco, 1))}</td><td>{tx(fmtPct(p.riscoBench, 1))}</td>
+                    <td className={cn(corDelta(df == null ? null : -df))}>{tx(fmtDelta(df, 1, ' pp'))}</td><td>{tx(fmtNum(p.enpsBench))}</td>
                   </tr>
                 );
               })}
@@ -325,13 +325,13 @@ export default function ApresentacaoSection() {
       </Bloco>
 
       {d.evento && (
-        <Bloco slide="Slide 10" titulo={`Evento recente: ${d.evento.nome}`} nota="Medido só nesta onda, sem ponto de comparação anterior.">
+        <Bloco slide={tx("Slide 10")} titulo={tx("Evento recente: {0}", [d.evento.nome])} nota={tx("Medido só nesta onda, sem ponto de comparação anterior.")}>
           <table className="w-full text-xs">
             <tbody className="tabular-nums">
               {d.evento.perguntas.map((p) => (
                 <tr key={p.pergunta} className="border-t border-border">
-                  <td className="py-1 pr-3">{p.pergunta}</td><td>{fmtPct(p.fav, 1)}</td>
-                  <td className="text-muted-foreground">{d.bench} {fmtPct(p.favBench, 1)}</td>
+                  <td className="py-1 pr-3">{tx(p.pergunta)}</td><td>{tx(fmtPct(p.fav, 1))}</td>
+                  <td className="text-muted-foreground">{tx(d.bench)} {tx(fmtPct(p.favBench, 1))}</td>
                 </tr>
               ))}
             </tbody>
@@ -339,12 +339,12 @@ export default function ApresentacaoSection() {
         </Bloco>
       )}
 
-      <Bloco slide="Slides 14 e 15 (apêndice)" titulo="Resultados por driver e por pergunta"
-        nota={`Favorável = % de notas 4–5. Diferenças em pontos percentuais. r = associação com o eNPS dentro da área.`}>
+      <Bloco slide={tx("Slides 14 e 15 (apêndice)")} titulo={tx("Resultados por driver e por pergunta")}
+        nota={tx("Favorável = % de notas 4–5. Diferenças em pontos percentuais. r = associação com o eNPS dentro da área.")}>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead className="text-left text-muted-foreground">
-              <tr><th className="py-1">{tx('Driver / pergunta')}</th><th>{tx('Favorável')}</th><th>vs {antCurto}</th><th>vs {d.bench}</th><th>{tx('Média')}</th><th>r</th></tr>
+              <tr><th className="py-1">{tx('Driver / pergunta')}</th><th>{tx('Favorável')}</th><th>{tx("vs")}{" "}{tx(antCurto)}</th><th>{tx("vs")}{" "}{tx(d.bench)}</th><th>{tx('Média')}</th><th>{tx("r")}</th></tr>
             </thead>
             <tbody className="tabular-nums">
               {d.drivers.map((dr) => (
@@ -366,18 +366,18 @@ function FragmentoDriver({ nome, fav, favAnt, favBench, media, perguntas }: {
   return (
     <>
       <tr className="border-t-2 border-border bg-muted/40 font-semibold">
-        <td className="py-1">{tx(nome)}</td><td>{fmtPct(fav, 1)}</td>
-        <td className={corDelta(dAnt)}>{fmtDelta(dAnt, 1)}</td><td className={corDelta(dB)}>{fmtDelta(dB, 1)}</td>
-        <td>{fmtNum(media, 2)}</td><td />
+        <td className="py-1">{tx(nome)}</td><td>{tx(fmtPct(fav, 1))}</td>
+        <td className={corDelta(dAnt)}>{tx(fmtDelta(dAnt, 1))}</td><td className={corDelta(dB)}>{tx(fmtDelta(dB, 1))}</td>
+        <td>{tx(fmtNum(media, 2))}</td><td />
       </tr>
       {perguntas.map((p) => {
         const a = dif(p.fav, p.favAnt);
         const b = dif(p.fav, p.favBench);
         return (
           <tr key={p.pergunta} className="border-t border-border">
-            <td className="py-1 pl-3 pr-3">{p.pergunta}</td><td>{fmtPct(p.fav, 1)}</td>
-            <td className={corDelta(a)}>{fmtDelta(a, 1)}</td><td className={corDelta(b)}>{fmtDelta(b, 1)}</td>
-            <td>{fmtNum(p.media, 2)}</td><td>{p.r == null ? '—' : fmtNum(p.r, 2)}</td>
+            <td className="py-1 pl-3 pr-3">{tx(p.pergunta)}</td><td>{tx(fmtPct(p.fav, 1))}</td>
+            <td className={corDelta(a)}>{tx(fmtDelta(a, 1))}</td><td className={corDelta(b)}>{tx(fmtDelta(b, 1))}</td>
+            <td>{tx(fmtNum(p.media, 2))}</td><td>{p.r == null ? '—' : tx(fmtNum(p.r, 2))}</td>
           </tr>
         );
       })}

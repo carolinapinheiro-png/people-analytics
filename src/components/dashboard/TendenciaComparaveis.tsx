@@ -146,7 +146,7 @@ export default function TendenciaComparaveis({
 
   return (
     <ChartCard
-      title={titulo}
+      title={tx(titulo)}
       icon={History}
       nota={tx('Mesma leitura do deck da diretoria. Favorável = % de notas 4 e 5. Δ = diferença entre as duas pesquisas, em pontos percentuais. Gap = Fav% da área menos Fav% da empresa na pesquisa mais nova. Só entram perguntas feitas nas duas pesquisas; "Recompensa justa" mudou de redação e é tratada como a mesma pergunta, como no deck.')}
     >
@@ -194,7 +194,7 @@ export default function TendenciaComparaveis({
           <div className="border-t border-border pt-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider mb-1.5">{tx('Sinais principais')}</p>
             <ul className="list-disc pl-5 space-y-1 text-xs text-foreground">
-              {sinais.map((s) => <li key={s.tipo}>{textoDoSinal(s, antes)}</li>)}
+              {sinais.map((s) => <li key={s.tipo}>{tx(textoDoSinal(s, antes))}</li>)}
             </ul>
           </div>
         )}
@@ -256,15 +256,15 @@ function Tabela({
     <>
       {area && (
         <>
-          <td className={cn(tdAntes, sep)}>{pct(v.areaAntes)}</td>
-          <td className={td}>{pct(v.areaDepois)}</td>
-          <td className={cn(td, negritoDelta && 'font-bold')}>{pp(v.deltaArea)}</td>
+          <td className={cn(tdAntes, sep)}>{tx(pct(v.areaAntes))}</td>
+          <td className={td}>{tx(pct(v.areaDepois))}</td>
+          <td className={cn(td, negritoDelta && 'font-bold')}>{tx(pp(v.deltaArea))}</td>
         </>
       )}
-      <td className={cn(tdAntes, sep)}>{pct(v.empresaAntes)}</td>
-      <td className={td}>{pct(v.empresaDepois)}</td>
-      <td className={td}>{pp(v.deltaEmpresa)}</td>
-      {area && <td className={cn(td, sep, corGap(v.gap))}>{pp(v.gap)}</td>}
+      <td className={cn(tdAntes, sep)}>{tx(pct(v.empresaAntes))}</td>
+      <td className={td}>{tx(pct(v.empresaDepois))}</td>
+      <td className={td}>{tx(pp(v.deltaEmpresa))}</td>
+      {area && <td className={cn(td, sep, corGap(v.gap))}>{tx(pp(v.gap))}</td>}
     </>
   );
 
@@ -274,7 +274,7 @@ function Tabela({
         <thead>
           <tr className="bg-muted text-[11px] uppercase tracking-wider">
             <th className={cn(th, 'text-left')} rowSpan={2}>{tx('Tema')}</th>
-            {area && <th className={cn(th, sep)} colSpan={3}>{area}</th>}
+            {area && <th className={cn(th, sep)} colSpan={3}>{tx(area)}</th>}
             <th className={cn(th, sep)} colSpan={3}>{tx('Empresa')}</th>
             {area && <th className={cn(th, sep)}>{tx('Gap {0}', [depois])}</th>}
           </tr>
@@ -283,12 +283,12 @@ function Tabela({
               <>
                 <th className={cn(th, sep, 'font-medium text-muted-foreground')}>{tx('{0} Fav%', [antes])}</th>
                 <th className={th}>{tx('{0} Fav%', [depois])}</th>
-                <th className={th}>Δ (pp)</th>
+                <th className={th}>{tx("Δ (pp)")}</th>
               </>
             )}
             <th className={cn(th, sep, 'font-medium text-muted-foreground')}>{tx('{0} Fav%', [antes])}</th>
             <th className={th}>{tx('{0} Fav%', [depois])}</th>
-            <th className={th}>Δ (pp)</th>
+            <th className={th}>{tx("Δ (pp)")}</th>
             {area && <th className={cn(th, sep)}>{tx('Área vs empresa')}</th>}
           </tr>
         </thead>
@@ -326,7 +326,7 @@ function Tabela({
                 </tr>
                 {estaAberto && t.perguntas.map((l) => (
                   <tr key={l.chave} className="border-t border-border/60 bg-muted/20">
-                    <td className="py-1.5 pl-8 pr-2 text-left text-muted-foreground" title={l.pergunta}>
+                    <td className="py-1.5 pl-8 pr-2 text-left text-muted-foreground" title={tx(l.pergunta)}>
                       {tx(l.rotulo)}
                     </td>
                     {celulas(l, emDestaque.has(l.chave))}
