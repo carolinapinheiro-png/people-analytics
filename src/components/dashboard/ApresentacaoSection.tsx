@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { tx } from '@/lib/i18n';
 import {
-  montarApresentacao, candidatos, tokensDoDeck, graficosDoDeck,
+  montarApresentacao, candidatos, tokensDoDeck, graficosDoDeck, sugestoes,
   fmtNum, fmtPct, fmtDelta, type DadosApresentacao, type Pergunta,
 } from '@/lib/apresentacao/dados';
 
@@ -163,6 +163,7 @@ export default function ApresentacaoSection() {
     return montarApresentacao(ondas.atual, ondas.todas, { bench, ordemOndas: ordem });
   }, [ondas, bench]);
   const cand = useMemo(() => (dados ? candidatos(dados) : null), [dados]);
+  const sug = useMemo(() => (dados ? sugestoes(dados) : null), [dados]);
 
   async function gerar() {
     if (!dados) return;
@@ -297,6 +298,30 @@ export default function ApresentacaoSection() {
           </div>
           {cand.maisLigadasAoEnps.length === 0 && (
             <p className="mt-2 flex items-center gap-1 text-xs text-muted-foreground"><Info className="h-3 w-3" />{tx('A associação com o eNPS só é calculada em áreas com 30 ou mais respostas.')}</p>
+          )}
+          {sug && (
+            <div className="mt-4 rounded-md border border-dashed border-border p-3">
+              <p className="mb-2 text-xs font-semibold">{tx('Sugestão que sai no deck (slides 7, 8 e 9) — revisar antes da sessão')}</p>
+              <div className="grid gap-3 text-xs md:grid-cols-3">
+                <div>
+                  <p className="mb-1 font-semibold text-emerald-600 dark:text-emerald-400">{tx('Âncoras (PROTEGER)')}</p>
+                  {sug.ancoras.length === 0 ? <p className="text-muted-foreground">{tx('Nenhuma pergunta com favorável ≥ 75% acima da empresa.')}</p>
+                    : sug.ancoras.map((a) => <p key={a.p.pergunta}><span className="font-semibold">{a.p.driver}</span> · {a.p.pergunta}</p>)}
+                </div>
+                <div>
+                  <p className="mb-1 font-semibold text-red-600 dark:text-red-400">{tx('Fricções')}</p>
+                  {sug.friccoes.filter(Boolean).map((f) => (
+                    <p key={f!.p.pergunta}><span className="font-semibold">{f!.etiqueta}</span> · {f!.p.driver} · {f!.p.pergunta}</p>
+                  ))}
+                </div>
+                <div>
+                  <p className="mb-1 font-semibold">{tx('Populações destacadas')}</p>
+                  {sug.populacoes.map(({ pop, qualificacao }) => (
+                    <p key={pop.grupo + pop.segmento}>{tx(pop.segmento)} (n = {fmtNum(pop.n)}) · {tx('risco')} {fmtPct(pop.risco, 1)} vs {fmtPct(pop.riscoBench, 1)} · <span className="font-semibold">{qualificacao}</span></p>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
         </Bloco>
       )}

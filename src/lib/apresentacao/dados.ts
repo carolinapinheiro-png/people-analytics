@@ -392,6 +392,90 @@ export function candidatos(d: DadosApresentacao, limite = 5) {
   };
 }
 
+
+// ---------------------------------------------------------------- sugestões (slides 7, 8 e 9)
+
+/**
+ * Sugestão de partida para âncoras, fricções e populações -- pedido da
+ * Carolina (25/09), depois de ver os slides 7, 8 e 9 saírem em branco.
+ *
+ * O deck MARCA que é sugestão (no campo de síntese do HRBP) e deixa "Leitura"
+ * e "Por que importa" em aberto: a regra abaixo escolhe por número, não por
+ * contexto, e só o HRBP sabe o contexto.
+ *
+ * As regras, para poderem ser explicadas na sessão:
+ *   - Âncora: favorável >= 75% e no nível ou acima da empresa; as mais acima
+ *     primeiro. Uma por driver.
+ *   - Fricção: a maior entre queda vs onda anterior e distância abaixo da
+ *     empresa. Uma por driver. TRATAR quando a pergunta é ligada ao eNPS da
+ *     área (r >= 0,35) -- ou quando a área não tem r (menos de 30 respostas);
+ *     APROFUNDAR quando não é. O template tem as etiquetas na ordem TRATAR,
+ *     APROFUNDAR, TRATAR, e a sugestão preenche nessa ordem.
+ *   - População: n >= 5, maior risco acima do mesmo grupo na empresa primeiro.
+ */
+export const LIMIAR_R = 0.35;
+export interface Sugerida { p: Pergunta; etiqueta: 'PROTEGER' | 'TRATAR' | 'APROFUNDAR' }
+export interface PopulacaoDestacada { pop: Populacao; qualificacao: 'Tratar' | 'Aprofundar' | 'Monitorar' }
+
+export function sugestoes(d: DadosApresentacao) {
+  const ps = d.perguntas.filter((p) => !/^evento/i.test(p.driver) && p.fav != null);
+  const dif = (a: number | null, b: number | null) => (a == null || b == null ? null : a - b);
+
+  const umaPorDriver = (xs: Array<{ p: Pergunta; v: number }>) => {
+    const vistos = new Set<string>();
+    return xs.filter(({ p }) => (vistos.has(p.driver) ? false : (vistos.add(p.driver), true)));
+  };
+
+  const ancoras: Sugerida[] = umaPorDriver(
+    ps.map((p) => ({ p, v: dif(p.fav, p.favBench) }))
+      .filter((x): x is { p: Pergunta; v: number } => x.v != null && x.v >= 0 && (x.p.fav ?? 0) >= 75)
+      .sort((a, b) => b.v - a.v || (b.p.r ?? 0) - (a.p.r ?? 0)),
+  ).slice(0, 3).map(({ p }) => ({ p, etiqueta: 'PROTEGER' }));
+
+  const gravidade = (p: Pergunta) => {
+    const quedas = [dif(p.favAnt, p.fav), dif(p.favBench, p.fav)].filter((x): x is number => x != null);
+    return quedas.length ? Math.max(...quedas) : null;
+  };
+  const friccoesOrdenadas = umaPorDriver(
+    ps.map((p) => ({ p, v: gravidade(p) }))
+      .filter((x): x is { p: Pergunta; v: number } => x.v != null && x.v > 0)
+      .sort((a, b) => b.v - a.v),
+  ).map(({ p }) => p);
+  const ligada = (p: Pergunta) => p.r == null || p.r >= LIMIAR_R;
+  const usadas = new Set<Pergunta>();
+  const pegar = (f: (p: Pergunta) => boolean) => {
+    const p = friccoesOrdenadas.find((x) => !usadas.has(x) && f(x))
+      ?? friccoesOrdenadas.find((x) => !usadas.has(x));
+    if (p) usadas.add(p);
+    return p;
+  };
+  const t1 = pegar(ligada);
+  const ap = pegar((p) => !ligada(p));
+  const t2 = pegar(ligada);
+  const friccoes: Array<Sugerida | null> = [
+    t1 ? { p: t1, etiqueta: 'TRATAR' } : null,
+    ap ? { p: ap, etiqueta: 'APROFUNDAR' } : null,
+    t2 ? { p: t2, etiqueta: 'TRATAR' } : null,
+  ];
+
+  const populacoes: PopulacaoDestacada[] = d.populacoes
+    .filter((x) => (x.n ?? 0) >= 5 && x.risco != null && x.riscoBench != null)
+    .sort((a, b) => (b.risco! - b.riscoBench!) - (a.risco! - a.riscoBench!))
+    .slice(0, 4)
+    .map((pop) => {
+      const df = pop.risco! - pop.riscoBench!;
+      const qualificacao = df >= 5 ? ((pop.n ?? 0) >= 10 ? 'Tratar' : 'Aprofundar') : 'Monitorar';
+      return { pop, qualificacao };
+    });
+
+  return { ancoras, friccoes, populacoes };
+}
+
+const encurtar = (s: string, max: number) =>
+  s.length <= max ? s : `${s.slice(0, max).replace(/\s+\S*$/, '')}…`;
+const rotuloSegmento = (s: string) =>
+  s === 'Contribuidores individuais' ? 'Individuais' : s.replace(/(\d+)-(\d+)/, '$1–$2');
+
 // ---------------------------------------------------------------- formatação
 
 const MENOS = '\u2212';
@@ -498,6 +582,33 @@ export function tokensDoDeck(d: DadosApresentacao): Record<string, string> {
         fmtNum(q.media, 2), fmtDelta(sub(q.fav, q.favBench), 1, ' pp')];
       v.forEach((x, c) => { t[`L${k}_R${r}_C${c}`] = x; });
     }
+  });
+
+  // ---- sugestões dos slides 7, 8 e 9 (ver `sugestoes`)
+  const sug = sugestoes(d);
+  const evidencia = (p: Pergunta, max: number) =>
+    `“${encurtar(p.pergunta, max)}” ${fmtPct(p.fav, 0)} (${d.bench} ${fmtPct(p.favBench, 0)}) · ` +
+    `${fmtDelta(sub(p.fav, p.favAnt), 0, ' pp')} vs ${antCurto}${p.r == null ? '' : ` · r ${fmtNum(p.r, 2)}`}`;
+  t.S7_SINTESE = `[Sugestão automática — revise antes da sessão. Âncoras: perguntas com favorável ≥ 75% e mais acima de ${d.bench}.]`;
+  for (let k = 0; k < 3; k++) {
+    const a = sug.ancoras[k];
+    t[`A${k}_TOP`] = a ? curtoDriver(a.p.driver) : '[ÂNCORA]';
+    t[`A${k}_EV`] = a ? evidencia(a.p, 70) : '[Evidência]';
+  }
+  t.S8_SINTESE = `[Sugestão automática — revise antes da sessão. Fricções: maiores quedas vs ${antCurto} ou distâncias abaixo de ${d.bench}. TRATAR quando a pergunta é ligada ao eNPS da área (r ≥ 0,35); APROFUNDAR quando não é.]`;
+  sug.friccoes.forEach((f, k) => {
+    t[`F${k}_TOP`] = f ? curtoDriver(f.p.driver) : '[TÓPICO]';
+    // Uma linha só: abaixo dela, no slide 8, vem o rótulo "Leitura do HRBP".
+    t[`F${k}_EV`] = f
+      ? `“${encurtar(f.p.pergunta, 30)}” ${fmtPct(f.p.fav, 0)} · FB ${fmtPct(f.p.favBench, 0)} · ${fmtDelta(sub(f.p.fav, f.p.favAnt), 0, ' pp')}`
+      : '[pontuação] · [comparação] · [tendência / associação]';
+  });
+  sug.populacoes.forEach(({ pop, qualificacao }, r) => {
+    t[`P_R${r}_C0`] = rotuloSegmento(pop.segmento);
+    t[`P_R${r}_C1`] = fmtPct(pop.risco, 1);
+    t[`P_R${r}_C2`] = fmtPct(pop.riscoBench, 1);
+    t[`P_R${r}_C3`] = fmtNum(pop.n);
+    t[`P_R${r}_C4`] = `${qualificacao} · eNPS ${fmtNum(pop.enps)} vs ${fmtNum(pop.enpsBench)}`;
   });
 
   d.historico.slice(-CAPACIDADE.ondas).forEach((h, r) => {

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import {
-  montarApresentacao, tokensDoDeck, graficosDoDeck, candidatos, rotuloCurto, areaDaResposta,
+  montarApresentacao, tokensDoDeck, graficosDoDeck, candidatos, rotuloCurto, areaDaResposta, sugestoes,
   type OndaEntrada, type CutEntrada, type DriverEntrada,
 } from './dados';
 import { preencherSlide, preencherGrafico } from './deck';
@@ -124,4 +124,19 @@ test('gráficos do deck têm as chaves do manifesto', () => {
   for (const k of ['s5_enps', 's5_risco', 's9_funcao', 's9_tempo', 'd0', 'h_enps', 'h_drivers', 'g_tempo', 'g_funcao']) {
     assert.ok(g[k], k);
   }
+});
+
+test('sugestões: âncora acima da empresa, fricção ligada ao eNPS vira TRATAR', () => {
+  const d = montarApresentacao(ago, [ago, jan], { ordemOndas: ORDEM })!;
+  const s = sugestoes(d);
+  assert.equal(s.ancoras[0].p.pergunta, 'Feedback');
+  assert.equal(s.friccoes[0]?.p.pergunta, 'Carga');
+  assert.equal(s.friccoes[0]?.etiqueta, 'TRATAR');
+  // Gestores (n = 7) entram; nenhum grupo com risco 5 pp acima da empresa -> Monitorar.
+  assert.deepEqual(s.populacoes.map((x) => x.qualificacao), ['Monitorar', 'Monitorar']);
+  const t = tokensDoDeck(d);
+  assert.equal(t.A0_TOP, 'Gestão');
+  assert.equal(t.A1_TOP, '[ÂNCORA]');
+  assert.match(t.S7_SINTESE, /^\[Sugestão automática/);
+  assert.equal(t.P_R0_C0, 'Individuais');
 });
