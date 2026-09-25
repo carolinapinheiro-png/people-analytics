@@ -76,7 +76,7 @@ export default function TopBar() {
           dele -- um layout que ninguem desenhou, produzido pelo flex-wrap. */}
       <div className="flex items-center gap-3 shrink-0">
         <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-extrabold text-white shrink-0" style={{ background: `linear-gradient(to bottom right, ${brandColor}, ${COLORS.nsx})` }}>
-          F
+          {tx("F")}
         </div>
         <div className="min-w-0">
           <div className="text-sm font-bold tracking-tight whitespace-nowrap">{tx("Flutter Brazil · People Analytics")}</div>

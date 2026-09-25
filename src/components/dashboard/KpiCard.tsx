@@ -68,7 +68,7 @@ export default function KpiCard({
         <div className="flex-1">
           <div className="flex items-center gap-1 mb-1.5">
             <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{tx(label)}</span>
-            {help && <MetricHelp metrica={help} valor={helpValue} rotulo={tx(label)} nota={helpNote} />}
+            {help && <MetricHelp metrica={help} valor={helpValue} rotulo={tx(label)} nota={tx(helpNote)} />}
           </div>
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <div className={cn(
