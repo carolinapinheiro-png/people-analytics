@@ -392,6 +392,63 @@ export function montarApresentacao(
   };
 }
 
+// ---------------------------------------------------------------- entidade inteira
+
+/**
+ * Deck de uma ENTIDADE inteira (NSX, Betfair BR), sem departamento -- pedido
+ * da Carolina (25/09). Em vez de uma segunda montagem, a entidade é vestida
+ * de "área" e passa pela mesma `montarApresentacao`:
+ *
+ *   área             <- a empresa refeita para a entidade (soma das marcas)
+ *   benchmark        <- a Flutter Brasil inteira (resposta sem entidade)
+ *   populações       <- função, tempo de casa e modelo DA ENTIDADE, contra o
+ *                       mesmo grupo na Flutter Brasil; marca sem benchmark
+ *   drivers          <- os da entidade (refeitos), contra os da Flutter Brasil
+ *   associação (r)   <- da Flutter Brasil: a importância não é refeita por
+ *                       entidade, e o deck avisa disso no slide 12
+ *
+ * Duas guardas:
+ *   - Onda em que a entidade NÃO foi refeita (jul/25 não tem a pergunta de
+ *     marca) volta com a empresa inteira no lugar da entidade. Mostrar isso
+ *     como "Betfair BR em jul/25" seria errado; a onda sai (retorna null).
+ *     O sinal é o n: refeita, a entidade tem menos respostas que a empresa.
+ *   - Recorte que a onda não conseguiu refazer (`daEmpresaInteira` da
+ *     resposta) não vira população da entidade.
+ */
+const ROTULO_RECORTE: Record<string, string> = { funcao: 'função', tempo: 'tempo de casa', modelo: 'modelo de trabalho' };
+
+export function comoEntidade(
+  entidade: OndaEntrada,
+  empresa: OndaEntrada,
+  nome: string,
+  daEmpresaInteira: readonly string[] = [],
+): OndaEntrada | null {
+  const cE = entidade.cuts.find((c) => c.cutType === 'company');
+  const cC = empresa.cuts.find((c) => c.cutType === 'company');
+  if (!cE || !cC || cE.n >= cC.n) return null;
+  const naoRefeito = (tipo: string) => daEmpresaInteira.includes(ROTULO_RECORTE[tipo] ?? '');
+  const comoArea = <T extends { cutType: string; cutValue: string }>(xs: T[]) =>
+    xs.filter((x) => x.cutType === 'company').map((x) => ({ ...x, cutType: 'area', cutValue: nome }));
+  const daEmpresa = <T extends { cutType: string }>(xs: T[]) => xs.filter((x) => x.cutType === 'company');
+  return {
+    ...entidade,
+    cuts: [
+      { ...cE, cutType: 'area', cutValue: nome },
+      cC,
+      ...entidade.cuts
+        .filter((c) => ['funcao', 'tempo', 'modelo', 'marca'].includes(c.cutType) && !naoRefeito(c.cutType))
+        .map((c) => ({ ...c, cutType: `area+${c.cutType}`, cutValue: `${nome}${SEP}${c.cutValue}` })),
+      ...empresa.cuts.filter((c) => ['funcao', 'tempo', 'modelo'].includes(c.cutType)),
+    ],
+    driversPorArea: [...comoArea(entidade.driversPorArea), ...daEmpresa(empresa.driversPorArea)],
+    driversAnteriores: [...comoArea(entidade.driversAnteriores), ...daEmpresa(empresa.driversAnteriores)],
+    importancia: empresa.importancia.filter((i) => i.cutType === 'company'),
+    elegiveisPorArea: entidade.elegiveis != null ? { [nome]: entidade.elegiveis } : {},
+    elegiveisSaoDaEntidade: true,
+    participacao: null,
+  };
+}
+
 // ---------------------------------------------------------------- candidatos
 
 /**

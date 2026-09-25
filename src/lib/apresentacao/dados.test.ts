@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { DOMParser, XMLSerializer } from '@xmldom/xmldom';
 import {
-  montarApresentacao, tokensDoDeck, graficosDoDeck, candidatos, rotuloCurto, areaDaResposta, sugestoes,
+  montarApresentacao, tokensDoDeck, graficosDoDeck, candidatos, rotuloCurto, areaDaResposta, sugestoes, comoEntidade,
   type OndaEntrada, type CutEntrada, type DriverEntrada,
 } from './dados';
 import { preencherSlide, preencherGrafico } from './deck';
@@ -169,4 +169,32 @@ test('slide 12: área sem r próprio usa a associação da empresa, como o gráf
   assert.equal(d.associacaoDaEmpresa, true);
   assert.ok(d.perguntas.find((p) => p.pergunta === 'Carga')?.quadrante);
   assert.match(tokensDoDeck(d).S12_NOTA, /associação de Flutter Brasil/);
+});
+
+test('entidade inteira: vira "área" com a Flutter Brasil de benchmark', () => {
+  const empresa: OndaEntrada = {
+    ...ago,
+    cuts: [cut('company', 'company', 485, 69, 16.1, 8.7), cut('funcao', 'Gestores', 103, 55, 20.4, 8.3)],
+    importancia: [{ cutType: 'company', cutValue: 'company', question: 'Carga', r: 0.5 }],
+  };
+  const betfair: OndaEntrada = {
+    ...ago, elegiveis: 160,
+    cuts: [cut('company', 'company', 158, 60, 20.0, 8.5), cut('funcao', 'Gestores', 30, 50, 25.0, 8.1),
+      cut('tempo', '0-3 meses', 10, 70, 10, 9)],
+    driversPorArea: [drv('Gestão', 'Feedback', 'company', 'company', 70)],
+    driversAnteriores: [],
+  };
+  const e = comoEntidade(betfair, empresa, 'Betfair BR', ['tempo de casa'])!;
+  const d = montarApresentacao(e, [e], { ordemOndas: ['ago_2026'] })!;
+  assert.equal(d.area, 'Betfair BR');
+  assert.equal(d.atual.area.enps, 60);
+  assert.equal(d.atual.bench.enps, 69);
+  assert.equal(d.participacao.semTaxa, true);
+  assert.equal(d.associacaoDaEmpresa, true);
+  const g = d.populacoes.find((p) => p.segmento === 'Gestores')!;
+  assert.equal(g.riscoBench, 20.4);
+  assert.equal(d.populacoes.some((p) => p.grupo === 'Tempo de casa'), false, 'tempo não foi refeito');
+  assert.equal(d.drivers[0].favBench, 74.2);
+  // Onda sem marca: a "entidade" volta igual à empresa e sai.
+  assert.equal(comoEntidade({ ...betfair, cuts: empresa.cuts }, empresa, 'Betfair BR'), null);
 });

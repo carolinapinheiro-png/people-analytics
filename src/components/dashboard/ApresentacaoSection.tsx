@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { tx } from '@/lib/i18n';
 import {
-  montarApresentacao, candidatos, tokensDoDeck, graficosDoDeck, sugestoes, prioridades,
+  montarApresentacao, candidatos, tokensDoDeck, graficosDoDeck, sugestoes, prioridades, comoEntidade, areaDaResposta,
   fmtNum, fmtPct, fmtDelta, type DadosApresentacao, type Pergunta,
 } from '@/lib/apresentacao/dados';
 
@@ -119,7 +119,7 @@ function ListaCandidatos({ titulo, itens, formato }: {
 export default function ApresentacaoSection() {
   const { filters, brand } = useDashboard();
   const buscar = useServerFn(getSurveyWave);
-  const [ondas, setOndas] = useState<{ atual: SurveyWaveData; todas: SurveyWaveData[] } | null>(null);
+  const [ondas, setOndas] = useState<{ atual: SurveyWaveData; todas: SurveyWaveData[]; empresa: SurveyWaveData[] | null } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [gerando, setGerando] = useState(false);
@@ -132,17 +132,25 @@ export default function ApresentacaoSection() {
       // SEM recorte de perfil: a apresentação é da área inteira. Os recortes
       // de tempo de casa, função etc. entram como tabela, não como filtro.
       const atual = (await buscar({ data: { department: filters.departamento, brand } })) as SurveyWaveData | null;
-      if (!atual) return { atual: null, todas: [] as SurveyWaveData[] };
+      if (!atual) return { atual: null, todas: [] as SurveyWaveData[], empresa: null };
       const outras = await Promise.all(
         atual.ondas
           .filter((o) => o.wave !== atual.wave)
           .map((o) => buscar({ data: { wave: o.wave, department: filters.departamento, brand } }) as Promise<SurveyWaveData | null>),
       );
-      return { atual, todas: [atual, ...outras.filter((o): o is SurveyWaveData => !!o)] };
+      // DECK DA ENTIDADE INTEIRA (25/09): entidade escolhida e nenhuma área.
+      // Aí a "área" é a própria entidade e o benchmark é a Flutter Brasil --
+      // que é a mesma consulta, sem entidade. Ver `comoEntidade`.
+      const empresa = brand !== 'combined' && !areaDaResposta(atual)
+        ? (await Promise.all(
+            atual.ondas.map((o) => buscar({ data: { wave: o.wave, department: filters.departamento, brand: 'combined' } }) as Promise<SurveyWaveData | null>),
+          )).filter((o): o is SurveyWaveData => !!o)
+        : null;
+      return { atual, todas: [atual, ...outras.filter((o): o is SurveyWaveData => !!o)], empresa };
     })()
       .then((r) => {
         if (cancelado) return;
-        setOndas(r.atual ? { atual: r.atual, todas: r.todas } : null);
+        setOndas(r.atual ? { atual: r.atual, todas: r.todas, empresa: r.empresa } : null);
       })
       .catch((e: unknown) => {
         if (!cancelado) setErro(e instanceof Error ? e.message : 'Falha ao carregar');
@@ -156,12 +164,24 @@ export default function ApresentacaoSection() {
   }, [buscar, filters.departamento, brand]);
 
   const bench = brand === 'combined' ? 'Flutter Brasil' : brand;
-  const dados: DadosApresentacao | null = useMemo(() => {
-    if (!ondas) return null;
+  const { dados, daEntidade } = useMemo((): { dados: DadosApresentacao | null; daEntidade: boolean } => {
+    if (!ondas) return { dados: null, daEntidade: false };
     // `ondas` do servidor vem da mais recente para a mais antiga.
     const ordem = [...ondas.atual.ondas].reverse().map((o) => o.wave);
-    return montarApresentacao(ondas.atual, ondas.todas, { bench, ordemOndas: ordem });
-  }, [ondas, bench]);
+    const porArea = montarApresentacao(ondas.atual, ondas.todas, { bench, ordemOndas: ordem });
+    if (porArea || !ondas.empresa) return { dados: porArea, daEntidade: false };
+    // Entidade inteira: cada onda da entidade vestida de área, contra a
+    // mesma onda da Flutter Brasil. Onda que a entidade não consegue refazer
+    // (jul/25, sem a pergunta de marca) fica de fora.
+    const vestir = (o: SurveyWaveData) => {
+      const emp = ondas.empresa!.find((e) => e.wave === o.wave);
+      return emp ? comoEntidade(o, emp, brand, o.entidade?.daEmpresaInteira ?? []) : null;
+    };
+    const atual = vestir(ondas.atual);
+    if (!atual) return { dados: null, daEntidade: true };
+    const todas = ondas.todas.map(vestir).filter((o): o is NonNullable<typeof o> => !!o);
+    return { dados: montarApresentacao(atual, todas, { bench: 'Flutter Brasil', ordemOndas: ordem }), daEntidade: true };
+  }, [ondas, bench, brand]);
   const cand = useMemo(() => (dados ? candidatos(dados) : null), [dados]);
   const sug = useMemo(() => (dados ? sugestoes(dados) : null), [dados]);
   const pri = useMemo(() => (dados ? prioridades(dados) : null), [dados]);
@@ -198,7 +218,9 @@ export default function ApresentacaoSection() {
   if (!dados) {
     return (
       <div className="rounded-md border border-border bg-muted/40 px-4 py-10 text-center text-sm text-muted-foreground">
-        {tx('A apresentação é por área. Escolha um departamento no filtro do topo para montá-la.')}
+        {daEntidade
+          ? tx('Esta entidade não tem recorte na pesquisa desta onda (a pesquisa só separa NSX e Betfair BR, pela pergunta de marca).')
+          : tx('A apresentação é por área ou por entidade. Escolha um departamento no filtro do topo, ou uma entidade (NSX, Betfair BR) com departamento em "Todos" para o deck da entidade inteira.')}
       </div>
     );
   }
@@ -225,6 +247,11 @@ export default function ApresentacaoSection() {
           <p className="text-xs text-muted-foreground">
             {tx('Os números na ordem dos slides do template. O deck sai com os dados preenchidos e com os campos de leitura do HRBP em aberto.')}
           </p>
+          {daEntidade && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              {tx('Deck da entidade inteira, contra a Flutter Brasil. O Cross Brand entra em NSX e em Betfair BR; ondas sem a pergunta de marca (jul/25) ficam de fora; a participação sai sem taxa; e a associação com o eNPS é a da Flutter Brasil.')}
+            </p>
+          )}
         </div>
         <Button onClick={gerar} disabled={gerando} className="gap-2">
           {gerando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
