@@ -102,9 +102,17 @@ const TABS_POR_PERFIL: Partial<Record<AccessProfile, DashboardTab[]>> = {
  * ficam fora TAMBEM do que o servidor manda (ver getExperienceData). Esconder
  * na tela deixaria o dado no payload, visivel para quem abrisse o inspetor.
  */
-export type ExperienceSubTab = 'engajamento' | 'onboarding' | 'inclusao';
+export type ExperienceSubTab = 'engajamento' | 'apresentacao' | 'onboarding' | 'inclusao';
 
-const TODAS_SUBABAS: ExperienceSubTab[] = ['engajamento', 'onboarding', 'inclusao'];
+/**
+ * 'apresentacao' (24/09) é o roteiro do deck do HRBP por área. Não traz dado
+ * novo -- lê o mesmo `getSurveyWave` de Engajamento, com o mesmo escopo -- mas
+ * é ferramenta de quem conduz a sessão, então fica FORA do preset de
+ * `engagement_viewer` (gestor) -- e, como a escolha individual não amplia o
+ * preset (ver abaixo), um gestor não a recebe nem marcada no cadastro. Para os
+ * demais perfis, a lista da pessoa pode tirá-la como tira qualquer outra.
+ */
+const TODAS_SUBABAS: ExperienceSubTab[] = ['engajamento', 'apresentacao', 'onboarding', 'inclusao'];
 
 /**
  * As sub-abas de Experiência que a pessoa enxerga.
@@ -126,7 +134,13 @@ export function visibleExperienceSubTabs(
   profile: AccessProfile,
   subTabsDaPessoa?: readonly string[] | null,
 ): ExperienceSubTab[] {
-  const preset = profile === 'engagement_viewer' ? (['engajamento'] as ExperienceSubTab[]) : TODAS_SUBABAS;
+  // `dept_leader` segue com as três de antes: a Carolina pediu para não mexer
+  // nesse perfil (ver o teste "os perfis que já existiam não mudaram").
+  const preset = profile === 'engagement_viewer'
+    ? (['engajamento'] as ExperienceSubTab[])
+    : profile === 'dept_leader'
+      ? TODAS_SUBABAS.filter((s) => s !== 'apresentacao')
+      : TODAS_SUBABAS;
   if (!subTabsDaPessoa?.length) return preset;
   const set = new Set<string>(subTabsDaPessoa);
   const escolhidas = TODAS_SUBABAS.filter((s) => set.has(s));
@@ -148,6 +162,7 @@ export function visibleExperienceSubTabs(
  */
 export const SUB_ABAS_DO_PRODUTO: Record<string, DashboardTab> = {
   engajamento: 'engagement',
+  apresentacao: 'engagement',
   onboarding: 'engagement',
   inclusao: 'engagement',
   custos: 'comp',

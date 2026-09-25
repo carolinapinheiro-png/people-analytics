@@ -159,6 +159,8 @@ const FILTERS_BY_SUBTAB: Record<string, FilterKey[]> = {
   compratio: ['departamento'],
   movimentacoes: ['departamento'],
   engajamento: ['departamento'],
+  // O deck é por área: o departamento é o único filtro que ele lê.
+  apresentacao: ['departamento'],
   onboarding: ['departamento'],
   // `experience_distributions` não tem coluna de recorte: o servidor não a
   // filtra por nada, nem por área. Esta continua vazia por um motivo próprio,

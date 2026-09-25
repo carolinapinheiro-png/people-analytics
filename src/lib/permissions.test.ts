@@ -233,8 +233,19 @@ test('a ordem do menu é sempre a de ALL_TABS, não a do cadastro', () => {
 // ---------------------------------------------------------------------------
 
 test('sub-abas: sem lista própria, vale o preset do perfil', () => {
-  assert.deepEqual(visibleExperienceSubTabs('hrbp'), ['engajamento', 'onboarding', 'inclusao']);
+  assert.deepEqual(visibleExperienceSubTabs('hrbp'), ['engajamento', 'apresentacao', 'onboarding', 'inclusao']);
   assert.deepEqual(visibleExperienceSubTabs('engagement_viewer'), ['engajamento']);
+});
+
+test('apresentação: HRBP recebe; gestor e Department Leader não, nem marcando no cadastro', () => {
+  // É o roteiro do deck de quem conduz a sessão. Gestor (engagement_viewer)
+  // fica fora; Department Leader também, a pedido da Carolina de não mexer
+  // nesse perfil. A lista individual não amplia o preset, então marcar
+  // 'apresentacao' no cadastro deles não concede.
+  assert.equal(canSeeExperienceSubTab('hrbp', 'apresentacao'), true);
+  assert.equal(canSeeExperienceSubTab('engagement_viewer', 'apresentacao'), false);
+  assert.equal(canSeeExperienceSubTab('dept_leader', 'apresentacao'), false);
+  assert.deepEqual(visibleExperienceSubTabs('dept_leader', ['engajamento', 'apresentacao']), ['engajamento']);
 });
 
 test('sub-abas: lista própria reduz', () => {
@@ -259,7 +270,7 @@ test('sub-abas de OUTRA aba na lista não concedem nem barram Experiência', () 
   // Experiência". Nesse caso o preset volta.
   assert.deepEqual(
     visibleExperienceSubTabs('hrbp', ['custos', 'compratio']),
-    ['engajamento', 'onboarding', 'inclusao'],
+    ['engajamento', 'apresentacao', 'onboarding', 'inclusao'],
   );
 });
 

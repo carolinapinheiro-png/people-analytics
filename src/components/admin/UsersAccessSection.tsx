@@ -86,6 +86,9 @@ export const TAB_LABELS: Record<DashboardTab, string> = {
  */
 export const SUB_ABAS: Array<{ aba: DashboardTab; id: string; rotulo: string; noServidor: boolean }> = [
   { aba: 'engagement', id: 'engajamento', rotulo: 'Engajamento', noServidor: true },
+  // Mesmo dado de Engajamento; o corte é de navegação (a sub-aba some), não
+  // de payload -- quem vê Engajamento já recebe esses números.
+  { aba: 'engagement', id: 'apresentacao', rotulo: 'Apresentação (deck do HRBP)', noServidor: false },
   { aba: 'engagement', id: 'onboarding', rotulo: 'Onboarding', noServidor: true },
   { aba: 'engagement', id: 'inclusao', rotulo: 'Inclusão & Pertencimento', noServidor: true },
   { aba: 'comp', id: 'custos', rotulo: 'Custos & Bandas', noServidor: true },

@@ -52,6 +52,7 @@ export const GROUPS: NavGroup[] = [
         defaultSub: 'engajamento',
         subs: [
           { id: 'engajamento', label: 'Engajamento' },
+          { id: 'apresentacao', label: 'Apresentação' },
           { id: 'onboarding', label: 'Onboarding' },
           { id: 'inclusao', label: 'Inclusão & Pertencimento' },
         ],

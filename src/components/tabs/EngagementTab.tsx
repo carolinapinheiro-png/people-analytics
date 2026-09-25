@@ -27,6 +27,7 @@ import DriversDeepDive from "@/components/dashboard/DriversDeepDive";
 import RecorteDePerfil from "@/components/dashboard/RecorteDePerfil";
 import MatrizAreaDriver from "@/components/dashboard/MatrizAreaDriver";
 import TendenciaComparaveis from "@/components/dashboard/TendenciaComparaveis";
+import ApresentacaoSection from "@/components/dashboard/ApresentacaoSection";
 import { temQuebraPorArea } from "@/lib/drill";
 import KpiCard from "@/components/dashboard/KpiCard";
 import Delta from "@/components/dashboard/Delta";
@@ -43,7 +44,7 @@ import {
   Line,
   Legend,
 } from "recharts";
-import { Heart, Users, Sparkles, TrendingUp, TrendingDown, HandHeart } from "lucide-react";
+import { Heart, Users, Sparkles, TrendingUp, TrendingDown, HandHeart, Presentation } from "lucide-react";
 import { COLORS } from "@/lib/colors";
 import { useDashboard } from "@/data/DashboardContext";
 import { semFiltro, valorFiltro } from "@/lib/filtro-sentinela";
@@ -1441,6 +1442,8 @@ export default function EngagementTab() {
 
   // Sub-abas permitidas. Sem `subAbas` na resposta (versao antiga em cache),
   // assume as tres -- o servidor ja recusaria o que nao pode sair.
+  // 'apresentacao' fica FORA do fallback: uma resposta antiga, sem a lista,
+  // não diz nada sobre a sub-aba nova, e o lado seguro é não mostrá-la.
   const subs = data.subAbas ?? ["engajamento", "onboarding", "inclusao"];
   const podeVer = (id: string) => subs.includes(id as (typeof subs)[number]);
   // Uma sub-aba lembrada da sessao anterior pode nao existir mais para este
@@ -1520,6 +1523,12 @@ export default function EngagementTab() {
                 {tx("Engajamento")}
               </TabsTrigger>
             )}
+            {podeVer("apresentacao") && (
+              <TabsTrigger value="apresentacao" className="gap-2">
+                <Presentation className="h-4 w-4" />
+                {tx("Apresentação")}
+              </TabsTrigger>
+            )}
             {podeVer("onboarding") && (
               <TabsTrigger value="onboarding" className="gap-2">
                 <Sparkles className="h-4 w-4" />
@@ -1537,6 +1546,13 @@ export default function EngagementTab() {
         <TabsContent value="engajamento" className="mt-0">
           <EngagementSection data={data} cross={cross} survey={survey} />
         </TabsContent>
+        {/* Montada só quando aberta: ela pede uma resposta de getSurveyWave
+            por onda, e quem não usa o deck não precisa pagar por isso. */}
+        {podeVer("apresentacao") && subAtiva === "apresentacao" && (
+          <TabsContent value="apresentacao" className="mt-0">
+            <ApresentacaoSection />
+          </TabsContent>
+        )}
         {podeVer("onboarding") && (
           <TabsContent value="onboarding" className="mt-0">
             <OnboardingSection data={data} />
