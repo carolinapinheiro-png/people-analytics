@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { tx } from '@/lib/i18n';
 import {
-  montarApresentacao, candidatos, tokensDoDeck, graficosDoDeck, sugestoes,
+  montarApresentacao, candidatos, tokensDoDeck, graficosDoDeck, sugestoes, prioridades,
   fmtNum, fmtPct, fmtDelta, type DadosApresentacao, type Pergunta,
 } from '@/lib/apresentacao/dados';
 
@@ -164,6 +164,7 @@ export default function ApresentacaoSection() {
   }, [ondas, bench]);
   const cand = useMemo(() => (dados ? candidatos(dados) : null), [dados]);
   const sug = useMemo(() => (dados ? sugestoes(dados) : null), [dados]);
+  const pri = useMemo(() => (dados ? prioridades(dados) : null), [dados]);
 
   async function gerar() {
     if (!dados) return;
@@ -321,6 +322,23 @@ export default function ApresentacaoSection() {
                   ))}
                 </div>
               </div>
+              {pri && (
+                <div className="mt-3 border-t border-border pt-3 text-xs">
+                  <p className="mb-1 font-semibold">
+                    {tx('Slide 12 — a partir do gráfico de prioridade')}
+                    {d.associacaoDaEmpresa && <span className="font-normal text-muted-foreground"> · {tx('associação da empresa (área com menos de 30 respostas)')}</span>}
+                  </p>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {([['PROTEGER (Sustentar)', pri.proteger], ['TRATAR (Prioridade)', pri.tratar], ['APROFUNDAR (Incomoda, mas não move)', pri.aprofundar]] as const).map(([rot, lista]) => (
+                      <div key={rot}>
+                        <p className="mb-1 font-semibold">{tx(rot)}</p>
+                        {lista.length === 0 ? <p className="text-muted-foreground">—</p>
+                          : lista.map((p) => <p key={p.pergunta}><span className="font-semibold">{p.driver}</span> · {p.pergunta}</p>)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </Bloco>

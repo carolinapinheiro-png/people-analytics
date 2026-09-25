@@ -140,3 +140,33 @@ test('sugestões: âncora acima da empresa, fricção ligada ao eNPS vira TRATAR
   assert.match(t.S7_SINTESE, /^\[Sugestão automática/);
   assert.equal(t.P_R0_C0, 'Individuais');
 });
+
+test('slide 12: tópicos saem dos quadrantes do gráfico de prioridade', () => {
+  const base = montarApresentacao(ago, [ago, jan], { ordemOndas: ORDEM })!;
+  // Duas perguntas com r: Carga (nota baixa, r alto) e Feedback (nota alta, r baixo).
+  const d = montarApresentacao(
+    { ...ago, importancia: [
+      { cutType: 'area', cutValue: 'Product', question: 'Carga', r: 0.6 },
+      { cutType: 'area', cutValue: 'Product', question: 'Feedback', r: 0.1 },
+    ] },
+    [ago, jan], { ordemOndas: ORDEM },
+  )!;
+  assert.equal(base.associacaoDaEmpresa, false);
+  const q = Object.fromEntries(d.perguntas.map((p) => [p.pergunta, p.quadrante]));
+  assert.equal(q.Carga, 'prioridade'); // r na metade de cima e nota 75 abaixo da mediana (77,5)
+  assert.equal(q.Feedback, 'base');
+  const t = tokensDoDeck(d);
+  assert.match(t.S12_TRAT0, /^Carga e Bem-Estar: Carga/);
+  assert.equal(t.S12_PROT0, '[Tópico]');
+  assert.match(t.S11_C0, /^eNPS 65 \(\u221219 vs Jan\/26; \u22124 vs Flutter Brasil\)/);
+});
+
+test('slide 12: área sem r próprio usa a associação da empresa, como o gráfico', () => {
+  const d = montarApresentacao(
+    { ...ago, importancia: [{ cutType: 'company', cutValue: 'company', question: 'Carga', r: 0.5 }] },
+    [ago, jan], { ordemOndas: ORDEM },
+  )!;
+  assert.equal(d.associacaoDaEmpresa, true);
+  assert.ok(d.perguntas.find((p) => p.pergunta === 'Carga')?.quadrante);
+  assert.match(tokensDoDeck(d).S12_NOTA, /associação de Flutter Brasil/);
+});

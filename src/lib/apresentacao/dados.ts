@@ -25,6 +25,8 @@
  * perguntas mais ligadas ao eNPS); a escolha continua humana.
  */
 
+import { classifyPerguntas, type QuadrantePergunta } from '../pergunta-priority';
+
 // ---------------------------------------------------------------- entrada
 
 /** O pedaço de `SurveyWaveData` que a apresentação lê. Estrutural: a resposta inteira serve. */
@@ -106,6 +108,12 @@ export interface Pergunta {
   mediaBench: number | null;
   /** Associação com o eNPS dentro da área. Só existe com 30+ respostas. */
   r: number | null;
+  /**
+   * O quadrante do gráfico "O que anda junto com o engajamento" (as bolinhas
+   * da aba Engajamento), pela MESMA função que o desenha: `classifyPerguntas`.
+   * Nulo quando não há associação nenhuma para a pergunta.
+   */
+  quadrante: QuadrantePergunta | null;
 }
 export interface Driver {
   nome: string;
@@ -141,6 +149,8 @@ export interface DadosApresentacao {
   drivers: Driver[];
   perguntas: Pergunta[];
   evento: { nome: string; perguntas: Pergunta[] } | null;
+  /** Área sem r próprio (menos de 30 respostas): o quadrante usou o r da empresa, como o gráfico faz. */
+  associacaoDaEmpresa: boolean;
 }
 
 // ---------------------------------------------------------------- constantes
@@ -296,7 +306,11 @@ export function montarApresentacao(
   const antArea = mapa(atual.driversAnteriores, 'area', area);
   const antEmpresa = mapa(atual.driversAnteriores, 'company', 'company');
   const imp = new Map<string, number>();
-  for (const i of atual.importancia) if (i.cutType === 'area' && i.cutValue === area) imp.set(i.question, i.r);
+  const impEmpresa = new Map<string, number>();
+  for (const i of atual.importancia) {
+    if (i.cutType === 'area' && i.cutValue === area) imp.set(i.question, i.r);
+    if (i.cutType === 'company') impEmpresa.set(i.question, i.r);
+  }
 
   const todas: Pergunta[] = [...daArea.values()].map((l) => {
     const k = chave(l.driver, l.question);
@@ -309,6 +323,7 @@ export function montarApresentacao(
       media: l.score,
       mediaBench: daEmpresa.get(k)?.score ?? null,
       r: imp.get(l.question) ?? null,
+      quadrante: null as QuadrantePergunta | null,
     };
   });
   const pos = (d: string) => {
@@ -317,6 +332,18 @@ export function montarApresentacao(
   };
   const ehEvento = (d: string) => /^evento/i.test(d);
   todas.sort((a, b) => pos(a.driver) - pos(b.driver) || a.driver.localeCompare(b.driver) || a.pergunta.localeCompare(b.pergunta));
+
+  // ---- quadrantes, como no gráfico de bolinhas (DriverImportance): nota da
+  // área, associação da área -- ou a da empresa quando a área não tem
+  // nenhuma (ver `perguntasNoRecorte` em lib/drill.ts). As perguntas do
+  // evento entram na conta, como entram no gráfico.
+  const associacaoDaEmpresa = imp.size === 0;
+  const rUsado = (p: Pergunta) => (associacaoDaEmpresa ? impEmpresa.get(p.pergunta) : imp.get(p.pergunta)) ?? null;
+  const classificaveis = todas
+    .map((p) => ({ p, r: rUsado(p) }))
+    .filter((x): x is { p: Pergunta; r: number } => x.r != null && x.p.fav != null)
+    .map(({ p, r }) => ({ driver: p.driver, question: p.pergunta, r, score: p.media ?? 0, favoravel: p.fav, ref: p }));
+  for (const c of classifyPerguntas(classificaveis).itens) c.ref.quadrante = c.quadrante;
 
   const nomes = [...new Set(todas.filter((p) => !ehEvento(p.driver)).map((p) => p.driver))];
   const drivers: Driver[] = nomes.map((nome) => {
@@ -361,6 +388,7 @@ export function montarApresentacao(
     drivers,
     perguntas: todas,
     evento,
+    associacaoDaEmpresa,
   };
 }
 
@@ -407,9 +435,9 @@ export function candidatos(d: DadosApresentacao, limite = 5) {
  *   - Âncora: favorável >= 75% e no nível ou acima da empresa; as mais acima
  *     primeiro. Uma por driver.
  *   - Fricção: a maior entre queda vs onda anterior e distância abaixo da
- *     empresa. Uma por driver. TRATAR quando a pergunta é ligada ao eNPS da
- *     área (r >= 0,35) -- ou quando a área não tem r (menos de 30 respostas);
- *     APROFUNDAR quando não é. O template tem as etiquetas na ordem TRATAR,
+ *     empresa. Uma por driver. TRATAR quando a pergunta está na metade de
+ *     cima da associação com o eNPS (o corte do gráfico de bolinhas);
+ *     APROFUNDAR quando não está. O template tem as etiquetas na ordem TRATAR,
  *     APROFUNDAR, TRATAR, e a sugestão preenche nessa ordem.
  *   - População: n >= 5, maior risco acima do mesmo grupo na empresa primeiro.
  */
@@ -441,7 +469,11 @@ export function sugestoes(d: DadosApresentacao) {
       .filter((x): x is { p: Pergunta; v: number } => x.v != null && x.v > 0)
       .sort((a, b) => b.v - a.v),
   ).map(({ p }) => p);
-  const ligada = (p: Pergunta) => p.r == null || p.r >= LIMIAR_R;
+  // "Ligada ao eNPS" = metade de cima da associação, o mesmo corte do gráfico
+  // de bolinhas (prioridade/sustentar). Sem quadrante, cai para r >= 0,35;
+  // sem r nenhum, conta como ligada.
+  const ligada = (p: Pergunta) =>
+    p.quadrante ? p.quadrante === 'prioridade' || p.quadrante === 'sustentar' : p.r == null || p.r >= LIMIAR_R;
   const usadas = new Set<Pergunta>();
   const pegar = (f: (p: Pergunta) => boolean) => {
     const p = friccoesOrdenadas.find((x) => !usadas.has(x) && f(x))
@@ -469,6 +501,31 @@ export function sugestoes(d: DadosApresentacao) {
     });
 
   return { ancoras, friccoes, populacoes };
+}
+
+/**
+ * Slide 12: os tópicos saem dos quadrantes do gráfico de bolinhas.
+ *   PROTEGER   <- "Sustentar" (vai bem e anda junto com o eNPS), maior r primeiro
+ *   TRATAR     <- "Prioridade" (abaixo da mediana e anda junto), maior r primeiro
+ *   APROFUNDAR <- "Incomoda, mas não move" (abaixo e não anda junto), menor favorável primeiro
+ * Uma pergunta por driver, sem o bloco do evento, nos limites do template (2, 3, 2).
+ */
+export function prioridades(d: DadosApresentacao) {
+  const ps = d.perguntas.filter((p) => !/^evento/i.test(p.driver) && p.quadrante);
+  const rDe = (p: Pergunta) => p.r ?? 0;
+  const escolher = (q: QuadrantePergunta, ordem: (a: Pergunta, b: Pergunta) => number, max: number) => {
+    const vistos = new Set<string>();
+    return ps.filter((p) => p.quadrante === q).sort(ordem)
+      .filter((p) => (vistos.has(p.driver) ? false : (vistos.add(p.driver), true)))
+      .slice(0, max);
+  };
+  // Área sem r próprio tem `p.r` nulo em tudo: aí o desempate pela nota é
+  // quem ordena (maior nota para proteger, menor para tratar).
+  return {
+    proteger: escolher('sustentar', (a, b) => rDe(b) - rDe(a) || (b.fav ?? 0) - (a.fav ?? 0), 2),
+    tratar: escolher('prioridade', (a, b) => rDe(b) - rDe(a) || (a.fav ?? 0) - (b.fav ?? 0), 3),
+    aprofundar: escolher('observar', (a, b) => (a.fav ?? 0) - (b.fav ?? 0), 2),
+  };
 }
 
 const encurtar = (s: string, max: number) =>
@@ -595,7 +652,7 @@ export function tokensDoDeck(d: DadosApresentacao): Record<string, string> {
     t[`A${k}_TOP`] = a ? curtoDriver(a.p.driver) : '[ÂNCORA]';
     t[`A${k}_EV`] = a ? evidencia(a.p, 70) : '[Evidência]';
   }
-  t.S8_SINTESE = `[Sugestão automática — revise antes da sessão. Fricções: maiores quedas vs ${antCurto} ou distâncias abaixo de ${d.bench}. TRATAR quando a pergunta é ligada ao eNPS da área (r ≥ 0,35); APROFUNDAR quando não é.]`;
+  t.S8_SINTESE = `[Sugestão automática — revise antes da sessão. Fricções: maiores quedas vs ${antCurto} ou distâncias abaixo de ${d.bench}. TRATAR quando a pergunta está entre as mais ligadas ao eNPS (mesmo corte do gráfico de prioridade); APROFUNDAR quando não está.]`;
   sug.friccoes.forEach((f, k) => {
     t[`F${k}_TOP`] = f ? curtoDriver(f.p.driver) : '[TÓPICO]';
     // Uma linha só: abaixo dela, no slide 8, vem o rótulo "Leitura do HRBP".
@@ -610,6 +667,27 @@ export function tokensDoDeck(d: DadosApresentacao): Record<string, string> {
     t[`P_R${r}_C3`] = fmtNum(pop.n);
     t[`P_R${r}_C4`] = `${qualificacao} · eNPS ${fmtNum(pop.enps)} vs ${fmtNum(pop.enpsBench)}`;
   });
+
+  // ---- slide 11: três fatos, sem interpretação
+  t.S11_C0 = `eNPS ${fmtNum(a.enps)} (${fmtDelta(sub(a.enps, ant?.enps))} vs ${antCurto}; ${fmtDelta(sub(a.enps, b.enps))} vs ${d.bench}) e risco de retenção ${fmtPct(a.risco, 1)} (${fmtDelta(sub(a.risco, ant?.risco), 1, ' pp')} vs ${antCurto}).`;
+  const popTopo = sug.populacoes[0];
+  t.S11_C1 = popTopo && popTopo.pop.risco! > popTopo.pop.riscoBench!
+    ? `Risco mais alto em ${rotuloSegmento(popTopo.pop.segmento)} (n = ${fmtNum(popTopo.pop.n)}): ${fmtPct(popTopo.pop.risco, 1)} vs ${fmtPct(popTopo.pop.riscoBench, 1)} no mesmo grupo em ${d.bench}.`
+    : `Nenhuma população com 5+ pessoas tem risco acima do mesmo grupo em ${d.bench}.`;
+  const movs = d.drivers.map((x) => ({ x, v: sub(x.fav, x.favAnt) })).filter((m): m is { x: Driver; v: number } => m.v != null).sort((p, q) => p.v - q.v);
+  const vsB = d.drivers.map((x) => ({ x, v: sub(x.fav, x.favBench) })).filter((m): m is { x: Driver; v: number } => m.v != null).sort((p, q) => q.v - p.v);
+  const partes: string[] = [];
+  if (movs[0] && movs[0].v < 0) partes.push(`Maior queda: ${curtoDriver(movs[0].x.nome)} (${fmtDelta(movs[0].v, 1, ' pp')} vs ${antCurto}).`);
+  if (vsB[0] && vsB[0].v > 0) partes.push(`Mais acima de ${d.bench}: ${curtoDriver(vsB[0].x.nome)} (${fmtDelta(vsB[0].v, 1, ' pp')}).`);
+  t.S11_C2 = partes.length ? partes.join(' ') : `Nenhum driver caiu vs ${antCurto} nem está acima de ${d.bench}.`;
+
+  // ---- slide 12: sugestão a partir do gráfico de bolinhas
+  const pri = prioridades(d);
+  const topico = (p: Pergunta | undefined) => (p ? `${curtoDriver(p.driver)}: ${encurtar(p.pergunta, 48)}` : '[Tópico]');
+  [0, 1].forEach((k) => { t[`S12_PROT${k}`] = topico(pri.proteger[k]); });
+  [0, 1, 2].forEach((k) => { t[`S12_TRAT${k}`] = topico(pri.tratar[k]); });
+  [0, 1].forEach((k) => { t[`S12_APROF${k}`] = topico(pri.aprofundar[k]); });
+  t.S12_NOTA = `[Sugestão do gráfico de prioridade${d.associacaoDaEmpresa ? ` (associação de ${d.bench}: área com menos de 30 respostas)` : ''} — ajuste na discussão]`;
 
   d.historico.slice(-CAPACIDADE.ondas).forEach((h, r) => {
     t[`H_R${r}_C0`] = h.curto;
