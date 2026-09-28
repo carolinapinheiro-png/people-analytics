@@ -168,8 +168,14 @@ const VERSAO_DETALHE = 5;
  *    entrava com a marca de quem quer que estivesse sendo lido no momento,
  *    não a dele. Mesma resposta de novo. Sobe a versão para corrigir
  *    retroativamente quem já foi gravado com a marca errada.
+ * 5: passa a gravar `cost_center`. O centro de custo dos ativos vem da
+ *    LISTAGEM, que não inclui desligados -- por isso todo desligado ficava
+ *    sem CC, e o report de FTE por departamento saía com 149 buracos. O
+ *    detalhe (`EMPLOYEE_DETAIL`), que já é chamado aqui para cargo, salário e
+ *    level, devolve `cost_center` também para quem saiu. Sobe a versão para
+ *    reenfileirar os já lidos.
  */
-const VERSAO_DESLIGADO = 4;
+const VERSAO_DESLIGADO = 5;
 
 /**
  * O Convenia devolve salário ora como número, ora como string no formato
@@ -1161,6 +1167,10 @@ export async function executarSyncConvenia(
                   genero: generoSaida,
                   raca: racaSaida,
                   vinculo: vinculoSaida,
+                  // `textoDe` pelo mesmo motivo do cadastro ativo: o detalhe
+                  // devolve `{id, name}`, e um teste de tipo achataria para
+                  // null calado. O nome já traz o código -- "PAM (12413001)".
+                  cost_center: textoDe((det as { cost_center?: unknown }).cost_center),
                   detalhe_versao: VERSAO_DESLIGADO,
                   // Marca esta linha como tocada agora -- é o que permite o
                   // selo de frescor da aba de Desligamentos distinguir "sync
