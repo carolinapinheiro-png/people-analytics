@@ -53,7 +53,7 @@ const CABECALHO_H = 11;
 const RODAPE_H = 7;
 
 function rotulo(v: string | null | undefined): string {
-  return valorFiltro(v) ?? 'Todos';
+  return valorFiltro(v) ?? tx('Todos');
 }
 
 function slug(v: string): string {
@@ -72,8 +72,8 @@ function dataArquivo(d: Date): string {
 
 function tituloCurto(opts: ExportOpts): string {
   const area = rotulo(opts.departamento);
-  return area === 'Todos'
-    ? 'Relatório de Engajamento — Flutter Brazil'
+  return area === tx('Todos')
+    ? tx('Relatório de Engajamento — Flutter Brazil')
     : tx('Relatório de Engajamento — {0}', [area]);
 }
 
@@ -105,7 +105,7 @@ function desenharCapa(pdf: jsPDF, opts: ExportOpts, logo: string | null) {
 
   pdf.setTextColor(20, 20, 20);
   pdf.setFontSize(24);
-  pdf.text('Relatório de Engajamento', MARGEM, y);
+  pdf.text(tx('Relatório de Engajamento'), MARGEM, y);
   y += 10;
 
   const sub = [opts.ondaLabel, opts.janela].filter(Boolean).join(' · ');
@@ -124,14 +124,14 @@ function desenharCapa(pdf: jsPDF, opts: ExportOpts, logo: string | null) {
 
   pdf.setTextColor(20, 20, 20);
   pdf.setFontSize(13);
-  pdf.text('Filtros aplicados', MARGEM, y);
+  pdf.text(tx('Filtros aplicados'), MARGEM, y);
   y += 8;
 
   const linhas: Array<[string, string]> = [
-    ['Área', rotulo(opts.departamento)],
-    ['Tempo de casa', rotulo(opts.tempoCasa)],
-    ['Modelo de trabalho', rotulo(opts.modeloTrabalho)],
-    ['Marca de produto', rotulo(opts.marcaProduto)],
+    [tx('Área'), rotulo(opts.departamento)],
+    [tx('Tempo de casa'), rotulo(opts.tempoCasa)],
+    [tx('Modelo de trabalho'), rotulo(opts.modeloTrabalho)],
+    [tx('Marca de produto'), rotulo(opts.marcaProduto)],
   ];
   pdf.setFontSize(11);
   for (const [k, v] of linhas) {
@@ -154,7 +154,7 @@ function desenharCapa(pdf: jsPDF, opts: ExportOpts, logo: string | null) {
   pdf.setFontSize(8);
   pdf.setTextColor(150, 150, 150);
   pdf.text(
-    'Gerado automaticamente pelo People Analytics — Flutter Brazil',
+    tx('Gerado automaticamente pelo People Analytics — Flutter Brazil'),
     MARGEM,
     A4.h - MARGEM,
   );
@@ -254,7 +254,7 @@ export async function exportEngagementPdf(
   const cortes = pontosDeCorte(canvas.height, fatiaMaxPx, blocos)
     .filter((v, i, arr) => i === 0 || v > arr[i - 1]); // descarta fatias de altura zero
 
-  const dataGeracao = new Date().toLocaleString('pt-BR');
+  const dataGeracao = new Date().toLocaleString(numLocale());
   const totalPaginas = cortes.length - 1;
 
   for (let i = 0; i < totalPaginas; i++) {
