@@ -2,6 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router';
 import { useState } from 'react';
 import { ShieldCheck, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { tx } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 
@@ -65,7 +66,7 @@ export const Route = createFileRoute('/.lovable/oauth/consent')({
     <main className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Não foi possível carregar esta solicitação</CardTitle>
+          <CardTitle>{tx('Não foi possível carregar esta solicitação')}</CardTitle>
           <CardDescription>
             {String((error as Error)?.message ?? error)}
           </CardDescription>
@@ -81,7 +82,7 @@ function Consent() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const clientName = details?.client?.name ?? 'um aplicativo';
+  const clientName = details?.client?.name ?? tx('um aplicativo');
 
   // Event-handler errors are not caught by errorComponent — surface them in state.
   async function decide(approve: boolean) {
@@ -98,7 +99,7 @@ function Consent() {
     const target = data?.redirect_url ?? data?.redirect_to;
     if (!target) {
       setBusy(false);
-      setError('O servidor de autorização não retornou um redirecionamento.');
+      setError(tx('O servidor de autorização não retornou um redirecionamento.'));
       return;
     }
     window.location.href = target;
@@ -121,11 +122,10 @@ function Consent() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5" />
-              Conectar {clientName}
+              {tx('Conectar {0}', [clientName])}
             </CardTitle>
             <CardDescription>
-              Isso permite que <strong>{clientName}</strong> acesse o People Analytics como você,
-              respeitando seu perfil de acesso e seus departamentos.
+              {tx('Isso permite que {0} acesse o People Analytics como você, respeitando seu perfil de acesso e seus departamentos.', [clientName])}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -140,7 +140,7 @@ function Consent() {
             )}
             <div className="flex gap-3">
               <Button className="flex-1" disabled={busy} onClick={() => decide(true)}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Aprovar'}
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : tx('Aprovar')}
               </Button>
               <Button
                 className="flex-1"
@@ -148,11 +148,11 @@ function Consent() {
                 disabled={busy}
                 onClick={() => decide(false)}
               >
-                Negar
+                {tx('Negar')}
               </Button>
             </div>
             <p className="mt-4 text-center text-xs text-muted-foreground">
-              Você pode revogar este acesso a qualquer momento com um administrador.
+              {tx('Você pode revogar este acesso a qualquer momento com um administrador.')}
             </p>
           </CardContent>
         </Card>

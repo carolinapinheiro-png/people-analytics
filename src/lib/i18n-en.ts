@@ -1931,4 +1931,11 @@ export const EN: Record<string, string> = {
   "WIL/GPA — planilha do mês": "WIL/GPA — monthly spreadsheet",
   "x o dos não-líderes.": "x that of non-leaders.",
   "Δ — variação": "Δ — change",
+  "Não foi possível carregar esta solicitação": "Could not load this request",
+  "um aplicativo": "an app",
+  "O servidor de autorização não retornou um redirecionamento.": "The authorization server did not return a redirect.",
+  "Conectar {0}": "Connect {0}",
+  "Isso permite que {0} acesse o People Analytics como você, respeitando seu perfil de acesso e seus departamentos.": "This lets {0} access People Analytics as you, respecting your access profile and departments.",
+  "Negar": "Deny",
+  "Você pode revogar este acesso a qualquer momento com um administrador.": "You can revoke this access at any time with an administrator.",
 };
