@@ -37,6 +37,17 @@ export interface PessoaDoMes {
   hiring_date: string | null;
   empresa: string | null;
   escritorio: string | null;
+  /**
+   * O time, campo NATIVO do cadastro (`team`). Não é campo personalizado:
+   * procurar "Time" em `custom_fields` devolvia vazio para 641 de 641.
+   */
+  time: string | null;
+  /**
+   * O vínculo, campo NATIVO do cadastro (`relationship`): "CLT", "Pessoa
+   * Jurídica", "Aprendiz"... Também não é campo personalizado -- a procura por
+   * "Tipo de contrato" em `custom_fields` voltava vazia para todo mundo.
+   */
+  vinculo: string | null;
   /** Nome do gestor, já resolvido pelo supervisor_id. */
   gestor: string | null;
   /** Campos personalizados, como vieram: [{nome, valor}]. */
@@ -115,13 +126,36 @@ export function admitidoAte(hiring_date: string | null, fimISO: string): boolean
   return m[1] <= fimISO;
 }
 
+/**
+ * `Type of contract`: o vínculo do Convenia, com UMA tradução -- "Pessoa
+ * Jurídica" vira "PJ", que é como a planilha escreve desde sempre. O resto
+ * ("CLT", "Aprendiz", "Diretor Estatutário"...) passa como veio. Medido contra
+ * ago./2026: os seis valores da planilha são exatamente esses.
+ */
+export function tipoDeContrato(vinculo: string | null): string {
+  const v = (vinculo ?? '').trim();
+  return semAcento(v) === 'pessoa juridica' ? 'PJ' : v;
+}
+
+/**
+ * `Type of contract Flutter`: só existe CLT e PJ para o grupo. Na planilha a
+ * coluna era uma fórmula, e para os outros vínculos ela dava FALSE (14 linhas
+ * em ago./2026: estatutários, aprendizes, intermitentes, associados). Sai
+ * FALSE igual, para o pivô do mês novo cortar como cortava o anterior.
+ */
+export function tipoDeContratoFlutter(vinculo: string | null): string {
+  if (!vinculo || !vinculo.trim()) return '';
+  const t = tipoDeContrato(vinculo);
+  return t === 'CLT' || t === 'PJ' ? t : 'FALSE';
+}
+
 export function montarLinhas(pessoas: readonly PessoaDoMes[], rotulo: string): string[][] {
   return pessoas.map((p) => [
     rotulo,
     p.nome ?? '',
     p.status ?? '',
     campo(p, 'Job Type Family'),
-    campo(p, 'Time'),
+    p.time ?? '',
     p.department ?? '',
     p.gestor ?? '',
     campo(p, 'WorkDay Level'),
@@ -129,8 +163,8 @@ export function montarLinhas(pessoas: readonly PessoaDoMes[], rotulo: string): s
     p.cost_center ?? '',
     campo(p, 'Role'),
     dataBR(p.hiring_date),
-    campo(p, 'Tipo de contrato'),
-    campo(p, 'Type of contract Flutter'),
+    tipoDeContrato(p.vinculo),
+    tipoDeContratoFlutter(p.vinculo),
     // Vazio quando o cadastro ainda não tem. Ver o cabeçalho: inventar aqui
     // põe a pessoa inteira na empresa errada num report cortado por empresa.
     p.empresa ?? '',

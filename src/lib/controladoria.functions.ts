@@ -66,7 +66,7 @@ export const baseControladoria = createServerFn({ method: 'POST' })
     const { data: org } = await db.from('org_pessoas')
       .select('convenia_id, nome, department, supervisor_id');
     const { data: cad } = await db.from('convenia_pessoas')
-      .select('convenia_id, empresa, escritorio, cost_center, hiring_date, status, custom_fields, job_title_em');
+      .select('convenia_id, empresa, escritorio, cost_center, hiring_date, status, custom_fields, job_title_em, team, relationship');
     const { data: saidas } = await db.from('convenia_leavers')
       .select('convenia_id, hiring_month, dismissal_month');
 
@@ -75,6 +75,7 @@ export const baseControladoria = createServerFn({ method: 'POST' })
       convenia_id: string; empresa: string | null; escritorio: string | null;
       cost_center: string | null; hiring_date: string | null; status: string | null;
       custom_fields: unknown; job_title_em: string | null;
+      team: string | null; relationship: string | null;
     };
     const pessoas = (org ?? []) as Org[];
     const porId = new Map(((cad ?? []) as Cad[]).map((c) => [c.convenia_id, c]));
@@ -101,6 +102,8 @@ export const baseControladoria = createServerFn({ method: 'POST' })
           hiring_date: c?.hiring_date ?? null,
           empresa: c?.empresa ?? null,
           escritorio: c?.escritorio ?? null,
+          time: c?.team ?? null,
+          vinculo: c?.relationship ?? null,
           gestor: p.supervisor_id ? (nomePorId.get(p.supervisor_id) ?? null) : null,
           personalizados: lerCustomFields(c?.custom_fields),
         };

@@ -1,20 +1,50 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { montarLinhas, COLUNAS, dataBR, rotuloDoMes, semEmpresa, fimDoMes, admitidoAte, type PessoaDoMes } from './controladoria';
+import { montarLinhas, COLUNAS, dataBR, rotuloDoMes, semEmpresa, fimDoMes, admitidoAte, tipoDeContrato, tipoDeContratoFlutter, type PessoaDoMes } from './controladoria';
 
 const base: PessoaDoMes = {
   nome: 'Fulana de Tal', status: 'ativo', department: 'TECHNOLOGY',
   cost_center: 'AI TECH (12473001)', hiring_date: '2025-07-01',
   empresa: 'NSX Brasil Recife', escritorio: 'Recife - Boa Viagem',
+  time: 'Data Platform', vinculo: 'CLT',
   gestor: 'Beltrano', personalizados: [
     { nome: 'Job Type Family', valor: 'Product & Technology' },
     { nome: 'WorkDay Level', valor: 'N-5' },
     { nome: 'Career Band', valor: 'D - Manager + Specialist roles' },
     { nome: 'Role', valor: 'TECHNICAL ROLE' },
     { nome: 'Modelo de Jornada de Trabalho', valor: 'Presencial' },
-    { nome: 'Type of contract Flutter', valor: 'CLT' },
   ],
 };
+
+test('Time e Type of contract vêm dos campos NATIVOS, não de custom_fields', () => {
+  // Em set./2026 essas três colunas saíram vazias para 641 de 641: o código
+  // procurava "Time" e "Tipo de contrato" em custom_fields, onde eles nunca
+  // existiram. Estão em `team` e `relationship`.
+  const [l] = montarLinhas([base], 'set./2026');
+  assert.equal(l[4], 'Data Platform', 'Time');
+  assert.equal(l[12], 'CLT', 'Type of contract');
+  assert.equal(l[13], 'CLT', 'Type of contract Flutter');
+});
+
+test('Pessoa Jurídica vira PJ, nas duas colunas de contrato', () => {
+  const [l] = montarLinhas([{ ...base, vinculo: 'Pessoa Jurídica' }], 'set./2026');
+  assert.equal(l[12], 'PJ');
+  assert.equal(l[13], 'PJ');
+});
+
+test('vínculo fora de CLT/PJ: passa como veio, e o Flutter sai FALSE como na planilha', () => {
+  for (const v of ['Diretor Estatutário', 'Aprendiz', 'Contrato Intermitente', 'Associado', 'Sócio']) {
+    assert.equal(tipoDeContrato(v), v);
+    assert.equal(tipoDeContratoFlutter(v), 'FALSE', v);
+  }
+});
+
+test('sem vínculo, as duas colunas ficam vazias -- não FALSE', () => {
+  // FALSE afirma "não é CLT nem PJ". Sem dado, não dá para afirmar isso.
+  assert.equal(tipoDeContrato(null), '');
+  assert.equal(tipoDeContratoFlutter(null), '');
+  assert.equal(tipoDeContratoFlutter('  '), '');
+});
 
 test('as 17 colunas saem na ordem da planilha', () => {
   assert.equal(COLUNAS.length, 17);
